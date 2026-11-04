@@ -17,7 +17,7 @@ import { HudState } from './hud.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
 import { PageMemory } from './page-memory.ts';
-import { Placer, followDiagram, ownedByDiagram, pageGrid, placeAction, reserveMarks } from './placement.ts';
+import { Placer, followDiagram, ownedByDiagram, pageGrid, placeAction, reserveMarks, splitByDiagrams } from './placement.ts';
 import { snapToControl } from '../shared/controls.ts';
 import type { ControlBox } from '../shared/controls.ts';
 import { snapActions } from './snap.ts';
@@ -260,15 +260,19 @@ function draw(frame: Frame): void {
   placeExplode(frame);
   board.beginFrame({ width: view.width, height: view.height, model: modelRect, dragging, now: labelClock() });
   board.keep(new Set(frame.marks.filter((m) => m.mark.op === 'pin').map((m) => m.key)));
-  drawMarks(marksCtx, frame.marks, view, {
+  const annotator = {
     view,
     ...(stageSize ? { stage: stageSize } : {}),
-    place: (key, request) => board.place(key, request, labelEnvironment),
-    project: (key, point, anchor) => panelScene.project(key, point, view.width, view.height, anchor),
+    place: (key: number, request: Parameters<typeof board.place>[1]) => board.place(key, request, labelEnvironment),
+    project: (key: number, point: Parameters<typeof panelScene.project>[1], anchor?: Parameters<typeof panelScene.project>[4]) => panelScene.project(key, point, view.width, view.height, anchor),
     ...(cropSource() ? { source: cropSource()! } : {}),
-  }, { reduceMotion: reduceMotion.matches });
+  };
+  // A mark that lies on a flat diagram (a ring on a chart's crossing, an arrow at a bar) is drawn above the diagram's opaque card, or it would be hidden by it.
+  const { under, over } = splitByDiagrams(frame.marks, frame.diagrams, view.width / view.height);
+  drawMarks(marksCtx, under, view, annotator, { reduceMotion: reduceMotion.matches });
   // The flat diagrams go over the marks' canvas in free space; a piece moved by a later arrival glides, which wants frames until it is there.
   diagramsMoving = frame.diagrams.length > 0 && diagramPainter.draw(marksCtx, frame.diagrams, view, labelClock());
+  if (over.length > 0) drawMarks(marksCtx, over, view, annotator, { reduceMotion: reduceMotion.matches, append: true });
   drawPen(marksCtx, pen.view(labelClock()), view);
   if (pointerX >= 0) hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY))); // a button can fade under a resting pointer
   hold.model(modelRect);

@@ -6,7 +6,7 @@ import { bezierPoints, chartLayout, chartRanges, flowLayers, flowLayout, niceTic
 import type { Px } from '../src/overlay/diagram-layout.ts';
 import { DiagramPainter } from '../src/overlay/diagram-draw.ts';
 import { fadeFrame } from '../src/overlay/fade.ts';
-import { Placer, followDiagram, insideAny, ownedByDiagram, pageGrid, placeAction } from '../src/overlay/placement.ts';
+import { Placer, followDiagram, insideAny, ownedByDiagram, pageGrid, placeAction, splitByDiagrams } from '../src/overlay/placement.ts';
 import { emptyFrame, evaluate, planStep, settle } from '../src/overlay/timeline.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
 
@@ -419,4 +419,55 @@ test('a loop back and its label stay inside the flow area, in a column that runs
   // Nothing swings out when there is no loop back: the nodes keep all the room.
   const plain = flowLayout(['a', 'b'], [{ id: '1', from: 'a', to: 'b', labelW: 40 }], { x: 0, y: 0, w: 200, h: 300 }, { ...opts, labelW: 40, labelH: 24 });
   assert.ok(plain.nodes.get('a')!.x + plain.nodes.get('a')!.w > 200 * 0.8);
+});
+
+// ---- The frame check's four regressions -------------------------------------------------------------
+
+test('a stacked flow keeps every note: boxes in a tall narrow card are taller, and in a very short one the text and the notes both go small, never dropped', () => {
+  const notes = ['oxygen-poor blood', 'pick up oxygen', 'oxygen-rich blood'];
+  const ids = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7'];
+  const nodes = ids.map((id, i) => node(id, { text: `Part ${i + 1}`, note: i % 2 === 0 ? notes[i % 3] : undefined }));
+  const chain = ids.slice(1).map((id, i) => edge(`e${i}`, ids[i]!, id));
+  for (const h of [610, 380, 260]) {
+    const frame = settle(planStep(emptyFrame(), step(flow({ x: 700, y: 100, w: 170, h }), ...nodes, ...chain)));
+    const { ctx, texts } = fakeCtx();
+    new DiagramPainter().draw(ctx, frame.diagrams, view, 0);
+    for (const want of nodes.map((n) => (n as { note?: string }).note).filter(Boolean) as string[]) assert.ok(texts.join(' ').includes(want), `note "${want}" (it may wrap) with a card ${h} units tall: ${texts.join('|')}`);
+  }
+  // With notes the column's boxes take more of their cell than without.
+  const links = ids.slice(1).map((id, i) => ({ id: `e${i}`, from: ids[i]!, to: id }));
+  const area: Px = { x: 0, y: 0, w: 320, h: 490 };
+  const plain = flowLayout(ids, links, area, { maxBox: { w: 300, h: 80 }, pad: 12 });
+  const noted = flowLayout(ids, links, area, { maxBox: { w: 300, h: 80 }, pad: 12, notes: true });
+  assert.equal(plain.dir, 'down');
+  assert.ok(noted.nodes.get('n1')!.h > plain.nodes.get('n1')!.h * 1.2, `${noted.nodes.get('n1')!.h} vs ${plain.nodes.get('n1')!.h}`);
+});
+
+test('marks lying on a showing flat diagram are split off to be drawn over its card; marks elsewhere, and any mark under a diagram not yet showing, stay under', () => {
+  const ring = { mark: { op: 'circle', id: 'r', x: 540, y: 540, w: 60, h: 60 } } as { mark: Action };
+  const away = { mark: { op: 'box', id: 'b', x: 50, y: 50, w: 100, h: 100 } } as { mark: Action };
+  const showing = { def: { x: 500, y: 500, w: 300, h: 300 }, appear: 1 };
+  const split = splitByDiagrams([ring, away], [showing], 16 / 9);
+  assert.deepEqual(split.over, [ring]);
+  assert.deepEqual(split.under, [away]);
+  const notYet = splitByDiagrams([ring, away], [{ ...showing, appear: 0 }], 16 / 9);
+  assert.deepEqual(notYet.over, []);
+  assert.equal(notYet.under.length, 2);
+  assert.deepEqual(splitByDiagrams([ring], [], 16 / 9).under, [ring]);
+});
+
+test('a chart that is moved keeps a sensible shape: never squeezed into a strip, so it takes a smaller size or stays rather than a narrow margin', () => {
+  const COLS = 192, ROWS = 108;
+  const gray = new Uint8Array(COLS * ROWS);
+  // Text over the left 82% of the page: the only blank part is a strip on the right that is too narrow for a chart of its asked shape.
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) gray[r * COLS + c] = c > 4 && c < COLS * 0.82 && r > 8 && r % 4 < 2 && (c * 7 + r * 13) % 11 !== 0 ? 40 : 238;
+  const aspect = 16 / 9;
+  const placer = new Placer(pageGrid(gray, COLS, ROWS), { aspect });
+  const want = { op: 'diagram', id: 'c', kind: 'chart', x: 100, y: 200, w: 340, h: 380 } as Action;
+  const placed = placeAction(placer, want, 1080) as typeof want & { x: number; y: number; w: number; h: number };
+  assert.ok((placed.w / placed.h) * aspect >= 1.1 - 1e-6, `width to height on the screen is ${((placed.w / placed.h) * aspect).toFixed(2)}: ${JSON.stringify(placed)}`);
+  assert.ok(placed.w * placed.h >= 340 * 380 * 0.4, 'and it is not shrunk to nothing');
+  // A list of steps may still be a strip.
+  const strip = placeAction(new Placer(pageGrid(gray, COLS, ROWS), { aspect }), { op: 'diagram', id: 's', kind: 'steps', x: 100, y: 200, w: 340, h: 380 } as Action, 1080) as typeof want & { w: number; h: number };
+  assert.ok((strip.w / strip.h) * aspect < 1, `a steps list is allowed to be narrow: ${JSON.stringify(strip)}`);
 });

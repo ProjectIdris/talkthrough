@@ -78,6 +78,9 @@ const BLANK = 0.01;
  * the page looks nearly blank there. A card or diagram that was not asked for up there keeps out of it unless the rest of the
  * page is a good deal worse: this much is added to its cost, in proportion to how much of it lies in the band.
  */
+/** What a place that overlaps something the answer points at costs, however little of it. */
+const POINTED_HIT = 1.5;
+
 const TOP_BAND = 200;
 const TOP_COST = 6;
 
@@ -136,13 +139,15 @@ export class Placer {
     const padded = { x: box.x - 6, y: box.y - 10, w: box.w + 12, h: box.h + 20 };
     let c = this.edge.mean(box) * 6 + this.ink.mean(padded) * 30;
     for (const r of keepOut) c += (overlap(box, r) / area) * 5;
+    // Touching what the answer points at, even by a corner, costs a good deal whatever the share: a sliver over the figure it boxed is still covering it.
+    for (const r of this.reserved) if (overlap(box, r) > 0) c += POINTED_HIT;
     const dx = (box.x + box.w / 2 - (from.x + from.w / 2)) * this.aspect, dy = box.y + box.h / 2 - (from.y + from.h / 2);
     c += (Math.hypot(dx, dy) / 1000) * 1.0;
     c += (1 - scale) * 1.2 + extra;
     return c;
   }
 
-  private search(want: Box, scales: readonly number[], keepOut: readonly Box[], shapes: readonly number[] = [1], minW = 0, avoidTop = false): Box {
+  private search(want: Box, scales: readonly number[], keepOut: readonly Box[], shapes: readonly number[] = [1], minW = 0, avoidTop = false, minRatio = 0): Box {
     const inside = (b: Box): Box => ({
       x: clamp(b.x, this.margin, 1000 - this.margin - b.w), y: clamp(b.y, this.margin, 1000 - this.margin - b.h), w: b.w, h: b.h,
     });
@@ -160,6 +165,8 @@ export class Placer {
       for (const shape of shapes) {
         const w = want.w * scale * shape, h = want.h * scale / shape;
         if (shape !== 1 && (w < minW || h > 1000 - 2 * this.margin)) continue;
+        // A shape may not be squeezed below the width to height (on the screen's own pixels) the picture needs, unless it was asked for narrower.
+        if (shape !== 1 && (w / h) * this.aspect < Math.min(minRatio, (want.w / want.h) * this.aspect) - 1e-9) continue;
         const extra = Math.abs(Math.log(shape)) * 0.5;
         for (let y = this.margin; y + h <= 1000 - this.margin + 0.01; y += step) {
           for (let x = this.margin; x + w <= 1000 - this.margin + 0.01; x += step) {
@@ -182,7 +189,8 @@ export class Placer {
 
   /** Where the stage goes: the nearest rectangle of its shape (or a little smaller) that is off the page's text and what is pointed at. */
   panel(want: Box): Box {
-    const placed = this.search(want, [1, 0.88, 0.76], this.reserved);
+    // What the answer points at is what the stage explains or sits beside: covering it counts for three times what covering the page's text does.
+    const placed = this.search(want, [1, 0.88, 0.76, 0.64, 0.52], [...this.reserved, ...this.reserved, ...this.reserved]);
     this.stage = placed;
     return placed;
   }
@@ -196,11 +204,12 @@ export class Placer {
   }
 
   /** Where a flat diagram goes: like a card, but it may also be a little smaller, down to three quarters (its drawing scales to its rectangle, and its small print needs the room). */
-  diagram(want: Box, id: string, asked: Box = want): Box {
+  diagram(want: Box, id: string, asked: Box = want, minRatio = 0): Box {
     const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...(this.stage ? [this.stage] : [])];
     // What the answer points at is what the diagram explains: keeping off it counts for three times as much as it does for a card.
     // It may also be taller and narrower (down to 0.6 of the width), to fit a margin or the gap beside a column of text instead of covering the text.
-    const placed = this.search(want, [1, 0.88, 0.76], [...keepOut, ...this.reserved, ...this.reserved], [1, 0.8, 0.65, 0.55], 150, true);
+    // A kind that is spoilt by a strip (a chart) has a least width to height; it gives up size before shape, down to 0.64.
+    const placed = this.search(want, minRatio > 0 ? [1, 0.88, 0.76, 0.64] : [1, 0.88, 0.76], [...keepOut, ...this.reserved, ...this.reserved], [1, 0.8, 0.65, 0.55], 150, true, minRatio);
     this.cards.set(id, placed);
     this.homes.set(id, { from: asked, to: placed });
     return placed;
@@ -271,6 +280,18 @@ export function insideAny(a: Action, rects: readonly Box[], aspect: number): boo
 }
 
 /**
+ * The marks of a frame split by whether they lie on a flat diagram that is showing: those are drawn over the diagram's opaque card (the rest, under it,
+ * as before), so a ring on a chart's crossing or an arrow at a bar is never hidden by the card it belongs to.
+ */
+export function splitByDiagrams<T extends { mark: Action }>(marks: readonly T[], diagrams: readonly { def: { x: number; y: number; w: number; h: number }; appear: number }[], aspect: number): { under: T[]; over: T[] } {
+  const cards = diagrams.filter((d) => d.appear > 0).map((d) => ({ x: d.def.x, y: d.def.y, w: d.def.w, h: d.def.h }));
+  if (cards.length === 0) return { under: [...marks], over: [] };
+  const under: T[] = [], over: T[] = [];
+  for (const m of marks) (insideAny(m.mark, cards, aspect) ? over : under).push(m);
+  return { under, over };
+}
+
+/**
  * Which marks of a whole scene belong to a flat diagram, by step and action: those written after the diagram and inside the
  * rectangle it was asked for. A mark written before it (a ring on the page's own graph, then a chart elsewhere) points at the page and stays
  * there, as it does when the answer is drawn as it arrives, where the earlier mark is already on the page when the diagram comes.
@@ -324,6 +345,9 @@ export function reserveMarks(placer: Placer, actions: readonly Action[], aspect:
 /** The most room (units) a kind of flat diagram uses to good effect; asked for more, it is placed at this size. */
 const DIAGRAM_MAX: Partial<Record<string, { w: number; h: number }>> = { steps: { w: 440, h: 760 }, chart: { w: 520, h: 520 } };
 
+/** The least width to height (on the screen's pixels) a kind may be squeezed to when it is moved: a chart is read across, a strip of one is not a chart. */
+export const DIAGRAM_MIN_RATIO: Partial<Record<string, number>> = { chart: 1.1 };
+
 /** The action with its stage or card moved off the page's text; any other action comes back as it was. */
 export function placeAction(placer: Placer, a: Action, screenHeight: number): Action {
   if (a.op === 'panel') {
@@ -340,7 +364,7 @@ export function placeAction(placer: Placer, a: Action, screenHeight: number): Ac
     // asked for more room than it can use is placed at the size it can (its drawing scales to the rectangle), so it fits a margin.
     const cap = DIAGRAM_MAX[a.kind];
     const want = { x: a.x, y: a.y, w: cap ? Math.min(a.w, cap.w) : a.w, h: cap ? Math.min(a.h, cap.h) : a.h };
-    const box = placer.diagram(want, a.id, { x: a.x, y: a.y, w: a.w, h: a.h });
+    const box = placer.diagram(want, a.id, { x: a.x, y: a.y, w: a.w, h: a.h }, DIAGRAM_MIN_RATIO[a.kind] ?? 0);
     return box.x === a.x && box.y === a.y && box.w === a.w && box.h === a.h ? a : { ...a, ...round(box) };
   }
   if (a.op === 'image') {

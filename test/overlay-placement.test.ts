@@ -113,3 +113,32 @@ test('a card or diagram that was not asked for in the top fifth keeps out of it 
   const asked = placer(menuPage()).diagram({ x: 400, y: 30, w: 420, h: 150 }, 'e');
   assert.ok(asked.y < 200, `asked place kept: ${JSON.stringify(asked)}`);
 });
+
+test('a stage keeps off the figure the answer boxed even when it was written overlapping its edge, and goes smaller before it covers it', () => {
+  const p = placer();
+  // The blank right 45% of the page; the boxed figure stands in it, and the stage was asked to overlap its right edge by 20 units.
+  const figure: Box = { x: 600, y: 150, w: 160, h: 350 };
+  p.reserve(figure);
+  const placed = p.panel({ x: 740, y: 100, w: 256, h: 350 });
+  assert.ok(!overlaps(placed, figure), `clear of the figure: ${JSON.stringify(placed)}`);
+  assert.ok(inside(placed) && placed.w >= 256 * 0.76 - 1);
+});
+
+test('a stage that was written to overlap only a corner of the figure the answer boxed still moves clear of it (a sliver is still covering it)', () => {
+  const p = placer();
+  const figure: Box = { x: 600, y: 150, w: 160, h: 350 };
+  p.reserve(figure);
+  const want: Box = { x: 730, y: 480, w: 230, h: 300 }; // overlaps the figure's bottom right corner by 30 x 20 units
+  assert.ok(overlaps(want, figure), 'the test starts with a corner overlap');
+  const placed = p.panel(want);
+  assert.ok(!overlaps(placed, figure), `clear of the figure: ${JSON.stringify(placed)}`);
+});
+
+test('when no full-size place is clear of the figure the answer boxed, the stage goes smaller (down to about half) rather than cover it', () => {
+  const p = placer();
+  const figure: Box = { x: 600, y: 150, w: 160, h: 500 };
+  p.reserve(figure);
+  const placed = p.panel({ x: 420, y: 200, w: 340, h: 480 });
+  assert.ok(!overlaps(placed, figure), `clear of the figure: ${JSON.stringify(placed)}`);
+  assert.ok(placed.w < 340 * 0.76 && inside(placed), `it had to be smaller than three quarters: ${JSON.stringify(placed)}`);
+});

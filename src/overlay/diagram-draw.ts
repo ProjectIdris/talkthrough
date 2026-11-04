@@ -197,7 +197,7 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
   const maxBox = { w: Math.max(80, env.px * 11), h: Math.max(36, env.px * (nodes.some((n) => n.def.note) ? 4.6 : 3.4)) };
   ctx.font = fontAt(theme.font, env.px * 0.78);
   const labelW = Math.max(0, ...edges.map((e) => (e.def.text ? ctx.measureText(e.def.text).width + 12 : 0)));
-  const lay = flowLayout(nodes.map((n) => n.id), edges.map((e) => ({ id: e.id, from: e.def.from, to: e.def.to, ...(e.def.text ? { labelW: ctx.measureText(e.def.text).width + 12 } : {}) })), area, { maxBox, pad, labelW, labelH: labelW > 0 ? env.px * 1.55 : 0 });
+  const lay = flowLayout(nodes.map((n) => n.id), edges.map((e) => ({ id: e.id, from: e.def.from, to: e.def.to, ...(e.def.text ? { labelW: ctx.measureText(e.def.text).width + 12 } : {}) })), area, { maxBox, pad, labelW, labelH: labelW > 0 ? env.px * 1.55 : 0, notes: nodes.some((n) => n.def.note) });
   const boxes = new Map<string, FlowBox>();
   for (const n of nodes) {
     const t = lay.nodes.get(n.id);
@@ -274,19 +274,30 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
   });
 }
 
-/** Centred text (and an optional smaller note under it) fitted inside a box: the size comes down until it fits. */
+/**
+ * Centred text (and an optional smaller note under it) fitted inside a box: the size comes down until both fit. The note is never left
+ * out for want of room (it is the point of some boxes): in a short box the text and the note both go small, down to 9 px, and last
+ * of all the text is cut to one line, and the note still stands in full (a hair over the box before a word of it is lost).
+ */
 function textInBox(ctx: Ctx, text: string, note: string | undefined, b: Px, basePx: number, ink: string, muted: string): void {
   const innerW = b.w - 14;
-  let px = Math.max(9, Math.min(basePx * 1.05, b.h * 0.36));
-  let lines: string[] = [];
-  for (; px >= 9; px -= 1) {
+  const wrapAt = (font: string, s: string, max: number): string[] => wrapLines((t) => { ctx.font = font; return ctx.measureText(t).width; }, s, innerW, max);
+  const fitAt = (px: number, noteMax: number, textMax = 3): { lines: string[]; noteLines: string[]; notePx: number; ok: boolean } => {
+    const notePx = Math.max(9, px * 0.82);
+    const lines = wrapAt(fontAt(THEME.font, px), text, textMax);
+    const noteLines = note ? wrapAt(fontAt(THEME.font, notePx), note, noteMax) : [];
     ctx.font = fontAt(THEME.font, px);
-    lines = wrapLines((s) => ctx.measureText(s).width, text, innerW, 3);
-    const noteRoom = note && b.h >= 44 ? px * 0.95 : 0;
-    if (lines.every((l) => ctx.measureText(l).width <= innerW) && lines.length * px * 1.2 + noteRoom <= b.h - 8) break;
+    const wide = lines.every((l) => ctx.measureText(l).width <= innerW);
+    return { lines, noteLines, notePx, ok: wide && lines.length * px * 1.2 + noteLines.length * notePx * 1.2 <= b.h - 6 };
+  };
+  let px = Math.max(9, Math.min(basePx * 1.05, b.h * 0.36));
+  let fit = fitAt(px, 2);
+  for (; !fit.ok && px > 9; ) {
+    px = Math.max(9, px - 1);
+    fit = fitAt(px, 2);
   }
-  const notePx = Math.max(9, px * 0.82);
-  const noteLines = note && b.h >= 44 ? wrapLines((s) => { ctx.font = fontAt(THEME.font, notePx); return ctx.measureText(s).width; }, note, innerW, 2) : [];
+  if (!fit.ok && note) fit = fitAt(9, 2, 1);
+  const { lines, noteLines, notePx } = fit;
   const total = lines.length * px * 1.2 + noteLines.length * notePx * 1.2;
   let y = b.y + (b.h - total) / 2 + px * 0.95;
   ctx.textBaseline = 'alphabetic';
