@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createScriptedModel, createStubBackend, ModelError } from '../src/adapters/index.ts';
+import { createScriptedModel, ModelError } from '../src/adapters/index.ts';
 import type { ModelRequest } from '../src/adapters/index.ts';
 
 const request: ModelRequest = {
@@ -31,11 +31,6 @@ test('aborting stops the stream with an aborted ModelError', async () => {
     }
   }, (error: unknown) => error instanceof ModelError && error.code === 'aborted');
   assert.deepEqual(got, [{ type: 'step', step: 1 }]);
-});
-
-test('the stub backend accepts nothing', async () => {
-  const receipt = await createStubBackend().send({ question: 'q', screenshot: request.screenshot, thread: [] });
-  assert.equal(receipt.accepted, false);
 });
 
 test('aborting during the gap stops before the next step is yielded', async () => {

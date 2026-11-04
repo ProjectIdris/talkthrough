@@ -7,6 +7,8 @@ import { createSession } from '../src/main/session.ts';
 import type { SessionDeps } from '../src/main/session.ts';
 import type { SceneMessage } from '../src/shared/ipc.ts';
 import type { ModelRequest } from '../src/adapters/model.ts';
+import { ModelError } from '../src/adapters/model.ts';
+import type { Backend, BackendReply, BackendRequest } from '../src/adapters/backend.ts';
 
 const step = (say: string) => ({ say, actions: [{ op: 'box', id: 'b', x: 100, y: 100, w: 200, h: 100, color: 'red' }] });
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -346,4 +348,95 @@ test('the model is primed when the chord completes (not on Right Ctrl alone), no
   q.session.stop();
   await wait(60);
   assert.deepEqual(events, ['prime', 'unprime']);
+});
+
+/** A backend that answers as the test says and remembers what it was asked. */
+function fakeBackend(reply: () => Promise<BackendReply> | BackendReply) {
+  const asked: BackendRequest[] = [];
+  const backend: Backend = { id: 'fake', ask: async (req) => (asked.push(req), reply()) };
+  return { backend, asked };
+}
+const scene = (...says: string[]) => ({ steps: says.map((s) => step(s)) });
+
+test('clicking the offer sends the question, the thread and the scene on screen to the backend, shows "with the backend" while it waits, and draws what it sends back like any answer', async () => {
+  const b = fakeBackend(async () => {
+    await wait(20);
+    return { scene: { steps: [{ say: 'Deeper.', actions: [{ op: 'box', id: 'deep', x: 5, y: 5, w: 10, h: 10, color: 'blue' }, { op: 'teleport', id: 'x' }] }] } };
+  });
+  const r = rig({ backend: b.backend, model: () => createScriptedModel([step('Partial.')], { escalate: 'needs research' }) });
+  await question(r);
+  r.sent.length = 0;
+  await r.session.offer(7);
+  const kinds = r.kinds();
+  assert.deepEqual(kinds.slice(0, 2), ['status:backend', 'begin'], 'it says it is with the backend first');
+  assert.ok(kinds.includes('step') && kinds.at(-1) === 'end');
+  assert.equal(b.asked.length, 1);
+  const asked = b.asked[0]!;
+  assert.equal(asked.trigger, 'offer');
+  assert.equal(asked.reason, 'needs research');
+  assert.equal(asked.question, 'what is this');
+  assert.equal(asked.thread.length, 1);
+  assert.deepEqual(asked.scene.ids, { b: 'mark' });
+  assert.equal(asked.scene.steps.length, 1);
+  // validated like any model's: the unknown action was dropped, the box kept
+  const stepMsg = r.sent.find((m) => m.kind === 'step');
+  assert.ok(stepMsg?.kind === 'step' && stepMsg.step.actions.length === 1);
+});
+
+test('"ask the backend" by voice goes to the backend instead of the model; with nothing after it the last question goes again', async () => {
+  const b = fakeBackend(() => ({ scene: scene('From the backend.') }));
+  let modelCalls = 0;
+  const base = createScriptedModel([step('Model.')]);
+  const heard = ['what is this', 'ask the backend', 'ask the backend why is it slow'];
+  let i = 0;
+  const r = rig({
+    backend: b.backend,
+    model: () => ({ ...base, ask: (req: ModelRequest) => (modelCalls++, base.ask(req)) }),
+    speech: { id: 'fake', transcribe: async () => ({ text: heard[i++] ?? '' }) },
+  });
+  await question(r);
+  assert.equal(modelCalls, 1);
+  await question(r);
+  assert.equal(modelCalls, 1, 'not the model');
+  assert.equal(b.asked[0]?.question, 'what is this', 'the last question again');
+  assert.equal(b.asked[0]?.trigger, 'spoken');
+  assert.equal(b.asked[0]?.thread.length, 1);
+  await question(r);
+  assert.equal(b.asked[1]?.question, 'why is it slow');
+  assert.equal(b.asked[1]?.thread.length, 2, 'the thread carries on');
+});
+
+test('no backend set up: the offer and the spoken request each say so, and nothing is asked of the model for the spoken one', async () => {
+  let modelCalls = 0;
+  const base = createScriptedModel([step('Model.')]);
+  const r = rig({
+    model: () => ({ ...base, ask: (req: ModelRequest) => (modelCalls++, base.ask(req)) }),
+    speech: { id: 'fake', transcribe: async () => ({ text: 'ask the backend' }) },
+  });
+  await question(r);
+  assert.equal(modelCalls, 0);
+  const notice = r.sent.find((m) => m.kind === 'notice');
+  assert.ok(notice?.kind === 'notice' && notice.level === 'error' && notice.text.includes('No backend'));
+  const q = rig({ model: () => createScriptedModel([step('Partial.')], { escalate: 'needs research' }) });
+  await question(q);
+  q.sent.length = 0;
+  await q.session.offer(7);
+  assert.ok(q.sent.some((m) => m.kind === 'notice' && m.text.includes('No backend')));
+});
+
+test('a backend that fails, or answers with only text, is a clear notice and never a silent screen', async () => {
+  for (const [reply, expect] of [
+    [() => { throw new ModelError('unavailable', 'down'); }, "couldn't reach the backend"],
+    [() => ({ message: 'Still working on it.' }), 'Still working on it.'],
+    [() => ({ scene: { nope: 1 } }), 'garbled'],
+  ] as const) {
+    const b = fakeBackend(reply);
+    const r = rig({ backend: b.backend, model: () => createScriptedModel([step('Partial.')], { escalate: 'needs research' }) });
+    await question(r);
+    r.sent.length = 0;
+    await r.session.offer(7);
+    const n = r.sent.find((m) => m.kind === 'notice');
+    assert.ok(n?.kind === 'notice' && n.text.includes(expect), JSON.stringify(n));
+    assert.equal(r.sent.at(-1)?.kind, 'notice');
+  }
 });

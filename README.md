@@ -75,7 +75,7 @@ Talkthrough starts the tool you already have and gives it no tools of its own: i
 5. **Renderer.** A transparent, click-through overlay draws marks over your screen and 3D models over the page with [three.js](https://threejs.org). A framed 3D panel is optional.
 6. **Voice.** Each step is spoken as it arrives; the default is your system voice.
 
-Models, voices, speech recognition and backends are adapters in `src/adapters/`, so you can plug in your own.
+Models, voices, speech recognition and backends are adapters in `src/adapters/`, so you can plug in your own. A question that is beyond the fast model can go to a **deeper backend** you point the app at (a plain HTTP address; see [docs/backend.md](docs/backend.md)): click the offer, or say "ask the backend".
 
 ## Status
 
@@ -88,6 +88,7 @@ Models, voices, speech recognition and backends are adapters in `src/adapters/`,
 | A speech recogniser that ships with the app | planned (today: a local server you point it at) |
 | Circle something with the mouse while the keys are held: the model sees your stroke and a closer crop | working, tested with a stand-in stroke; the drag itself not yet tried by hand |
 | Model through an OpenAI API key | working, tested against a fake server (not yet run against the live service) |
+| A deeper backend over HTTP, by the offer or by voice, answering in the scene language | working, tested against a fake server; the contract is in docs/backend.md |
 | Saving an answer to come back to, and a guided-task history | planned |
 | Guided mode that waits for your click before the next step | planned |
 | Mac and Linux | planned |
@@ -96,7 +97,7 @@ Windows is the first platform.
 
 ## Privacy
 
-- **What leaves the app:** your screenshot and the text of your question go to the model you chose (see above), and your recording goes to the speech server whose address you set (meant to be on your own machine; none is built in). Nothing else.
+- **What leaves the app:** your screenshot and the text of your question go to the model you chose (see above), and your recording goes to the speech server whose address you set (meant to be on your own machine; none is built in). If you set a backend address, a question you hand to it also goes there with its screenshot, the earlier questions and what is on screen. Nothing else.
 - **What Talkthrough keeps:** the screenshot and your recording live in memory only and are not written to disk in normal use (the development options `--save-capture`, `--save-pen` and `--frames-dir` save images). Your latest questions and answers stay in memory so a follow-up question works; they are gone when you quit. The model tool you choose has its own policies.
 - **Planned:** saving an answer to come back to, and a short history that lasts while a guided task runs. Neither is built yet.
 

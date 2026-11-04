@@ -266,6 +266,11 @@ test('the thinking indicator, the offer and the notice come and go as they shoul
   hud.setStatus('listening');
   hud.stopWorking();
   assert.equal(hud.view(0).status, 'listening', 'a step arriving does not end a listening cue');
+  hud.setStatus('backend');
+  hud.newTurn();
+  assert.equal(hud.view(0).status, 'backend', 'the "with the backend" indicator waits for the first step too');
+  hud.stopWorking();
+  assert.equal(hud.view(0).status, 'idle');
 
   hud.offer('long research');
   assert.equal(hud.view(0).offer, 'long research');

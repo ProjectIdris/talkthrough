@@ -2,7 +2,7 @@
 // listening, that it is working, a short notice, and an offer to ask a deeper helper. This is the
 // state only; overlay.ts shows it. Times are given by the caller.
 
-export type Status = 'listening' | 'working' | 'idle';
+export type Status = 'listening' | 'working' | 'backend' | 'idle';
 export type NoticeLevel = 'info' | 'error';
 
 /** How long a notice stays before it fades, and how long the fade takes. */
@@ -44,7 +44,7 @@ export class HudState {
 
   /** The first step has arrived or the turn is over: the thinking indicator has done its job. */
   stopWorking(): void {
-    if (this.status === 'working') this.status = 'idle';
+    if (this.status === 'working' || this.status === 'backend') this.status = 'idle';
   }
 
   /** A new question begins: the offer, the notice and the listening cue belong to the last one. The thinking indicator stays until the first step. */

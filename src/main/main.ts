@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { uIOhook, UiohookKey } from 'uiohook-napi';
 import { parseArgs } from './args.ts';
+import { createHttpBackend } from '../adapters/backend.ts';
 import { createClaudeModel } from '../adapters/claude-model.ts';
 import { createCodexModel } from '../adapters/codex-model.ts';
 import { createLocalSpeechServerRecogniser } from '../adapters/local-speech-server.ts';
@@ -163,7 +164,9 @@ async function main(): Promise<void> {
   let chordsDone = 0;
   const frames = options.framesDir ? createFrameRecorder(options.framesDir, options.frameEveryMs, overlays, log) : null;
 
+  const backend = settings.backendUrl ? createHttpBackend({ url: settings.backendUrl, ...(settings.backendTimeoutMs ? { timeoutMs: settings.backendTimeoutMs } : {}) }) : undefined;
   session = createSession({
+    ...(backend ? { backend } : {}),
     pointerDisplayId: () => displayUnderPointer().id,
     media: {
       startMic: () => media.startMic(),

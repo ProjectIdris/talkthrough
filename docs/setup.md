@@ -21,6 +21,8 @@ A JSON file, `%APPDATA%\talkthrough\settings.json` (the app logs the exact path 
 | `speechLimitMs` | Sent to the speech server as `limit_ms`: how long its main recogniser may take before a quicker one answers. About 1000 suits a CPU-only server. | server's own |
 | `model` | `"codex"`, `"claude"` or `"openai"` | `"codex"` |
 | `codexModel` | Model name in your Codex catalog | `"gpt-6-luna"` |
+| `backendUrl` | Where the optional deeper backend listens (https, or a loopback address). Without it there is no backend and nothing is sent anywhere else. See [backend.md](backend.md). | none |
+| `backendTimeoutMs` | How long to wait for the backend's answer, 5,000 to 900,000 | `180000` |
 | `codexFast` | Fast mode for the Codex process this app starts (uses more of your usage allowance; your own Codex settings are not touched) | `false` |
 | `claudeModel` | Claude model name | `"claude-haiku-5-5"` |
 | `openaiModel` | Model name for the API-key route | `"gpt-6-luna"` |

@@ -24,6 +24,8 @@
   #status.listening::after { content: "Listening"; }
   #status.working::before { background: #7cc4ff; }
   #status.working::after { content: "Thinking"; }
+  #status.backend::before { background: #b69cff; }
+  #status.backend::after { content: "With the backend"; }
   @keyframes pulse { 0%, 100% { transform: scale(0.8); opacity: 0.65; } 50% { transform: scale(1.15); opacity: 1; } }
   #offer { position: absolute; right: 22px; bottom: 70px; display: none; align-items: center; gap: 14px; max-width: 460px; pointer-events: auto;
     padding: 12px 14px 12px 16px; border-radius: 14px; background: rgba(17, 22, 34, 0.94); color: #eef3fb; font-size: 14px; line-height: 1.35;
