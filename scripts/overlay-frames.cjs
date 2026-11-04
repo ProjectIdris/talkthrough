@@ -4,7 +4,7 @@
 //   npm run build
 //   (run it as `env -u ELECTRON_RUN_AS_NODE` if your shell sets that)
 //   npx electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 \
-//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--gpu yes]
+//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--gpu yes] [--clean yes]
 //
 // --steps is a list of step:seconds pairs (seconds into that step; earlier steps are complete).
 // --dpr sets the display scale; offscreen windows always render at 1, so use --hidden (a hidden, non-offscreen window) for dpr other than 1.
@@ -89,6 +89,8 @@ app.whenReady().then(async () => {
   if (args.tier) query.tier = args.tier;
   await win.loadFile(path.join(root, 'dist', 'overlay', 'index.html'), { query });
   await ready;
+  // --clean yes: the app's own Explode and Cut buttons are left out of the picture (for clips and stills of the scene alone).
+  if (args.clean) await win.webContents.insertCSS('#explode, #cut { display: none !important; }');
   console.log('page devicePixelRatio:', await win.webContents.executeJavaScript('window.devicePixelRatio'));
   console.log('WebGL renderer:', await win.webContents.executeJavaScript(`(() => { const gl = document.createElement('canvas').getContext('webgl'); if (!gl) return 'none'; const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); })()`));
   win.webContents.send(CHANNEL.display, {

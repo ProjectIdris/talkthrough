@@ -116,7 +116,7 @@ function cylinderBlock(b: Builder, def: AddPart, d: Detail): void {
   const bz = cut ? [-(sz / 2 - m)] : [-(sz / 2 - m), sz / 2 - m];
   bolts(b, [-1, 1].flatMap((i) => bz.map((z): Vec3 => [i * (sx / 2 - m), sy / 2, z])), m * 0.42, m * 0.5, 'y', STEEL);
   // The bore wall, a darker honed liner, so the hole reads as a hole.
-  const liner = new CylinderGeometry(bore * 1.004, bore * 1.004, sy * 0.98, d.curve, 1, true, cut ? Math.PI : 0, cut ? Math.PI : Math.PI * 2);
+  const liner = new CylinderGeometry(bore * 1.004, bore * 1.004, sy * 0.98, d.curve, 1, true, cut ? Math.PI / 2 : 0, cut ? Math.PI : Math.PI * 2);
   b.add(liner, 'metal', { color: [78, 84, 96], open: true });
   if (def.variant === 'finned') {
     const n = def.n ?? 6;

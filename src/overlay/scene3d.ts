@@ -116,7 +116,7 @@ export class PanelScene {
     this.light.shadow.mapSize.set(settings.shadowMapSize, settings.shadowMapSize);
     this.light.shadow.bias = -0.0004;
     this.light.shadow.normalBias = 0.03;
-    this.light.shadow.radius = 5;
+    this.light.shadow.radius = settings.shadowMapSize >= 2048 ? 10 : 5; // the shadow map is sampled over a disc: wider on the big map so the edge is soft, not hard
     this.scene.add(this.light, this.light.target);
 
     const floorMat = new ShadowMaterial({ color: 0x0a0e18, opacity: 0.34, transparent: true });
