@@ -406,7 +406,7 @@ export class Placer {
   holding(x: number, y: number, w: number, h: number): Box | undefined {
     let best: Box | undefined;
     for (const r of this.reserved) {
-      if (x < r.x || x > r.x + r.w || y < r.y || y > r.y + r.h || r.w < 1.5 * w || r.h < 1.5 * h) continue;
+      if (x < r.x || x > r.x + r.w || y < r.y || y > r.y + r.h || r.w < 1.15 * w || r.h < 1.15 * h) continue;
       if (!best || r.w * r.h < best.w * best.h) best = r;
     }
     return best;

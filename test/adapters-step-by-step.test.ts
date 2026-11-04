@@ -42,6 +42,7 @@ test('what each call is told: the first asks for step 1 and a plan, the next one
   assert.match(first, /Write only step 1 now/);
   assert.match(first, /Also set "plan" to the titles/);
   assert.match(first, /about 30 words/);
+  assert.match(first, /the first planned step is its enlargement \(an image card, as the rule on naming says\)/);
   const next = questionText({ ...request, stage: { part: 'next', n: 3, shown: [{ say: 'One.', actions: [] }, { say: 'Two.', actions: [] }], plan: ['The third', 'The fourth'] } });
   assert.match(next, /Steps 1 to 2 of this answer are already drawn and spoken: \[\{"say":"One\."/);
   assert.match(next, /Write step 3 only \("The third"\)/);
