@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createClaudeModel, initProblem } from '../src/adapters/claude-model.ts';
 import { codexLockdownArgs, createCodexModel } from '../src/adapters/codex-model.ts';
@@ -84,6 +86,7 @@ test('codex: a request for approval is refused and ends the question', async () 
 test('codex: a missing command is unavailable, and an abort stops the stream', async () => {
   const missing = createCodexModel({ command: 'definitely-not-a-real-command-xyz' });
   assert.equal((await failure(missing)).code, 'unavailable');
+  await missing.close?.();
   process.env.FAKE_MODE = 'ok';
   const model = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex] });
   try {
@@ -135,4 +138,18 @@ test('claude: a tool call from the model is refused', async () => {
     process.env.FAKE_MODE = 'ok';
     await model.close?.();
   }
+});
+
+test('closing a model ends its process and removes its working folder', async () => {
+  const folders = () => readdirSync(tmpdir()).filter((f) => f.startsWith('talkthrough-model-'));
+  const before = folders().length;
+  process.env.FAKE_MODE = 'ok';
+  const codex = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex] });
+  await collect(codex);
+  const claude = createClaudeModel({ command: process.execPath, prefixArgs: [fakeClaude] });
+  await claude.warm?.();
+  assert.equal(folders().length, before + 2);
+  await codex.close?.();
+  await claude.close?.();
+  assert.equal(folders().length, before);
 });

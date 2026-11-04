@@ -1,13 +1,13 @@
 import { spawn } from 'node:child_process';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStepStream } from '../scene/stream.ts';
 import type { StepStream } from '../scene/stream.ts';
 import { ModelError } from './model.ts';
 import type { Model, ModelOutput, ModelRequest } from './model.ts';
-import { AsyncQueue, childEnv, createLineSplitter, questionText, resolveCommand, systemPrompt } from './subscription-shared.ts';
+import { AsyncQueue, childEnv, createLineSplitter, questionText, resolveCommand, stopAndRemove, systemPrompt } from './subscription-shared.ts';
 
 /**
  * A model that runs on the person's own ChatGPT plan by starting their `codex app-server` as a child
@@ -247,20 +247,12 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
 
     async close() {
       const proc = child;
+      const dir = workDir;
       child = null;
       starting = null;
-      if (proc) {
-        proc.stdin.end();
-        proc.kill();
-      }
-      if (workDir) {
-        try {
-          rmSync(workDir, { recursive: true, force: true });
-        } catch {
-          // left for the system's temp cleaner
-        }
-        workDir = null;
-      }
+      workDir = null;
+      proc?.stdin.end();
+      await stopAndRemove(proc, dir);
     },
 
     async *ask(req: ModelRequest): AsyncGenerator<ModelOutput> {

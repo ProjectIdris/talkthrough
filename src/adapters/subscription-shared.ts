@@ -1,7 +1,7 @@
 // Pieces shared by the two models that run on a person's own subscription by starting that
 // vendor's command-line tool as a child process (see codex-model.ts and claude-model.ts).
 
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { sceneGuide } from '../scene/guide.ts';
 import type { ModelRequest } from './model.ts';
@@ -48,6 +48,27 @@ export class AsyncQueue<T> {
         return new Promise((resolve, reject) => this.waiting.push({ resolve, reject }));
       },
     };
+  }
+}
+
+/**
+ * Stops a child process and removes the folder it was started in. On Windows a folder cannot be removed
+ * while a process still has it as its working directory, so this waits (briefly) for the process to end.
+ */
+export async function stopAndRemove(proc: { kill(): boolean; exitCode: number | null; once(event: 'exit', listener: () => void): unknown } | null, dir: string | null): Promise<void> {
+  if (proc && proc.exitCode === null) {
+    const gone = new Promise<void>((resolve) => proc.once('exit', () => resolve()));
+    proc.kill();
+    await Promise.race([gone, new Promise<void>((resolve) => setTimeout(resolve, 2000).unref())]);
+  }
+  if (!dir) return;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch {
+      await new Promise<void>((resolve) => setTimeout(resolve, 200).unref());
+    }
   }
 }
 

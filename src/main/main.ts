@@ -184,15 +184,18 @@ async function main(): Promise<void> {
   };
 
   const quit = () => {
+    if (quitting) return;
+    quitting = true;
     hotkey?.stop();
     frames?.stop();
     session?.dispose();
     overlays.dispose();
     media.dispose();
-    void model.close?.();
     tray.destroy();
-    app.exit(0);
+    // Let the model's process end (and its working folder go) before we leave, but never hang on it.
+    void Promise.race([Promise.resolve(model.close?.()), new Promise((r) => setTimeout(r, 3000))]).finally(() => app.exit(0));
   };
+  let quitting = false;
   const tray = createTray({
     onQuit: quit,
     onClear: () => {
