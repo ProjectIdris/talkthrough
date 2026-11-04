@@ -84,6 +84,12 @@ export type SceneMessage =
    */
   | { kind: 'screenshot'; url: string }
   /**
+   * The real controls (buttons, tabs, menu items, fields) of the window in front, as boxes on the 0..1000 scale of the
+   * display, read from the system's accessibility tree. Sent after the `screenshot` they belong to, and only if the
+   * read finished and found some; the next `screenshot` drops them. Marks near one are put exactly on it.
+   */
+  | { kind: 'controls'; boxes: { x: number; y: number; w: number; h: number; kind: string }[] }
+  /**
    * The pen: while on (the chord is held, on the display under the pointer) the window takes mouse
    * input and the page draws what the user drags as a visible stroke, reporting it with `stroke`.
    * The stroke stays until the first `step` of the answer arrives, then fades; a new `pen on` removes it.

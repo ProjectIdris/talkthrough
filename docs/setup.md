@@ -57,6 +57,7 @@ A JSON file, `%APPDATA%\talkthrough\settings.json` (the app logs the exact path 
 | `micWindowMs` | How long Right Ctrl may be held alone before the early microphone and screen grab are dropped | `1000` |
 | `screenshotEdge` | Longer side of the screenshot sent to the model, in pixels | `1280` |
 | `effort` | Reasoning effort asked of the model | `"low"` |
+| `controlSnap` | On Windows, put marks exactly on the buttons, tabs and menu items of the window in front: the app reads their rectangles (and their kind) from the accessibility tree, read-only, never clicking or reading names or text, and nothing is sent anywhere. `false` turns it off, and marks then snap to the picture alone | `true` |
 | `detailRoute` | Turns on the **detail pass**: `"codex"`, `"claude"` or `"openai"`, the route that writes a much richer version of the scene on screen when you ask for more detail (see below) | none (off) |
 | `detailModel` | Model the detail route uses | `"gpt-6.1-sol"` for `codex` and `openai`, `"claude-sonnet-5-5"` for `claude` |
 | `detailEffort` | Reasoning effort for the detail pass | `"medium"` |

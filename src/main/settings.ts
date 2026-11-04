@@ -33,6 +33,12 @@ export type Settings = {
   /** Reasoning effort asked of the model. */
   effort: string;
   /**
+   * Snap marks to the real controls (buttons, tabs, menu items) of the window in front, read read-only from the
+   * system's accessibility tree on Windows (nothing is clicked, no names are read, nothing leaves the machine). Off:
+   * marks snap to the picture alone.
+   */
+  controlSnap: boolean;
+  /**
    * The detail pass: which route writes a much richer version of the scene on screen when the person asks for more
    * detail (a button beside the model, or "show me in detail"). Unset: there is no detail pass and nothing offers it.
    * It is never started by itself.
@@ -63,6 +69,7 @@ export const DEFAULT_SETTINGS: Settings = {
   micWindowMs: 1000,
   screenshotEdge: 1280,
   effort: 'low',
+  controlSnap: true,
 };
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
@@ -106,6 +113,7 @@ export function loadSettings(path: string, warn: (message: string) => void = () 
   if (typeof raw.micWindowMs === 'number' && raw.micWindowMs >= 200 && raw.micWindowMs <= 5000) settings.micWindowMs = raw.micWindowMs;
   if (typeof raw.screenshotEdge === 'number' && raw.screenshotEdge >= 640 && raw.screenshotEdge <= 2560) settings.screenshotEdge = Math.round(raw.screenshotEdge);
   settings.effort = str(raw.effort) ?? settings.effort;
+  if (typeof raw.controlSnap === 'boolean') settings.controlSnap = raw.controlSnap;
   if (raw.detailRoute === 'codex' || raw.detailRoute === 'claude' || raw.detailRoute === 'openai') settings.detailRoute = raw.detailRoute;
   else if (raw.detailRoute !== undefined) warn('detailRoute must be codex, claude or openai; there is no detail pass');
   const detailModel = str(raw.detailModel);

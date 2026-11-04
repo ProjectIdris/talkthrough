@@ -727,3 +727,62 @@ test('guide mode is only for a session that can watch clicks: without it a wait 
   assert.equal(r.kinds().at(-1), 'end');
   assert.equal(r.sent.filter((m) => m.kind === 'step-open').length, 2);
 });
+
+// ---- real controls (see main/uia.ts) ----------------------------------------------------------
+
+const BOXES = [{ x: 100, y: 100, w: 60, h: 40, kind: 'button' }];
+const controlsRead = (answer: (signal?: AbortSignal) => Promise<{ boxes: typeof BOXES; ms: number; why?: string }>, seen?: AbortSignal[]) => ({
+  read: (_displayId: number, signal?: AbortSignal) => {
+    if (signal) seen?.push(signal);
+    return answer(signal);
+  },
+});
+
+test('real controls: the read starts when the key goes down, is never waited for, and its boxes reach the page after the screenshot they belong to', async () => {
+  const plain = rig();
+  await question(plain);
+  const r = rig({ controls: controlsRead(async () => ({ boxes: BOXES, ms: 12 })) });
+  await question(r);
+  const without = r.kinds().filter((k) => k !== 'controls');
+  assert.deepEqual(without, plain.kinds(), 'the answer is the same as without a reader');
+  const kinds = r.kinds();
+  assert.ok(kinds.indexOf('controls') > kinds.indexOf('screenshot'), 'after the screenshot');
+  assert.deepEqual(r.sent.find((m) => m.kind === 'controls'), { kind: 'controls', boxes: BOXES });
+});
+
+test('real controls: a read that never finishes does not delay the answer, and nothing is sent for it', async () => {
+  const r = rig({ controls: controlsRead(() => new Promise(() => undefined)) });
+  await question(r);
+  assert.equal(r.kinds().at(-1), 'end');
+  assert.ok(!r.kinds().includes('controls'));
+  assert.equal(r.sent.filter((m) => m.kind === 'step-open').length, 2);
+});
+
+test('real controls: a read that fails or finds nothing leaves the answer whole and sends nothing', async () => {
+  for (const answer of [async () => { throw new Error('no accessibility tree'); }, async () => ({ boxes: [], ms: 5, why: 'failed' })]) {
+    const r = rig({ controls: controlsRead(answer as never) });
+    await question(r);
+    assert.equal(r.kinds().at(-1), 'end');
+    assert.ok(!r.kinds().includes('controls'));
+  }
+  const synchronous = rig({ controls: { read: () => { throw new Error('boom'); } } });
+  await question(synchronous);
+  assert.equal(synchronous.kinds().at(-1), 'end');
+});
+
+test('real controls: a press that is dropped stops its read, and a read that comes after a newer question began is not sent', async () => {
+  const seen: AbortSignal[] = [];
+  const r = rig({ controls: controlsRead(() => new Promise(() => undefined), seen) });
+  r.session.arm();
+  r.session.cancel();
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0]!.aborted, true, 'the dropped press ends its read');
+  const late: Array<(v: { boxes: typeof BOXES; ms: number }) => void> = [];
+  const slow = rig({ controls: controlsRead(() => new Promise((resolve) => { late.push(resolve); })) });
+  await question(slow);
+  slow.session.arm(); // a newer press supersedes the answer
+  slow.session.start();
+  late[0]!({ boxes: BOXES, ms: 900 });
+  await wait(20);
+  assert.ok(!slow.kinds().includes('controls'), 'what was read for the old screen is not given to the new one');
+});

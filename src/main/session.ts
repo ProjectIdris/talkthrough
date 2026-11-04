@@ -71,6 +71,14 @@ export type SessionDeps = {
     /** Timings of the walk (when to look at the screen after a click, how long to wait); the defaults are in guide.ts. */
     options?: Partial<GuideOptions>;
   };
+  /**
+   * The real controls of the window in front (see uia.ts), on the 0..1000 scale of the display. Started when the key goes
+   * down and never waited for: a read that is late, fails or finds nothing just leaves marks snapping to the picture.
+   * Absent: no such reading (another system, or the person turned it off).
+   */
+  controls?: {
+    read(displayId: number, signal?: AbortSignal): Promise<{ boxes: { x: number; y: number; w: number; h: number; kind: string }[]; ms: number; why?: string }>;
+  };
   /** Called with the figures of a question when it ends, and again as the page reports its milestones. */
   onReport?(report: QuestionReport): void;
 };
@@ -88,6 +96,9 @@ export type QuestionReport = {
   endMs?: number;
   firstMarkMs?: number;
   firstWordMs?: number;
+  /** The read of the screen's real controls: how long it took (milliseconds after the keys went down) and how many it found. */
+  controlsMs?: number;
+  controlsCount?: number;
   steps: number;
   /** What the model says the question cost, when it says. */
   tokens?: Usage;
@@ -116,6 +127,8 @@ type Attempt = {
   id: number;
   displayId: number;
   capture: Promise<Grab>;
+  /** The read of the real controls, started with the capture and ended with it if the press is dropped. */
+  controls?: { done: Promise<{ boxes: { x: number; y: number; w: number; h: number; kind: string }[]; ms: number; why?: string }>; abort: AbortController };
   /** The pen strokes of this press, by stroke id, in the 0..1000 scale. */
   strokes: Map<number, Point[]>;
   /** Stroke ids whose last piece (`done`) has not arrived yet. */
@@ -183,6 +196,7 @@ export function createSession(deps: SessionDeps) {
     if (!a) return;
     attempt = null;
     if (a.timer) clearTimeout(a.timer);
+    a.controls?.abort.abort();
     deps.media.abortMic();
     releaseFrame(a); // the frame is simply never used
     deps.log(`early microphone and capture dropped (${why})`);
@@ -192,6 +206,17 @@ export function createSession(deps: SessionDeps) {
     const displayId = deps.pointerDisplayId();
     const a: Attempt = { id: nextId++, displayId, capture: deps.media.capture(displayId), strokes: new Map(), open: new Set(), micStarted: false, chord: false, timer: null };
     a.capture.catch(() => undefined); // an error is reported when the question is asked
+    if (deps.controls) {
+      const abort = new AbortController();
+      const none = (why: string) => ({ boxes: [], ms: 0, why });
+      let done: Promise<{ boxes: { x: number; y: number; w: number; h: number; kind: string }[]; ms: number; why?: string }>;
+      try {
+        done = deps.controls.read(displayId, abort.signal).catch(() => none('failed'));
+      } catch {
+        done = Promise.resolve(none('failed'));
+      }
+      a.controls = { done, abort };
+    }
     deps.media.startMic().catch((error: unknown) => deps.log(`microphone: ${error instanceof Error ? error.message : String(error)}`));
     if (withWindow) a.timer = setTimeout(() => dropAttempt('Right Shift did not follow in time'), deps.micWindowMs);
     attempt = a;
@@ -507,6 +532,13 @@ export function createSession(deps: SessionDeps) {
     const picture = info.frame.screenshot;
     lastAsk = { question, screenshot: picture, clean: picture };
     deps.send(displayId, { kind: 'screenshot', url: `data:${picture.mime};base64,${picture.base64}` });
+    if (deps.controls) {
+      // The screen changed under the person's click: read the controls of what is there now (late is fine, see begin).
+      void deps.controls.read(displayId, controller.signal).then((read) => {
+        deps.log(`controls: ${read.boxes.length} read in ${read.ms} ms${read.why ? ` (${read.why})` : ''} (new plan)`);
+        if (!controller.signal.aborted && read.boxes.length > 0) deps.send(displayId, { kind: 'controls', boxes: read.boxes });
+      }, () => undefined);
+    }
     const before = thread.length;
     const source: Source = {
       kind: 'model',
@@ -658,6 +690,18 @@ export function createSession(deps: SessionDeps) {
       }
       lastAsk = { question: asking, screenshot: seen, clean: shot.screenshot };
       deps.send(a.displayId, { kind: 'screenshot', url: `data:${shot.screenshot.mime};base64,${shot.screenshot.base64}` });
+      if (a.controls && !toBackend) {
+        // Not waited for: the page gets them when they come, after the screenshot they belong to.
+        const sentAt = since();
+        void a.controls.done.then((read) => {
+          r.controlsMs = read.ms;
+          r.controlsCount = read.boxes.length;
+          deps.log(`controls: ${read.boxes.length} read in ${read.ms} ms${read.why ? ` (${read.why})` : ''}, the first mark could have been at ${sentAt} ms`);
+          // Not for a screen that a newer press has since replaced.
+          if (controller.signal.aborted || a.id !== nextId - 1 || read.boxes.length === 0) return;
+          deps.send(a.displayId, { kind: 'controls', boxes: read.boxes });
+        });
+      }
 
       const source: Source = toBackend
         ? backendSource(a.displayId, 'spoken', asking, seen, undefined, controller.signal)

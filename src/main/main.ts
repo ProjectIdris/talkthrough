@@ -24,6 +24,7 @@ import { createPrefs } from './prefs.ts';
 import { createSamplePlayer } from './samples.ts';
 import { createSession } from './session.ts';
 import { createSettingsWindow } from './settings-window.ts';
+import { createUiaReader, toDisplayBoxes } from './uia.ts';
 import { DETAIL_EFFORT, DETAIL_MODELS, DETAIL_TIMEOUT_MS, loadSettings } from './settings.ts';
 import { createTray } from './tray.ts';
 
@@ -196,7 +197,20 @@ async function main(): Promise<void> {
   const backend = settings.backendUrl ? createHttpBackend({ url: settings.backendUrl, ...(settings.backendTimeoutMs ? { timeoutMs: settings.backendTimeoutMs } : {}) }) : undefined;
   const pins = createPins({ dir: options.pinsDir ?? join(app.getPath('userData'), 'pins') });
   const prefs = createPrefs(join(app.getPath('userData'), 'prefs.json'));
+  // Windows only, and only if the person has not turned it off; elsewhere (or with a stand-in picture) marks snap to the picture alone.
+  const uia = settings.controlSnap && !captureImage ? createUiaReader() : undefined;
   session = createSession({
+    ...(uia
+      ? {
+        controls: {
+          read: async (displayId: number, signal?: AbortSignal) => {
+            const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
+            const read = await uia.read(signal);
+            return { boxes: toDisplayBoxes(read.controls, (p) => screen.screenToDipPoint(p), display.bounds), ms: read.ms, ...(read.why ? { why: read.why } : {}) };
+          },
+        },
+      }
+      : {}),
     pin: (input) => pins.save(input),
     pinScreenshot: () => prefs.get().pinScreenshot,
     ...(backend ? { backend } : {}),

@@ -16,6 +16,8 @@ import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
 import { PageMemory } from './page-memory.ts';
 import { Placer, followDiagram, insideAny, pageGrid, placeAction, reserveMarks } from './placement.ts';
+import { snapToControl } from '../shared/controls.ts';
+import type { ControlBox } from '../shared/controls.ts';
 import { snapActions } from './snap.ts';
 import type { Snapper } from './snap.ts';
 import type { PageGrid } from './placement.ts';
@@ -348,11 +350,28 @@ function snapper(): Snapper | undefined {
   return pageMemory.recall('snapper', source.image, '', () => snapperFor(source.image, source.width, source.height));
 }
 
-/** Marks moved onto the page's own lines, corners and figures; each move is said once in the app log (a check run reads it). */
+/**
+ * The window's real controls (main/uia.ts), when the system gave them: they arrive after the screenshot they belong to,
+ * usually before the first mark, and are dropped with the next screenshot. Empty: marks snap to the picture alone.
+ */
+let realControls: ControlBox[] = [];
+
+/**
+ * Marks moved onto what they point at: first a real control (a button, tab or menu item) when the system described
+ * the window and the mark was aimed at one, otherwise the page's own lines, corners and figures from the picture.
+ * Each move is said once in the app log (a check run reads it).
+ */
 function snappedActions(actions: readonly Action[]): Action[] {
+  const aspect = view.width / view.height;
   const s = snapper();
-  if (!s) return [...actions];
-  return snapActions(s, actions, (r) => console.info(`talkthrough: snapped ${r.op} ${r.id} by ${r.moved} units`));
+  return actions.map((a) => {
+    const c = realControls.length > 0 ? snapToControl(a, realControls, aspect) : undefined;
+    if (c) {
+      if ('id' in a && typeof a.id === 'string') console.info(`talkthrough: control-snapped ${a.op} ${a.id} by ${Math.round(c.moved * 10) / 10} units (${c.kind})`);
+      return c.action;
+    }
+    return s ? snapActions(s, [a], (r) => console.info(`talkthrough: snapped ${r.op} ${r.id} by ${r.moved} units`))[0] as Action : a;
+  });
 }
 
 function labelEnvironment(): { occ: Occupancy; busy?: Busy } {
@@ -662,8 +681,14 @@ function handleScene(message: SceneMessage): void {
   if (message.kind === 'screenshot') {
     shot.onload = () => request();
     pageMemory.renew(); // the same element holds every capture: what was worked out from the last one is out of date
+    realControls = []; // and so is the window's list of controls
     shot.src = message.url;
     waitForPage(shot);
+    return;
+  }
+  if (message.kind === 'controls') {
+    realControls = message.boxes;
+    console.info(`talkthrough: ${message.boxes.length} real controls`);
     return;
   }
   if (message.kind === 'clear') heldScene.length = 0;

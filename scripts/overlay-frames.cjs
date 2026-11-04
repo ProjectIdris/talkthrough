@@ -4,7 +4,7 @@
 //   npm run build
 //   (run it as `env -u ELECTRON_RUN_AS_NODE` if your shell sets that)
 //   npx electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 \
-//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--gpu yes] [--clean yes] [--metrics yes]
+//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--controls <boxes.json>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--gpu yes] [--clean yes] [--metrics yes]
 //
 // --steps is a list of step:seconds pairs (seconds into that step; earlier steps are complete).
 // --dpr sets the display scale; offscreen windows always render at 1, so use --hidden (a hidden, non-offscreen window) for dpr other than 1.
@@ -97,6 +97,12 @@ app.whenReady().then(async () => {
     id: 1, bounds: { x: 0, y: 0, width, height }, scaleFactor: dpr,
     backdrop: args.backdrop ? pathToFileURL(path.resolve(args.backdrop)).href : undefined,
   });
+  // --controls <json>: the real controls of the window in the backdrop, boxes on the 0..1000 scale (see src/main/uia.ts), as the main process would send them.
+  if (args.controls) {
+    await sleep(400);
+    win.webContents.send(CHANNEL.scene, { kind: 'controls', boxes: JSON.parse(fs.readFileSync(args.controls, 'utf8')) });
+    await sleep(100);
+  }
   let token = 0;
   const seek = async (scene, step, t, name) => {
     const mine = ++token;
