@@ -114,6 +114,8 @@ export function createSession(deps: SessionDeps) {
   let nextId = 1;
   let asking: AbortController | null = null;
   let thread: ThreadTurn[] = [];
+  /** The picture each kept turn was asked about (as grabbed, no pen stroke), so a pin saves the right one. */
+  const pictures = new WeakMap<ThreadTurn, Screenshot>();
   let state: SceneState = createSceneState();
   let lastActivity = 0;
   let lastAsk: { question: string; screenshot: Screenshot; /** The picture as grabbed, without a pen stroke. */ clean: Screenshot; reason?: string } | null = null;
@@ -181,6 +183,8 @@ export function createSession(deps: SessionDeps) {
 
   /** Both keys are down. */
   function start(): void {
+    // A request still running is let go: its status (working, with the backend) must not outlive the press.
+    const supersedes = asking !== null;
     asking?.abort();
     const a = attempt && !attempt.chord ? attempt : (attempt && dropAttempt('a new press began'), begin(false));
     if (a.timer) clearTimeout(a.timer);
@@ -204,6 +208,7 @@ export function createSession(deps: SessionDeps) {
       penOff(a.displayId);
       deps.log(`pen: ${error instanceof Error ? error.message : String(error)}`);
     }
+    if (supersedes) deps.send(a.displayId, { kind: 'status', status: 'idle' });
     deps.send(a.displayId, { kind: 'status', status: 'hush' });
     if (a.micStarted) deps.send(a.displayId, { kind: 'status', status: 'listening' });
   }
@@ -232,7 +237,7 @@ export function createSession(deps: SessionDeps) {
     const last = thread[thread.length - 1];
     if (!last) return { ok: false, text: 'There is nothing to pin yet. Ask something first.' };
     try {
-      const keep = deps.pinScreenshot?.() === true && lastAsk?.clean;
+      const keep = deps.pinScreenshot?.() === true && pictures.get(last);
       deps.pin({ question: last.question, thread: [...thread], steps: thread.flatMap((t) => [...t.steps]), ...(keep ? { screenshot: keep } : {}) });
       return { ok: true, text: keep ? 'Pinned, with the screenshot.' : 'Pinned.' };
     } catch (error) {
@@ -275,6 +280,7 @@ export function createSession(deps: SessionDeps) {
       state = createSceneState();
     }
     const turn = thread.length + 1;
+    const picture = lastAsk?.clean;
     startTurn(state);
     deps.log(`question heard (turn ${turn}, ${source.label}${deps.logText ? `): ${JSON.stringify(question)}` : ')'}`);
 
@@ -326,7 +332,9 @@ export function createSession(deps: SessionDeps) {
     }
     open();
     deps.send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) });
-    thread.push({ question, steps: shown });
+    const kept: ThreadTurn = { question, steps: shown };
+    if (picture) pictures.set(kept, picture);
+    thread.push(kept);
     lastActivity = now();
     if (lastAsk) lastAsk.reason = escalate;
   }

@@ -476,3 +476,48 @@ test('"pin this" by voice keeps the answer and asks nothing of the model or the 
   failing.session.pin(7);
   assert.ok(failing.sent.some((m) => m.kind === 'notice' && m.level === 'error' && m.text.includes("couldn't save")));
 });
+
+test('a pin keeps the picture of the answer it saves, not the picture of a later question that failed', async () => {
+  const pinned: Array<{ question: string; picture?: string }> = [];
+  const heard = ['first question', 'second question'];
+  let i = 0;
+  let grabs = 0;
+  let models = 0;
+  const failing = { id: 'm', ask: async function* (): AsyncGenerator<never> { throw new ModelError('unavailable', 'down'); } };
+  const r = rig({
+    media: {
+      startMic: async () => undefined,
+      stopMic: async () => ({ samples: new Float32Array(16), sampleRate: 16000, durationMs: 1500, startLatencyMs: 100 }),
+      abortMic: () => undefined,
+      capture: async () => ({ screenshot: { mime: 'image/png', base64: `PICTURE${++grabs}`, width: 10, height: 10 }, ms: 5, grabId: grabs }),
+    },
+    // the first question is answered, the second fails
+    // model() is also read when the chord starts, so count the asks, not the lookups
+    model: () => ({ id: 'm', ask: (req: ModelRequest) => (++models === 1 ? createScriptedModel([step('One.')]).ask(req) : failing.ask()) }),
+    speech: { id: 'fake', transcribe: async () => ({ text: heard[i++] ?? '' }) },
+    pin: (input) => (pinned.push({ question: input.question, picture: input.screenshot?.base64 }), { file: 'x.json' }),
+    pinScreenshot: () => true,
+  });
+  await question(r);
+  await question(r);
+  r.session.pin(7);
+  assert.deepEqual(pinned, [{ question: 'first question', picture: 'PICTURE1' }]);
+});
+
+test('a new press clears "with the backend" (and "working") on the overlay before it hushes the speech', async () => {
+  let release: (() => void) | undefined;
+  const backend: Backend = { id: 'slow', ask: (req) => new Promise((_resolve, reject) => { release = () => reject(new ModelError('aborted', 'x')); req.signal?.addEventListener('abort', () => release?.()); }) };
+  const r = rig({ backend, model: () => createScriptedModel([step('Partial.')], { escalate: 'needs research' }) });
+  await question(r);
+  const pending = r.session.offer(7);
+  await wait(10);
+  assert.equal(r.kinds().at(-1), 'status:backend');
+  r.sent.length = 0;
+  r.session.arm();
+  r.session.start();
+  await pending;
+  const kinds = r.kinds();
+  assert.ok(kinds.indexOf('status:idle') >= 0 && kinds.indexOf('status:idle') < kinds.indexOf('status:hush'), kinds.join(','));
+  r.session.stop();
+  await wait(60);
+});
