@@ -74,7 +74,7 @@ export type Settings = {
   /**
    * Claude route only: write the quick answer in pieces so the first word comes sooner. 'two': step 1 alone first, then the steps after it
    * in a second call while step 1 is spoken (adapters/two-step.ts). 'steps': one step to a call, each asked for as the one before it ends
-   * (adapters/step-by-step.ts). Either costs more calls a question. 'off' until the person turns it on. The older `twoStepAnswer: true` means 'two'.
+   * (adapters/step-by-step.ts). Either costs more calls a question. 'steps' unless the person chooses otherwise (Alex, 5 Nov); 'off' is a choice that is written to the file. The older `twoStepAnswer: true` means 'two' and `false` means 'off'.
    */
   splitAnswer: SplitMode;
   /**
@@ -110,7 +110,7 @@ export const DEFAULT_SETTINGS: Settings = {
   effort: 'low',
   controlSnap: false,
   guideNavigation: false,
-  splitAnswer: 'off',
+  splitAnswer: 'steps',
   voiceFirstAudioMs: 2000,
   voiceCooldownMs: 20_000,
   voiceTimeoutMs: 30_000,
@@ -190,8 +190,9 @@ export function settingsFromRaw(raw: Record<string, unknown>, warn: (message: st
   if (typeof raw.controlSnap === 'boolean') settings.controlSnap = raw.controlSnap;
   if (typeof raw.guideNavigation === 'boolean') settings.guideNavigation = raw.guideNavigation;
   if (raw.splitAnswer === 'off' || raw.splitAnswer === 'two' || raw.splitAnswer === 'steps') settings.splitAnswer = raw.splitAnswer;
-  else if (raw.splitAnswer !== undefined) warn('splitAnswer must be off, two or steps; using off');
+  else if (raw.splitAnswer !== undefined) warn('splitAnswer must be off, two or steps; using steps');
   else if (raw.twoStepAnswer === true) settings.splitAnswer = 'two';
+  else if (raw.twoStepAnswer === false) settings.splitAnswer = 'off'; // an older explicit "off" stays off
   if (raw.detailRoute === 'codex' || raw.detailRoute === 'claude' || raw.detailRoute === 'openai') settings.detailRoute = raw.detailRoute;
   else if (raw.detailRoute !== undefined) warn('detailRoute must be codex, claude or openai; there is no detail pass');
   const detailModel = str(raw.detailModel);
