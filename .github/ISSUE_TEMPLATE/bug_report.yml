@@ -38,7 +38,7 @@ body:
     id: version
     attributes:
       label: Version and Windows version
-      placeholder: "Talkthrough 0.1.0, Windows 11 24H2"
+      placeholder: "Talkthrough 0.2.0, Windows 11 24H2"
   - type: textarea
     id: log
     attributes:
