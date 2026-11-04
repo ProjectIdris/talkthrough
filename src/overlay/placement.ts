@@ -261,6 +261,22 @@ export function insideAny(a: Action, rects: readonly Box[], aspect: number): boo
   return c !== undefined && rects.some((r) => c.x >= r.x && c.x <= r.x + r.w && c.y >= r.y && c.y <= r.y + r.h);
 }
 
+/**
+ * Which marks of a whole scene belong to a flat diagram, by step and action: those written after the diagram and inside the
+ * rectangle it was asked for. A mark written before it (a ring on the page's own graph, then a chart elsewhere) points at the page and stays
+ * there, as it does when the answer is drawn as it arrives, where the earlier mark is already on the page when the diagram comes.
+ */
+export function ownedByDiagram(steps: readonly { actions: readonly Action[] }[], aspect: number): boolean[][] {
+  const seen: Box[] = [];
+  return steps.map((step) => step.actions.map((a) => {
+    if (a.op === 'diagram') {
+      seen.push({ x: a.x, y: a.y, w: a.w, h: a.h });
+      return false;
+    }
+    return seen.length > 0 && insideAny(a, seen, aspect);
+  }));
+}
+
 const r1 = (v: number): number => Math.round(v * 10) / 10;
 
 /**

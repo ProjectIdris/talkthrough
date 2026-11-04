@@ -6,7 +6,7 @@ import { chartLayout, chartRanges, flowLayers, flowLayout, niceTicks, stepsLayou
 import type { Px } from '../src/overlay/diagram-layout.ts';
 import { DiagramPainter } from '../src/overlay/diagram-draw.ts';
 import { fadeFrame } from '../src/overlay/fade.ts';
-import { Placer, followDiagram, insideAny, pageGrid, placeAction } from '../src/overlay/placement.ts';
+import { Placer, followDiagram, insideAny, ownedByDiagram, pageGrid, placeAction } from '../src/overlay/placement.ts';
 import { emptyFrame, evaluate, planStep, settle } from '../src/overlay/timeline.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
 
@@ -388,4 +388,13 @@ test('in a tall timeline card the labels use most of the width, so a long event 
   new DiagramPainter().draw(ctx, frame.diagrams, view, 0);
   const longest = Math.max(...texts.filter((s) => text.startsWith(s.replace(/...$/, '').trim()) || text.includes(s)).map((s) => s.length));
   assert.ok(longest >= 12, `the lines of a long event are wider than a word or two: ${JSON.stringify(texts)}`);
+});
+
+test('a mark belongs to a diagram only when it is written after it: an earlier one on the page stays where it points', () => {
+  const diagram = { op: 'diagram', id: 'd', kind: 'chart', x: 200, y: 200, w: 600, h: 600 } as unknown as Action;
+  const early = { op: 'point', id: 'on-page', x: 500, y: 500, color: 'red' } as Action;
+  const late = { op: 'point', id: 'on-chart', x: 500, y: 500, color: 'red' } as Action;
+  const outside = { op: 'point', id: 'outside', x: 900, y: 900, color: 'red' } as Action;
+  const owned = ownedByDiagram([{ actions: [early] }, { actions: [diagram, late, outside] }], 16 / 9);
+  assert.deepEqual(owned, [[false], [false, true, false]]);
 });
