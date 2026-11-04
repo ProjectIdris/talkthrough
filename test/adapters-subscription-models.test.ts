@@ -3,11 +3,11 @@ import { test } from 'node:test';
 import { readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { createClaudeModel, initProblem } from '../src/adapters/claude-model.ts';
+import { claudeArgs, createClaudeModel, initProblem } from '../src/adapters/claude-model.ts';
 import { codexLockdownArgs, createCodexModel } from '../src/adapters/codex-model.ts';
 import { ModelError } from '../src/adapters/model.ts';
 import type { Model, ModelOutput } from '../src/adapters/model.ts';
-import { sceneSchema } from '../src/scene/index.ts';
+import { sceneSchema, sceneSchemaLean } from '../src/scene/index.ts';
 
 const fakeCodex = fileURLToPath(new URL('./support/fake-codex.mjs', import.meta.url));
 const fakeClaude = fileURLToPath(new URL('./support/fake-claude.mjs', import.meta.url));
@@ -152,4 +152,36 @@ test('closing a model ends its process and removes its working folder', async ()
   await codex.close?.();
   await claude.close?.();
   assert.equal(folders().length, before);
+});
+
+test('codex: a process that is alive but silent cannot hang a question (timeout, abort, then a fresh process works)', async () => {
+  for (const mode of ['silent-turn', 'silent-init']) {
+    process.env.FAKE_MODE = mode;
+    const model = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex], timeoutMs: 1200 });
+    try {
+      const started = Date.now();
+      assert.equal((await failure(model)).code, 'failed');
+      assert.ok(Date.now() - started < 4000, `${mode}: the timeout did not end the wait`);
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 150);
+      const slow = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex], timeoutMs: 10_000 });
+      const t = Date.now();
+      await assert.rejects(collect(slow, controller.signal), (e: unknown) => e instanceof ModelError && e.code === 'aborted');
+      assert.ok(Date.now() - t < 3000, `${mode}: the abort did not end the wait`);
+      await slow.close?.();
+      // the stuck process was dropped: the next question starts a new one
+      process.env.FAKE_MODE = 'ok';
+      assert.equal((await collect(model)).filter((o) => o.type === 'step').length, 2);
+    } finally {
+      process.env.FAKE_MODE = 'ok';
+      await model.close?.();
+    }
+  }
+});
+
+test('claude: the default command line stays well under the Windows limit and carries no prompt text', () => {
+  const args = claudeArgs('claude-haiku-5-5', 'low', sceneSchemaLean, 'C:/x/instructions.txt');
+  const length = args.join(' ').length;
+  assert.ok(length < 30_000, `command line is ${length} characters`);
+  assert.ok(!args.join(' ').includes('You are Talkthrough'));
 });

@@ -174,6 +174,7 @@ async function main(): Promise<void> {
       overlays.send(displayId, message);
     },
     log,
+    logText: options.logSteps,
     micWindowMs: settings.micWindowMs,
     onReport: (report) => {
       if (!options.exitAfterChord) return;

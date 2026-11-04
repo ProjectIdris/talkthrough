@@ -21,19 +21,21 @@ async function open(): Promise<void> {
   if (recorder) return;
   const mine = ++generation;
   const asked = performance.now();
+  let device: MediaStream;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
+    device = await navigator.mediaDevices.getUserMedia({
       audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     });
   } catch (error) {
-    window.talkthroughAudio.error(`microphone unavailable: ${error instanceof Error ? error.message : String(error)}`);
+    if (mine === generation) window.talkthroughAudio.error(`microphone unavailable: ${error instanceof Error ? error.message : String(error)}`);
     return;
   }
   if (mine !== generation) {
-    for (const track of stream.getTracks()) track.stop();
-    stream = null;
+    // Aborted while the device was opening: give it back without touching what a newer start holds.
+    for (const track of device.getTracks()) track.stop();
     return;
   }
+  stream = device;
   chunks = [];
   recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
   recorder.ondataavailable = (event) => {
@@ -99,7 +101,7 @@ async function stop(): Promise<void> {
   }
 }
 
-async function grab(request: { sourceId: string; maxEdge: number; nativeWidth: number; nativeHeight: number }): Promise<void> {
+async function grab(request: { id: number; sourceId: string; maxEdge: number; nativeWidth: number; nativeHeight: number }): Promise<void> {
   const asked = performance.now();
   let media: MediaStream | null = null;
   try {
@@ -133,9 +135,9 @@ async function grab(request: { sourceId: string; maxEdge: number; nativeWidth: n
     context.drawImage(video, 0, 0, width, height);
     const blob = await canvas.convertToBlob({ type: 'image/png' });
     const png = new Uint8Array(await blob.arrayBuffer());
-    window.talkthroughAudio.frame({ png, width, height, nativeWidth, nativeHeight, ms: Math.round(performance.now() - asked) });
+    window.talkthroughAudio.frame({ id: request.id, png, width, height, nativeWidth, nativeHeight, ms: Math.round(performance.now() - asked) });
   } catch (error) {
-    window.talkthroughAudio.frameError(`could not capture the screen: ${error instanceof Error ? error.message : String(error)}`);
+    window.talkthroughAudio.frameError(request.id, `could not capture the screen: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     if (media) for (const track of media.getTracks()) track.stop();
   }

@@ -11,7 +11,7 @@ const api: TalkthroughAudioApi = {
   error: (message: string) => ipcRenderer.send(AUDIO_CHANNEL.error, message),
   started: () => ipcRenderer.send(AUDIO_CHANNEL.started),
   frame: (result: FrameResult) => ipcRenderer.send(AUDIO_CHANNEL.frame, result),
-  frameError: (message: string) => ipcRenderer.send(AUDIO_CHANNEL.frameError, message),
+  frameError: (id: number, message: string) => ipcRenderer.send(AUDIO_CHANNEL.frameError, id, message),
 };
 
 contextBridge.exposeInMainWorld('talkthroughAudio', api);

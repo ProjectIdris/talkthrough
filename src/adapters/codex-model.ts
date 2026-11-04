@@ -258,42 +258,63 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
     async *ask(req: ModelRequest): AsyncGenerator<ModelOutput> {
       if (req.signal?.aborted) throw new ModelError('aborted', 'request aborted');
       const t0 = performance.now();
-      const proc = await ensure();
-      const tReady = performance.now();
-      const started = await request(proc, 'thread/start', {
-        cwd: workDir,
-        model: modelName,
-        sandbox: 'read-only',
-        approvalPolicy: 'never',
-        ephemeral: true,
-        serviceName: 'talkthrough',
-        baseInstructions: systemPrompt(),
-      }).catch((error: unknown) => {
-        throw errorFrom(error instanceof Error ? error.message : String(error));
+      // Every wait below, the process start and both requests included, ends at once on an abort or when
+      // the time is up, so a process that is alive but silent can never hang a question.
+      let bailOut!: (error: ModelError) => void;
+      const bail = new Promise<never>((_, reject) => {
+        bailOut = reject;
       });
-      const tThread = performance.now();
-      const thread = started.thread as Json | undefined;
-      const threadId = thread && typeof thread.id === 'string' ? thread.id : '';
-      if (!threadId) throw new ModelError('failed', 'codex did not start a thread');
-      if (serviceTier !== started.serviceTier) {
-        serviceTier = typeof started.serviceTier === 'string' ? started.serviceTier : undefined;
-        log(`codex model ${String(started.model)}, service tier ${serviceTier ?? 'default'}`);
-      }
-
-      const turn: Turn = { queue: new AsyncQueue<ModelOutput>(), stream: createStepStream(), threadId, done: false };
-      turns.set(threadId, turn);
-      const timer = setTimeout(() => {
-        failTurn(turn, new ModelError('failed', `no answer within ${Math.round(timeoutMs / 1000)} s`));
-        stopTurn(proc, turn);
-      }, timeoutMs);
-      const onAbort = () => {
-        failTurn(turn, new ModelError('aborted', 'request aborted'));
-        stopTurn(proc, turn);
+      bail.catch(() => undefined);
+      let turn: Turn | undefined;
+      let live: ChildProcessWithoutNullStreams | null = null;
+      const end = (error: ModelError, timedOut: boolean) => {
+        bailOut(error);
+        if (turn) {
+          failTurn(turn, error);
+          if (live) stopTurn(live, turn);
+        }
+        // A process that said nothing at all before the time ran out is of no use to the next question either.
+        if (timedOut && (!turn || turn.firstDeltaAt === undefined)) {
+          const stuck = child;
+          child = null;
+          starting = null;
+          stuck?.kill();
+        }
       };
+      const timer = setTimeout(() => end(new ModelError('failed', `no answer within ${(timeoutMs / 1000).toFixed(timeoutMs < 10_000 ? 1 : 0)} s`), true), timeoutMs);
+      const onAbort = () => end(new ModelError('aborted', 'request aborted'), false);
       req.signal?.addEventListener('abort', onAbort, { once: true });
+      const within = <T>(promise: Promise<T>): Promise<T> => Promise.race([promise, bail]);
 
+      let threadId = '';
       try {
-        const begun = await request(proc, 'turn/start', {
+        const proc = await within(ensure());
+        live = proc;
+        const tReady = performance.now();
+        const started = await within(request(proc, 'thread/start', {
+          cwd: workDir,
+          model: modelName,
+          sandbox: 'read-only',
+          approvalPolicy: 'never',
+          ephemeral: true,
+          serviceName: 'talkthrough',
+          baseInstructions: systemPrompt(),
+        })).catch((error: unknown) => {
+          throw error instanceof ModelError ? error : errorFrom(error instanceof Error ? error.message : String(error));
+        });
+        const tThread = performance.now();
+        const thread = started.thread as Json | undefined;
+        threadId = thread && typeof thread.id === 'string' ? thread.id : '';
+        if (!threadId) throw new ModelError('failed', 'codex did not start a thread');
+        if (serviceTier !== started.serviceTier) {
+          serviceTier = typeof started.serviceTier === 'string' ? started.serviceTier : undefined;
+          log(`codex model ${String(started.model)}, service tier ${serviceTier ?? 'default'}`);
+        }
+
+        const mine: Turn = { queue: new AsyncQueue<ModelOutput>(), stream: createStepStream(), threadId, done: false };
+        turn = mine;
+        turns.set(threadId, mine);
+        const begun = await within(request(proc, 'turn/start', {
           threadId,
           input: [
             { type: 'image', url: `data:${req.screenshot.mime};base64,${req.screenshot.base64}` },
@@ -303,25 +324,25 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
           effort,
           approvalPolicy: 'never',
           sandboxPolicy: { type: 'readOnly' },
-        }).catch((error: unknown) => {
-          throw errorFrom(error instanceof Error ? error.message : String(error));
+        })).catch((error: unknown) => {
+          throw error instanceof ModelError ? error : errorFrom(error instanceof Error ? error.message : String(error));
         });
         const t = begun.turn as Json | undefined;
-        if (t && typeof t.id === 'string') turn.turnId = t.id;
+        if (t && typeof t.id === 'string') mine.turnId = t.id;
         const tTurn = performance.now();
         if (req.signal?.aborted) onAbort();
-        yield* turn.queue;
-        const ms = (a: number, b: number) => Math.round(b - a);
-        log(`codex timings: process ${ms(t0, tReady)} ms, thread ${ms(tReady, tThread)} ms, turn accepted ${ms(tThread, tTurn)} ms, first text ${turn.firstDeltaAt === undefined ? '-' : ms(tTurn, turn.firstDeltaAt)} ms after that, all ${ms(tTurn, performance.now())} ms`);
+        yield* mine.queue;
+        const ms = (x: number, y: number) => Math.round(y - x);
+        log(`codex timings: process ${ms(t0, tReady)} ms, thread ${ms(tReady, tThread)} ms, turn accepted ${ms(tThread, tTurn)} ms, first text ${mine.firstDeltaAt === undefined ? '-' : ms(tTurn, mine.firstDeltaAt)} ms after that, all ${ms(tTurn, performance.now())} ms`);
       } finally {
         clearTimeout(timer);
         req.signal?.removeEventListener('abort', onAbort);
-        turns.delete(threadId);
-        if (!turn.done) {
+        if (threadId) turns.delete(threadId);
+        if (turn && !turn.done) {
           turn.done = true;
-          stopTurn(proc, turn);
+          if (live) stopTurn(live, turn);
         }
-        void request(proc, 'thread/unsubscribe', { threadId }).catch(() => undefined);
+        if (live && threadId) void request(live, 'thread/unsubscribe', { threadId }).catch(() => undefined);
       }
     },
   };

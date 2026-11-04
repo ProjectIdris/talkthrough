@@ -26,6 +26,8 @@ export type SessionDeps = {
   backend?: Backend;
   send(displayId: number, message: SceneMessage): void;
   log(line: string): void;
+  /** Checks only: put the question text in the log. Off by default, so a spoken question never reaches the console. */
+  logText?: boolean;
   /** How long Right Ctrl may be held alone before the early microphone and capture are dropped. */
   micWindowMs: number;
   /** Epoch milliseconds. */
@@ -207,7 +209,7 @@ export function createSession(deps: SessionDeps) {
       }
       const turn = thread.length + 1;
       startTurn(state);
-      deps.log(`question: ${JSON.stringify(question)} (turn ${turn}, ${model.id})`);
+      deps.log(`question heard (turn ${turn}, ${model.id}${deps.logText ? `): ${JSON.stringify(question)}` : ')'}`);
 
       const shown: Step[] = [];
       let begun = false;
@@ -257,7 +259,7 @@ export function createSession(deps: SessionDeps) {
       lastActivity = now();
     } finally {
       if (asking === controller) asking = null;
-      deps.log(`report ${JSON.stringify(r)}`);
+      deps.log(`report ${JSON.stringify(deps.logText ? r : { ...r, question: r.question ? '(not logged)' : '' })}`);
       deps.onReport?.(r);
     }
   }

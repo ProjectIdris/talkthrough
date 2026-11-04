@@ -14,7 +14,9 @@ import type { Capture } from './capture.ts';
 export function createMedia(options: { preload: string; page: string }) {
   let window: BrowserWindow | null = null;
   let pending: { resolve(result: MicResult): void; reject(error: Error): void } | null = null;
-  let grabbing: { resolve(result: FrameResult): void; reject(error: Error): void } | null = null;
+  // Grabs in flight, by id: a late reply to an earlier grab can never resolve a later one.
+  const grabbing = new Map<number, { resolve(result: FrameResult): void; reject(error: Error): void }>();
+  let nextGrab = 1;
   let ready: Promise<void> | null = null;
   let onStarted: (() => void) | null = null;
 
@@ -35,15 +37,17 @@ export function createMedia(options: { preload: string; page: string }) {
     if (mine(event)) onStarted?.();
   });
   ipcMain.on(AUDIO_CHANNEL.frame, (event, result: FrameResult) => {
-    if (!mine(event) || !grabbing) return;
-    const g = grabbing;
-    grabbing = null;
+    if (!mine(event)) return;
+    const g = grabbing.get(result?.id);
+    if (!g) return;
+    grabbing.delete(result.id);
     g.resolve(result);
   });
-  ipcMain.on(AUDIO_CHANNEL.frameError, (event, message: unknown) => {
-    if (!mine(event) || !grabbing) return;
-    const g = grabbing;
-    grabbing = null;
+  ipcMain.on(AUDIO_CHANNEL.frameError, (event, id: unknown, message: unknown) => {
+    if (!mine(event) || typeof id !== 'number') return;
+    const g = grabbing.get(id);
+    if (!g) return;
+    grabbing.delete(id);
     g.reject(new Error(typeof message === 'string' ? message : 'capture failed'));
   });
 
@@ -98,16 +102,20 @@ export function createMedia(options: { preload: string; page: string }) {
     async capture(display: Display, maxEdge = 1280): Promise<Capture> {
       const started = performance.now();
       const [sourceId] = await Promise.all([screenSourceId(display), open()]);
+      const id = nextGrab++;
       const request: GrabRequest = {
+        id,
         sourceId,
         maxEdge,
         nativeWidth: Math.round(display.size.width * display.scaleFactor),
         nativeHeight: Math.round(display.size.height * display.scaleFactor),
       };
       const frame = await new Promise<FrameResult>((resolve, reject) => {
-        grabbing = { resolve, reject };
+        grabbing.set(id, { resolve, reject });
         window?.webContents.send(AUDIO_CHANNEL.grab, request);
-        setTimeout(() => reject(new Error('the screen capture took too long')), 10_000).unref();
+        setTimeout(() => {
+          if (grabbing.delete(id)) reject(new Error('the screen capture took too long'));
+        }, 10_000).unref();
       });
       return {
         screenshot: { mime: 'image/png', base64: Buffer.from(frame.png).toString('base64'), width: frame.width, height: frame.height },

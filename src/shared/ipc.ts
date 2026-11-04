@@ -86,8 +86,8 @@ export type SceneMessage =
 export type MicResult = { samples: Float32Array; sampleRate: 16000; durationMs: number; startLatencyMs: number };
 
 /** What the hidden media page grabs of a screen: one frame, scaled, as PNG bytes. */
-export type GrabRequest = { sourceId: string; maxEdge: number; nativeWidth: number; nativeHeight: number };
-export type FrameResult = { png: Uint8Array; width: number; height: number; nativeWidth: number; nativeHeight: number; ms: number };
+export type GrabRequest = { id: number; sourceId: string; maxEdge: number; nativeWidth: number; nativeHeight: number };
+export type FrameResult = { id: number; png: Uint8Array; width: number; height: number; nativeWidth: number; nativeHeight: number; ms: number };
 
 export const AUDIO_CHANNEL = {
   start: 'tt:mic-start',
@@ -114,7 +114,7 @@ export interface TalkthroughAudioApi {
   error(message: string): void;
   started(): void;
   frame(result: FrameResult): void;
-  frameError(message: string): void;
+  frameError(id: number, message: string): void;
 }
 
 export interface TalkthroughApi {

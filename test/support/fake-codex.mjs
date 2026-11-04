@@ -1,5 +1,6 @@
 // A stand-in for `codex app-server`, speaking just enough of its JSON-RPC to test the model adapter.
 // FAKE_MODE: ok (default) | tool (reports a command item) | approval (asks the client for approval)
+//   | silent-turn (never answers turn/start) | silent-init (never answers initialize)
 import { createInterface } from 'node:readline';
 
 const mode = process.env.FAKE_MODE ?? 'ok';
@@ -16,12 +17,14 @@ const fast = process.argv.some((a) => a.includes('service_tier'));
 
 createInterface({ input: process.stdin }).on('line', (line) => {
   const m = JSON.parse(line);
+  if (m.method === 'initialize' && mode === 'silent-init') return;
   if (m.method === 'initialize') return send({ id: m.id, result: { userAgent: 'fake' } });
   if (m.method === 'thread/start') {
     const id = `t${++threads}`;
     return send({ id: m.id, result: { thread: { id }, model: m.params.model, serviceTier: fast ? 'priority' : 'default', sandbox: m.params.sandbox, approvalPolicy: m.params.approvalPolicy, cwd: m.params.cwd } });
   }
   if (m.method === 'turn/interrupt' || m.method === 'thread/unsubscribe') return send({ id: m.id, result: {} });
+  if (m.method === 'turn/start' && mode === 'silent-turn') return;
   if (m.method === 'turn/start') {
     const threadId = m.params.threadId;
     const turn = { id: `turn-${threadId}` };

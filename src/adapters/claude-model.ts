@@ -215,7 +215,7 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
       proc.once('exit', () => {
         fail(new ModelError('unavailable', `claude stopped before answering${stderrTail ? `: ${stderrTail.trim().slice(-300)}` : ''}`));
       });
-      const timer = setTimeout(() => fail(new ModelError('failed', `no answer within ${Math.round(timeoutMs / 1000)} s`)), timeoutMs);
+      const timer = setTimeout(() => fail(new ModelError('failed', `no answer within ${(timeoutMs / 1000).toFixed(timeoutMs < 10_000 ? 1 : 0)} s`)), timeoutMs);
       const onAbort = () => fail(new ModelError('aborted', 'request aborted'));
       req.signal?.addEventListener('abort', onAbort, { once: true });
 
