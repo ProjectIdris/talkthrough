@@ -9,6 +9,7 @@ const node = { platform: 'node', format: 'cjs' };
 const browser = { platform: 'browser', format: 'iife' };
 const targets = [
   { entry: 'src/main/main.ts', out: 'dist/main/main.cjs', ...node, external: ['electron', 'uiohook-napi', 'get-windows'] },
+  { entry: 'src/main/front-window-worker.ts', out: 'dist/main/front-window-worker.cjs', ...node, external: ['get-windows'] },
   { entry: 'src/main/preload.ts', out: 'dist/main/preload.cjs', ...node, external: ['electron'] },
   { entry: 'src/main/audio-preload.ts', out: 'dist/main/audio-preload.cjs', ...node, external: ['electron'] },
   { entry: 'src/main/settings-preload.ts', out: 'dist/main/settings-preload.cjs', ...node, external: ['electron'] },

@@ -56,17 +56,54 @@ export function skipMatch(list: readonly string[], win: FrontWindow | null | und
   return null;
 }
 
+/** Why a press is not allowed: the window is on the list, or the check could not tell what the window is (which counts the same). */
+export type SkipVerdict = { kind: 'listed'; entry: string } | { kind: 'blind'; why: string };
+
+/** How long the read of the window in front may take before the press is refused. */
+export const SKIP_DEADLINE_MS = 300;
+
+export type SkipCheckOptions = {
+  /** The read of the window in front; it may be slow, fail, or give nothing. */
+  read(): Promise<FrontWindow | null | undefined>;
+  deadlineMs?: number;
+  /** Told, once, the first time the read fails or is too slow (for the log). */
+  log?(line: string): void;
+};
+
 /**
- * Whether the window in front is on the list now. `front` reads the window (it may throw or give nothing; then nothing is skipped,
- * since a window that cannot be read cannot be matched, and the app does not lock the person out because a read failed).
+ * Whether a press is allowed now: null when it is, otherwise why not. The list is asked for each time, so a list saved a moment ago
+ * protects at once. With no list nothing is read at all. With a list, this fails closed: a read that throws, gives nothing, gives a
+ * window with no name at all, or has not answered within the deadline all mean "do not look", never "look".
  */
-export function createSkipCheck(list: readonly string[], front: () => FrontWindow | null | undefined): () => string | null {
-  if (list.length === 0) return () => null;
-  return () => {
+export function createSkipCheck(list: () => readonly string[], options: SkipCheckOptions): () => Promise<SkipVerdict | null> {
+  const deadline = options.deadlineMs ?? SKIP_DEADLINE_MS;
+  let told = false;
+  const blind = (why: string): SkipVerdict => {
+    if (!told) {
+      told = true;
+      options.log?.(`the window in front could not be read (${why}); while there is a list of windows to skip, nothing is looked at then`);
+    }
+    return { kind: 'blind', why };
+  };
+  return async () => {
+    const entries = list();
+    if (entries.length === 0) return null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      return skipMatch(list, front());
-    } catch {
-      return null;
+      const front = await Promise.race([
+        options.read(),
+        new Promise<'late'>((resolve) => {
+          timer = setTimeout(() => resolve('late'), deadline);
+        }),
+      ]);
+      if (front === 'late') return blind(`no answer within ${deadline} ms`);
+      if (!front || (!front.title && !front.appName && !front.path)) return blind('no window came back');
+      const entry = skipMatch(entries, front);
+      return entry ? { kind: 'listed', entry } : null;
+    } catch (error) {
+      return blind(error instanceof Error ? error.message : 'the read failed');
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   };
 }

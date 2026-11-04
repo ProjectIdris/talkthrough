@@ -14,6 +14,7 @@ import { createGuide, guideQuestion, waitOf } from './guide.ts';
 import { parseConsent } from './nav-consent.ts';
 import type { Frame, GuideListener, GuideNavigation, GuideOptions } from './guide.ts';
 import type { Grid } from '../shared/screen-diff.ts';
+import type { SkipVerdict } from './skip-list.ts';
 import { parseSpoken } from './phrases.ts';
 import type { Box, Point } from '../shared/pen.ts';
 
@@ -55,10 +56,11 @@ export type SessionDeps = {
   /** How long the first key of the chord may be held alone before the early microphone and capture are dropped. */
   micWindowMs: number;
   /**
-   * The entry of the person's list of windows to skip that the window in front matches, or null. A press while it matches does
-   * nothing: no microphone, no screen grab. Absent: no list.
+   * Whether the person's list of windows to skip forbids a press now (the window in front is on it, or could not be told, which counts
+   * the same): null when it is allowed. A forbidden press does nothing: no microphone, no screen grab. Absent: no list. Asked at each
+   * key event, and presses are then handled in order, each after its answer; without it everything is immediate, as before.
    */
-  skipped?(): string | null;
+  skipped?(): Promise<SkipVerdict | null>;
   /** Epoch milliseconds. */
   now?(): number;
   /** Waits this long (default: a timer). Checks give it a clock of their own so a wait cannot race the test. */
@@ -248,25 +250,60 @@ export function createSession(deps: SessionDeps) {
   }
 
   /** Right Ctrl went down first: open the microphone and start the screen grab now. */
-  function arm(): void {
+  function armNow(): void {
     if (attempt) dropAttempt('a new press began');
-    if (deps.skipped?.()) return; // nothing is opened for a window on the list; start() says so
     begin(true);
   }
 
-  function cancel(): void {
+  function cancelNow(): void {
     if (attempt && !attempt.chord) dropAttempt('Right Ctrl was released alone');
   }
 
+  /** What the person is told when a press is refused (and nothing else about why, so the window's name is never said). */
+  const refusal = (v: SkipVerdict): string => (v.kind === 'listed'
+    ? 'Not looking at this window: it is on your list of windows to skip.'
+    : 'Could not tell which window is in front, so nothing was looked at. Clear the list of windows to skip in Settings to stop this check.');
+
+  // With a list of windows to skip, key events are handled in order, each after the check of the window in front (which is given a short
+  // deadline and counts a failure as a refusal, see skip-list.ts). Without one they run at once, as before.
+  let chain: Promise<void> = Promise.resolve();
+  const failed = (error: unknown): void => deps.log(`press: ${error instanceof Error ? error.message : String(error)}`);
+  function ordered(run: () => void): void {
+    if (!deps.skipped) return run();
+    chain = chain.then(run).catch(failed);
+  }
+  function gated(run: () => void, refuse: (why: SkipVerdict) => void): void {
+    const check = deps.skipped;
+    if (!check) return run();
+    chain = chain
+      .then(async () => {
+        const verdict = await check().catch((): SkipVerdict => ({ kind: 'blind', why: 'the check failed' }));
+        if (verdict) refuse(verdict);
+        else run();
+      })
+      .catch(failed);
+  }
+  const arm = (): void => gated(armNow, () => {
+    if (attempt) dropAttempt('a new press began');
+  });
+  const cancel = (): void => ordered(cancelNow);
+  const start = (): void => gated(startNow, (why) => {
+    // The window in front is one the person asked us not to look at (or cannot be told): nothing is recorded or captured, and they are told.
+    if (attempt) dropAttempt('a press was refused');
+    deps.log(`press ignored: ${why.kind === 'listed' ? 'the window in front is on the list of windows to skip' : `the window in front could not be told (${why.why})`}`);
+    notice(deps.pointerDisplayId(), refusal(why));
+  });
+  const stop = (): void => gated(stopNow, (why) => {
+    const a = attempt;
+    if (!a || !a.chord) return;
+    // The person moved to a window that is refused while holding the keys: what was grabbed before is thrown away.
+    dropAttempt('a press was refused');
+    penOff(a.displayId);
+    notice(a.displayId, refusal(why));
+  });
+
   /** Both keys are down. */
-  function start(): void {
-    if (deps.skipped?.()) {
-      // The window in front is on the person's list: nothing is recorded or captured, and they are told.
-      if (attempt) dropAttempt('the window in front is on the list to skip');
-      deps.log('press ignored: the window in front is on the list of windows to skip');
-      notice(deps.pointerDisplayId(), 'Not looking at this window: it is on your list of windows to skip.');
-      return;
-    }
+  function startNow(): void {
     // A request still running is let go: its status (working, with the backend) must not outlive the press.
     const supersedes = asking !== null;
     asking?.abort();
@@ -306,16 +343,9 @@ export function createSession(deps: SessionDeps) {
   }
 
   /** Either key came up after the chord was made. */
-  function stop(): void {
+  function stopNow(): void {
     const a = attempt;
     if (!a || !a.chord) return;
-    if (deps.skipped?.()) {
-      // The person moved to a window on the list while holding the keys: what was grabbed before is thrown away.
-      dropAttempt('the window in front is on the list to skip');
-      penOff(a.displayId);
-      notice(a.displayId, 'Not looking at this window: it is on your list of windows to skip.');
-      return;
-    }
     attempt = null;
     releasedAt = now();
     penOff(a.displayId);

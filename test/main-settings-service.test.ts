@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createSettingsService, formFromSettings } from '../src/main/settings-service.ts';
@@ -161,6 +161,19 @@ test('saving what is already saved says nothing changed', () => {
   try {
     const again = t.service.save(t.service.read());
     assert.equal(again.ok && again.changed, false);
+  } finally {
+    t.done();
+  }
+});
+
+test('a save that cannot be finished (the rename fails) says so and leaves no half-written file behind', () => {
+  const t = setup();
+  try {
+    mkdirSync(t.path); // the settings file's place is taken by a folder, so the final rename cannot succeed
+    const result = t.service.save(withForm(t.service.read(), { codexFast: true }));
+    assert.equal(result.ok, false);
+    assert.ok(!result.ok && /could not be written/.test(result.messages.join(' ')));
+    assert.deepEqual(readdirSync(t.dir), ['settings.json'], 'no .saving file left');
   } finally {
     t.done();
   }

@@ -2,7 +2,7 @@
 // never decides what is valid. The API key goes to main once and is never sent back: this page only learns whether one is saved.
 
 import { CHORD_KEYS } from '../main/chord.ts';
-import { SWITCH_WARNINGS } from '../shared/settings-form.ts';
+import { changedKeys, savedMessage, SWITCH_WARNINGS } from '../shared/settings-form.ts';
 import type { Route, SettingsForm } from '../shared/settings-form.ts';
 
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -32,6 +32,7 @@ function arrange(): void {
 }
 
 function fill(form: SettingsForm): void {
+  shown = form;
   select('model').value = form.model;
   text('codexModel').value = form.codexModel;
   text('claudeModel').value = form.claudeModel;
@@ -76,6 +77,7 @@ function collect(): SettingsForm {
 }
 
 const messages = el('messages'), saved = el('saved');
+let shown: SettingsForm | null = null;
 
 function showMessages(list: readonly string[]): void {
   messages.replaceChildren(...list.map((m) => Object.assign(document.createElement('li'), { textContent: m })));
@@ -94,10 +96,11 @@ async function save(): Promise<void> {
     showMessages(result.messages);
     return;
   }
+  const said = savedMessage(shown ? changedKeys(shown, result.form) : result.changed ? ['model'] : []);
   fill(result.form);
-  saved.textContent = result.changed ? 'Saved. Restart Talkthrough to use the changes.' : 'Nothing was changed.';
+  saved.textContent = said.text;
   saved.classList.remove('hide');
-  el('restart').classList.toggle('hide', !result.changed);
+  el('restart').classList.toggle('hide', !said.restart);
 }
 
 for (const id of ['model', 'detailRoute']) select(id).addEventListener('change', arrange);

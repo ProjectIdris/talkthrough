@@ -2,7 +2,7 @@
 // the new values are put into the file's own contents (anything else in it is left as it was), checked as if the app were starting
 // with them, and written only if they pass without a new complaint. Nothing is changed in the running app: the window says so.
 
-import { copyFileSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { FORM_KEYS } from '../shared/settings-form.ts';
 import type { SaveResult, SettingsForm } from '../shared/settings-form.ts';
@@ -108,6 +108,7 @@ export function createSettingsService(options: { path: string; warn?: (message: 
       const different = FORM_KEYS.filter((k) => !same(echoed[k], form[k]));
       if (different.length > 0) return { ok: false, messages: different.map((k) => `"${k}" was not accepted as typed.`) };
       const changed = !same(formFromSettings(settingsFromRaw(raw)), echoed);
+      const temp = `${options.path}.saving`;
       try {
         mkdirSync(dirname(options.path), { recursive: true });
         if (broken) {
@@ -117,10 +118,14 @@ export function createSettingsService(options: { path: string; warn?: (message: 
             // nothing there to keep
           }
         }
-        const temp = `${options.path}.saving`;
         writeFileSync(temp, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
         renameSync(temp, options.path);
       } catch (error) {
+        try {
+          unlinkSync(temp); // a half-finished save leaves nothing behind
+        } catch {
+          // there was none to remove
+        }
         warn(`could not write the settings file: ${error instanceof Error ? error.message : String(error)}`);
         return { ok: false, messages: ['The settings file could not be written.'] };
       }

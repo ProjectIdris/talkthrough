@@ -30,26 +30,59 @@ test('a window matches by its app name, its program file or its title, in any ca
   assert.ok(DEFAULT_SKIP_LIST.includes('KeePass'));
 });
 
-test('the check reads the window each time it is asked; a read that fails or gives nothing skips nothing; no list reads nothing at all', () => {
+const never = (): Promise<never> => new Promise(() => undefined);
+
+test('the check reads the window each time it is asked, with the list as it is now, and reads nothing at all when there is no list', async () => {
   let reads = 0;
-  let now: { title: string } | null | 'throws' = { title: 'Bitwarden vault' };
-  const check = createSkipCheck(['bitwarden'], () => {
-    reads++;
-    if (now === 'throws') throw new Error('no window');
-    return now;
-  });
-  assert.equal(check(), 'bitwarden');
+  let now: { title: string } = { title: 'Bitwarden vault' };
+  let list: string[] = ['bitwarden'];
+  const check = createSkipCheck(() => list, { read: async () => (reads++, now) });
+  assert.deepEqual(await check(), { kind: 'listed', entry: 'bitwarden' });
   now = { title: 'Notepad' };
-  assert.equal(check(), null, 'it looks again every time');
-  now = null;
-  assert.equal(check(), null);
-  now = 'throws';
-  assert.equal(check(), null);
-  assert.equal(reads, 4);
-  const none = createSkipCheck([], () => {
-    reads++;
-    return { title: 'x' };
-  });
-  assert.equal(none(), null);
-  assert.equal(reads, 4);
+  assert.equal(await check(), null, 'it looks again every time');
+  now = { title: 'My Bank - Chrome' };
+  assert.equal(await check(), null);
+  list = ['bitwarden', 'my bank']; // a list saved a moment ago protects at once
+  assert.deepEqual(await check(), { kind: 'listed', entry: 'my bank' });
+  const before = reads;
+  list = [];
+  assert.equal(await check(), null);
+  assert.equal(reads, before, 'no list, no read');
+});
+
+test('a check that cannot tell what the window is says so and forbids the press: a throw, a rejection, nothing, nothing named, or no answer in time', async () => {
+  const cases: Array<[string, () => Promise<{ title?: string } | null | undefined>]> = [
+    ['rejects', async () => { throw new Error('boom'); }],
+    ['throws at once', () => { throw new Error('boom'); }],
+    ['null', async () => null],
+    ['undefined', async () => undefined],
+    ['empty', async () => ({})],
+    ['blank names', async () => ({ title: '' })],
+    ['never answers', never],
+  ];
+  for (const [name, read] of cases) {
+    const lines: string[] = [];
+    const check = createSkipCheck(() => ['bank'], { read, deadlineMs: 40, log: (l) => lines.push(l) });
+    const verdict = await check();
+    assert.equal(verdict?.kind, 'blind', name);
+    await check();
+    assert.equal(lines.length, 1, `${name}: said once`);
+  }
+});
+
+test('a read that hangs is given up on at the deadline, not waited for', async () => {
+  const check = createSkipCheck(() => ['bank'], { read: never, deadlineMs: 60 });
+  const t0 = Date.now();
+  const verdict = await check();
+  const took = Date.now() - t0;
+  assert.equal(verdict?.kind, 'blind');
+  assert.ok(took >= 50 && took < 400, `about the deadline: ${took} ms`);
+});
+
+test('a read that answers late, after the deadline, changes nothing', async () => {
+  let resolveLate: (w: { title: string }) => void = () => undefined;
+  const check = createSkipCheck(() => ['bank'], { read: () => new Promise((r) => (resolveLate = r)), deadlineMs: 30 });
+  assert.equal((await check())?.kind, 'blind');
+  resolveLate({ title: 'Notepad' });
+  await new Promise((r) => setTimeout(r, 10));
 });

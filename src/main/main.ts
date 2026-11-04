@@ -1,6 +1,6 @@
 import { app, dialog, safeStorage, screen, shell } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { uIOhook } from 'uiohook-napi';
 import { parseArgs } from './args.ts';
 import { createHttpBackend } from '../adapters/backend.ts';
@@ -17,7 +17,7 @@ import { gridOf } from './frame-grid.ts';
 import type { Click } from './guide.ts';
 import { startHotkey, watchGuideInput } from './hotkey.ts';
 import { parseHotkey } from './chord.ts';
-import { loadFrontWindow } from './front-window.ts';
+import { createFrontWindowReader } from './front-window.ts';
 import { createSkipCheck } from './skip-list.ts';
 import { createSettingsService } from './settings-service.ts';
 import { createKeyStore } from './keystore.ts';
@@ -187,7 +187,16 @@ async function main(): Promise<void> {
 
   // The API key, if the person uses that route: encrypted for their account, read only here, never logged.
   const keys = createKeyStore({ file: join(app.getPath('userData'), 'api-key.bin'), safeStorage });
+  // The windows the person asked us not to look at (see skip-list.ts). The list is read each time, so one just saved protects at once.
+  let skipList: readonly string[] = settings.captureBlocklist;
+  const frontReader = createFrontWindowReader({ file: join(__dirname, 'front-window-worker.cjs').replace('app.asar' + sep, 'app.asar.unpacked' + sep), log });
+  const skipped = createSkipCheck(() => skipList, { read: () => frontReader.read(), log });
+  if (skipList.length > 0) void frontReader.read().catch(() => undefined); // starts the reader now, not at the first press
   const settingsWindow = createSettingsWindow({
+    onSaved: (form) => {
+      skipList = form.captureBlocklist;
+      if (skipList.length > 0) void frontReader.read().catch(() => undefined);
+    },
     preload: settingsPreload,
     page: settingsPage,
     keys,
@@ -197,8 +206,6 @@ async function main(): Promise<void> {
       quit();
     },
   });
-  // The windows the person asked us not to look at (see skip-list.ts): read when a press begins, only if there is a list.
-  const skipped = settings.captureBlocklist.length > 0 ? createSkipCheck(settings.captureBlocklist, await loadFrontWindow(log)) : undefined;
   const chord = parseHotkey(settings.hotkey) ?? parseHotkey('right-ctrl+right-shift')!;
 
   /** One route's model, locked down the same way whichever it is; the detail pass uses the same code with its own choices. */
@@ -246,7 +253,7 @@ async function main(): Promise<void> {
   const uia = controlHelper && settings.controlSnap ? createUiaReader({ helper: controlHelper }) : undefined;
   const navigator = controlHelper && settings.guideNavigation && navConsent ? createNavigator({ helper: controlHelper }) : undefined;
   session = createSession({
-    ...(skipped ? { skipped } : {}),
+    skipped,
     ...(uia
       ? {
         controls: {
@@ -268,7 +275,7 @@ async function main(): Promise<void> {
       stopMic: () => media.stopMic(),
       abortMic: () => media.abortMic(),
       capture: async (displayId) => {
-        if (skipped?.()) throw new Error('the window in front is on the list of windows to skip');
+        if (await skipped()) throw new Error('the window in front is not to be looked at (the list of windows to skip)');
         const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
         // A stand-in picture goes through the same page as a real grab, so a pen crop works the same way.
         const c = captureImage ? await media.captureFromImage(display, captureImage, settings.screenshotEdge) : await media.capture(display, settings.screenshotEdge);
@@ -291,7 +298,7 @@ async function main(): Promise<void> {
     guide: {
       // A fresh look at the screen for the guide: the frame is let go at once (only the picture and its grid are kept).
       capture: async (displayId) => {
-        if (skipped?.()) throw new Error('the window in front is on the list of windows to skip');
+        if (await skipped()) throw new Error('the window in front is not to be looked at (the list of windows to skip)');
         const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
         const c = captureImage ? await media.captureFromImage(display, captureImage, settings.screenshotEdge) : await media.capture(display, settings.screenshotEdge);
         media.release(c.grabId);
@@ -374,6 +381,7 @@ async function main(): Promise<void> {
     overlays.dispose();
     media.dispose();
     settingsWindow.dispose();
+    frontReader.dispose();
     tray.destroy();
     // Let the model's process end (and its working folder go) before we leave, but never hang on it.
     void Promise.race([Promise.all([model.close?.(), detailModel?.close?.()]), new Promise((r) => setTimeout(r, 3000))]).finally(() => app.exit(0));
