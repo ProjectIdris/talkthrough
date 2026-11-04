@@ -77,7 +77,7 @@ When the thing to explain is a process, a sequence of events, a how-to or a tren
 | `dot` | `id of x y text? color?` | a labelled point of a chart |
 | `tick` | `id done?` | ticks a step of a steps diagram off (`done` false takes the tick away): the guide does this as the person gets through each step |
 
-`at` times each of them like any action, so an edge can be drawn on just as the voice reaches it. A piece with no `at` in a step that is played whole comes half a second after the one before; a piece never comes before the diagram, or the nodes, it belongs to. A diagram holds at most 12 nodes, 24 edges, 4 series and 16 dots, and 3 diagrams are on screen at once. `style` and `highlight` work on a diagram and on each piece; `clear` takes a diagram with all its pieces, or one piece; `clear marks` takes the diagrams with the marks. Pieces added or moved later glide to their new places.
+`at` times each of them like any action, so an edge can be drawn on just as the voice reaches it. A piece with no `at` in a step that is played whole comes half a second after the one before; a piece never comes before the diagram, or the nodes, it belongs to. A diagram holds at most 12 nodes, 24 edges, 4 series and 16 dots, and 3 diagrams are on screen at once. `style` and `highlight` work on a diagram and on each piece; `clear` takes a diagram with all its pieces, or one piece; `clear marks` takes the diagrams with the marks. Pieces added or moved later glide to their new places. An edge goes with the node it leaves (written again, the node does not bring it back); an edge into a node that has been cleared stays and is not drawn while that node is away.
 
 ## The 3D stage
 

@@ -185,6 +185,12 @@ test('clear: an id takes a diagram with its pieces (they fade first), marks and 
   assert.equal(settle(planStep(base, step({ op: 'clear', target: 'all' }))).diagrams.length, 0);
   const piece = settle(planStep(base, step({ op: 'clear', target: 'b' })));
   assert.deepEqual(items(piece).map((i) => i.id), ['a', 'ab']);
+  // An edge goes with the node it leaves: written again, the node does not bring its old edge back (the validator dropped it too).
+  const more = settle(planStep(emptyFrame(), step(flow(), node('a'), node('b'), node('c'), edge('ab', 'a', 'b'), edge('bc', 'b', 'c'))));
+  const gone = settle(planStep(more, step({ op: 'clear', target: 'b' })));
+  assert.deepEqual(items(gone).map((i) => i.id), ['a', 'c', 'ab'], 'bc left b and went with it; ab enters b and stays (it is not drawn while b is away)');
+  const back = settle(planStep(gone, step(node('b', { text: 'Again' }))));
+  assert.deepEqual(items(back).map((i) => i.id).sort(), ['a', 'ab', 'b', 'c']);
 });
 
 test('a finished answer fades its diagrams with the rest', () => {
@@ -221,6 +227,13 @@ test('a diagram keeps off what the answer points at (the figure the answer boxes
   const placed = placeAction(placer, { op: 'diagram', id: 'f', kind: 'chart', x: 620, y: 260, w: 300, h: 400 } as Action, 1080) as { x: number; y: number; w: number; h: number };
   assert.ok(!overlap(placed, figure), `clear of the figure: ${JSON.stringify(placed)}`);
   assert.ok(placed.x >= 0 && placed.y >= 0 && placed.x + placed.w <= 1000 && placed.y + placed.h <= 1000);
+});
+
+test('a flow shrunk into a small rectangle still writes its node texts (the text size has a floor)', () => {
+  const frame = settle(planStep(emptyFrame(), step(flow({ w: 80, h: 60 }), node('a', { text: 'Alpha' }), node('b', { text: 'Beta' }), node('c', { text: 'Gamma' }), edge('ab', 'a', 'b'), edge('bc', 'b', 'c'))));
+  const { ctx, texts } = fakeCtx();
+  new DiagramPainter().draw(ctx, frame.diagrams, view, 0);
+  for (const want of ['Alpha', 'Beta', 'Gamma']) assert.ok(texts.includes(want), `${want} in ${texts.join('|')}`);
 });
 
 /** A canvas context that remembers the text drawn on it and does nothing else. */

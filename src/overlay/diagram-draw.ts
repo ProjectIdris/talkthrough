@@ -277,7 +277,7 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
 /** Centred text (and an optional smaller note under it) fitted inside a box: the size comes down until it fits. */
 function textInBox(ctx: Ctx, text: string, note: string | undefined, b: Px, basePx: number, ink: string, muted: string): void {
   const innerW = b.w - 14;
-  let px = Math.min(basePx * 1.05, b.h * 0.36);
+  let px = Math.max(9, Math.min(basePx * 1.05, b.h * 0.36));
   let lines: string[] = [];
   for (; px >= 9; px -= 1) {
     ctx.font = fontAt(THEME.font, px);

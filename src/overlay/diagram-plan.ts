@@ -145,7 +145,11 @@ export function clearDiagrams(dp: DiagramPlan, target: string, at: number): bool
   const inst = lookup(dp, target, at);
   if (!inst) return false;
   kill(inst);
-  for (const i of dp.insts) if (i.parentKey === inst.key && aliveAt(i, at)) kill(i);
+  // What is in it goes with it; so does an edge that leaves a node (the validator drops it too, so it must not come back when the node is written again).
+  for (const i of dp.insts) {
+    if (!aliveAt(i, at)) continue;
+    if (i.parentKey === inst.key || (i.def.op === 'edge' && i.def.from === inst.id)) kill(i);
+  }
   return any;
 }
 
