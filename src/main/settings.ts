@@ -34,8 +34,9 @@ export type Settings = {
   effort: string;
   /**
    * Snap marks to the real controls (buttons, tabs, menu items) of the window in front, read read-only from the
-   * system's accessibility tree on Windows (nothing is clicked, no names are read, nothing leaves the machine). Off:
-   * marks snap to the picture alone.
+   * system's accessibility tree on Windows (nothing is clicked, no names are read, nothing leaves the machine). Off
+   * until the person turns it on: marks then snap to the picture alone. Browser windows (Chromium, Electron, Firefox)
+   * are never read either way, because reading one turns its accessibility on until it is restarted.
    */
   controlSnap: boolean;
   /**
@@ -69,7 +70,7 @@ export const DEFAULT_SETTINGS: Settings = {
   micWindowMs: 1000,
   screenshotEdge: 1280,
   effort: 'low',
-  controlSnap: true,
+  controlSnap: false,
 };
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);

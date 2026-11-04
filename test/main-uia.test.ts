@@ -1,10 +1,12 @@
 import test from 'node:test';
+import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
 import { UIA_SCRIPT, createUiaReader, parseControls, toDisplayBoxes } from '../src/main/uia.ts';
+import { createHelper } from '../src/main/ps-helper.ts';
+import { fakeChild } from './support/fake-helper-child.ts';
+import { haveElectron, startPage } from './support/electron-page.ts';
 
 test('the controls text is read strictly: anything that is not numbers and a type name is dropped', () => {
   const got = parseControls('10,20,80,30,button;5,5,3,3,tabitem;bad;1,2,3,4,Button;1,2,3,4,x y;-10,0,40,20,edit;1,2,3;');
@@ -35,23 +37,27 @@ test('controls in screen pixels become boxes on the display\'s 0..1000 scale; of
   assert.equal(second[0]?.x, 41.7, 'a second display is measured from its own corner');
 });
 
-test('a reader that is never answered gives up at the time limit, and a cancelled one stops its child', async () => {
-  let killed = 0;
-  const hang = (_file: string, _args: string[], _env: NodeJS.ProcessEnv, _ms: number, _done: (e: Error | null, s: string) => void) => ({ kill: () => { killed++; return true; } }) as unknown as ChildProcess;
-  const reader = createUiaReader({ run: hang, timeoutMs: 50 })!;
+test('a reader that is never answered gives up at the time limit, a cancelled one answers at once, and a failed or skipped one gives nothing', async () => {
+  const hang = fakeChild(() => undefined);
+  const reader = createUiaReader({ helper: createHelper({ startupMs: 0, start: () => hang })!, timeoutMs: 40 })!;
+  const timedOut = await reader.read();
+  assert.equal(timedOut.why, 'timed out');
+  assert.deepEqual(timedOut.controls, []);
+  assert.equal(hang.killed, 1, 'the child that did not answer was stopped');
   const abort = new AbortController();
-  const pending = reader.read(abort.signal);
+  const quiet = fakeChild(() => undefined);
+  const cancelled = createUiaReader({ helper: createHelper({ start: () => quiet })!, timeoutMs: 5000 })!.read(abort.signal);
   abort.abort();
-  assert.equal(killed, 1);
-  // The fake child never calls back, so the read stays pending: the session never awaits it (see main-session.test.ts).
-  const raced = await Promise.race([pending.then(() => 'done'), new Promise<string>((r) => setTimeout(() => r('pending'), 30))]);
-  assert.equal(raced, 'pending');
-  const failing = createUiaReader({ run: (_f, _a, _e, _t, done) => { setImmediate(() => done(new Error('boom'), '')); return { kill: () => true } as unknown as ChildProcess; } })!;
-  const failed = await failing.read();
-  assert.deepEqual(failed.controls, []);
-  assert.equal(failed.why, 'failed');
-  const ok = createUiaReader({ run: (_f, _a, _e, _t, done) => { setImmediate(() => done(null, '1,2,30,40,button')); return { kill: () => true } as unknown as ChildProcess; } })!;
-  assert.deepEqual((await ok.read()).controls, [{ x: 1, y: 2, w: 30, h: 40, kind: 'button' }]);
+  assert.equal((await cancelled).why, 'cancelled');
+  const answers = (body: Record<string, unknown>) => createUiaReader({ helper: createHelper({ start: () => fakeChild(() => body) })! })!.read();
+  assert.deepEqual((await answers({ out: '1,2,30,40,button' })).controls, [{ x: 1, y: 2, w: 30, h: 40, kind: 'button' }]);
+  const skipped = await answers({ skip: 'browser' });
+  assert.deepEqual(skipped.controls, []);
+  assert.equal(skipped.why, 'browser', 'a browser window is reported as skipped, not as empty');
+  const dead = fakeChild(() => undefined);
+  const failing = createUiaReader({ helper: createHelper({ start: () => dead })!, timeoutMs: 5000 })!.read();
+  dead.die();
+  assert.equal((await failing).why, 'failed');
 });
 
 // A window of our own (never anyone else's), made with WPF because it describes itself to the accessibility tree
@@ -117,10 +123,13 @@ function openOwnWindow(): Promise<{ child: ChildProcess; hwnd: number; rects: nu
 test('on a window of our own the reader finds the buttons, the field and the tabs where the window puts them', { skip: process.platform !== 'win32', timeout: 60000 }, async () => {
   const win = await openOwnWindow();
   try {
-    const reader = createUiaReader({ hwnd: win.hwnd, timeoutMs: 15000 })!;
+    const helper = createHelper()!;
+    const reader = createUiaReader({ hwnd: win.hwnd, helper, timeoutMs: 15000 })!;
+    const first = await reader.read();
     const read = await reader.read();
+    helper.stop();
+    console.log(`uia: first read (the helper starts) ${first.ms} ms, the next ${read.ms} ms`);
     assert.ok(read.controls.length >= 5, `found ${read.controls.length}: ${JSON.stringify(read.controls)}`);
-    console.log(`uia: ${read.controls.length} controls in ${read.ms} ms`);
     const near = (want: number[], kinds: string[]): void => {
       const c = read.controls.find((k) => kinds.includes(k.kind) && Math.abs(k.x - want[0]!) <= 3 && Math.abs(k.y - want[1]!) <= 3 && Math.abs(k.w - want[2]!) <= 4 && Math.abs(k.h - want[3]!) <= 4);
       assert.ok(c, `a ${kinds.join('/')} at ${want.join(',')} among ${JSON.stringify(read.controls)}`);
@@ -135,28 +144,18 @@ test('on a window of our own the reader finds the buttons, the field and the tab
   }
 });
 
-test('on a web page of our own (a browser window) the first read already finds the page\'s controls, though a page builds its tree only when asked', { skip: process.platform !== 'win32' || !existsSync(resolve('node_modules/electron/dist/electron.exe')), timeout: 60000 }, async () => {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== 'ELECTRON_RUN_AS_NODE'));
-  const child = spawn(resolve('node_modules/electron/dist/electron.exe'), [resolve('test/support/uia-page.cjs')], { env, stdio: ['ignore', 'pipe', 'ignore'] });
+test('a browser window is never read: the reader answers "browser" before the accessibility API is touched, and the page is left as it was', { skip: process.platform !== 'win32' || !haveElectron, timeout: 90000 }, async () => {
+  const page = await startPage();
+  const helper = createHelper()!;
   try {
-    const ready = await new Promise<RegExpExecArray>((ok, fail) => {
-      let text = '';
-      const timer = setTimeout(() => fail(new Error('the test page did not start')), 25000);
-      child.stdout!.on('data', (d: Buffer) => {
-        text += d.toString();
-        const m = /READY (\d+) (.*)/.exec(text);
-        if (m) { clearTimeout(timer); ok(m); }
-      });
-      child.on('error', fail);
-    });
-    const want = ready[2]!.trim().split(';').map((s) => { const [kind, ...n] = s.split(','); return { kind: kind!, n: n.map(Number) }; });
-    const read = await createUiaReader({ hwnd: Number(ready[1]), timeoutMs: 15000 })!.read();
-    console.log(`uia (web page, first read): ${read.controls.length} controls in ${read.ms} ms`);
-    for (const w of want) {
-      const c = read.controls.find((k) => k.kind === w.kind && Math.abs(k.x - w.n[0]!) <= 3 && Math.abs(k.y - w.n[1]!) <= 3 && Math.abs(k.w - w.n[2]!) <= 4 && Math.abs(k.h - w.n[3]!) <= 4);
-      assert.ok(c, `a ${w.kind} at ${w.n.join(',')} among ${JSON.stringify(read.controls)}`);
+    const reader = createUiaReader({ hwnd: page.hwnd, helper, timeoutMs: 15000 })!;
+    for (let i = 0; i < 2; i++) {
+      const read = await reader.read();
+      assert.equal(read.why, 'browser');
+      assert.deepEqual(read.controls, []);
     }
   } finally {
-    child.kill();
+    helper.stop();
+    page.stop();
   }
 });

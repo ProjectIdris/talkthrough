@@ -738,7 +738,7 @@ const controlsRead = (answer: (signal?: AbortSignal) => Promise<{ boxes: typeof 
   },
 });
 
-test('real controls: the read starts when the key goes down, is never waited for, and its boxes reach the page after the screenshot they belong to', async () => {
+test('real controls: the read starts when the chord is complete, is never waited for, and its boxes reach the page after the screenshot they belong to', async () => {
   const plain = rig();
   await question(plain);
   const r = rig({ controls: controlsRead(async () => ({ boxes: BOXES, ms: 12 })) });
@@ -770,13 +770,17 @@ test('real controls: a read that fails or finds nothing leaves the answer whole 
   assert.equal(synchronous.kinds().at(-1), 'end');
 });
 
-test('real controls: a press that is dropped stops its read, and a read that comes after a newer question began is not sent', async () => {
+test('real controls: nothing is read for a lone Right Ctrl, and a read that comes after a newer question began is not sent', async () => {
   const seen: AbortSignal[] = [];
   const r = rig({ controls: controlsRead(() => new Promise(() => undefined), seen) });
   r.session.arm();
+  assert.equal(seen.length, 0, 'the first key alone is no question: nothing is read');
   r.session.cancel();
-  assert.equal(seen.length, 1);
-  assert.equal(seen[0]!.aborted, true, 'the dropped press ends its read');
+  assert.equal(seen.length, 0);
+  r.session.arm();
+  r.session.start();
+  assert.equal(seen.length, 1, 'the chord starts the read');
+  assert.equal(seen[0]!.aborted, false);
   const late: Array<(v: { boxes: typeof BOXES; ms: number }) => void> = [];
   const slow = rig({ controls: controlsRead(() => new Promise((resolve) => { late.push(resolve); })) });
   await question(slow);

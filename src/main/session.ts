@@ -202,21 +202,27 @@ export function createSession(deps: SessionDeps) {
     deps.log(`early microphone and capture dropped (${why})`);
   }
 
+  /**
+   * The real controls of the window in front (see uia.ts), read once the chord is complete (not on Right Ctrl alone: a lone
+   * key is no question) and never waited for. The press keeps the read so it can be stopped if the press is dropped.
+   */
+  function startControls(a: Attempt): void {
+    if (!deps.controls || a.controls) return;
+    const abort = new AbortController();
+    const none = (why: string) => ({ boxes: [], ms: 0, why });
+    let done: Promise<{ boxes: { x: number; y: number; w: number; h: number; kind: string }[]; ms: number; why?: string }>;
+    try {
+      done = deps.controls.read(a.displayId, abort.signal).catch(() => none('failed'));
+    } catch {
+      done = Promise.resolve(none('failed'));
+    }
+    a.controls = { done, abort };
+  }
+
   function begin(withWindow: boolean): Attempt {
     const displayId = deps.pointerDisplayId();
     const a: Attempt = { id: nextId++, displayId, capture: deps.media.capture(displayId), strokes: new Map(), open: new Set(), micStarted: false, chord: false, timer: null };
     a.capture.catch(() => undefined); // an error is reported when the question is asked
-    if (deps.controls) {
-      const abort = new AbortController();
-      const none = (why: string) => ({ boxes: [], ms: 0, why });
-      let done: Promise<{ boxes: { x: number; y: number; w: number; h: number; kind: string }[]; ms: number; why?: string }>;
-      try {
-        done = deps.controls.read(displayId, abort.signal).catch(() => none('failed'));
-      } catch {
-        done = Promise.resolve(none('failed'));
-      }
-      a.controls = { done, abort };
-    }
     deps.media.startMic().catch((error: unknown) => deps.log(`microphone: ${error instanceof Error ? error.message : String(error)}`));
     if (withWindow) a.timer = setTimeout(() => dropAttempt('Right Shift did not follow in time'), deps.micWindowMs);
     attempt = a;
@@ -242,6 +248,7 @@ export function createSession(deps: SessionDeps) {
     if (a.timer) clearTimeout(a.timer);
     a.timer = null;
     a.chord = true;
+    startControls(a);
     // The chord is complete, so a question is on its way: let the model load its instructions while it is
     // spoken. Not for a follow-up, which continues a thread that already holds them.
     const following = thread.length > 0 && now() - lastActivity < THREAD_WINDOW_MS;
