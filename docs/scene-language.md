@@ -28,7 +28,7 @@ A scene is `{ "steps": [...] }` (an optional `"v": 1` marks the version, an opti
 
 Two layers are drawn:
 
-- **Screen marks** are drawn flat over the screenshot: box, circle, underline, arrow, label, note cards and image cards, and tags pinned to parts of a 3D model.
+- **Screen marks** are drawn flat over the screenshot: box, circle, underline, arrow, polygon, point, trace, label, note cards and image cards, and tags pinned to parts of a 3D model.
 - **The 3D model** floats over the page, lit and shadowed, and the user can drag it to rotate. It is built from a modelling vocabulary (shapes, surfaces, ready-made parts, copies) and moved with the same timed actions as everything else. The stage rectangle only says where it is fitted; there is no box around it unless `frame` is asked for.
 
 Objects stay on screen until cleared. A follow-up question continues the same scene: ids from earlier answers can still be used, and a new answer starts by clearing only if it says so.
@@ -55,10 +55,13 @@ Marks take `id`, `color` (cards, images and pins may leave it out: the look choo
 
 | op | fields | |
 |---|---|---|
-| `box` | `x y w h` | rectangle outline; `x,y` is the top-left corner |
-| `circle` | `x y w h` | circle or oval drawn inside the box (same fields as `box`) |
+| `box` | `x y w h rot?` | rectangle outline; `x,y` is the top-left corner; `rot` (degrees clockwise, -360 to 360) tips it about its middle, on the screen's own pixels, so a tilted square stays square |
+| `circle` | `x y w h rot?` | circle or oval drawn inside the box (same fields as `box`) |
 | `underline` | `x y w` | a line under text; `x,y` is the left end (`y` just under the bottom of the letters) |
 | `arrow` | `x1 y1 x2 y2` | from `x1,y1` to `x2,y2`; the head is at `x2,y2` |
+| `poly` | `pts` | a closed outline through 3 to 24 screen points `[[x,y],...]`, lightly filled: a triangle, a tilted square, any shape a box or oval does not fit |
+| `point` | `x y` | a marker (a ring with a dot) on one exact point: where two lines cross, a tip, a place on a map |
+| `trace` | `pts head?` | a smooth line through 2 to 40 screen points that follows a curve or path on the page; it passes through every point; `head` true ends it in an arrowhead |
 | `label` | `x y text size?` | short text, up to 80 characters; `x,y` is the top-left corner; `size` is the text height in y units (10 to 100, default 24) |
 | `card` | `x y w? title? rows? layout? to?` | a note card: a title and/or up to 6 rows of up to 60 characters; `w` is its width in x units (default 300); `layout` is `list` (default), `timeline` (rows written `when \| what`, laid along a line) or `stat` (the first row large); `to` is a screen point a curved line runs to from the card |
 | `image` | `sx sy sw sh dx dy dw caption?` | a crop of the screenshot (region `sx,sy,sw,sh`) shown as a card at `dx,dy`, `dw` wide, with an optional caption; it needs the screenshot, so it is left out where the page has none |

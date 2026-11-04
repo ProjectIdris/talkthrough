@@ -61,7 +61,7 @@ test('every sample scene conforms to the schema (nullable fields may be left out
 
 test('the schema refuses what the validator would also drop', () => {
   const step = (action: unknown) => ({ steps: [{ say: 'x', actions: [action] }], escalate: null });
-  const ok = { op: 'box', id: 'a', x: 1, y: 1, w: 1, h: 1, color: 'red', at: null };
+  const ok = { op: 'box', id: 'a', x: 1, y: 1, w: 1, h: 1, rot: null, color: 'red', at: null };
   assert.deepEqual(check(schema, schema, step(ok)), []);
   assert.notDeepEqual(check(schema, schema, step({ ...ok, op: 'eval' })), []);
   assert.notDeepEqual(check(schema, schema, step({ ...ok, color: 5 })), [], 'a colour is text; which text is for the validator to judge');

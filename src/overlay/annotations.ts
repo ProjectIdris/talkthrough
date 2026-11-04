@@ -14,6 +14,8 @@ import { rgbCss } from './timeline.ts';
 
 export type Annotator = {
   view: View;
+  /** The 3D stage in pixels, when there is one: tags are drawn smaller beside a small stage so they do not outweigh the model. */
+  stage?: { w: number; h: number };
   /** Where a point of a 3D object is in the window. */
   project: (key: number, point: Vec3 | undefined, anchor?: string) => { x: number; y: number; visible: boolean } | undefined;
   /** The screenshot (or backdrop) image crops are taken from. */
@@ -154,7 +156,9 @@ export function drawPin(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): vo
   const alpha = Math.max(0, Math.min(1, m.opacity * m.fade));
   const p = m.appear;
   const color = accentFor(m, theme, order);
-  const textPx = Math.max(13, view.height * 0.0195);
+  // A tag is sized by the screen; beside a stage much smaller than a usual one (half the screen's height) it comes down, to 70% at most.
+  const beside = a.stage ? Math.max(0.7, Math.min(1, Math.min(a.stage.w, a.stage.h) / (view.height * 0.5))) : 1;
+  const textPx = Math.max(11, Math.max(13, view.height * 0.0195) * beside);
   const anchor = { x: snapPx(where.x, view.dpr), y: snapPx(where.y, view.dpr) };
 
   ctx.save();
@@ -182,7 +186,7 @@ export function drawPin(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): vo
   const lead = easeOut((p - 0.12) / 0.5);
   const show = easeOut((p - 0.45) / 0.55);
   drawLeader(ctx, [anchor, spot.attach], color, alpha * spot.alpha, lead);
-  drawAnchor(ctx, anchor, color, alpha * Math.min(1, p / 0.2), (0.5 + 0.5 * dot) * (1 + 0.5 * m.pulse));
+  drawAnchor(ctx, anchor, color, alpha * Math.min(1, p / 0.2), (0.5 + 0.5 * dot) * (1 + 0.5 * m.pulse) * beside);
 
   ctx.globalAlpha = alpha * show * spot.alpha;
   const grow = 0.94 + 0.06 * show;

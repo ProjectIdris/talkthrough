@@ -43,6 +43,12 @@
         "h": {
           "type": "number"
         },
+        "rot": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "color": {
           "type": "string"
         },
@@ -60,6 +66,7 @@
         "y",
         "w",
         "h",
+        "rot",
         "color",
         "at"
       ],
@@ -88,6 +95,12 @@
         "h": {
           "type": "number"
         },
+        "rot": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "color": {
           "type": "string"
         },
@@ -105,6 +118,7 @@
         "y",
         "w",
         "h",
+        "rot",
         "color",
         "at"
       ],
@@ -191,6 +205,128 @@
         "y1",
         "x2",
         "y2",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "poly": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "poly"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "color": {
+          "type": "string"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "pts",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "point": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "point"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "color": {
+          "type": "string"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "trace": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "trace"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "head": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "color": {
+          "type": "string"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "pts",
+        "head",
         "color",
         "at"
       ],
@@ -2370,6 +2506,15 @@
         },
         {
           "$ref": "#/$defs/arrow"
+        },
+        {
+          "$ref": "#/$defs/poly"
+        },
+        {
+          "$ref": "#/$defs/point"
+        },
+        {
+          "$ref": "#/$defs/trace"
         },
         {
           "$ref": "#/$defs/label"

@@ -13,7 +13,11 @@ import { createSpeechSynthesisVoice } from '../adapters/speech-synthesis-voice.t
 import { AutoFade, fadeFrame } from './fade.ts';
 import { HudState } from './hud.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
+import { snapperFor } from './page-gray.ts';
+import { PageMemory } from './page-memory.ts';
 import { Placer, pageGrid, placeAction, reserveMarks } from './placement.ts';
+import { snapActions } from './snap.ts';
+import type { Snapper } from './snap.ts';
 import type { PageGrid } from './placement.ts';
 import type { Busy } from './labels.ts';
 import { panelRect } from './layout.ts';
@@ -193,11 +197,15 @@ const clampRect = (r: ScreenRect, pad: number): ScreenRect => {
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 reduceMotion.addEventListener('change', () => request());
 
+/** The stage's size in pixels this frame: tags are drawn smaller beside a small stage. */
+let stageSize: { w: number; h: number } | undefined;
+
 function draw(frame: Frame): void {
   renderer.setScissorTest(false);
   renderer.clear();
   const rect = panelRect(frame.panel, view);
   modelRect = undefined;
+  stageSize = undefined;
   if (rect && frame.panel) {
     const { x, y, w, h, alpha } = rect;
     if (frame.panel.frame) {
@@ -213,7 +221,8 @@ function draw(frame: Frame): void {
     } else {
       frameEl.style.display = 'none';
     }
-    panelScene.sync(frame, w / h, { rect: { x, y, w, h }, width: view.width, height: view.height });
+    panelScene.sync(frame, w / h, { rect: { x, y, w, h }, width: view.width, height: view.height, now: labelClock() });
+    stageSize = { w, h };
     const bounds = panelScene.screenBounds(view.width, view.height);
     if (bounds) {
       modelRect = frame.panel.frame ? { x, y, w, h } : bounds.model;
@@ -247,6 +256,7 @@ function draw(frame: Frame): void {
   board.keep(new Set(frame.marks.filter((m) => m.mark.op === 'pin').map((m) => m.key)));
   drawMarks(marksCtx, frame.marks, view, {
     view,
+    ...(stageSize ? { stage: stageSize } : {}),
     place: (key, request) => board.place(key, request, labelEnvironment),
     project: (key, point, anchor) => panelScene.project(key, point, view.width, view.height, anchor),
     ...(cropSource() ? { source: cropSource()! } : {}),
@@ -276,13 +286,18 @@ const pen = new PenLayer();
 // Frame grabs (seek) step a clock of their own, one thirtieth of a second a grab, so a clip's tags move at the clip's pace.
 let seekClock: number | undefined;
 const labelClock = (): number => seekClock ?? performance.now();
-let busyFor: { image: CanvasImageSource; busy: Busy; grid: PageGrid } | undefined;
+// The screenshot element is reused for every capture, so what is worked out from the page is kept per picture and
+// dropped when a new one arrives (handleScene), not told apart by the element.
+const pageMemory = new PageMemory();
 
-/** A small gray picture of the screenshot (or backdrop), kept for as long as it is the same image. */
+/** A small gray picture of the screenshot (or backdrop), kept for as long as it is the same picture. */
 function pageFor(): { busy: Busy; grid: PageGrid } | undefined {
   const source = cropSource();
   if (!source) return undefined;
-  if (busyFor?.image === source.image) return busyFor;
+  return pageMemory.recall('page', source.image, '', () => grayPage(source));
+}
+
+function grayPage(source: { image: CanvasImageSource; width: number; height: number }): { busy: Busy; grid: PageGrid } | undefined {
   const cols = 192, rows = 108;
   // Shrunk in halves, so thin text blurs into a tone instead of being skipped over by a single big step.
   let from: CanvasImageSource = source.image;
@@ -309,23 +324,33 @@ function pageFor(): { busy: Busy; grid: PageGrid } | undefined {
   const data = c.getImageData(0, 0, cols, rows).data;
   const gray = new Uint8Array(cols * rows);
   for (let i = 0; i < gray.length; i++) gray[i] = (data[i * 4] as number) * 0.3 + (data[i * 4 + 1] as number) * 0.59 + (data[i * 4 + 2] as number) * 0.11;
-  busyFor = { image: source.image, busy: busyFromGray(gray, cols, rows, view.width, view.height), grid: pageGrid(gray, cols, rows) };
-  return busyFor;
+  return { busy: busyFromGray(gray, cols, rows, view.width, view.height), grid: pageGrid(gray, cols, rows) };
 }
 
 /** How busy each part of the page is, from the screenshot (or backdrop): tags keep off its text. */
 const busyMap = (): Busy | undefined => pageFor()?.busy;
 
 /** Where the stage and the cards go on this page (placement.ts); there is none without a picture of the page. */
-let placerFor: { image: CanvasImageSource; aspect: number; placer: Placer } | undefined;
 function placer(): Placer | undefined {
   const page = pageFor();
   const source = cropSource();
   if (!page || !source) return undefined;
   const aspect = view.width / view.height;
-  if (placerFor?.image === source.image && placerFor.aspect === aspect) return placerFor.placer;
-  placerFor = { image: source.image, aspect, placer: new Placer(page.grid, { aspect }) };
-  return placerFor.placer;
+  return pageMemory.recall('placer', source.image, String(aspect), () => new Placer(page.grid, { aspect }));
+}
+
+/** The page's edges and corners, for putting marks on what they point at (snap.ts); kept for as long as the picture is the same. */
+function snapper(): Snapper | undefined {
+  const source = cropSource();
+  if (!source) return undefined;
+  return pageMemory.recall('snapper', source.image, '', () => snapperFor(source.image, source.width, source.height));
+}
+
+/** Marks moved onto the page's own lines, corners and figures; each move is said once in the app log (a check run reads it). */
+function snappedActions(actions: readonly Action[]): Action[] {
+  const s = snapper();
+  if (!s) return [...actions];
+  return snapActions(s, actions, (r) => console.info(`talkthrough: snapped ${r.op} ${r.id} by ${r.moved} units`));
 }
 
 function labelEnvironment(): { occ: Occupancy; busy?: Busy } {
@@ -406,7 +431,7 @@ function loop(): void {
   if (pen.active) sendPen();
   showHud();
   const fading = fader.armed && k < 1 && k > 0;
-  if (player.active || dragging || fading || board.moving || diagramsMoving || pen.animating(now) || pen.active) {
+  if (player.active || dragging || fading || board.moving || diagramsMoving || panelScene.fitting || pen.animating(now) || pen.active) {
     request();
     return;
   }
@@ -589,16 +614,18 @@ function placedScene(scene: Scene): Scene {
   if (!p) return scene;
   p.reset();
   p.setStage(undefined);
-  for (const step of scene.steps) reserveMarks(p, step.actions, view.width / view.height);
-  const out = { ...scene, steps: scene.steps.map((step) => ({ ...step, actions: step.actions.map((a) => placeAction(p, a, view.height)) })) };
+  const snapped = scene.steps.map((step) => ({ ...step, actions: snappedActions(step.actions) }));
+  for (const step of snapped) reserveMarks(p, step.actions, view.width / view.height);
+  const out = { ...scene, steps: snapped.map((step) => ({ ...step, actions: step.actions.map((a) => placeAction(p, a, view.height)) })) };
   return out;
 }
 
 function placedAction(action: Action): Action {
   const p = placer();
   if (!p) return action;
-  reserveMarks(p, [action], view.width / view.height);
-  return placeAction(p, action, view.height);
+  const [snapped] = snappedActions([action]) as [Action];
+  reserveMarks(p, [snapped], view.width / view.height);
+  return placeAction(p, snapped, view.height);
 }
 
 /**
@@ -614,6 +641,8 @@ function waitForPage(image: HTMLImageElement): void {
   const release = (): void => {
     if (!pageDecoding) return;
     pageDecoding = false;
+    // Worked out now, while the model is still thinking, not when the first mark is due.
+    if (image.complete && image.naturalWidth > 0) { placer(); snapper(); }
     for (const held of heldScene.splice(0)) handleScene(held);
   };
   void image.decode().then(release, release);
@@ -623,6 +652,7 @@ function waitForPage(image: HTMLImageElement): void {
 function handleScene(message: SceneMessage): void {
   if (message.kind === 'screenshot') {
     shot.onload = () => request();
+    pageMemory.renew(); // the same element holds every capture: what was worked out from the last one is out of date
     shot.src = message.url;
     waitForPage(shot);
     return;
