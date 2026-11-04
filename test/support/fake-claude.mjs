@@ -3,6 +3,8 @@
 // streams and its call ends, then, as the real tool does when the schema is not met to the letter, it asks again and
 // streams the answer twice more, ending only after that, with the figures of all three calls)
 // FAKE_SPLIT=1: a question that asks for step 1 only is answered with one step, one that gives step 1 and asks for the rest with two more
+// FAKE_CHAIN=1: one step to a call: the call that asks for step 1 and a plan answers step 'S1' with the plan ['Two', 'Three'] and done false, the one that
+// asks for step N answers 'SN' with done true when N is 3 (FAKE_CHAIN=fail3: the call for step 3 ends in an error; FAKE_CHAIN=short: step 1 says done).
 // steps (FAKE_REST=fail: that second call ends in an error; FAKE_REST=slow: it takes 600 ms to start; FAKE_REST=die: its process exits).
 import { createInterface } from 'node:readline';
 
@@ -16,6 +18,17 @@ let answer = JSON.stringify({ steps: whole, escalate: process.env.FAKE_ESCALATE 
 
 createInterface({ input: process.stdin }).once('line', (line) => {
   const asked = line.includes('Write only step 1 now') ? 'first' : line.includes('Step 1 of this answer is already drawn') ? 'rest' : 'whole';
+  const chain = line.match(/Write step (\d+) only/);
+  if (process.env.FAKE_CHAIN) {
+    const n = chain ? Number(chain[1]) : 1;
+    if (process.env.FAKE_CHAIN === 'fail3' && n === 3) {
+      send({ type: 'system', subtype: 'init', tools: ['StructuredOutput'], mcp_servers: [], slash_commands: [] });
+      send({ type: 'result', subtype: 'error_during_execution', is_error: true, result: 'step three broke' });
+      return;
+    }
+    const extra = process.env.FAKE_CHAIN === 'extra' ? [{ say: 'Unasked.', actions: [] }] : [];
+    answer = JSON.stringify({ steps: [{ say: 'S' + n + '.', actions: [] }, ...extra], plan: n === 1 ? (process.env.FAKE_CHAIN === 'short' ? null : ['Two', 'Three']) : null, done: process.env.FAKE_CHAIN === 'short' ? true : n >= 3, escalate: null });
+  }
   if (process.env.FAKE_SPLIT && asked === 'first') answer = JSON.stringify({ steps: [whole[0]], escalate: null });
   if (process.env.FAKE_SPLIT && asked === 'rest') {
     answer = JSON.stringify({ steps: [{ say: 'Third.', actions: [] }, { say: 'Fourth.', actions: [] }], escalate: null });

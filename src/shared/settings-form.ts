@@ -2,6 +2,7 @@
 // ways; main checks it with the very checks the settings file goes through (main/settings.ts) before anything is written.
 
 export type Route = 'codex' | 'claude' | 'openai';
+export type SplitMode = 'off' | 'two' | 'steps';
 
 export type SettingsForm = {
   /** Which route runs the model. */
@@ -25,12 +26,13 @@ export type SettingsForm = {
   captureBlocklist: string[];
   guideNavigation: boolean;
   controlSnap: boolean;
-  twoStepAnswer: boolean;
+  /** 'off', 'two' (step 1, then the rest) or 'steps' (one step to a call); Claude route only. */
+  splitAnswer: SplitMode;
 };
 
 export const FORM_KEYS: ReadonlyArray<keyof SettingsForm> = [
   'model', 'codexModel', 'claudeModel', 'openaiModel', 'codexFast', 'detailRoute', 'detailModel',
-  'voiceServerUrl', 'voiceServerVoice', 'speechServerUrl', 'hotkey', 'captureBlocklist', 'guideNavigation', 'controlSnap', 'twoStepAnswer',
+  'voiceServerUrl', 'voiceServerVoice', 'speechServerUrl', 'hotkey', 'captureBlocklist', 'guideNavigation', 'controlSnap', 'splitAnswer',
 ];
 
 /** What main answers a save with. */
@@ -55,5 +57,5 @@ export function savedMessage(changed: ReadonlyArray<keyof SettingsForm>): { text
 export const SWITCH_WARNINGS = {
   guideNavigation: 'When a guide asks for it, Talkthrough may open a tab, open a menu or scroll for you in desktop apps (never in a browser). It asks first and you can stop it at any time.',
   controlSnap: 'Reads the buttons and tabs of the window in front (only where they are, never their text) to place marks exactly. Never in a browser.',
-  twoStepAnswer: 'On the Claude route, the first words come sooner: the answer is written in two calls, the first step alone, then the rest while you hear it. Each question then uses two calls of your Claude allowance.',
+  splitAnswer: 'On the Claude route, the first words come sooner. "In two calls" writes the first step alone, then the rest while you hear it; "One step at a time" writes each step in a call of its own. Each question then uses two or more calls of your Claude allowance.',
 } as const;

@@ -30,10 +30,10 @@ function onFake(env: Record<string, string>, log: (m: string) => void = () => un
   return { model: createTwoStepModel(inner, { log }), done: async () => { for (const k of Object.keys(env)) delete process.env[k]; await inner.close?.(); } };
 }
 
-test('what each half is told: the first asks for step 1 alone (about 25 words), the second is given step 1 and asks for the rest', () => {
+test('what each half is told: the first asks for step 1 alone (about 30 words), the second is given step 1 and asks for the rest', () => {
   const first = questionText({ ...request, stage: { part: 'first' } });
   assert.match(first, /Write only step 1 now/);
-  assert.match(first, /about 25 words/);
+  assert.match(first, /about 30 words/);
   assert.match(first, /the checklist is drawn in step 2/);
   const rest = questionText({ ...request, stage: { part: 'rest', first: { say: 'Hello.', actions: [] } } });
   assert.match(rest, /Step 1 of this answer is already drawn and spoken: \{"say":"Hello\.","actions":\[\]\}/);
@@ -137,6 +137,62 @@ test('a first call that writes more than step 1 has the extra dropped, words, ma
   const out = await collect(createTwoStepModel(inner), { pieces: true });
   assert.deepEqual(out.map((o) => (o.type === 'say' ? `say:${o.say}` : o.type === 'step' ? `step:${(o.step as { say: string }).say}` : o.type)), ['say:One.', 'action', 'step:One.', 'escalate', 'say:Two.', 'step:Two.', 'usage']);
   assert.deepEqual(out.at(-1), { type: 'usage', usage: { input: 30, cached: 10, output: 7 } });
+});
+
+test("early: the second call starts with the first, told that step 1 is being written separately, and its steps still come after the first one's", async () => {
+  const log: string[] = [];
+  const asked: Array<string | undefined> = [];
+  const inner: Model = {
+    id: 'stub',
+    async *ask(req) {
+      log.push(`${req.stage?.part}:start`);
+      asked.push(req.stage && req.stage.part === 'rest' ? questionText(req) : undefined);
+      if (req.stage?.part === 'first') {
+        await wait(60); // the first call is slower than the second to start writing
+        yield { type: 'step', step: { say: 'One.', actions: [] } };
+        return;
+      }
+      yield { type: 'step', step: { say: 'Two.', actions: [] } };
+    },
+  };
+  const out = await collect(createTwoStepModel(inner, { early: true }));
+  assert.deepEqual(says(out), ['One.', 'Two.'], 'the first call step stays first even though the second was ready earlier');
+  assert.ok(log.indexOf('rest:start') >= 0 && log.indexOf('rest:start') <= log.indexOf('first:start') + 1, log.join(','));
+  assert.match(asked.find((a) => a !== undefined)!, /being written separately, at the same time/);
+  assert.ok(!/already drawn and spoken/.test(asked.find((a) => a !== undefined)!));
+});
+
+test('early: a first call that gives no step (it escalates) ends the question without the steps of the second call, and the second call is aborted', async () => {
+  let restSignal: AbortSignal | undefined;
+  const inner: Model = {
+    id: 'stub',
+    async *ask(req) {
+      if (req.stage?.part === 'first') {
+        yield { type: 'escalate', reason: 'too hard' };
+        return;
+      }
+      restSignal = req.signal;
+      await wait(500);
+      yield { type: 'step', step: { say: 'Never shown.', actions: [] } };
+    },
+  };
+  const out = await collect(createTwoStepModel(inner, { early: true }));
+  assert.deepEqual(out.map((o) => o.type), ['escalate']);
+  assert.ok(restSignal?.aborted, 'the second call was let go');
+});
+
+test('early: a first call that fails fails the question and aborts the second', async () => {
+  let restSignal: AbortSignal | undefined;
+  const inner: Model = {
+    id: 'stub',
+    async *ask(req) {
+      if (req.stage?.part === 'first') throw new ModelError('failed', 'down');
+      restSignal = req.signal;
+      await wait(500);
+    },
+  };
+  await assert.rejects(collect(createTwoStepModel(inner, { early: true })), (e: unknown) => e instanceof ModelError && e.code === 'failed');
+  assert.ok(restSignal?.aborted);
 });
 
 test('a detail pass, or a request that already names its part, is passed through untouched', async () => {

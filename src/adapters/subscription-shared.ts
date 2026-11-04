@@ -184,14 +184,38 @@ export function questionText(request: ModelRequest): string {
 
 /** What each half of a two-call answer is told. The walk's checklist is drawn in step 2 (the guide's rule puts it in step 1 for a whole answer). */
 export function stageText(stage: NonNullable<ModelRequest['stage']>): string {
+  if (stage.part === 'next') {
+    return [
+      `${stage.n === 2 ? 'Step 1 of this answer is' : `Steps 1 to ${stage.n - 1} of this answer are`} already drawn and spoken: ${JSON.stringify(stage.shown)}`,
+      `The plan for the rest, one title a step: ${JSON.stringify(stage.plan)}.`,
+      `Write step ${stage.n} only (${JSON.stringify(stage.plan[0] ?? '')}), and nothing after it: the later steps are written separately. Carry on from what was said and drawn: do not say it again and do not repeat its marks (its ids stay valid). The rule that step 1 is short is for step 1 only. ${REST_MARKS} If the steps so far end with a wait for a click this is a how-do-I walk: step 2 draws the checklist (a steps diagram, as the walk rule describes) and then the second move with its mark and wait, later steps are one move each with their mark and wait, and the last has none and says they are done. Set "plan" to null, set "done" to true when the plan has no step after this one and to false when it has, and set "escalate" to null.`,
+    ].join('\n\n');
+  }
+  if (stage.part === 'first' && stage.plan) {
+    return `Write only step 1 now, as the rules describe it, and nothing after it: the later steps are written separately, one to a call. Its sentence is about 30 words long (it is spoken while the next step is written): what the page is and what the question is about, not a label. In a how-do-I walk, step 1 is the first move (its mark and wait) and nothing else, with a short sentence: the checklist is drawn in step 2. Also set "plan" to the titles, in a few words each, of the steps that follow it (at most 4; null or empty when step 1 is the whole answer) and "done" to false (true when step 1 is the whole answer).`;
+  }
   if (stage.part === 'first') {
-    return 'Write only step 1 now, as the rules describe it, and nothing after it: the later steps are written separately. Its sentence is about 25 words long (it is spoken while the rest is written): what the page is and what the question is about, not a label. In a how-do-I walk, step 1 is the first move (its mark and wait) and nothing else, with a short sentence: the checklist is drawn in step 2.';
+    return 'Write only step 1 now, as the rules describe it, and nothing after it: the later steps are written separately. Its sentence is about 30 words long (it is spoken while the rest is written): what the page is and what the question is about, not a label. In a how-do-I walk, step 1 is the first move (its mark and wait) and nothing else, with a short sentence: the checklist is drawn in step 2.';
+  }
+  if (stage.first === undefined) {
+    return [
+      'Step 1 of this answer is being written separately, at the same time as you write: a sentence of about 30 words on what the page is and what the question is about, and one or two marks on the part of the screen the question is about. Do not write it, do not repeat what it says, and do not mark that part again.',
+      REST_RULES,
+    ].join('\n\n');
   }
   return [
     `Step 1 of this answer is already drawn and spoken: ${JSON.stringify(stage.first)}`,
-    'Write the rest of the answer, from step 2 onward, in the same JSON. Do not write step 1 again, do not repeat its marks (its ids stay valid and can be used again) and do not say again what it said: carry on from it. The rule that step 1 is short is for step 1 only, so the steps you write may build the model or diagram the rules describe. Put a mark on the page only when your step needs it to point at one particular thing it names; when in doubt draw none. Never repeat or decorate step 1\'s marks, and never put an underline, arrow or box that is not exactly on what it points at. Put a diagram in free space, best the right margin or beside the page\'s own figure, never over its text or its settings and controls, and make it wide enough to read (at least 340 on the 0 to 1000 scale for a flow or a timeline), with a few words in each node and no notes under them. If step 1 asks for a click, this is a how-do-I walk: your first step draws the checklist (a steps diagram, as the walk rule describes) and then the second move with its mark and wait; later steps are one move each, with their mark and wait, ending with a step that says they are done. Set "escalate" to null.',
+    REST_RULES,
   ].join('\n\n');
 }
+
+/** What the call that writes the steps after step 1 is told, the same whether step 1 is given or being written at the same time. */
+/** What a call that writes steps after the first is told about marks and diagrams (the second call of a two-call answer, and every call after the first of a step-by-step one). */
+const REST_MARKS =
+  'Put a mark on the page only when your step needs it to point at one particular thing it names; when in doubt draw none. Never repeat or decorate step 1\'s marks, and never put an underline, arrow or box that is not exactly on what it points at. Put a diagram in free space, best the right margin or beside the page\'s own figure, never over its text or its settings and controls, and make it wide enough to read (at least 340 on the 0 to 1000 scale for a flow or a timeline), with a few words in each node and no notes under them.';
+
+const REST_RULES =
+  'Write the rest of the answer, from step 2 onward, in the same JSON. Do not write step 1 again, do not repeat its marks (its ids stay valid and can be used again) and do not say again what it said: carry on from it. The rule that step 1 is short is for step 1 only, so the steps you write may build the model or diagram the rules describe. ' + REST_MARKS + ' If step 1 asks for a click, this is a how-do-I walk: your first step draws the checklist (a steps diagram, as the walk rule describes) and then the second move with its mark and wait; later steps are one move each, with their mark and wait, ending with a step that says they are done. Set "escalate" to null.';
 
 /** The most of the scene on screen a detail pass is shown; a longer one is cut at a step, with a note. */
 const DETAIL_SCENE_CHARS = 24000;

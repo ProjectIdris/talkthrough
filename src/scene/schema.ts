@@ -95,3 +95,16 @@ export const sceneSchema: Schema = buildSchema(true);
 
 /** The same structure without descriptions, for a smaller prompt; pair it with sceneGuide. */
 export const sceneSchemaLean: Schema = buildSchema(false);
+
+/**
+ * The lean schema with two more fields, for an answer written one step to a call (see adapters/step-by-step.ts): `plan`, the titles of the
+ * steps still to come (the first call writes it, the others leave it null), and `done`, true when the step just written is the last.
+ */
+export const sceneSchemaChain: Schema = (() => {
+  const lean = sceneSchemaLean as Schema & { properties: Record<string, Schema>; required: string[] };
+  return {
+    ...lean,
+    properties: { steps: lean.properties.steps!, plan: { type: ['array', 'null'], items: { type: 'string' } }, done: { type: ['boolean', 'null'] }, escalate: lean.properties.escalate! },
+    required: ['steps', 'plan', 'done', 'escalate'],
+  };
+})();

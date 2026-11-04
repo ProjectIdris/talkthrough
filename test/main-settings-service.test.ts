@@ -27,7 +27,7 @@ test('with no file the form shows the defaults, including the starting list of w
     assert.equal(form.model, 'codex');
     assert.equal(form.guideNavigation, false);
     assert.equal(form.controlSnap, false);
-    assert.equal(form.twoStepAnswer, false);
+    assert.equal(form.splitAnswer, 'off');
     assert.equal(form.hotkey, 'right-ctrl+right-shift');
     assert.deepEqual(form.captureBlocklist, [...DEFAULT_SKIP_LIST]);
     assert.equal(form.voiceServerUrl, '', 'the system voice');
@@ -50,14 +50,14 @@ test('a save is read back by the settings file loader exactly as saved, and the 
       captureBlocklist: ['my bank', 'Vault'],
       guideNavigation: true,
       controlSnap: true,
-      twoStepAnswer: true,
+      splitAnswer: 'steps',
     });
     const result = t.service.save(form);
     assert.equal(result.ok, true);
     assert.equal(result.ok && result.changed, true);
     const loaded = loadSettings(t.path);
     assert.deepEqual(formFromSettings(loaded), form);
-    assert.deepEqual(Object.keys(t.file()).sort(), ['captureBlocklist', 'claudeModel', 'controlSnap', 'detailRoute', 'guideNavigation', 'hotkey', 'model', 'speechServerUrl', 'twoStepAnswer', 'voiceServerUrl', 'voiceServerVoice']);
+    assert.deepEqual(Object.keys(t.file()).sort(), ['captureBlocklist', 'claudeModel', 'controlSnap', 'detailRoute', 'guideNavigation', 'hotkey', 'model', 'speechServerUrl', 'splitAnswer', 'voiceServerUrl', 'voiceServerVoice']);
     assert.deepEqual(readdirSync(t.dir), ['settings.json'], 'no half-written file is left');
   } finally {
     t.done();
@@ -176,6 +176,23 @@ test('a save that cannot be finished (the rename fails) says so and leaves no ha
     assert.equal(result.ok, false);
     assert.ok(!result.ok && /could not be written/.test(result.messages.join(' ')));
     assert.deepEqual(readdirSync(t.dir), ['settings.json'], 'no .saving file left');
+  } finally {
+    t.done();
+  }
+});
+
+test('an older file with twoStepAnswer: true shows as "two calls", and saving a choice replaces the old key (turning it off really turns it off)', () => {
+  const t = setup({ twoStepAnswer: true, model: 'claude' });
+  try {
+    const form = t.service.read();
+    assert.equal(form.splitAnswer, 'two');
+    const off = t.service.save({ ...form, splitAnswer: 'off' });
+    assert.equal(off.ok, true);
+    assert.equal('twoStepAnswer' in t.file(), false, 'the old key is gone');
+    assert.equal(loadSettings(t.path).splitAnswer, 'off', 'and the loader does not read it back as on');
+    const steps = t.service.save({ ...form, splitAnswer: 'steps' });
+    assert.equal(steps.ok, true);
+    assert.equal(loadSettings(t.path).splitAnswer, 'steps');
   } finally {
     t.done();
   }

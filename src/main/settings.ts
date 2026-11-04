@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { DEFAULT_HOTKEY, parseHotkey } from './chord.ts';
 import { cleanSkipList, DEFAULT_SKIP_LIST } from './skip-list.ts';
+import type { SplitMode } from '../shared/settings-form.ts';
 
 /**
  * The user's local settings (a JSON file in the app's data folder, or the path given with
@@ -71,10 +72,11 @@ export type Settings = {
    */
   guideNavigation: boolean;
   /**
-   * Write the quick answer in two calls (Claude route only): step 1 alone first, so the first word comes sooner, then the steps after
-   * it while step 1 is spoken (see adapters/two-step.ts). Costs a second call per question. Off until the person turns it on.
+   * Claude route only: write the quick answer in pieces so the first word comes sooner. 'two': step 1 alone first, then the steps after it
+   * in a second call while step 1 is spoken (adapters/two-step.ts). 'steps': one step to a call, each asked for as the one before it ends
+   * (adapters/step-by-step.ts). Either costs more calls a question. 'off' until the person turns it on. The older `twoStepAnswer: true` means 'two'.
    */
-  twoStepAnswer: boolean;
+  splitAnswer: SplitMode;
   /**
    * The detail pass: which route writes a much richer version of the scene on screen when the person asks for more
    * detail (a button beside the model, or "show me in detail"). Unset: there is no detail pass and nothing offers it.
@@ -108,7 +110,7 @@ export const DEFAULT_SETTINGS: Settings = {
   effort: 'low',
   controlSnap: false,
   guideNavigation: false,
-  twoStepAnswer: false,
+  splitAnswer: 'off',
   voiceFirstAudioMs: 2000,
   voiceCooldownMs: 20_000,
   voiceTimeoutMs: 30_000,
@@ -187,7 +189,9 @@ export function settingsFromRaw(raw: Record<string, unknown>, warn: (message: st
   settings.effort = str(raw.effort) ?? settings.effort;
   if (typeof raw.controlSnap === 'boolean') settings.controlSnap = raw.controlSnap;
   if (typeof raw.guideNavigation === 'boolean') settings.guideNavigation = raw.guideNavigation;
-  if (typeof raw.twoStepAnswer === 'boolean') settings.twoStepAnswer = raw.twoStepAnswer;
+  if (raw.splitAnswer === 'off' || raw.splitAnswer === 'two' || raw.splitAnswer === 'steps') settings.splitAnswer = raw.splitAnswer;
+  else if (raw.splitAnswer !== undefined) warn('splitAnswer must be off, two or steps; using off');
+  else if (raw.twoStepAnswer === true) settings.splitAnswer = 'two';
   if (raw.detailRoute === 'codex' || raw.detailRoute === 'claude' || raw.detailRoute === 'openai') settings.detailRoute = raw.detailRoute;
   else if (raw.detailRoute !== undefined) warn('detailRoute must be codex, claude or openai; there is no detail pass');
   const detailModel = str(raw.detailModel);

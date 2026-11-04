@@ -64,6 +64,17 @@
 </section>
 
 <section>
+  <h2>Speed (Claude route)</h2>
+  <label for="splitAnswer">Write the answer</label>
+  <select id="splitAnswer">
+    <option value="off">In one call</option>
+    <option value="two">In two calls: the first step, then the rest</option>
+    <option value="steps">One step at a time</option>
+  </select>
+  <p class="hint" id="warnSplit"></p>
+</section>
+
+<section>
   <h2>More detail</h2>
   <label for="detailRoute">Route for the richer version</label>
   <select id="detailRoute">
@@ -114,8 +125,6 @@
   <p class="hint" id="warnNav"></p>
   <label class="inline"><input type="checkbox" id="controlSnap">Place marks on real controls</label>
   <p class="hint" id="warnSnap"></p>
-  <label class="inline"><input type="checkbox" id="twoStepAnswer">Speak sooner (Claude route)</label>
-  <p class="hint" id="warnTwoStep"></p>
 </section>
 
 <ul id="messages" class="hide"></ul>
