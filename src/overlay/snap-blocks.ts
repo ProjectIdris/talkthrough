@@ -113,16 +113,17 @@ export function fitTable(g: BlockGrid, x0: number, y0: number, x1: number, y1: n
   if (b - a < 40) return undefined;
   const rules = rulesIn(g, a, b, 0, g.rows);
   const inBox = rules.filter((r) => r >= y0 - PAD - 1 && r <= y1 + PAD + 1);
-  if (inBox.length < 3) return undefined;
+  // Three rows at least (four rules): a picture in a frame with its caption has two or three rules and is not a table.
+  if (inBox.length < 4) return undefined;
   const steps: number[] = [];
   for (let i = 1; i < inBox.length; i++) steps.push((inBox[i] as number) - (inBox[i - 1] as number));
   const pitch = median(steps);
   if (pitch < 6) return undefined;
-  // The rows of the box are at one pitch (a header may be taller): most steps agree.
-  if (steps.filter((s) => s <= pitch * 2.6 && s >= pitch * 0.5).length < steps.length - 1) return undefined;
+  // The rows of the box are at one pitch (a header may be taller): most steps agree closely.
+  if (steps.filter((s) => s <= pitch * 1.35 && s >= pitch * 0.74).length < Math.max(2, steps.length * 0.6)) return undefined;
   let i0 = rules.indexOf(inBox[0] as number), i1 = rules.indexOf(inBox[inBox.length - 1] as number);
-  while (i0 > 0 && (rules[i0] as number) - (rules[i0 - 1] as number) <= pitch * 2.6 && (rules[i0] as number) - (rules[i0 - 1] as number) >= pitch * 0.6) i0--;
-  while (i1 < rules.length - 1 && (rules[i1 + 1] as number) - (rules[i1] as number) <= pitch * 2.6 && (rules[i1 + 1] as number) - (rules[i1] as number) >= pitch * 0.6) i1++;
+  while (i0 > 0 && (rules[i0] as number) - (rules[i0 - 1] as number) <= pitch * 1.5 && (rules[i0] as number) - (rules[i0 - 1] as number) >= pitch * 0.65) i0--;
+  while (i1 < rules.length - 1 && (rules[i1 + 1] as number) - (rules[i1] as number) <= pitch * 1.5 && (rules[i1 + 1] as number) - (rules[i1] as number) >= pitch * 0.65) i1++;
   let top = rules[i0] as number, bottom = rules[i1] as number;
   // A table that runs off the screen: the rows go on to its edge.
   if (g.rows - bottom <= pitch * 1.2 && g.rows - bottom > 1 && count(g.ink, g.cols, a, b, g.rows - 1) > 0) bottom = g.rows - 1;

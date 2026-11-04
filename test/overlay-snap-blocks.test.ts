@@ -110,3 +110,15 @@ test('an underline stops at the end of its line of text and does not run on into
   const same = s.snapMark(inside) as Extract<Mark, { op: 'underline' }>;
   assert.ok(Math.abs((same.x + same.w) * kx - 220) < 3, 'an underline inside its line keeps its length');
 });
+
+test('a box round a framed figure with its caption is not taken for a table, even with a table close below it', () => {
+  const page = new Page();
+  page.fill(60, 60, 340, 61, 90); // the figure's top border
+  page.fill(60, 140, 340, 141, 90); // under the picture
+  page.fill(60, 168, 340, 169, 90); // under the caption
+  page.text(66, 148, 200, 1);
+  page.table(60, 340, 230, 2, 24); // a small table below: rules at 230, 254, 278
+  const s = page.snapper();
+  const out = s.snapMark(box(58, 58, 342, 170));
+  assert.ok(cellsOfBox(out).y1 < 180, `the figure's box stays on the figure: ${cellsOfBox(out).y1.toFixed(1)}`);
+});
