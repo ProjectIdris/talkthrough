@@ -218,3 +218,135 @@ test('the silent voice paces a step by its words and can be cancelled', async ()
   assert.deepEqual(events, ['end cancelled']);
   assert.deepEqual(await second.finished, { reason: 'cancelled' });
 });
+
+test('live play: steps pushed while one plays queue behind it, and the turn is done only once it has ended and drained', () => {
+  const { clock, advance } = fakeClock();
+  const v = manualVoice();
+  let done = 0;
+  const player = new Player({ voice: v.voice, clock, onDone: () => done++ });
+  player.beginTurn();
+  assert.equal(v.spoken.length, 0, 'nothing to say yet');
+  assert.equal(player.active, false, 'waiting for the model costs no frames');
+  player.pushStep({ say: 'one', actions: [box('a')] } as never);
+  assert.equal(v.spoken.length, 1, 'the first step starts at once');
+  player.pushStep({ say: 'two', actions: [box('b')] } as never);
+  player.pushStep({ say: 'three', actions: [box('c')] } as never);
+  assert.equal(v.spoken.length, 1, 'later steps wait their turn');
+  v.spoken[0]?.listener.start?.({ estimatedMs: 500 });
+  v.spoken[0]?.listener.end?.({ reason: 'finished' });
+  advance(2000);
+  player.update();
+  assert.equal(v.spoken.length, 2);
+  v.spoken[1]?.listener.start?.({ estimatedMs: 500 });
+  v.spoken[1]?.listener.end?.({ reason: 'finished' });
+  advance(2000);
+  player.update();
+  v.spoken[2]?.listener.start?.({ estimatedMs: 500 });
+  v.spoken[2]?.listener.end?.({ reason: 'finished' });
+  advance(2000);
+  assert.deepEqual(ids(player.update()), ['a', 'b', 'c']);
+  assert.equal(done, 0, 'the model may still be writing: not done until the turn ends');
+  assert.equal(player.active, false);
+  player.endTurn();
+  assert.equal(done, 1);
+  player.endTurn();
+  assert.equal(done, 1, 'ending twice reports once');
+});
+
+test('live play: a step that arrives after the player ran dry starts from where the picture stands', () => {
+  const { clock, advance } = fakeClock();
+  const v = manualVoice();
+  const player = new Player({ voice: v.voice, clock });
+  player.beginTurn();
+  player.pushStep({ say: 'one', actions: [box('a')] } as never);
+  v.spoken[0]?.listener.start?.({ estimatedMs: 300 });
+  v.spoken[0]?.listener.end?.({ reason: 'finished' });
+  advance(3000);
+  assert.deepEqual(ids(player.update()), ['a']);
+  assert.equal(player.active, false);
+  player.pushStep({ say: 'two', actions: [box('b')] } as never);
+  assert.equal(player.active, true);
+  assert.equal(v.spoken.length, 2);
+  v.spoken[1]?.listener.start?.({ estimatedMs: 300 });
+  assert.deepEqual(ids(player.update()), ['a', 'b']);
+});
+
+test('live play: a turn that ends with no steps is done at once; the answer so far stays drawn', () => {
+  const { clock, advance } = fakeClock();
+  const v = manualVoice();
+  let done = 0;
+  const player = new Player({ voice: v.voice, clock, onDone: () => done++ });
+  player.beginTurn();
+  player.endTurn();
+  assert.equal(done, 1);
+
+  player.play(scene({ say: '', actions: [box('a')] }));
+  advance(5000);
+  player.update();
+  assert.equal(done, 2);
+  player.beginTurn();
+  assert.deepEqual(ids(player.update()), ['a'], 'a follow-up turn continues what is on screen');
+  player.clear();
+  player.pushStep({ say: '', actions: [box('z')] } as never);
+  assert.deepEqual(ids(player.update()), ['z'], 'a step with no open turn opens one');
+});
+
+test('live play: a new turn cancels the speech of the old one and drops its queue', () => {
+  const { clock } = fakeClock();
+  const v = manualVoice();
+  const player = new Player({ voice: v.voice, clock });
+  player.beginTurn();
+  player.pushStep({ say: 'one', actions: [box('a')] } as never);
+  player.pushStep({ say: 'two', actions: [box('b')] } as never);
+  const before = v.cancels();
+  player.beginTurn();
+  assert.ok(v.cancels() > before);
+  v.spoken[0]?.listener.end?.({ reason: 'cancelled' });
+  assert.equal(v.spoken.length, 1, 'the queued step of the old turn never plays');
+});
+
+test('hush stops the speech at once, drops what is queued, and lets the step in progress finish drawing', () => {
+  const { clock, advance } = fakeClock();
+  const v = manualVoice();
+  let done = 0;
+  const player = new Player({ voice: v.voice, clock, onDone: () => done++ });
+  player.beginTurn();
+  player.pushStep({ say: 'one', actions: [box('a')] } as never);
+  player.pushStep({ say: 'two', actions: [box('b')] } as never);
+  v.spoken[0]?.listener.start?.({ estimatedMs: 2000 });
+  const before = v.cancels();
+  player.hush();
+  assert.ok(v.cancels() > before, 'the voice is stopped');
+  v.spoken[0]?.listener.end?.({ reason: 'cancelled' });
+  advance(5000);
+  assert.deepEqual(ids(player.update()), ['a'], 'the step in progress finished drawing; the queued one never starts');
+  assert.equal(v.spoken.length, 1, 'nothing more is spoken');
+  assert.equal(done, 1, 'and the turn is over');
+  player.pushStep({ say: 'late', actions: [box('c')] } as never);
+  advance(100);
+  assert.equal(v.spoken.length, 2, 'a step that still arrives after a hush opens a new turn instead of joining the old one');
+});
+
+test('the speech-start hook fires when the voice really starts, once for each step', () => {
+  const { clock } = fakeClock();
+  const v = manualVoice();
+  let starts = 0;
+  const player = new Player({ voice: v.voice, clock, onSpeechStart: () => starts++ });
+  player.play(scene({ say: 'one two', actions: [box('a')] }, { say: 'three', actions: [box('b')] }));
+  assert.equal(starts, 0, 'asking to speak is not speaking');
+  v.spoken[0]?.listener.start?.({ estimatedMs: 500 });
+  v.spoken[0]?.listener.start?.({ estimatedMs: 500 });
+  assert.equal(starts, 1);
+});
+
+test('a voice can be swapped for a development run with no speech', () => {
+  const { clock, advance } = fakeClock();
+  const loud = manualVoice();
+  const quiet = manualVoice();
+  const player = new Player({ voice: loud.voice, clock });
+  player.setVoice(quiet.voice);
+  player.play(scene({ say: 'hi', actions: [box('a')] }));
+  assert.equal(loud.spoken.length, 0);
+  assert.equal(quiet.spoken.length, 1);
+  advance(1);
+});

@@ -4,7 +4,7 @@
 //   npm run build
 //   (run it as `env -u ELECTRON_RUN_AS_NODE` if your shell sets that)
 //   npx electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 \
-//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--after <earlier-scene.json>]
+//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--theme studio|blueprint|paper]
 //
 // --steps is a list of step:seconds pairs (seconds into that step; earlier steps are complete).
 // --dpr sets the display scale; offscreen windows always render at 1, so use --hidden (a hidden, non-offscreen window) for dpr other than 1.
@@ -64,7 +64,10 @@ app.whenReady().then(async () => {
   ipcMain.on(CHANNEL.rendered, (_e, token) => pending.get(token)?.());
   fs.mkdirSync(path.join(root, 'dist', 'overlay'), { recursive: true });
   fs.copyFileSync(path.join(root, 'src', 'overlay', 'index.html'), path.join(root, 'dist', 'overlay', 'index.html'));
-  await win.loadFile(path.join(root, 'dist', 'overlay', 'index.html'));
+  const query = {};
+  if (args.tier) query.tier = args.tier;
+  if (args.theme) query.theme = args.theme;
+  await win.loadFile(path.join(root, 'dist', 'overlay', 'index.html'), { query });
   await ready;
   console.log('page devicePixelRatio:', await win.webContents.executeJavaScript('window.devicePixelRatio'));
   console.log('WebGL renderer:', await win.webContents.executeJavaScript(`(() => { const gl = document.createElement('canvas').getContext('webgl'); if (!gl) return 'none'; const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); })()`));

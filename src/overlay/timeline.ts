@@ -6,7 +6,7 @@
 // previous step settled in (evaluate at Infinity), so ids, positions and the camera carry over,
 // including across follow-up questions.
 
-import type { Action, Mark, Step, Vec3 } from '../scene/types.ts';
+import type { Action, AddAction, Mark, Step, Vec3 } from '../scene/types.ts';
 
 export type Rgb = [number, number, number];
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -24,6 +24,31 @@ const PALETTE_RGB: Record<string, Rgb> = {
   teal: [25, 199, 184], blue: [59, 130, 246], purple: [168, 85, 247], pink: [255, 107, 181],
   white: [255, 255, 255], gray: [154, 164, 178], black: [17, 21, 28],
 };
+
+/** The colour a 3D object has when the scene does not give one, by its surface. */
+export const MATERIAL_COLOR: Record<string, Rgb> = {
+  plastic: [214, 218, 226], metal: [196, 202, 212], rubber: [44, 46, 54], pcb: [22, 122, 70],
+  glass: [168, 200, 232], glow: [255, 214, 10], paper: [246, 241, 229],
+};
+
+/** The colour a new 3D object has when the scene does not give one. */
+export function defaultColor(def: AddAction): Rgb {
+  if (def.shape === 'part') {
+    const variant = def.variant;
+    switch (def.part) {
+      case 'chip': return variant === 'metal' ? [204, 208, 216] : [34, 36, 42];
+      case 'header': return [30, 30, 34];
+      case 'port': return [226, 230, 238];
+      case 'lens': return [30, 32, 38];
+      case 'screen': return [22, 24, 30];
+      case 'button': return [214, 64, 64];
+      case 'fan': return [88, 94, 108];
+      case 'wheel': return [128, 134, 146];
+    }
+  }
+  const material = 'material' in def ? def.material : undefined;
+  return [...(MATERIAL_COLOR[material ?? 'plastic'] ?? (MATERIAL_COLOR.plastic as Rgb))] as Rgb;
+}
 
 export function parseColor(c: string | undefined): Rgb {
   if (c === undefined) return [255, 255, 255];
@@ -59,17 +84,27 @@ export type MarkFrame = {
   fade: number;
   /** 0..1 highlight pulse. */
   pulse: number; pulseColor: Rgb | undefined;
+  /** True when the scene chose the colour; otherwise the look's own colour is used. */
+  tinted: boolean;
+  /** For a pin: the key of the 3D object it is on. */
+  onKey?: number;
 };
 
 export type ObjectFrame = {
   key: number; id: string; parentKey: number | null;
-  shape: string; size: Vec3; pts: Vec3[] | undefined; text: string | undefined; height: number | undefined;
+  /** How it was made: the shape and its parameters. */
+  def: AddAction;
+  shape: string;
   pos: Vec3; rot: Vec3; scale: Vec3; color: Rgb; opacity: number;
   appear: number; fade: number; pulse: number; pulseColor: Rgb | undefined;
+  /** How much of a tube, line or arrow is drawn, 0..1. */
+  draw: number;
+  /** How far apart its parts are pushed: 0 assembled; its children sit at pos * (1 + spread). */
+  spread: number;
 };
 
 export type Frame = {
-  panel: { rect: Rect; appear: number; fade: number } | null;
+  panel: { rect: Rect; appear: number; fade: number; frame: boolean } | null;
   marks: MarkFrame[];
   /** Parents come before their children. */
   objects: ObjectFrame[];
@@ -86,7 +121,7 @@ export function emptyFrame(): Frame {
 
 // ---- Tracks: a property over time -----------------------------------------------------------
 
-type Seg = { start: number; dur: number; from: number[]; to: number[] };
+type Seg = { start: number; dur: number; from: number[]; to: number[]; /** A smooth path from the start through these points to the end. */ curve?: number[][] };
 type Track = { init: number[]; segs: Seg[] };
 
 const track = (init: readonly number[]): Track => ({ init: [...init], segs: [] });
@@ -101,6 +136,22 @@ function progress(t: number, start: number, dur: number): number {
   return Math.min(1, (t - start) / dur);
 }
 
+/** A Catmull-Rom spline through the points, at u from 0 to 1 along the whole. */
+export function catmull(pts: readonly number[][], u: number): number[] {
+  const last = pts.length - 1;
+  if (last <= 0) return [...(pts[0] ?? [0, 0, 0])];
+  if (u >= 1) return [...(pts[last] as number[])];
+  const f = Math.max(0, u) * last;
+  const i = Math.min(last - 1, Math.floor(f));
+  const t = f - i;
+  const at = (k: number) => pts[Math.max(0, Math.min(last, k))] as number[];
+  const [a, b, c, d] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
+  return b.map((_, k) => {
+    const [pa, pb, pc, pd] = [a[k] ?? 0, b[k] ?? 0, c[k] ?? 0, d[k] ?? 0];
+    return 0.5 * (2 * pb + (-pa + pc) * t + (2 * pa - 5 * pb + 4 * pc - pd) * t * t + (-pa + 3 * pb - 3 * pc + pd) * t * t * t);
+  });
+}
+
 function valueAt(tr: Track, t: number): number[] {
   let seg: Seg | undefined;
   for (const s of tr.segs) {
@@ -109,6 +160,7 @@ function valueAt(tr: Track, t: number): number[] {
   }
   if (!seg) return [...tr.init];
   const p = ease(progress(t, seg.start, seg.dur));
+  if (seg.curve && p < 1) return catmull(seg.curve, p);
   return seg.to.map((to, i) => {
     const from = seg.from[i] ?? to;
     return p >= 1 ? to : from + (to - from) * p;
@@ -137,13 +189,12 @@ function focusAt(tr: FocusTrack, t: number): FocusFrame {
 
 type Life = { bornAt: number; diedAt: number | undefined };
 
-type MarkInst = Life & { key: number; id: string; mark: Mark; color: Track; opacity: Track };
+type MarkInst = Life & { key: number; id: string; mark: Mark; color: Track; opacity: Track; tinted: boolean; onKey?: number };
 type ObjInst = Life & {
-  key: number; id: string; parentKey: number | null; shape: string; size: Vec3;
-  pts: Vec3[] | undefined; text: string | undefined; height: number | undefined;
-  pos: Track; rot: Track; scale: Track; color: Track; opacity: Track;
+  key: number; id: string; parentKey: number | null; def: AddAction;
+  pos: Track; rot: Track; scale: Track; color: Track; opacity: Track; draw: Track; spread: Track;
 };
-type PanelInst = Life & { rect: Track };
+type PanelInst = Life & { rect: Track; frame: boolean };
 type Pulse = { key: number; start: number; dur: number; color: Rgb | undefined };
 
 export type StepPlan = {
@@ -188,19 +239,19 @@ export function planStep(base: Frame, step: Step): StepPlan {
   for (const m of base.marks) {
     plan.marks.push({
       key: m.key, id: m.id, mark: m.mark, bornAt: NEVER, diedAt: undefined,
-      color: track(m.color), opacity: track([m.opacity]),
+      color: track(m.color), opacity: track([m.opacity]), tinted: m.tinted, ...(m.onKey !== undefined ? { onKey: m.onKey } : {}),
     });
   }
   for (const o of base.objects) {
     plan.objs.push({
-      key: o.key, id: o.id, parentKey: o.parentKey, shape: o.shape, size: o.size, pts: o.pts, text: o.text,
-      height: o.height, bornAt: NEVER, diedAt: undefined,
+      key: o.key, id: o.id, parentKey: o.parentKey, def: o.def, bornAt: NEVER, diedAt: undefined,
       pos: track(o.pos), rot: track(o.rot), scale: track(o.scale), color: track(o.color), opacity: track([o.opacity]),
+      draw: track([o.draw]), spread: track([o.spread]),
     });
   }
   if (base.panel) {
     const r = base.panel.rect;
-    plan.panels.push({ bornAt: NEVER, diedAt: undefined, rect: track([r.x, r.y, r.w, r.h]) });
+    plan.panels.push({ bornAt: NEVER, diedAt: undefined, rect: track([r.x, r.y, r.w, r.h]), frame: base.panel.frame });
   }
 
   const events = step.actions.map((a, i) => ({ a, i, at: Math.max(0, a.at ?? 0) }));
@@ -228,7 +279,7 @@ function alivePanel(plan: StepPlan, at: number): PanelInst | undefined {
 function ensurePanel(plan: StepPlan, at: number): void {
   if (alivePanel(plan, at)) return;
   const r = DEFAULT_PANEL;
-  plan.panels.push({ bornAt: at, diedAt: undefined, rect: track([r.x, r.y, r.w, r.h]) });
+  plan.panels.push({ bornAt: at, diedAt: undefined, rect: track([r.x, r.y, r.w, r.h]), frame: false });
   plan.duration = Math.max(plan.duration, at + APPEAR_SECONDS);
 }
 
@@ -259,10 +310,18 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
   const dur = 'dur' in a && a.dur !== undefined ? a.dur : DEFAULT_DUR;
   const end = (len: number) => { plan.duration = Math.max(plan.duration, at + len); };
   switch (a.op) {
-    case 'box': case 'circle': case 'underline': case 'arrow': case 'label': {
+    case 'box': case 'circle': case 'underline': case 'arrow': case 'label': case 'card': case 'image': case 'pin': {
+      const color = 'color' in a ? a.color : undefined;
+      let onKey: number | undefined;
+      if (a.op === 'pin') {
+        const host = lookup(plan.objs, a.on, at);
+        if (!host) return;
+        onKey = host.key;
+      }
       plan.marks.push({
         key: plan.nextKey++, id: a.id, mark: a, bornAt: at, diedAt: undefined,
-        color: track(parseColor(a.color)), opacity: track([1]),
+        color: track(parseColor(color)), opacity: track([1]), tinted: color !== undefined,
+        ...(onKey !== undefined ? { onKey } : {}),
       });
       end(APPEAR_SECONDS);
       return;
@@ -271,9 +330,10 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       const p = alivePanel(plan, at);
       const target = [a.x, a.y, a.w, a.h];
       if (!p) {
-        plan.panels.push({ bornAt: at, diedAt: undefined, rect: track(target) });
+        plan.panels.push({ bornAt: at, diedAt: undefined, rect: track(target), frame: a.frame === true });
         end(APPEAR_SECONDS);
       } else {
+        if (a.frame !== undefined) p.frame = a.frame;
         tweenTo(p.rect, at, dur, target);
         end(dur);
       }
@@ -281,20 +341,22 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
     }
     case 'add': {
       ensurePanel(plan, at);
-      const parent = a.parent !== undefined ? lookup(plan.objs, a.parent, at) : undefined;
-      const isSolid = a.shape !== 'line' && a.shape !== 'arrow' && a.shape !== 'text' && a.shape !== 'group';
+      if (a.shape === 'array') {
+        addArray(plan, a, at);
+        end(APPEAR_SECONDS);
+        return;
+      }
+      const parent = 'parent' in a && a.parent !== undefined ? lookup(plan.objs, a.parent, at) : undefined;
+      const given = (a as { color?: string }).color;
       plan.objs.push({
-        key: plan.nextKey++, id: a.id, parentKey: parent ? parent.key : null, shape: a.shape,
-        size: isSolid ? v3((a as { size: Vec3 }).size, [1, 1, 1]) : [1, 1, 1],
-        pts: a.shape === 'line' || a.shape === 'arrow' ? (a as { pts: Vec3[] }).pts.map((p) => v3(p, [0, 0, 0])) : undefined,
-        text: a.shape === 'text' ? (a as { text: string }).text : undefined,
-        height: a.shape === 'text' ? (a as { height: number }).height : undefined,
+        key: plan.nextKey++, id: a.id, parentKey: parent ? parent.key : null, def: a,
         bornAt: at, diedAt: undefined,
         pos: track('pos' in a && a.pos ? a.pos : [0, 0, 0]),
         rot: track('rot' in a && a.rot ? a.rot : [0, 0, 0]),
         scale: track([1, 1, 1]),
-        color: track(parseColor('color' in a ? a.color : undefined)),
+        color: track(given !== undefined ? parseColor(given) : defaultColor(a)),
         opacity: track([('opacity' in a && a.opacity !== undefined) ? a.opacity : 1]),
+        draw: track([('draw' in a && a.draw !== undefined) ? a.draw : 1]), spread: track([0]),
       });
       end(APPEAR_SECONDS);
       return;
@@ -306,18 +368,43 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       end(dur);
       return;
     }
+    case 'along': {
+      const o = lookup(plan.objs, a.id, at);
+      if (!o) return;
+      const from = valueAt(o.pos, at);
+      const to = a.pts[a.pts.length - 1] as Vec3;
+      o.pos.segs.push({ start: at, dur, from, to: [...to], curve: [from, ...a.pts.map((p) => [...p])] });
+      end(dur);
+      return;
+    }
+    case 'explode': case 'reveal': {
+      const o = lookup(plan.objs, a.id, at);
+      if (!o) return;
+      tweenTo(a.op === 'explode' ? o.spread : o.draw, at, dur, [a.to]);
+      end(dur);
+      return;
+    }
     case 'style': {
-      const target = lookup(plan.objs, a.id, at) ?? lookup(plan.marks, a.id, at);
-      if (!target) return;
-      if (a.color !== undefined) tweenTo(target.color, at, dur, parseColor(a.color));
-      if (a.opacity !== undefined) tweenTo(target.opacity, at, dur, [a.opacity]);
+      const target = lookup(plan.objs, a.id, at);
+      const mark = target ? undefined : lookup(plan.marks, a.id, at);
+      if (!target && !mark) return;
+      const hit: Array<ObjInst | MarkInst> = target ? [target, ...descendants(plan, target.key, at)] : [mark as MarkInst];
+      for (const h of hit) {
+        if (a.color !== undefined) {
+          tweenTo(h.color, at, dur, parseColor(a.color));
+          if ('tinted' in h) h.tinted = true;
+        }
+        if (a.opacity !== undefined) tweenTo(h.opacity, at, dur, [a.opacity]);
+      }
       end(dur);
       return;
     }
     case 'highlight': {
-      const target = lookup(plan.objs, a.id, at) ?? lookup(plan.marks, a.id, at);
-      if (!target) return;
-      plan.pulses.push({ key: target.key, start: at, dur: Math.max(0.2, dur), color: a.color !== undefined ? parseColor(a.color) : undefined });
+      const target = lookup(plan.objs, a.id, at);
+      const mark = target ? undefined : lookup(plan.marks, a.id, at);
+      if (!target && !mark) return;
+      const hit: Array<ObjInst | MarkInst> = target ? [target, ...descendants(plan, target.key, at)] : [mark as MarkInst];
+      for (const h of hit) plan.pulses.push({ key: h.key, start: at, dur: Math.max(0.2, dur), color: a.color !== undefined ? parseColor(a.color) : undefined });
       end(Math.max(0.2, dur));
       return;
     }
@@ -343,6 +430,43 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       clearTarget(plan, a.target, at);
       end(FADE_OUT_SECONDS);
       return;
+    }
+  }
+}
+
+/** Makes the copies of an array: the original joins a new group, and each further copy sits in a pivot that carries the step and turn. */
+function addArray(plan: StepPlan, a: Extract<AddAction, { shape: 'array' }>, at: number): void {
+  const of = lookup(plan.objs, a.of, at);
+  if (!of) return;
+  const group: ObjInst = {
+    key: plan.nextKey++, id: a.id, parentKey: of.parentKey, def: { op: 'add', shape: 'group', id: a.id } as AddAction,
+    bornAt: of.bornAt, diedAt: undefined,
+    pos: track([0, 0, 0]), rot: track([0, 0, 0]), scale: track([1, 1, 1]), color: track([255, 255, 255]), opacity: track([1]),
+    draw: track([1]), spread: track([0]),
+  };
+  plan.objs.push(group);
+  const subtree = [of, ...descendants(plan, of.key, at)];
+  of.parentKey = group.key;
+  const step = a.step ?? [0, 0, 0];
+  const turn = a.turn ?? [0, 0, 0];
+  for (let i = 1; i < a.count; i++) {
+    const pivot: ObjInst = {
+      key: plan.nextKey++, id: `${a.id}#${i}`, parentKey: group.key, def: { op: 'add', shape: 'group', id: `${a.id}#${i}` } as AddAction,
+      bornAt: at, diedAt: undefined,
+      pos: track([step[0] * i, step[1] * i, step[2] * i]), rot: track([turn[0] * i, turn[1] * i, turn[2] * i]),
+      scale: track([1, 1, 1]), color: track([255, 255, 255]), opacity: track([1]), draw: track([1]), spread: track([0]),
+    };
+    plan.objs.push(pivot);
+    const keyOf = new Map<number, number>();
+    for (const src of subtree) {
+      const key = plan.nextKey++;
+      keyOf.set(src.key, key);
+      plan.objs.push({
+        key, id: `${a.id}#${i}.${src.id}`, parentKey: src === of ? pivot.key : (keyOf.get(src.parentKey ?? -1) ?? pivot.key),
+        def: src.def, bornAt: at, diedAt: undefined,
+        pos: track(valueAt(src.pos, at)), rot: track(valueAt(src.rot, at)), scale: track(valueAt(src.scale, at)),
+        color: track(valueAt(src.color, at)), opacity: track(valueAt(src.opacity, at)), draw: track(valueAt(src.draw, at)), spread: track(valueAt(src.spread, at)),
+      });
     }
   }
 }
@@ -394,12 +518,23 @@ const asRgb = (a: number[]): Rgb => [a[0] ?? 0, a[1] ?? 0, a[2] ?? 0];
 /** The complete state at authored time `t` seconds into the step. Infinity settles the step. */
 export function evaluate(plan: StepPlan, t: number): Frame {
   const marks: MarkFrame[] = [];
+  const hosts = new Map<number, ObjInst>();
+  for (const o of plan.objs) hosts.set(o.key, o);
   for (const m of plan.marks) {
     if (!visibleAt(m, t)) continue;
     const pulse = pulseFor(plan, m.key, t);
+    let appear = appearOf(m, t);
+    let fade = fadeOf(m, t);
+    if (m.onKey !== undefined) {
+      // A pin lives and dies with its object.
+      const host = hosts.get(m.onKey);
+      if (!host || !visibleAt(host, t)) continue;
+      appear = Math.min(appear, appearOf(host, t));
+      fade = Math.min(fade, fadeOf(host, t));
+    }
     marks.push({
       key: m.key, id: m.id, mark: m.mark, color: asRgb(valueAt(m.color, t)), opacity: valueAt(m.opacity, t)[0] ?? 1,
-      appear: appearOf(m, t), fade: fadeOf(m, t), pulse: pulse.amount, pulseColor: pulse.color,
+      appear, fade, pulse: pulse.amount, pulseColor: pulse.color, tinted: m.tinted, ...(m.onKey !== undefined ? { onKey: m.onKey } : {}),
     });
   }
   const objects: ObjectFrame[] = [];
@@ -407,17 +542,18 @@ export function evaluate(plan: StepPlan, t: number): Frame {
     if (!visibleAt(o, t)) continue;
     const pulse = pulseFor(plan, o.key, t);
     objects.push({
-      key: o.key, id: o.id, parentKey: o.parentKey, shape: o.shape, size: o.size, pts: o.pts, text: o.text, height: o.height,
+      key: o.key, id: o.id, parentKey: o.parentKey, def: o.def, shape: o.def.shape,
       pos: asVec(valueAt(o.pos, t)), rot: asVec(valueAt(o.rot, t)), scale: asVec(valueAt(o.scale, t)),
       color: asRgb(valueAt(o.color, t)), opacity: valueAt(o.opacity, t)[0] ?? 1,
       appear: appearOf(o, t), fade: fadeOf(o, t), pulse: pulse.amount, pulseColor: pulse.color,
+      draw: valueAt(o.draw, t)[0] ?? 1, spread: valueAt(o.spread, t)[0] ?? 0,
     });
   }
   let panel: Frame['panel'] = null;
   for (const p of plan.panels) {
     if (!visibleAt(p, t)) continue;
     const r = valueAt(p.rect, t);
-    panel = { rect: { x: r[0] ?? 0, y: r[1] ?? 0, w: r[2] ?? 0, h: r[3] ?? 0 }, appear: appearOf(p, t), fade: fadeOf(p, t) };
+    panel = { rect: { x: r[0] ?? 0, y: r[1] ?? 0, w: r[2] ?? 0, h: r[3] ?? 0 }, appear: appearOf(p, t), fade: fadeOf(p, t), frame: p.frame };
   }
   return {
     panel, marks, objects, nextKey: plan.nextKey,

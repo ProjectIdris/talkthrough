@@ -9,4 +9,6 @@ contextBridge.exposeInMainWorld('talkthrough', {
   setInteractive: (over) => ipcRenderer.send('tt:interactive', over),
   rendered: (token) => ipcRenderer.send('tt:rendered', token),
   done: () => ipcRenderer.send('tt:done'),
+  offer: () => ipcRenderer.send('tt:offer'),
+  milestone: (m) => ipcRenderer.send('tt:milestone', m),
 });
