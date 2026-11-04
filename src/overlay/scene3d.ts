@@ -25,6 +25,7 @@ import type { Piece } from './parts.ts';
 import type { FocusFrame, Frame, ObjectFrame, Rgb } from './timeline.ts';
 import { spreadPosition, userOffsets } from './explode.ts';
 import type { Part } from './explode.ts';
+import { Cutaway } from './cutaway.ts';
 
 /** The longer side of the stage sees this many degrees; the shorter side follows from its shape, so a wide stage does not skew what sits at its edges. */
 export const FOV_DEGREES = 35;
@@ -56,6 +57,8 @@ type NodePiece = {
   tint: boolean;
   color: Rgb | undefined;
   lines: LineSegments | undefined;
+  /** A closed surface: a cut through it can be capped. */
+  closed: boolean;
 };
 
 type Node = {
@@ -66,6 +69,9 @@ type Node = {
   texture?: CanvasTexture;
   /** The size the object is built at (text sprites are sized, everything else is 1). */
   baseScale: Vector3;
+  /** How it looks just now (for what a cut needs to know). */
+  alpha: number;
+  color: Rgb;
   /** Named points of a ready-made part, in its own space. */
   anchors?: Record<string, Vec3>;
   /** For tubes, lines and arrows: what is needed to draw them part way. */
@@ -95,6 +101,7 @@ export class PanelScene {
   private blobMaterial: MeshBasicMaterial | undefined;
   private box = new Box3();
   private hasBox = false;
+  private cutaway = new Cutaway();
 
   constructor(deps: PanelDeps = {}) {
     this.deps = deps;
@@ -109,7 +116,7 @@ export class PanelScene {
     this.light.shadow.mapSize.set(settings.shadowMapSize, settings.shadowMapSize);
     this.light.shadow.bias = -0.0004;
     this.light.shadow.normalBias = 0.03;
-    this.light.shadow.radius = 5;
+    this.light.shadow.radius = settings.shadowMapSize >= 2048 ? 10 : 5; // the shadow map is sampled over a disc: wider on the big map so the edge is soft, not hard
     this.scene.add(this.light, this.light.target);
 
     const floorMat = new ShadowMaterial({ color: 0x0a0e18, opacity: 0.34, transparent: true });
@@ -156,7 +163,7 @@ export class PanelScene {
   private build(o: ObjectFrame): Node {
     const def = o.def;
     const settings = TIERS[this.tier];
-    const node: Node = { obj: new Group(), pieces: [], geometries: [], materials: [], baseScale: new Vector3(1, 1, 1) };
+    const node: Node = { obj: new Group(), pieces: [], geometries: [], materials: [], baseScale: new Vector3(1, 1, 1), alpha: 1, color: [255, 255, 255] };
     const material = 'material' in def ? def.material : undefined;
     const addMesh: AddMesh = (geo, surfaceName, edges) => {
       const surface = makeSurface(surfaceName, settings);
@@ -165,7 +172,8 @@ export class PanelScene {
       mesh.receiveShadow = settings.shadows;
       node.geometries.push(geo);
       node.materials.push(surface);
-      const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined };
+      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'torus';
+      const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
       if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow') piece.lines = this.edgeLines(mesh, geo, node);
       node.pieces.push(piece);
       return mesh;
@@ -204,7 +212,7 @@ export class PanelScene {
     p.object.receiveShadow = settings.shadows;
     node.materials.push(surface);
     node.geometries.push(p.object.geometry);
-    const piece: NodePiece = { object: p.object, surface, tint: p.tint, color: p.color, lines: undefined };
+    const piece: NodePiece = { object: p.object, surface, tint: p.tint, color: p.color, lines: undefined, closed: p.closed !== false && !(p.object instanceof InstancedMesh) };
     if (p.edges && settings.edges && !(p.object instanceof InstancedMesh)) piece.lines = this.edgeLines(p.object, p.object.geometry, node);
     node.pieces.push(piece);
   }
@@ -297,10 +305,11 @@ export class PanelScene {
     node.obj = sprite;
     node.texture = texture;
     node.materials.push(mat);
-    node.pieces.push({ object: sprite, surface: undefined, tint: true, color: undefined, lines: undefined });
+    node.pieces.push({ object: sprite, surface: undefined, tint: true, color: undefined, lines: undefined, closed: false });
   }
 
   private dispose(node: Node): void {
+    this.cutaway.release(node);
     node.obj.removeFromParent();
     for (const g of node.geometries) g.dispose();
     for (const m of node.materials) m.dispose();
@@ -363,6 +372,8 @@ export class PanelScene {
     }
     this.scene.updateMatrixWorld(true);
     this.aim(frame, aspect, view, standBack);
+    // The person's Cut goes through the middle of the model from the side the camera looks from.
+    this.cutaway.update(frame, this.nodes, this.scene, this.camera.getWorldDirection(new Vector3()).negate());
     this.placeShadow(frame);
   }
 
@@ -377,6 +388,8 @@ export class PanelScene {
     node.obj.scale.set(node.baseScale.x * o.scale[0] * grow, node.baseScale.y * o.scale[1] * grow, node.baseScale.z * o.scale[2] * grow);
     const alpha = Math.max(0, Math.min(1, (o.pose?.opacity ?? o.opacity) * o.appear * o.fade));
     node.obj.visible = alpha > 0.003;
+    node.alpha = alpha;
+    node.color = o.color;
     const dark: Rgb = [o.color[0] * 0.22, o.color[1] * 0.22, o.color[2] * 0.22];
     for (const p of node.pieces) {
       const rgb = p.tint ? o.color : p.color ?? o.color;

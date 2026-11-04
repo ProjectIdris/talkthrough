@@ -109,6 +109,8 @@ export class Player {
   private frozen: Frame | undefined;
   /** The person's Explode control, and the camera the finished scene ended with (what a double click returns to). */
   private readonly explodeValue = new ExplodeValue();
+  /** The person's Cut control: the model cut through the middle from the front, eased in and out like Explode. */
+  private readonly cutValue = new ExplodeValue();
   private home: Frame['camera'] | undefined;
   /** A detail pass is being drawn: its words are not spoken (they only name what each step adds). */
   private quiet = false;
@@ -138,7 +140,7 @@ export class Player {
 
   /** True while a scene is playing (the caller keeps animating). */
   get active(): boolean {
-    return this.phase !== 'idle' || this.idling || this.running || this.explodeValue.moving(this.clock.now());
+    return this.phase !== 'idle' || this.idling || this.running || this.explodeValue.moving(this.clock.now()) || this.cutValue.moving(this.clock.now());
   }
 
   /** True while a machine in the finished scene is turning. */
@@ -199,6 +201,7 @@ export class Player {
     // click returns to are left as they are.
     if (!detail) {
       this.explodeValue.reset();
+      this.cutValue.reset();
       this.home = undefined;
     }
     this.frozen = undefined;
@@ -277,6 +280,7 @@ export class Player {
     this.stop();
     this.quiet = false;
     this.explodeValue.reset();
+    this.cutValue.reset();
     this.home = undefined;
     this.live = false;
     this.rebase(emptyFrame());
@@ -315,6 +319,16 @@ export class Player {
     this.explodeValue.set(open, this.clock.now());
   }
 
+  /** The Cut control: cuts the model open through its middle, or makes it whole again. */
+  toggleCut(): void {
+    this.cutValue.toggle(this.clock.now());
+  }
+
+  /** True when the model is cut or being cut by the person's control. */
+  get cut(): boolean {
+    return this.cutValue.open;
+  }
+
   /** True when the model is open or opening by the person's control. */
   get exploded(): boolean {
     return this.explodeValue.open;
@@ -344,7 +358,9 @@ export class Player {
   update(): Frame {
     const frame = this.frameNow();
     const open = this.explodeValue.value(this.clock.now());
-    return open > 0.0005 ? { ...frame, userExplode: open } : frame;
+    const cut = this.cutValue.value(this.clock.now());
+    if (open <= 0.0005 && cut <= 0.0005) return frame;
+    return { ...frame, ...(open > 0.0005 ? { userExplode: open } : {}), ...(cut > 0.0005 ? { userCut: cut } : {}) };
   }
 
   private frameNow(): Frame {

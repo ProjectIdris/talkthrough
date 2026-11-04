@@ -1835,6 +1835,51 @@
       ],
       "additionalProperties": false
     },
+    "cut": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "cut"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "to": {
+          "type": "number"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "axis",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
     "orbit": {
       "type": "object",
       "properties": {
@@ -2054,6 +2099,9 @@
         },
         {
           "$ref": "#/$defs/flash"
+        },
+        {
+          "$ref": "#/$defs/cut"
         },
         {
           "$ref": "#/$defs/orbit"

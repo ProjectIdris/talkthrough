@@ -2129,6 +2129,55 @@
       "additionalProperties": false,
       "description": "A glow that comes on at one point of the cycle of a turning part: the object (a small sphere for a spark, a larger one for the burn) is invisible, flares to its opacity at the crank angle given and dies away over span degrees. by is the crankshaft; angle is degrees into a cycle of cycle degrees (default 720, a four-stroke engine: 0 is the piston at the top starting the intake, 360 the top of the compression)."
     },
+    "cut": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "cut"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "to": {
+          "type": "number",
+          "description": "-100 to 100"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "axis",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Cut a 3D object (usually a whole model) open with a plane, so the inside shows: everything beyond the plane is removed and the cut faces are capped. axis is x, y or z (default z, the plane faces the viewer at the front); to is where the plane is along that axis in the object own space (the middle of the object is 0). Move the plane through with another cut; to 100 puts it beyond everything: no cut."
+    },
     "orbit": {
       "type": "object",
       "properties": {
@@ -2363,6 +2412,9 @@
         },
         {
           "$ref": "#/$defs/flash"
+        },
+        {
+          "$ref": "#/$defs/cut"
         },
         {
           "$ref": "#/$defs/orbit"

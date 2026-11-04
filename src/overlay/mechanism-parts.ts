@@ -6,13 +6,14 @@
 // docs/scene-language.md, "The mechanism kit".
 
 import {
-  BufferGeometry, CatmullRomCurve3, CylinderGeometry, ExtrudeGeometry, LatheGeometry, Path, Shape, SphereGeometry, TorusGeometry, TubeGeometry, Vector2, Vector3,
+  BufferGeometry, CatmullRomCurve3, CylinderGeometry, ExtrudeGeometry, InstancedMesh, LatheGeometry, Matrix4, Path, PlaneGeometry, Shape, SphereGeometry, TorusGeometry, TubeGeometry, Vector2, Vector3,
 } from 'three';
-import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { AddPart, Vec3 } from '../scene/types.ts';
 import { boxGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { crankThrow, pistonPinDrop, rodEnds } from './mechanism-geometry.ts';
+import { SECTION } from './materials.ts';
 import { Builder, cyl } from './parts-base.ts';
 import type { Rgb } from './timeline.ts';
 
@@ -70,6 +71,24 @@ function spin(points: ReadonlyArray<readonly [number, number]>, sides: number, c
 
 const alongZ = <T extends BufferGeometry>(geo: T): T => geo.rotateX(Math.PI / 2);
 
+/**
+ * Hex-headed bolts, one instanced draw for all of them. The head stands `h` proud of where it is placed (axis y: pointing
+ * up; axis z: pointing towards the viewer) and has a washer face under it. An instanced piece is not capped when cut.
+ */
+function bolts(b: Builder, at: ReadonlyArray<Vec3>, r: number, h: number, axis: 'y' | 'z', color: Rgb = BRIGHT): void {
+  if (at.length === 0) return;
+  const head = new CylinderGeometry(r, r, h * 0.7, 6).translate(0, h * 0.35 + h * 0.3, 0);
+  const washer = new CylinderGeometry(r * 1.25, r * 1.25, h * 0.3, 14).translate(0, h * 0.15, 0);
+  const merged = mergeGeometries([head, washer].map((g) => g.toNonIndexed()))!;
+  const geo = toCreasedNormals(axis === 'z' ? alongZ(merged) : merged, 0.6);
+  const mesh = new InstancedMesh(geo, undefined as never, at.length);
+  const m = new Matrix4();
+  at.forEach((p, i) => mesh.setMatrixAt(i, m.makeTranslation(p[0], p[1], p[2])));
+  mesh.instanceMatrix.needsUpdate = true;
+  b.root.add(mesh);
+  b.pieces.push({ object: mesh, surface: 'metal', tint: false, color, edges: false, closed: false });
+}
+
 // ---- Cylinder block: a block with a bore, optionally cut open to show inside, optionally finned ----------
 
 function cylinderBlock(b: Builder, def: AddPart, d: Detail): void {
@@ -92,15 +111,24 @@ function cylinderBlock(b: Builder, def: AddPart, d: Detail): void {
     shape.copy(outer);
   }
   const geo = slab(shape, sy, 0.02 * sy, d).rotateX(-Math.PI / 2);
-  b.add(geo, 'metal', { tint: true, edges: true });
+  b.add(geo, 'cast', { tint: true, edges: true });
+  // The cut face of the half block: the two walls either side of the bore, hatched like a section drawing.
+  if (cut) {
+    const wall = sx / 2 - bore;
+    for (const side of [-1, 1]) b.add(new PlaneGeometry(wall, sy * 0.999), 'section', { color: SECTION, pos: [side * (bore + wall / 2), 0, 0.003], open: true });
+  }
+  // Head bolts at the corners of the deck.
+  const m = Math.min(sx, sz) * 0.11;
+  const bz = cut ? [-(sz / 2 - m)] : [-(sz / 2 - m), sz / 2 - m];
+  bolts(b, [-1, 1].flatMap((i) => bz.map((z): Vec3 => [i * (sx / 2 - m), sy / 2, z])), m * 0.42, m * 0.5, 'y', STEEL);
   // The bore wall, a darker honed liner, so the hole reads as a hole.
-  const liner = new CylinderGeometry(bore * 1.004, bore * 1.004, sy * 0.98, d.curve, 1, true, cut ? Math.PI : 0, cut ? Math.PI : Math.PI * 2);
-  b.add(liner, 'metal', { color: [78, 84, 96] });
+  const liner = new CylinderGeometry(bore * 1.004, bore * 1.004, sy * 0.98, d.curve, 1, true, cut ? Math.PI / 2 : 0, cut ? Math.PI : Math.PI * 2);
+  b.add(liner, 'metal', { color: [78, 84, 96], open: true });
   if (def.variant === 'finned') {
     const n = def.n ?? 6;
     for (let i = 0; i < n; i++) {
       const y = -sy / 2 + sy * (0.18 + (0.62 * i) / Math.max(1, n - 1));
-      for (const side of [-1, 1]) b.add(boxGeometry([sx * 0.16, sy * 0.028, sz * 0.96], 0.01, d), 'metal', { tint: true, pos: [side * (sx / 2 + sx * 0.06), y, 0] });
+      for (const side of [-1, 1]) b.add(boxGeometry([sx * 0.16, sy * 0.028, sz * 0.96], 0.01, d), 'cast', { tint: true, pos: [side * (sx / 2 + sx * 0.06), y, 0] });
     }
   }
   b.anchors['bore-top'] = [0, sy / 2, 0];
@@ -113,8 +141,16 @@ function cylinderBlock(b: Builder, def: AddPart, d: Detail): void {
 function piston(b: Builder, def: AddPart, d: Detail): void {
   const [sx, sy] = def.size;
   const r = sx / 2;
-  b.add(spin([[0, -sy / 2], [r * 0.92, -sy / 2], [r * 0.97, -sy / 2 + sy * 0.05], [r, -sy / 2 + sy * 0.12], [r, sy / 2 - sy * 0.03], [r * 0.9, sy / 2], [0, sy / 2]], d.curve, 0.6), 'metal', { tint: true, edges: false });
-  for (const k of [0.12, 0.2, 0.28]) b.add(cyl(r * 1.012, r * 1.012, sy * 0.04, d.curve), 'metal', { color: DARK_STEEL, pos: [0, sy / 2 - sy * k, 0] });
+  // The crown is rounded over, and three ring grooves are cut into the land (the rings sit proud in them).
+  const top = sy / 2;
+  const profile: Array<[number, number]> = [[0, -sy / 2], [r * 0.92, -sy / 2], [r * 0.97, -sy / 2 + sy * 0.05], [r, -sy / 2 + sy * 0.12]];
+  const groove = sy * 0.045, depth = r * 0.07;
+  const centres = [0.1, 0.18, 0.26].map((k) => top - sy * k - sy * 0.04);
+  profile.push([r, top - sy * 0.3 - groove]);
+  for (const y of centres.slice().reverse()) profile.push([r, y - groove / 2], [r - depth, y - groove / 2], [r - depth, y + groove / 2], [r, y + groove / 2]);
+  profile.push([r, top - sy * 0.035], [r * 0.97, top - sy * 0.012], [r * 0.9, top], [0, top]);
+  b.add(spin(profile, d.curve, 0.6), 'metal', { tint: true, edges: false });
+  for (const y of centres) b.add(cyl(r * 1.006, r * 1.006, groove * 0.72, d.curve), 'metal', { color: DARK_STEEL, pos: [0, y, 0] });
   b.add(cyl(r * 0.62, r * 0.62, sy * 0.012, d.curve), 'metal', { color: BRIGHT, pos: [0, sy / 2 + 0.002, 0] });
   b.add(alongZ(cyl(r * 0.2, r * 0.2, def.size[2] * 0.96, 18)), 'metal', { color: STEEL, pos: [0, -pistonPinDrop(def.size), 0] });
   b.anchors['crown'] = [0, sy / 2, 0];
@@ -171,13 +207,13 @@ function crankshaft(b: Builder, def: AddPart, d: Detail): void {
     for (const side of [-1, 1]) {
       const zz = z + side * pitch * 0.2;
       const slot = roundRect(rj * 3, throwR + rj * 3, rj * 1.4);
-      b.add(rot(slab(slot, web, web * 0.2, d).translate(0, throwR / 2, 0)).translate(0, 0, zz), 'metal', { tint: true, edges: true });
+      b.add(rot(slab(slot, web, web * 0.2, d).translate(0, throwR / 2, 0)).translate(0, 0, zz), 'cast', { tint: true, edges: true });
       const cw = new Shape();
       const half = 62 * DEG;
       cw.moveTo(0, 0);
       cw.absarc(0, 0, m * 0.44, -Math.PI / 2 - half, -Math.PI / 2 + half, false);
       cw.closePath();
-      b.add(rot(slab(cw, web * 1.14, web * 0.2, d)).translate(0, 0, zz), 'metal', { tint: true, edges: true });
+      b.add(rot(slab(cw, web * 1.14, web * 0.2, d)).translate(0, 0, zz), 'cast', { tint: true, edges: true });
     }
     const pin = alongZ(cyl(rp, rp, pitch * 0.4, d.curve));
     pin.translate(0, throwR, 0);
@@ -207,27 +243,37 @@ function valve(b: Builder, def: AddPart, d: Detail): void {
 
 function camshaft(b: Builder, def: AddPart, d: Detail): void {
   const [sx, , sz] = def.size;
-  const rs = sx * 0.17;
-  const rBase = sx * 0.3;
+  const rs = sx * 0.15;
+  const rBase = sx * 0.27;
   const rNose = sx / 2;
   const n = Math.max(1, Math.min(def.n ?? 4, 12));
+  // The shaft runs the whole length with a bearing journal near each end, so a lobe sits on a shaft, not on a point.
   b.add(alongZ(cyl(rs, rs, sz, d.curve)), 'metal', { color: STEEL, edges: true });
+  for (const end of [-1, 1]) {
+    b.add(alongZ(cyl(rs * 1.3, rs * 1.3, sz * 0.1, d.curve)), 'metal', { color: BRIGHT, pos: [0, 0, end * sz * 0.4], edges: true });
+    b.add(alongZ(cyl(rs * 1.3, rs * 1.3, sz * 0.04, d.curve)), 'metal', { color: DARK_STEEL, pos: [0, 0, end * sz * 0.485] });
+  }
   const pitch = sz / n;
-  const lobeW = pitch * 0.34;
-  const steps = 48;
+  const lobeW = Math.min(pitch * 0.34, sz * 0.3);
+  // A real lobe: a round base circle over most of the turn, two smooth flanks rising to a rounded nose (a quarter turn
+  // either side of the nose is flank, the rest is base circle).
+  const steps = 72;
+  const flank = 64 * DEG;
   for (let i = 0; i < n; i++) {
     const s = new Shape();
     for (let k = 0; k < steps; k++) {
       const a = (k / steps) * Math.PI * 2;
-      const lift = Math.pow(Math.max(0, Math.cos(a - Math.PI / 2)), 5);
+      const away = Math.abs(Math.atan2(Math.sin(a - Math.PI / 2), Math.cos(a - Math.PI / 2)));
+      const lift = away >= flank ? 0 : 0.5 * (1 + Math.cos((Math.PI * away) / flank));
       const r = rBase + (rNose - rBase) * lift;
       if (k === 0) s.moveTo(Math.cos(a) * r, Math.sin(a) * r);
       else s.lineTo(Math.cos(a) * r, Math.sin(a) * r);
     }
     s.closePath();
     const z = -sz / 2 + pitch * (i + 0.5);
-    b.add(slab(s, lobeW, lobeW * 0.12, d), 'metal', { tint: true, pos: [0, 0, z], edges: true });
-    b.add(alongZ(cyl(rs * 1.5, rs * 1.5, lobeW * 0.5, d.curve)), 'metal', { color: DARK_STEEL, pos: [0, 0, z - pitch * 0.34] });
+    b.add(slab(s, lobeW, lobeW * 0.1, d), 'metal', { tint: true, pos: [0, 0, z], edges: true });
+    // The journal either side of the lobe, a little wider than the shaft.
+    for (const side of [-1, 1]) b.add(alongZ(cyl(rs * 1.35, rs * 1.35, lobeW * 0.35, d.curve)), 'metal', { color: DARK_STEEL, pos: [0, 0, z + side * (lobeW / 2 + lobeW * 0.17)] });
   }
   b.anchors['axis-front'] = [0, 0, sz / 2];
   b.anchors['axis-rear'] = [0, 0, -sz / 2];
@@ -363,21 +409,21 @@ function housing(b: Builder, def: AddPart, d: Detail): void {
   const [sx, sy, sz] = def.size;
   const t = Math.min(sx, sy, sz) * 0.07;
   if (def.variant === 'cutaway') {
-    b.add(boxGeometry([sx, sy, t], t * 0.3, d), 'metal', { tint: true, pos: [0, 0, -sz / 2 + t / 2], edges: true });
-    for (const side of [-1, 1]) b.add(boxGeometry([t, sy, sz], t * 0.3, d), 'metal', { tint: true, pos: [side * (sx / 2 - t / 2), 0, 0], edges: true });
-    for (const side of [-1, 1]) b.add(boxGeometry([sx, t, sz], t * 0.3, d), 'metal', { tint: true, pos: [0, side * (sy / 2 - t / 2), 0], edges: true });
+    b.add(boxGeometry([sx, sy, t], t * 0.3, d), 'enamel', { tint: true, pos: [0, 0, -sz / 2 + t / 2], edges: true });
+    for (const side of [-1, 1]) b.add(boxGeometry([t, sy, sz], t * 0.3, d), 'enamel', { tint: true, pos: [side * (sx / 2 - t / 2), 0, 0], edges: true });
+    for (const side of [-1, 1]) b.add(boxGeometry([sx, t, sz], t * 0.3, d), 'enamel', { tint: true, pos: [0, side * (sy / 2 - t / 2), 0], edges: true });
   } else {
-    b.add(boxGeometry(def.size, t * 0.5, d), 'metal', { tint: true, edges: true });
+    b.add(boxGeometry(def.size, t * 0.5, d), 'enamel', { tint: true, edges: true });
   }
   // A lip round the open or front face, and a bolt in each corner.
   const lip = [sx * 1.04, sy * 1.04, t * 0.6] as Vec3;
   if (def.variant === 'cutaway') {
-    for (const sideX of [-1, 1]) b.add(boxGeometry([t * 1.2, sy * 1.04, t * 0.6], t * 0.2, d), 'metal', { tint: true, pos: [sideX * (sx / 2 - t * 0.1), 0, sz / 2], edges: true });
-    for (const sideY of [-1, 1]) b.add(boxGeometry([sx * 1.04, t * 1.2, t * 0.6], t * 0.2, d), 'metal', { tint: true, pos: [0, sideY * (sy / 2 - t * 0.1), sz / 2], edges: true });
+    for (const sideX of [-1, 1]) b.add(boxGeometry([t * 1.2, sy * 1.04, t * 0.6], t * 0.2, d), 'enamel', { tint: true, pos: [sideX * (sx / 2 - t * 0.1), 0, sz / 2], edges: true });
+    for (const sideY of [-1, 1]) b.add(boxGeometry([sx * 1.04, t * 1.2, t * 0.6], t * 0.2, d), 'enamel', { tint: true, pos: [0, sideY * (sy / 2 - t * 0.1), sz / 2], edges: true });
   } else {
-    b.add(boxGeometry(lip, t * 0.2, d), 'metal', { tint: true, pos: [0, 0, sz / 2 - t * 0.3], edges: true });
+    b.add(boxGeometry(lip, t * 0.2, d), 'enamel', { tint: true, pos: [0, 0, sz / 2 - t * 0.3], edges: true });
   }
-  for (const sx1 of [-1, 1]) for (const sy1 of [-1, 1]) b.add(alongZ(cyl(t * 0.55, t * 0.55, t * 0.5, 6)), 'metal', { color: BRIGHT, pos: [sx1 * (sx / 2 - t * 1.1), sy1 * (sy / 2 - t * 1.1), sz / 2 + t * 0.1], edges: true });
+  bolts(b, [-1, 1].flatMap((sx1) => [-1, 1].map((sy1): Vec3 => [sx1 * (sx / 2 - t * 1.1), sy1 * (sy / 2 - t * 1.1), sz / 2 - t * 0.1])), t * 0.5, t * 0.6, 'z');
   b.anchors['front'] = [0, 0, sz / 2];
   b.anchors['back'] = [0, 0, -sz / 2];
 }

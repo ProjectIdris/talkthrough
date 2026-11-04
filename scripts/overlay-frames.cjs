@@ -4,7 +4,7 @@
 //   npm run build
 //   (run it as `env -u ELECTRON_RUN_AS_NODE` if your shell sets that)
 //   npx electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 \
-//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high]
+//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--gpu yes] [--clean yes] [--metrics yes]
 //
 // --steps is a list of step:seconds pairs (seconds into that step; earlier steps are complete).
 // --dpr sets the display scale; offscreen windows always render at 1, so use --hidden (a hidden, non-offscreen window) for dpr other than 1.
@@ -47,7 +47,8 @@ const [width, height] = (args.size || '1920x1080').split('x').map(Number);
 const dpr = Number(args.dpr || 1);
 const root = path.resolve(__dirname, '..');
 
-app.disableHardwareAcceleration();
+// The graphics card is used only when asked for (--gpu); the default is software rendering, which is what runs without one.
+if (!args.gpu) app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('force-device-scale-factor', String(dpr));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -88,6 +89,8 @@ app.whenReady().then(async () => {
   if (args.tier) query.tier = args.tier;
   await win.loadFile(path.join(root, 'dist', 'overlay', 'index.html'), { query });
   await ready;
+  // --clean yes: the app's own Explode and Cut buttons are left out of the picture (for clips and stills of the scene alone).
+  if (args.clean) await win.webContents.insertCSS('#explode, #cut { display: none !important; }');
   console.log('page devicePixelRatio:', await win.webContents.executeJavaScript('window.devicePixelRatio'));
   console.log('WebGL renderer:', await win.webContents.executeJavaScript(`(() => { const gl = document.createElement('canvas').getContext('webgl'); if (!gl) return 'none'; const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); })()`));
   win.webContents.send(CHANNEL.display, {
@@ -198,6 +201,15 @@ app.whenReady().then(async () => {
   for (const pair of args.steps.split(',')) {
     const [s, t] = pair.split(':').map(Number);
     await seek(scene, s + offset, t, `${label}-s${s}-t${String(t).replace('.', '_')}`);
+  }
+  // --metrics yes: what the graphics card process and the page hold after the last frame, and the time the steps took.
+  if (args.metrics) {
+    for (const m of app.getAppMetrics()) {
+      if (m.type === 'GPU' || m.type === 'Tab') console.log('metrics', m.type, 'working set', Math.round(m.memory.workingSetSize / 1024), 'MB', 'private', Math.round((m.memory.privateBytes || 0) / 1024), 'MB');
+    }
+    const t0 = Date.now();
+    for (let i = 0; i < 20; i++) await seek(scene, 1 + offset, 1 + (i % 4) * 0.5, `bench`);
+    console.log('metrics 20 seeks', Date.now() - t0, 'ms');
   }
   app.quit();
 }).catch((error) => {

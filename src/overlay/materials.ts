@@ -3,6 +3,7 @@
 // is lit by the environment, so it reads as a real object, not a flat colour.
 
 import { Color, DoubleSide, MeshPhysicalMaterial } from 'three';
+import type { Material } from 'three';
 import type { Rgb } from './timeline.ts';
 
 export type Tier = 'low' | 'mid' | 'high';
@@ -27,7 +28,8 @@ export const TIERS: Record<Tier, TierSettings> = {
   high: { msaa: true, shadows: true, shadowMapSize: 2048, edges: true, maxPixelRatio: 2, clearcoat: true },
 };
 
-export type SurfaceName = 'plastic' | 'metal' | 'rubber' | 'pcb' | 'glass' | 'glow' | 'paper';
+/** The surfaces a scene can name, and two the parts kit uses inside itself: painted metal and rough cast metal. */
+export type SurfaceName = 'plastic' | 'metal' | 'rubber' | 'pcb' | 'glass' | 'glow' | 'paper' | 'enamel' | 'cast' | 'section';
 
 type Recipe = {
   roughness: number; metalness: number; clearcoat?: number; clearcoatRoughness?: number;
@@ -43,6 +45,12 @@ const RECIPES: Record<SurfaceName, Recipe> = {
   glass: { roughness: 0.04, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, opacity: 0.34, envMapIntensity: 1.5, doubleSided: true },
   glow: { roughness: 0.6, metalness: 0, emissive: 1.25 },
   paper: { roughness: 0.96, metalness: 0, doubleSided: true },
+  // Painted metal: a little of the metal under the paint shows in the shine, and the lacquer over it is glassy.
+  enamel: { roughness: 0.34, metalness: 0.55, clearcoat: 1, clearcoatRoughness: 0.12, envMapIntensity: 1.1 },
+  // Sand-cast metal: rough and even, with no mirror in it.
+  cast: { roughness: 0.42, metalness: 1, envMapIntensity: 1.05 },
+  // The flat cut face of a part drawn already cut open (hatched, see `hatched`).
+  section: { roughness: 0.7, metalness: 0.1 },
 };
 
 export type Surface = MeshPhysicalMaterial & { userData: { base: number; glow: number } };
@@ -56,6 +64,7 @@ export function makeSurface(name: string | undefined, tier: TierSettings): Surfa
   }) as Surface;
   m.userData = { base: r.opacity ?? 1, glow: r.emissive ?? 0 };
   if (name === 'glass') m.depthWrite = false;
+  if (name === 'section') hatched(m);
   return m;
 }
 
@@ -75,4 +84,27 @@ export function applySurface(m: Surface, rgb: Rgb, alpha: number, pulse: number,
   }
   if (m.userData.base < 1) m.depthWrite = false;
   else m.depthWrite = alpha >= 0.999;
+}
+
+/**
+ * A cut face reads as a section, not as more of the part: a warm, light cut-metal tone (a fifth of the part's own colour
+ * in it, so two parts of different colours still differ) with fine diagonal hatching, the way a drawing marks a cut.
+ */
+export const SECTION: Rgb = [236, 190, 122];
+export function sectionTone(rgb: readonly number[], out: Color): void {
+  const mix = (i: number): number => Math.min(1, (SECTION[i]! * 0.8 + rgb[i]! * 0.2) / 255);
+  out.setRGB(mix(0), mix(1), mix(2), 'srgb');
+}
+
+/** The hatching: stripes across a face in world space, a fixed spacing whatever size or way up the face is. */
+export function hatched(material: Material): void {
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('void main() {', 'varying vec3 vCapWorld;\nvoid main() {')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vCapWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', 'varying vec3 vCapWorld;\nvoid main() {')
+      .replace('#include <color_fragment>', '#include <color_fragment>\n  float capLine = fract(dot(vCapWorld, vec3(0.78, 0.55, 0.3)) / 0.16);\n  diffuseColor.rgb *= mix(1.0, 0.55, smoothstep(0.38, 0.5, capLine) * (1.0 - smoothstep(0.62, 0.74, capLine)));');
+  };
+  material.customProgramCacheKey = () => 'section-hatch';
 }

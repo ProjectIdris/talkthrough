@@ -14,6 +14,8 @@ export type Piece = {
   color?: Rgb;
   /** Dark edge lines are drawn for this piece when the tier allows. */
   edges: boolean;
+  /** False for an open surface (a bore liner, a pipe wall): a cut through it is not capped. Default closed. */
+  closed?: boolean;
 };
 
 export type BuiltPart = { root: Group; pieces: Piece[]; /** Named points on the part, in its own space (see each part in docs/scene-language.md). */ anchors: Record<string, Vec3> };
@@ -26,12 +28,12 @@ export class Builder {
   readonly pieces: Piece[] = [];
   readonly anchors: Record<string, Vec3> = {};
 
-  add(geo: BufferGeometry, surface: string, opts: { tint?: boolean; color?: Rgb; pos?: Vec3; rot?: Vec3; edges?: boolean } = {}): Mesh {
+  add(geo: BufferGeometry, surface: string, opts: { tint?: boolean; color?: Rgb; pos?: Vec3; rot?: Vec3; edges?: boolean; open?: boolean } = {}): Mesh {
     const mesh = new Mesh(geo);
     if (opts.pos) mesh.position.set(opts.pos[0], opts.pos[1], opts.pos[2]);
     if (opts.rot) mesh.rotation.set(opts.rot[0] * Math.PI / 180, opts.rot[1] * Math.PI / 180, opts.rot[2] * Math.PI / 180);
     this.root.add(mesh);
-    this.pieces.push({ object: mesh, surface, tint: opts.tint ?? false, ...(opts.color ? { color: opts.color } : {}), edges: opts.edges ?? false });
+    this.pieces.push({ object: mesh, surface, tint: opts.tint ?? false, ...(opts.color ? { color: opts.color } : {}), edges: opts.edges ?? false, ...(opts.open ? { closed: false } : {}) });
     return mesh;
   }
 
