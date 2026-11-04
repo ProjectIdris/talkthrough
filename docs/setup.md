@@ -36,7 +36,7 @@ Talkthrough sends your screenshot and question to a model you choose. Set `model
 2. **`"claude"`: your own Claude Code**, signed in by you. The app runs it in print mode with no tools, no MCP servers, no slash commands and no settings files, and refuses to go on if its first message lists anything else.
 3. **An API key** (planned): a model that calls a provider's API directly with a key you enter in settings.
 
-For the first two, Talkthrough only starts the tool you already have; it never sees or stores your sign-in. **Check your provider's terms for automated use before you pick one.** To use something else, write a `Model` adapter (`src/adapters/model.ts`).
+For the first two, Talkthrough only starts the tool you already have; it never reads or stores your sign-in. **Check your provider's terms for automated use before you pick one.** To use something else, write a `Model` adapter (`src/adapters/model.ts`).
 
 ## Speech
 

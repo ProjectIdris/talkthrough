@@ -9,7 +9,7 @@ Hold a key and ask out loud. Talkthrough looks at your screen, points at what ma
 
 - **Works in any app or website:** no tutorial in another window.
 - **Open source (MIT).** You choose how it runs your model (see [Choose how it runs your model](#choose-how-it-runs-your-model)).
-- **Private:** Talkthrough itself writes nothing about your screen or questions to disk (pinning things to keep is planned).
+- **Private:** in normal use Talkthrough itself writes nothing about your screen or questions to disk (saving an answer to come back to is planned).
 - **Safe:** it draws, it never runs generated code.
 
 > **Status: pre-release, Windows first.** The whole loop runs: hotkey, microphone, screen capture, a model through your own Codex or Claude Code install, the scene language and the three.js overlay. It needs a local speech recogniser you point it at (see [setup](docs/setup.md)). Step-by-step guiding that waits for your click is planned. See [Status](#status) for exactly what exists today.
@@ -46,7 +46,7 @@ Talkthrough sends your screenshot and question to a model you choose. Pick one i
 2. **Your own Claude Code**, signed in by you.
 3. **An API key** (planned).
 
-Talkthrough starts the tool you already have and gives it no tools of its own: it can only answer. It never sees or stores your sign-in. Check your provider's terms for automated use before you pick one.
+Talkthrough starts the tool you already have and gives it no tools of its own: it can only answer. It never reads or stores your sign-in. Check your provider's terms for automated use before you pick one.
 
 ## How it works
 
@@ -84,10 +84,10 @@ Models, voices, speech recognition and backends are adapters in `src/adapters/`,
 | Scene language, validator, streaming parser, JSON Schema | working, tested |
 | Model, voice, speech-to-text and backend interfaces; system voice; local speech-server client | working, tested |
 | Overlay window, hotkey, screen capture, microphone, tray | working |
-| Models through your own Codex or Claude install, locked down to no tools | working, tested against stand-ins and live |
+| Models through your own Codex or Claude install, locked down to no tools | working, tested against stand-ins |
 | A speech recogniser that ships with the app | planned (today: a local server you point it at) |
 | Model through an API key | planned (an adapter) |
-| Pinning, and a guided-task history | planned |
+| Saving an answer to come back to, and a guided-task history | planned |
 | Guided mode that waits for your click before the next step | planned |
 | Mac and Linux | planned |
 
@@ -95,9 +95,9 @@ Windows is the first platform.
 
 ## Privacy
 
-- **What leaves your machine:** your screenshot and your spoken question's text go to the model you chose (see above), and nothing else. Speech is recognised by a server on your own machine.
-- **What Talkthrough keeps:** the screenshot and your recording live in memory only and are never written to disk. Your latest questions and answers stay in memory so a follow-up question works; they are gone when you quit. The model tool you choose has its own policies.
-- **Planned:** pinning (keeping something you want to come back to) and a short history that lasts while a guided task runs. Neither is built yet.
+- **What leaves the app:** your screenshot and the text of your question go to the model you chose (see above), and your recording goes to the speech server whose address you set (meant to be on your own machine; none is built in). Nothing else.
+- **What Talkthrough keeps:** the screenshot and your recording live in memory only and are not written to disk in normal use (the development options `--save-capture` and `--frames-dir` save images). Your latest questions and answers stay in memory so a follow-up question works; they are gone when you quit. The model tool you choose has its own policies.
+- **Planned:** saving an answer to come back to, and a short history that lasts while a guided task runs. Neither is built yet.
 
 ## Layout
 
