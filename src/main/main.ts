@@ -123,7 +123,7 @@ async function main(): Promise<void> {
   const fixedQuestion = options.question;
   const speech: SpeechToText | null = fixedQuestion
     ? { id: 'fixed-text', transcribe: async () => ({ text: fixedQuestion }) } // checks only: skips the speech server
-    : settings.speechServerUrl ? createLocalSpeechServerRecogniser({ url: settings.speechServerUrl }) : null;
+    : settings.speechServerUrl ? createLocalSpeechServerRecogniser({ url: settings.speechServerUrl, ...(settings.speechLimitMs ? { limitMs: settings.speechLimitMs } : {}) }) : null;
   if (fixedQuestion) log('question text fixed for this run (speech server not used)');
   else if (speech) {
     // Only ever asks whether the server is up; the app never starts it.
@@ -232,8 +232,8 @@ async function main(): Promise<void> {
         uIOhook.keyToggle(UiohookKey.CtrlRight, 'up');
       }, holdMs);
     };
-    setTimeout(() => press(2000), 2500);
-    setTimeout(() => press(2000), 8500);
+    setTimeout(() => press(options.chordHoldMs), 2500);
+    setTimeout(() => press(options.chordHoldMs), 2500 + options.chordHoldMs + 4000);
   }
   if (options.maxSeconds) setTimeout(quit, options.maxSeconds * 1000);
 }

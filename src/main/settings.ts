@@ -7,6 +7,8 @@ import { readFileSync } from 'node:fs';
 export type Settings = {
   /** Base URL of a local speech recogniser (see the SpeechToText adapter). Unset: no speech input. */
   speechServerUrl?: string;
+  /** Asked of the speech server as limit_ms: how long its main recogniser may take before its quicker one answers. */
+  speechLimitMs?: number;
   /** Which model answers: the user's ChatGPT plan through Codex, or their Claude plan. */
   model: 'codex' | 'claude';
   codexModel: string;
@@ -49,6 +51,7 @@ export function loadSettings(path: string, warn: (message: string) => void = () 
   const settings: Settings = { ...DEFAULT_SETTINGS };
   const url = str(raw.speechServerUrl);
   if (url) settings.speechServerUrl = url;
+  if (typeof raw.speechLimitMs === 'number' && raw.speechLimitMs >= 200 && raw.speechLimitMs <= 15000) settings.speechLimitMs = Math.round(raw.speechLimitMs);
   if (raw.model === 'codex' || raw.model === 'claude') settings.model = raw.model;
   settings.codexModel = str(raw.codexModel) ?? settings.codexModel;
   if (typeof raw.codexFast === 'boolean') settings.codexFast = raw.codexFast;

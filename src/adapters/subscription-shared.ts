@@ -143,7 +143,7 @@ export function questionText(request: ModelRequest): string {
     if (history.length > HISTORY_CHARS) history = history.slice(history.length - HISTORY_CHARS);
     parts.push(`Earlier in this conversation (what you drew stays on screen until cleared, and its ids can be used again):\n${history}`);
   }
-  parts.push(`The screenshot is ${request.screenshot.width}x${request.screenshot.height} pixels; marks use the 0 to 1000 scale across it.`);
+  parts.push(`The screenshot is ${request.screenshot.width}x${request.screenshot.height} pixels, but your marks do NOT use pixels: x and y run from 0 to 1000 across the whole screenshot (500 is the middle of each axis, 1000 the right and bottom edges), whatever its pixel size. Convert before you answer.`);
   parts.push(`The user's question, transcribed from speech (it may contain recognition errors): ${JSON.stringify(request.question)}`);
   return parts.join('\n\n');
 }

@@ -39,6 +39,8 @@ export type QuestionReport = {
   question: string;
   /** Milliseconds after the keys were released. */
   transcriptMs?: number;
+  /** Which recogniser answered and how long it says it took (no text). */
+  speech?: string;
   captureMs?: number;
   firstPieceMs?: number;
   firstStepMs?: number;
@@ -168,7 +170,9 @@ export function createSession(deps: SessionDeps) {
       }
       let question: string;
       try {
-        question = (await deps.speech.transcribe({ samples: clip.samples, sampleRate: clip.sampleRate })).text.trim();
+        const heard = await deps.speech.transcribe({ samples: clip.samples, sampleRate: clip.sampleRate });
+        question = heard.text.trim();
+        r.speech = `${heard.engine ?? deps.speech.id}${heard.seconds === undefined ? '' : ` ${heard.seconds.toFixed(2)} s`}`;
       } catch (error) {
         const code = error instanceof SpeechToTextError ? error.code : 'failed';
         r.error = `speech: ${code}`;

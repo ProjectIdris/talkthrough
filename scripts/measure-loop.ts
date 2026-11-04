@@ -47,11 +47,14 @@ for (let n = 1; n <= runs; n++) {
   const settings: Record<string, unknown> = kind === 'claude'
     ? { model: 'claude', claudeModel: name, ...(process.env.TALKTHROUGH_CLAUDE ? { claudeCommand: process.env.TALKTHROUGH_CLAUDE } : {}) }
     : { model: 'codex', codexModel: name, codexFast: flag === 'fast', ...(process.env.TALKTHROUGH_CODEX ? { codexCommand: process.env.TALKTHROUGH_CODEX } : {}) };
-  if (speechUrl) settings.speechServerUrl = speechUrl;
+  if (speechUrl) {
+    settings.speechServerUrl = speechUrl;
+    settings.speechLimitMs = Number(process.env.TALKTHROUGH_SPEECH_LIMIT_MS ?? 1000);
+  }
   writeFileSync(settingsFile, JSON.stringify(settings));
   const args = [
     '.', '--settings', settingsFile, '--hidden', '--silent-voice', '--fake-mic', '--capture-image', join(shots, `${page}.png`),
-    '--backdrop', join(shots, `${page}.png`), '--self-chord', '--exit-after-chord', '1', '--settle-seconds', '2', '--log-steps', '--max-seconds', '90',
+    '--backdrop', join(shots, `${page}.png`), '--self-chord', '--chord-hold', wav ? '3000' : '2000', '--exit-after-chord', '1', '--settle-seconds', '2', '--log-steps', '--max-seconds', '90',
     ...(wav ? ['--fake-mic-file', wav] : []),
     ...(speechUrl ? [] : ['--question', meta.question]),
   ];
@@ -73,6 +76,6 @@ for (let n = 1; n <= runs; n++) {
   const timings = /codex timings: (.*)/.exec(text)?.[1];
   const row = { run: n, model: spec, page, ...report, scored, ...(timings ? { timings } : {}) };
   rows.push(row);
-  console.log(`${spec} run ${n}: ${report.error ? 'ERROR ' + String(report.error) : `question ${JSON.stringify(report.question)}`} | transcript ${report.transcriptMs ?? '-'} ms, first piece ${report.firstPieceMs ?? '-'} ms, first mark ${report.firstMarkMs ?? '-'} ms, first word ${report.firstWordMs ?? '-'} ms, end ${report.endMs ?? '-'} ms, steps ${report.steps ?? 0} | ${scored ? `${scored.op} iou ${scored.iou === null ? '-' : scored.iou.toFixed(2)} hit ${scored.hit}` : 'no mark'}${timings ? ` | ${timings}` : ''}`);
+  console.log(`${spec} run ${n}: ${report.error ? 'ERROR ' + String(report.error) : `question ${JSON.stringify(report.question)}`} | transcript ${report.transcriptMs ?? '-'} ms${report.speech ? ` (${String(report.speech)})` : ''}, first piece ${report.firstPieceMs ?? '-'} ms, first mark ${report.firstMarkMs ?? '-'} ms, first word ${report.firstWordMs ?? '-'} ms, end ${report.endMs ?? '-'} ms, steps ${report.steps ?? 0} | ${scored ? `${scored.op} iou ${scored.iou === null ? '-' : scored.iou.toFixed(2)} hit ${scored.hit}` : 'no mark'}${timings ? ` | ${timings}` : ''}`);
 }
 writeFileSync(out, JSON.stringify(rows, null, 1));
