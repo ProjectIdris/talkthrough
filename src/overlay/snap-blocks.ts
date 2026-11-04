@@ -182,7 +182,6 @@ export function fitUnderline(g: BlockGrid, x0: number, x1: number, y: number, th
     return false;
   };
   const gutter = Math.max(7, Math.round(g.cols * 0.009)); // blank this wide is the space between columns, not between words
-  const word = 2; // blank this wide is the space between two words
   let a = Math.max(0, Math.round(x0));
   const b = Math.min(g.cols, Math.round(x1));
   if (b - a < 6) return undefined;
@@ -194,14 +193,25 @@ export function fitUnderline(g: BlockGrid, x0: number, x1: number, y: number, th
   for (let x = a; x < b; x++) {
     if (occupied(x)) { end = x + 1; blank = 0; } else if (++blank >= gutter && end > a) break;
   }
-  // A start in the blank before the first word moves onto it; one in the middle of a word moves back to its first letter.
-  while (a < end && !occupied(a)) a++;
-  {
-    let blank = 0, start = a, found = false;
-    for (let x = a - 1; x >= 0 && a - x <= 10; x--) {
-      if (occupied(x)) { blank = 0; start = x; } else if (++blank >= word) { found = true; break; }
+  // Both ends come out to a word boundary of the page's own line: an end in the middle of a word takes in the whole word (the first blank
+  // column, a space between two words, outward from it); only when no space is near does it stay where it was written.
+  const REACH = 24; // cells (about 48 px on a 1920-wide screen): the longest word
+  const blankFrom = (x: number, dir: 1 | -1): number | undefined => {
+    for (let d = 0; d <= REACH; d++) {
+      const c = x + d * dir;
+      if (c <= 0 || c >= g.cols - 1) return undefined;
+      if (!occupied(c)) return c;
     }
-    if (found) a = start;
+    return undefined;
+  };
+  while (a < end && !occupied(a)) a++;
+  if (a > 0 && occupied(a - 1)) {
+    const gap = blankFrom(a - 1, -1);
+    if (gap !== undefined) a = gap + 1;
+  }
+  if (end < g.cols && occupied(end) && end === b) {
+    const gap = blankFrom(end, 1);
+    if (gap !== undefined) end = gap;
   }
   if (end - a < 6) return undefined;
   return { x0: a, x1: end };

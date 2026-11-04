@@ -110,7 +110,7 @@ test('an underline stops at the end of its line of text and does not run on into
   assert.ok(out.x * kx >= 112 && out.x * kx <= 128, 'the start stays about where it was');
   const inside: Mark = { op: 'underline', id: 'u2', x: 120 / kx, y: 109 / ky, w: 100 / kx, color: 'teal' };
   const same = s.snapMark(inside) as Extract<Mark, { op: 'underline' }>;
-  assert.ok(Math.abs((same.x + same.w) * kx - 220) < 3, 'an underline inside its line keeps its length');
+  assert.ok((same.x + same.w) * kx >= 218 && (same.x + same.w) * kx <= 244, 'an underline inside its line stays on it, ending at the end of the word it ended in');
 });
 
 test('a box round a framed figure with its caption is not taken for a table, even with a table close below it', () => {
@@ -123,4 +123,16 @@ test('a box round a framed figure with its caption is not taken for a table, eve
   const s = page.snapper();
   const out = s.snapMark(box(58, 58, 342, 170));
   assert.ok(cellsOfBox(out).y1 < 180, `the figure's box stays on the figure: ${cellsOfBox(out).y1.toFixed(1)}`);
+});
+
+test('an underline starts and ends at the edges of words of its line, not in the middle of one', () => {
+  const page = new Page();
+  page.text(60, 100, 280, 1); // words 60-84, 90-114, 120-144, 150-174 ... with 6 blank cells between
+  const s = page.snapper();
+  // From the middle of the second word (94) to the middle of the fourth (160): 90 to 174 are the words, and the ends come to their edges.
+  const m: Mark = { op: 'underline', id: 'w', x: 94 / kx, y: 109 / ky, w: (160 - 94) / kx, color: 'teal' };
+  const out = s.snapMark(m) as Extract<Mark, { op: 'underline' }>;
+  const a = out.x * kx, b = (out.x + out.w) * kx;
+  assert.ok(Math.abs(a - 90) <= 3, `starts at the start of the word (90), got ${a.toFixed(1)}`);
+  assert.ok(Math.abs(b - 174) <= 3, `ends at the end of the word (174), got ${b.toFixed(1)}`);
 });
