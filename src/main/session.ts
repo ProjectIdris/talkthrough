@@ -266,6 +266,12 @@ export function createSession(deps: SessionDeps) {
     const displayId = deps.pointerDisplayId();
     const a: Attempt = { id: nextId++, displayId, capture: deps.media.capture(displayId), strokes: new Map(), open: new Set(), micStarted: false, chord: false, timer: null };
     a.capture.catch(() => undefined); // an error is reported when the question is asked
+    // A speech or voice server that sleeps starts waking now, while the person is still speaking; whatever it does, the press goes on.
+    try {
+      void Promise.resolve(deps.speech?.wake?.()).catch(() => undefined);
+    } catch {
+      // a wake-up that throws at once is no matter
+    }
     deps.media.startMic().catch((error: unknown) => deps.log(`microphone: ${error instanceof Error ? error.message : String(error)}`));
     if (withWindow) a.timer = setTimeout(() => dropAttempt('Right Shift did not follow in time'), deps.micWindowMs);
     attempt = a;

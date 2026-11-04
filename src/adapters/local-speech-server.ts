@@ -9,6 +9,7 @@ import type { SpeechClip, SpeechToText, Transcript } from './speech-to-text.ts';
  *     200 -> { "text": string, "engine"?: string, "seconds"?: number }
  *     other -> { "error": string }
  *   GET {url}/health -> 200 when ready (optional; used by warm())
+ *   POST {url}/warm (no body) -> 202 at once, the server getting ready in the background (optional; used by wake(): any answer, or none, is fine)
  *
  * The URL always comes from the caller (the user's local settings); nothing is assumed about it.
  */
@@ -20,6 +21,9 @@ export type LocalSpeechServerOptions = {
   /** Give up on the whole request after this long. Default 15000. */
   timeoutMs?: number;
   fetch?: typeof fetch;
+  /** wake() asks the server at most this often, in milliseconds (a server that sleeps after a while needs it once per question, not once per key). Default 30000. */
+  wakeEveryMs?: number;
+  now?(): number;
 };
 
 const TARGET_RATE = 16000;
@@ -45,6 +49,9 @@ export function createLocalSpeechServerRecogniser(options: LocalSpeechServerOpti
   const base = options.url.replace(/\/+$/, '');
   const doFetch = options.fetch ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? 15000;
+  const wakeEveryMs = options.wakeEveryMs ?? 30_000;
+  const now = options.now ?? (() => Date.now());
+  let wokeAt = -Infinity;
 
   function signalFor(outer?: AbortSignal): AbortSignal {
     const timeout = AbortSignal.timeout(timeoutMs);
@@ -60,6 +67,17 @@ export function createLocalSpeechServerRecogniser(options: LocalSpeechServerOpti
       } catch (error) {
         if (error instanceof SpeechToTextError) throw error;
         throw new SpeechToTextError('unavailable', 'the local speech server is not reachable', { cause: error });
+      }
+    },
+    async wake() {
+      if (now() - wokeAt < wakeEveryMs) return;
+      wokeAt = now();
+      try {
+        // The answer does not matter: a server without this route says 404 and is simply not asked again for a while.
+        const response = await doFetch(`${base}/warm`, { method: 'POST', redirect: 'error', signal: signalFor() });
+        await response.body?.cancel();
+      } catch {
+        // best effort: if the server is down the question will say so
       }
     },
     async transcribe(clip, call = {}) {

@@ -101,7 +101,7 @@ export function createStreamedVoice(options: StreamedVoiceOptions): Voice {
       if (u.playback) u.playback.finish();
       else finish(u, { reason: 'error', error: 'the voice server sent no audio' });
     } else {
-      finish(u, { reason: 'error', error: e.message });
+      finish(u, { reason: 'error', error: e.message, ...(e.retryAfterMs !== undefined ? { retryAfterMs: e.retryAfterMs } : {}) });
     }
   }
 

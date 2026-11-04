@@ -34,11 +34,16 @@ export function createFallbackVoice(options: FallbackVoiceOptions): Voice {
   const cooldownMs = options.cooldownMs ?? 20_000;
   const log = options.log ?? (() => undefined);
   let downUntil = 0;
+  /** Until when the server asked to be left alone (busy, with Retry-After). Only a newer busy answer moves it: a step that happens to start sounding does not end it. */
+  let busyUntil = 0;
   const live = new Set<() => void>();
 
-  function giveUp(why: string): void {
-    downUntil = clock.now() + cooldownMs;
-    log(`voice: ${primary.id} gave no sound (${why}); speaking with ${fallback.id} for ${Math.round(cooldownMs / 1000)} s`);
+  function giveUp(why: string, asked?: number): void {
+    // A server that said how long to leave it alone (busy, Retry-After) is left that long and not longer; one that just failed, the cooldown.
+    const wait = asked !== undefined ? Math.max(1000, asked) : cooldownMs;
+    if (asked !== undefined) busyUntil = Math.max(busyUntil, clock.now() + wait);
+    else downUntil = Math.max(downUntil, clock.now() + wait);
+    log(`voice: ${primary.id} ${asked !== undefined ? 'is busy' : 'gave no sound'} (${why}); speaking with ${fallback.id} for ${Math.round(wait / 1000)} s`);
   }
 
   return {
@@ -81,7 +86,7 @@ export function createFallbackVoice(options: FallbackVoiceOptions): Voice {
         });
       };
 
-      if (clock.now() < downUntil) {
+      if (clock.now() < Math.max(downUntil, busyUntil)) {
         speakWithFallback();
       } else {
         current = primary.speak(text, {
@@ -98,7 +103,7 @@ export function createFallbackVoice(options: FallbackVoiceOptions): Voice {
             if (over || switched) return;
             if (!started && result.reason === 'error') {
               stopTimer?.();
-              giveUp(result.error ?? 'error');
+              giveUp(result.error ?? 'error', result.retryAfterMs);
               speakWithFallback();
               return;
             }

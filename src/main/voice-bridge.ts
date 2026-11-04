@@ -72,7 +72,7 @@ export function createVoiceBridge(options: VoiceBridgeOptions): VoiceBridge {
           if (controller.signal.aborted) return;
           const message = error instanceof VoiceServerError ? error.message : 'the voice server failed';
           options.log(`voice server: ${message}`);
-          send({ kind: 'error', message });
+          send({ kind: 'error', message, ...(error instanceof VoiceServerError && error.retryAfterMs !== undefined ? { retryAfterMs: error.retryAfterMs } : {}) });
         } finally {
           if (running.get(key)?.controller === controller) running.delete(key);
         }

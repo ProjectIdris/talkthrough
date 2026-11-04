@@ -95,7 +95,7 @@ A quick answer is drawn with a small, fast model. If you set `detailRoute`, a **
 
 ## Speech
 
-Your question is recorded in memory, turned into text by a local recogniser, and thrown away. Talkthrough ships a client for a recogniser that runs as a small local HTTP server (`createLocalSpeechServerRecogniser`): `POST /transcribe` with raw 16 kHz mono float32 samples, answer `{"text": "..."}`, and `GET /health` to check it is up. The app never starts it; if the address does not answer, the overlay says so. A recogniser that ships with the app is planned.
+Your question is recorded in memory, turned into text by a local recogniser, and thrown away. Talkthrough ships a client for a recogniser that runs as a small local HTTP server (`createLocalSpeechServerRecogniser`): `POST /transcribe` with raw 16 kHz mono float32 samples, answer `{"text": "..."}`, and `GET /health` to check it is up. A server that sleeps when idle can also take `POST /warm` (no body; answer `202` at once and get ready in the background): the app sends it, at most once every 30 seconds, as soon as the keys first go down, so the server is ready by the time you finish speaking. A server without that route (a `404`) is simply not asked again for a while. The app never starts the server itself; if the address does not answer, the overlay says so. A recogniser that ships with the app is planned.
 
 ## Voice
 
@@ -105,6 +105,8 @@ What the server must do: accept `POST <voiceServerUrl>` with the JSON body `{"te
 
 - a WAV stream (`Content-Type: audio/wav`): 8, 16, 24 or 32-bit integer PCM or 32-bit float, one or two channels. The length in the header may be real, zero or unknown (the audio then runs to the end of the response);
 - raw PCM (`Content-Type: audio/pcm; rate=24000; channels=1`): signed 16-bit little-endian.
+
+A busy server may answer `503` with `Retry-After` (seconds, or a date; a wait over a minute counts as a minute). That step is spoken by the system voice at once, the server is left alone for that long, and then the next step asks it again; any other error uses the ordinary cooldown (`voiceCooldownMs`).
 
 Any other answer is an error (a text body is shown in the log), and that includes a redirect: the app never follows one, so the words go only to the address you set. The app asks for each step as soon as it arrives, so the next sentence is usually ready when the last one ends, and it starts playing after about a tenth of a second of sound has arrived.
 

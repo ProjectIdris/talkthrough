@@ -20,15 +20,31 @@ export type VoiceEvent =
   | { kind: 'pcm'; samples: Float32Array }
   /** The audio is complete. */
   | { kind: 'end' }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string; /** The server asked to be left alone for this long (a busy answer with Retry-After). */ retryAfterMs?: number };
 
 export class VoiceServerError extends Error {
-  readonly code: 'unavailable' | 'server' | 'format' | 'timeout' | 'aborted';
-  constructor(code: VoiceServerError['code'], message: string, options?: ErrorOptions) {
+  readonly code: 'unavailable' | 'server' | 'format' | 'timeout' | 'aborted' | 'busy';
+  /** For a busy server: how long it asked to be left alone, in milliseconds. */
+  readonly retryAfterMs?: number;
+  constructor(code: VoiceServerError['code'], message: string, options?: ErrorOptions & { retryAfterMs?: number }) {
     super(message, options);
     this.name = 'VoiceServerError';
     this.code = code;
+    if (options?.retryAfterMs !== undefined) this.retryAfterMs = options.retryAfterMs;
   }
+}
+
+/** The longest a server may ask to be left alone (a longer wait is treated as this long). */
+export const MAX_RETRY_AFTER_MS = 60_000;
+
+/** A Retry-After header (whole seconds, or an HTTP date) as milliseconds from `now`; undefined when absent or not understood. */
+export function parseRetryAfter(value: string | null, now = Date.now()): number | undefined {
+  const v = value?.trim();
+  if (!v) return undefined;
+  // Whole seconds or an HTTP date; anything else that reads as a number ("1.5", "-5") is not understood.
+  if (/^[+-]?[\d.]+$/.test(v) && !/^\d+$/.test(v)) return undefined;
+  const ms = /^\d+$/.test(v) ? Number(v) * 1000 : Date.parse(v) - now;
+  return Number.isFinite(ms) ? Math.min(MAX_RETRY_AFTER_MS, Math.max(0, Math.round(ms))) : undefined;
 }
 
 /** The most audio one utterance may carry: a runaway stream is cut off here (ten minutes at 48 kHz stereo is far past any sentence). */
@@ -230,7 +246,9 @@ export async function* streamSpeech(options: StreamSpeechOptions): AsyncGenerato
     } catch {
       // no body to read
     }
-    throw new VoiceServerError('server', `the voice server answered ${response.status}${why ? `: ${why}` : ''}`);
+    // A busy server (503 with Retry-After) is not a broken one: the caller speaks this step another way and comes back after the wait.
+    const retryAfterMs = response.status === 503 ? parseRetryAfter(response.headers.get('retry-after')) : undefined;
+    throw new VoiceServerError(retryAfterMs !== undefined ? 'busy' : 'server', `the voice server answered ${response.status}${why ? `: ${why}` : ''}`, retryAfterMs !== undefined ? { retryAfterMs } : undefined);
   }
   const type = response.headers.get('content-type') ?? '';
   const raw = parsePcmType(type);

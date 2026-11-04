@@ -1,5 +1,5 @@
 /** Why an utterance ended. */
-export type SpeechEnd = { reason: 'finished' | 'cancelled' | 'error'; error?: string };
+export type SpeechEnd = { reason: 'finished' | 'cancelled' | 'error'; error?: string; /** After an error: the server asked to be left alone this long (milliseconds). */ retryAfterMs?: number };
 
 export type SpeechListener = {
   /**

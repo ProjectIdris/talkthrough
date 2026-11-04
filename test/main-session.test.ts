@@ -1041,6 +1041,7 @@ test('guide mode, one step to a call: a wait the validator drops makes a plain s
   assert.equal(w.sent.filter((m) => m.kind === 'end').length, 1, 'and the walk ends');
 });
 
+
 const noStrokeMedia = (compose: Array<unknown>): SessionDeps['media'] => ({
   startMic: async () => undefined,
   stopMic: async () => ({ samples: new Float32Array(16), sampleRate: 16000, durationMs: 1500, startLatencyMs: 100 }),
@@ -1127,4 +1128,26 @@ test('a right click on another display, with the chord not held, or its release 
   r.session.stop();
   await wait(60);
   assert.ok(r.sent.some((m) => m.kind === 'step' || m.kind === 'begin'), 'the question goes on as usual');
+});
+
+test('the recogniser is woken when the keys first go down, not when the question is asked', async () => {
+  const woke: string[] = [];
+  const speech: SpeechToText = { id: 'fake', transcribe: async () => ({ text: 'what is this' }), wake: async () => void woke.push('wake') };
+  const r = rig({ speech });
+  r.session.arm();
+  assert.deepEqual(woke, ['wake']);
+  r.session.cancel();
+  // A recogniser whose wake-up fails does not disturb the press.
+  const failing = rig({ speech: { id: 'fake', transcribe: async () => ({ text: 'x' }), wake: async () => { throw new Error('down'); } } });
+  failing.session.arm();
+  await wait(5);
+  assert.ok(true);
+});
+
+test('a recogniser whose wake-up throws at once, or answers with no promise, does not disturb the press', () => {
+  const throwing = rig({ speech: { id: 'fake', transcribe: async () => ({ text: 'x' }), wake: (() => { throw new Error('down'); }) as never } });
+  assert.doesNotThrow(() => throwing.session.arm());
+  const plain = rig({ speech: { id: 'fake', transcribe: async () => ({ text: 'x' }), wake: (() => undefined) as never } });
+  assert.doesNotThrow(() => plain.session.arm());
+
 });

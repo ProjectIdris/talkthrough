@@ -32,5 +32,7 @@ export interface SpeechToText {
   transcribe(clip: SpeechClip, options?: { signal?: AbortSignal }): Promise<Transcript>;
   /** Optional: start whatever is slow to start (a model load) before the first question. */
   warm?(): Promise<void>;
+  /** Optional: told that a question is about to be asked (the keys went down), so a server that sleeps can be woken. Best effort; never throws. */
+  wake?(): Promise<void>;
   close?(): Promise<void>;
 }
