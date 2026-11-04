@@ -49,10 +49,6 @@ const offerEl = byId<HTMLDivElement>('offer');
 const offerText = byId<HTMLSpanElement>('offer-text');
 const offerButton = byId<HTMLButtonElement>('offer-button');
 const noticeEl = byId<HTMLDivElement>('notice');
-const consentEl = byId<HTMLDivElement>('consent');
-const consentText = byId<HTMLSpanElement>('consent-text');
-const consentYes = byId<HTMLButtonElement>('consent-yes');
-const consentNo = byId<HTMLButtonElement>('consent-no');
 const explodeEl = byId<HTMLButtonElement>('explode');
 const detailEl = byId<HTMLButtonElement>('detail');
 const cutEl = byId<HTMLButtonElement>('cut');
@@ -445,6 +441,32 @@ function placeExplode(frame: Frame): void {
   detailEl.style.top = `${box.y}px`;
 }
 
+/** The buttons the page shows, by the name main knows them by. */
+const buttonEls: Array<[string, HTMLElement]> = [['offer', offerButton], ['explode', explodeEl], ['cut', cutEl], ['detail', detailEl]];
+let lastButtons = '';
+/**
+ * Tells main where the buttons are, when that changes. The window is click-through and learns the pointer is over a button only
+ * from a mouse move, so a click with none before it would go to the app beneath: main lays a small window of its own over each
+ * button, and the press comes back as a 'press' message.
+ */
+function reportButtons(): void {
+  const list: Array<{ id: string; x: number; y: number; w: number; h: number }> = [];
+  for (const [id, el] of buttonEls) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) list.push({ id, x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) });
+  }
+  const text = JSON.stringify(list);
+  if (text === lastButtons) return;
+  lastButtons = text;
+  window.talkthrough.buttons(list);
+}
+
+/** A catcher over a button was pressed: do what a click on the button does (if it is still there). */
+function pressButton(id: string): void {
+  const el = buttonEls.find(([name]) => name === id)?.[1];
+  if (el && el.getBoundingClientRect().width > 0) el.click();
+}
+
 function loop(): void {
   raf = 0;
   const now = performance.now();
@@ -455,6 +477,7 @@ function loop(): void {
   draw(frame);
   if (pen.active) sendPen();
   showHud();
+  reportButtons();
   const fading = fader.armed && k < 1 && k > 0;
   if (player.active || dragging || fading || board.moving || diagramsMoving || panelScene.fitting || pen.animating(now) || pen.active) {
     request();
@@ -472,7 +495,7 @@ function request(): void {
   if (!raf) raf = requestAnimationFrame(loop);
 }
 
-const interactiveEls: HTMLElement[] = [offerEl, noticeEl, consentEl, explodeEl, cutEl, detailEl];
+const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl, cutEl, detailEl];
 
 /** True for a moment after the pen goes off, so a button released then still ends its stroke. */
 let penEnding = false;
@@ -603,20 +626,6 @@ setInterval(() => {
   hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY)));
   hold.beat();
 }, 3000);
-
-/** The app asks whether it may act for the person (guide mode); Yes or No goes to main and the card goes. */
-function showConsent(text: string | null): void {
-  consentEl.style.display = text === null ? 'none' : 'flex';
-  if (text !== null) consentText.textContent = text;
-  request();
-}
-for (const [button, yes] of [[consentYes, true], [consentNo, false]] as const) {
-  button.addEventListener('click', () => {
-    showConsent(null);
-    window.talkthrough.consent(yes);
-    hold.release();
-  });
-}
 
 offerButton.addEventListener('click', () => {
   hud.dismissOffer();
@@ -797,9 +806,11 @@ function applyScene(message: SceneMessage): void {
         }
       }
       break;
-    case 'consent':
-      showConsent(message.text);
+    case 'press':
+      pressButton(message.id);
       break;
+    case 'consent':
+      break; // asked in a window of its own (main/consent-card.ts), which takes a click without a mouse move before it
     case 'notice':
       if (detailState === 'asked' || detailState === 'running') {
         detailState = 'none'; // it failed: the person may ask again, and the model fades as usual
@@ -814,7 +825,6 @@ function applyScene(message: SceneMessage): void {
       player.clear();
       fader.disarm();
       hud.reset();
-      showConsent(null);
       pendingOffer = undefined;
       detailState = 'none';
       guiding = false;

@@ -56,7 +56,7 @@ function fakeNav(options: { plan?: NavPlan; acts?: boolean; pointer?: () => { x:
   return { nav, planned, acted, onAct };
 }
 
-function rig(first: Frame, navigation: GuideNavigation | undefined, extra: { after?: (ms: number, run: () => void) => () => void; sleep?: (ms: number) => Promise<void>; replan?: Parameters<typeof createGuide>[0]['replan']; screenRef?: { screen: Frame } } = {}) {
+function rig(first: Frame, navigation: GuideNavigation | undefined, extra: { reference?: () => Frame | null; after?: (ms: number, run: () => void) => () => void; sleep?: (ms: number) => Promise<void>; replan?: Parameters<typeof createGuide>[0]['replan']; screenRef?: { screen: Frame } } = {}) {
   const sent: SceneMessage[] = [];
   let listener: GuideListener | undefined;
   const ends: GuideEnd[] = [];
@@ -72,6 +72,7 @@ function rig(first: Frame, navigation: GuideNavigation | undefined, extra: { aft
     log: () => undefined,
     sleep: extra.sleep ?? (async () => undefined),
     after: extra.after ?? (() => () => undefined),
+    ...(extra.reference ? { reference: extra.reference } : {}),
     ...(navigation ? { navigation } : {}),
   });
   const says = () => sent.filter((m): m is Extract<SceneMessage, { kind: 'step' }> => m.kind === 'step').map((m) => m.step.say);
@@ -393,4 +394,67 @@ test('a yes is remembered for the session, a pause is not a no, and without a ye
   consent.setPaused(true);
   consent.setPaused(false);
   assert.equal(consent.given(), false);
+});
+
+// ---- the screen must still be the one the model was shown ---------------------------------------------------------------
+
+/** The same screen with a block of it (a box on the 0..1000 scale) in another brightness. */
+function patched(base: Frame, box: { x: number; y: number; w: number; h: number }, value: number): Frame {
+  const luma = new Uint8Array(base.grid.luma);
+  for (let r = Math.floor((box.y / 1000) * GRID_ROWS); r < Math.ceil(((box.y + box.h) / 1000) * GRID_ROWS); r++) {
+    for (let c = Math.floor((box.x / 1000) * GRID_COLS); c < Math.ceil(((box.x + box.w) / 1000) * GRID_COLS); c++) luma[r * GRID_COLS + c] = value;
+  }
+  return { screenshot: { ...base.screenshot, base64: `p${value}` }, grid: { ...base.grid, luma } };
+}
+const NEAR = { x: 380, y: 60, w: 160, h: 120 }; // round the go point (450, 120)
+const FAR = { x: 900, y: 900, w: 40, h: 30 };
+
+async function goWith(opts: { reference: Frame | null | 'throws'; screen: Frame }) {
+  const c = consented({ given: true });
+  const r = rig(opts.screen, c.nav, {
+    reference: () => {
+      if (opts.reference === 'throws') throw new Error('no grid');
+      return opts.reference;
+    },
+  });
+  flipOnAct(c, r);
+  r.g.push(goStep('open the tab'));
+  await r.settle();
+  await new Promise((res) => setTimeout(res, 30));
+  return { acted: c.acted.length, r };
+}
+
+test('the move is made only if the screen near it still looks like the picture the model was given', async () => {
+  assert.equal((await goWith({ reference: SAME, screen: SAME })).acted, 1, 'the same screen: done');
+  // A tab was changed while the model was thinking: the screen at the point is not what it saw. The step came up after that,
+  // so the screen then and the screen now agree with each other, and only the model's picture shows the difference.
+  const moved = patched(SAME, NEAR, 40);
+  const stale = await goWith({ reference: SAME, screen: moved });
+  assert.equal(stale.acted, 0, 'the screen near the target is not what the model saw: refused');
+  assert.equal(stale.r.g.active, true, 'and the walk goes on as a plain wait');
+});
+
+test('a change far from the target that is small does not refuse the move; a big one anywhere does', async () => {
+  assert.equal((await goWith({ reference: SAME, screen: patched(SAME, FAR, 40) })).acted, 1, 'a clock in a corner');
+  assert.equal((await goWith({ reference: SAME, screen: TURNED })).acted, 0, 'a different page');
+});
+
+test('without a picture of what the model saw the screen when the step came up is the reference; a reference that fails is the same', async () => {
+  assert.equal((await goWith({ reference: null, screen: SAME })).acted, 1);
+  assert.equal((await goWith({ reference: 'throws', screen: SAME })).acted, 1);
+});
+
+test('after a step the person followed, the reference is the screen they reached, not the first picture the model was given', async () => {
+  const c = consented({ given: true });
+  const r = rig(SAME, c.nav, { reference: () => SAME });
+  flipOnAct(c, r);
+  r.g.push(plainStep('first'));
+  r.g.push(goStep('then open the tab'));
+  await r.settle();
+  r.listener.down(on);
+  r.screenRef.screen = TURNED; // their click turned the page; the next step is for that page
+  r.listener.up(on);
+  await r.settle();
+  await new Promise((res) => setTimeout(res, 60));
+  assert.equal(c.acted.length, 1, 'the move for the new page is allowed');
 });

@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld('talkthrough', {
   rendered: (token) => ipcRenderer.send('tt:rendered', token),
   done: () => ipcRenderer.send('tt:done'),
   offer: () => ipcRenderer.send('tt:offer'),
+  // Where the page's buttons are: only the real app lays windows over them, so the frame tool has nothing to do with it.
+  buttons: () => undefined,
+  engage: () => undefined,
+  detail: () => undefined,
   milestone: (m) => ipcRenderer.send('tt:milestone', m),
   stroke: (stroke) => ipcRenderer.send('tt:stroke', stroke),
 });

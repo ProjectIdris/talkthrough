@@ -2,6 +2,9 @@ import { BrowserWindow, globalShortcut, ipcMain, screen } from 'electron';
 import type { Display, IpcMainEvent } from 'electron';
 import { CHANNEL } from '../shared/ipc.ts';
 import type { DisplayInfo, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
+import { createButtonCatchers, validRects } from './button-catchers.ts';
+import type { ButtonCatchers, ButtonRect } from './button-catchers.ts';
+import { electronCatcherWindow } from './button-window.ts';
 import { createClickGuard, createKeyHold, ignoreMouse, keyWanted } from './interaction.ts';
 
 /** A stroke piece sent just after the pen went off (the last points of a drag) still counts for this long. */
@@ -28,13 +31,11 @@ export type OverlayOptions = {
   onMilestone?: (milestone: Milestone) => void;
   /** Called when the user clicks the escalation offer. */
   onOffer?: (displayId: number) => void;
-  /** Called when the user answers the question whether the app may act for them. */
-  onConsent?: (yes: boolean) => void;
   /** A detail model is set up (the page then offers "More detail"), and what to do when the user asks for it. */
   onDetail?: (displayId: number) => void;
 };
 
-type Overlay = { window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; pen: boolean; penOffAt: number; /** The person pressed on the model (E is then ours until they leave it). */ engaged: boolean; guard: ReturnType<typeof createClickGuard> };
+type Overlay = { catchers: ButtonCatchers; buttons: ButtonRect[]; window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; pen: boolean; penOffAt: number; /** The person pressed on the model (E is then ours until they leave it). */ engaged: boolean; guard: ReturnType<typeof createClickGuard> };
 
 /**
  * One overlay window per display: transparent, frameless, always on top, off the taskbar, never
@@ -123,6 +124,13 @@ export function createOverlayManager(options: OverlayOptions) {
     });
     void window.loadFile(options.page);
     const overlay: Overlay = {
+      catchers: createButtonCatchers({
+        makeWindow: () => electronCatcherWindow({ hideFromCapture: options.hideFromCapture }),
+        onPress: (id) => {
+          if (!window.isDestroyed()) window.webContents.send(CHANNEL.scene, { kind: 'press', id } satisfies SceneMessage);
+        },
+      }),
+      buttons: [],
       window, display, ready: false, queue: [], pageWantsClicks: false, pen: false, penOffAt: 0, engaged: false,
       // The page repeats "the pointer is over the model" while it is true; if it goes quiet, the window lets clicks through again.
       guard: createClickGuard({
@@ -136,6 +144,7 @@ export function createOverlayManager(options: OverlayOptions) {
     };
     overlays.set(display.id, overlay);
     window.on('closed', () => {
+      overlay.catchers.dispose();
       overlay.guard.release();
       overlay.engaged = false;
       overlays.delete(display.id);
@@ -204,13 +213,22 @@ export function createOverlayManager(options: OverlayOptions) {
     const overlay = find(event);
     if (overlay) options.onOffer?.(overlay.display.id);
   });
-  ipcMain.on(CHANNEL.consent, (event, yes: unknown) => {
-    if (find(event) && typeof yes === 'boolean') options.onConsent?.(yes);
+  ipcMain.on(CHANNEL.buttons, (event, list: unknown) => {
+    const overlay = find(event);
+    if (!overlay) return;
+    overlay.buttons = validRects(list);
+    syncCatchers(overlay);
   });
   ipcMain.on(CHANNEL.detail, (event) => {
     const overlay = find(event);
     if (overlay) options.onDetail?.(overlay.display.id);
   });
+
+  /** Puts a catcher over each of the page's buttons (and away while the pen is on or the overlay is hidden). */
+  function syncCatchers(overlay: Overlay): void {
+    if (overlay.window.isDestroyed()) return;
+    overlay.catchers.update(overlay.buttons, { x: overlay.display.bounds.x, y: overlay.display.bounds.y }, !overlay.pen && !options.hidden);
+  }
 
   function applyMouse(overlay: Overlay): void {
     if (ignoreMouse(overlay.pageWantsClicks, overlay.pen)) overlay.window.setIgnoreMouseEvents(true, { forward: true });
@@ -264,6 +282,7 @@ export function createOverlayManager(options: OverlayOptions) {
           if (!overlay.window.isDestroyed()) {
             if (on) overlay.engaged = false; // the pen draws on the screen; E is not ours then
             applyMouse(overlay);
+            syncCatchers(overlay);
           }
         } catch (error) {
           console.error('[talkthrough] pen:', error instanceof Error ? error.message : String(error));
@@ -291,6 +310,7 @@ export function createOverlayManager(options: OverlayOptions) {
       screen.off('display-removed', sync);
       screen.off('display-metrics-changed', sync);
       for (const overlay of overlays.values()) {
+        overlay.catchers.dispose();
         overlay.guard.release();
         overlay.engaged = false;
         overlay.window.destroy();

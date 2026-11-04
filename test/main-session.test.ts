@@ -615,7 +615,7 @@ const guided = (id: string, say: string, withWait = true) => ({
 });
 
 /** A session whose screen is `screen` (set it to change what a look at the display shows) and whose clicks the test makes. */
-function walkRig(plans: unknown[][], navigation?: GuideNavigation, heard?: string[]) {
+function walkRig(plans: unknown[][], navigation?: GuideNavigation, heard?: string[], modelSaw?: Frame) {
   let said = 0;
   let screen = flat(235);
   let listener: GuideListener | undefined;
@@ -629,6 +629,7 @@ function walkRig(plans: unknown[][], navigation?: GuideNavigation, heard?: strin
     guide: {
       options: { onTargetChecks: [30, 60], elsewhereChecks: [30, 60], settleMs: 5, navBeatMs: 10, navMsPerChar: 0, navFirstExtraMs: 0, navPollMs: 5 },
       ...(navigation ? { navigation } : {}),
+      ...(modelSaw ? { gridOf: () => modelSaw.grid } : {}),
       capture: async () => screen,
       listen: (_id, l) => {
         listener = l;
@@ -851,5 +852,28 @@ test('guide mode: while the app waits for a yes, a spoken yes is the answer and 
       assert.deepEqual(acted, [], 'and nothing was done');
       assert.equal(consent.pending(), false, 'the question to the person is closed');
     }
+  }
+});
+
+test('guide mode: the move is compared with the picture the model was given, not with a screen looked at after it answered', async () => {
+  const goStep = { say: 'Open the tab.', actions: [{ op: 'box', id: 'g1', x: 400, y: 100, w: 100, h: 40, color: 'red' }, { op: 'go', kind: 'tab', x: 450, y: 120 }, { op: 'wait', for: 'click', ...TARGET }] };
+  for (const screenNow of [flat(235), flat(90)]) {
+    const consent = createNavConsent({ after: () => () => undefined });
+    void consent.ask();
+    consent.answer(true);
+    const acted: string[] = [];
+    const navigation: GuideNavigation = {
+      plan: async () => ({ verdict: 'do', announce: "I'll open that tab for you.", handle: 1 }),
+      act: async () => {
+        acted.push('act');
+        return true;
+      },
+      consent,
+    };
+    const w = walkRig([[goStep]], navigation, undefined, flat(235));
+    w.look(screenNow); // the screen the guide sees from the first moment: the model's picture said 235
+    await question(w);
+    await wait(500);
+    assert.deepEqual(acted, screenNow.grid.luma[0] === 235 ? ['act'] : [], screenNow.grid.luma[0] === 235 ? 'the same screen: done' : 'another screen: not done');
   }
 });

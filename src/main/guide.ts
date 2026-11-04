@@ -89,6 +89,12 @@ export type GuideDeps = {
   options?: Partial<GuideOptions>;
   /** Absent: the app never acts for the person, and a `go` is ignored. */
   navigation?: GuideNavigation;
+  /**
+   * The screen as the model was given it (the picture its first steps were made from). The app acts for the person only if the
+   * screen near the target still looks like this, so a move can never land on something the model did not see. Absent: the
+   * screen as it was when the step came up.
+   */
+  reference?(): Frame | null;
 };
 
 export type GuideOptions = {
@@ -113,6 +119,7 @@ export type GuideOptions = {
   /** At most this many moves for the person in one walk. */
   navMax: number;
   navAskClickMs: number;
+  navNearHalf: number;
 };
 
 export const GUIDE_OPTIONS: GuideOptions = {
@@ -129,6 +136,8 @@ export const GUIDE_OPTIONS: GuideOptions = {
   navMax: 8,
   /** How long after a press, while the app waits for a yes, with no answer, the press counts as the person doing it themselves. */
   navAskClickMs: 400,
+  /** Half the side of the box round a move's point that must look as it did in the model's picture. */
+  navNearHalf: 80,
 };
 
 /**
@@ -216,6 +225,9 @@ export function createGuide(deps: GuideDeps) {
   let pendingUp: Click | null = null;
   // The app has asked for a yes and waits for it; and the timer that reads a press elsewhere as "I'll do it myself".
   let asking = false;
+  // The screen the steps being walked were made for: the model's own picture first, then the screen after each change that
+  // was seen (a followed step, or the picture a new plan was made from). undefined: not asked for yet.
+  let reference: Frame | null | undefined;
   let cancelAskClick: (() => void) | null = null;
   // The checklist (a steps diagram the model drew) and the marks of the steps shown so far: each step takes away the
   // last one's marks by id and leaves the checklist, which gets a tick as each step is followed.
@@ -426,6 +438,7 @@ export function createGuide(deps: GuideDeps) {
       }
     }
     if (phase !== 'checking') return;
+    if (seen) reference = seen;
     const event = { say: now.step.say, expect: now.target, click: { x: Math.round(click.x), y: Math.round(click.y) }, ...(via ? { nav: via.kind, ...(via.dir ? { navDir: via.dir } : {}) } : {}) };
     if (!seen) {
       remember({ ...event, outcome: 'unchanged' });
@@ -491,6 +504,14 @@ export function createGuide(deps: GuideDeps) {
       case 'open': return 'Opened that menu for you.';
       case 'scroll': return `Scrolled ${go.dir ?? 'down'} for you.`;
     }
+  }
+
+  /** A small box round the point a move is aimed at, on the 0..1000 scale. */
+  function around(go: GoRequest): Box {
+    const half = o.navNearHalf;
+    const x = Math.max(0, go.x - half);
+    const y = Math.max(0, go.y - half);
+    return { x, y, w: Math.min(1000, go.x + half) - x, h: Math.min(1000, go.y + half) - y };
   }
 
   /** The question asked before the first move of a session. */
@@ -581,12 +602,20 @@ export function createGuide(deps: GuideDeps) {
         return stepBack('the pointer moved');
       }
     }
-    // The screen must still be the one this step was made for (a window opened, a page turned: the plan no longer fits).
-    const start = current ? await current.start : null;
+    // The screen must still be the one the model was shown (a window opened, a tab was changed, a page turned meanwhile: the point
+    // may now be something else). Near the target any visible change refuses the move, and so does a large change anywhere.
+    if (reference === undefined) {
+      try {
+        reference = deps.reference?.() ?? null;
+      } catch {
+        reference = null;
+      }
+    }
+    const basis = reference ?? (current ? await current.start : null);
     const before = await safeCapture();
     if (phase !== 'navigating') return;
     if (navStop) return stepBack(`stopped (${navStop})`);
-    if (start && before && screenChanged(start.grid, before.grid, null).changed) return stepBack('the screen changed meanwhile');
+    if (basis && before && screenChanged(basis.grid, before.grid, around(go)).changed) return stepBack('the screen is not the one the model saw');
     if (consent?.paused()) return stepBack('paused');
     navCount++;
     let did = false;
