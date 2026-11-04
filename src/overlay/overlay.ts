@@ -109,7 +109,8 @@ const player = new Player({
   voice: chooseVoice(),
   onDone: () => {
     window.talkthrough.done();
-    fader.arm(performance.now());
+    // The quick answer can finish playing while a detail pass is still being waited for: the model stays until that arrives.
+    if (detailState !== 'asked' && detailState !== 'running') fader.arm(performance.now());
     if (pendingOffer !== undefined) {
       hud.offer(pendingOffer);
       pendingOffer = undefined;

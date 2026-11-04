@@ -41,7 +41,7 @@ export type Options = {
   fakeMicFile?: string;
   /** Checks: how long --self-chord holds the keys, in milliseconds. */
   chordHoldMs: number;
-  /** Checks: this many seconds after the first answer has ended, ask for more detail (as the page's button does); one chord only. */
+  /** Checks: this many seconds after the page has finished showing the first answer, ask for more detail (as the page's button does); one chord only. */
   detailAfter?: number;
   /** Checks: log every validated step sent to the overlay. */
   logSteps: boolean;
