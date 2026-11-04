@@ -9,7 +9,17 @@ import {
 } from 'three';
 import type { FocusFrame, Frame, ObjectFrame, Rgb } from './timeline.ts';
 
-export const FOV_DEGREES = 30;
+/** The longer side of the panel sees this many degrees; the shorter side follows from the panel's shape, so a wide panel does not skew what sits at its edges. */
+export const FOV_DEGREES = 35;
+const MIN_VERTICAL_FOV = 3;
+
+/** The camera's vertical field of view for a panel of this width over height. */
+export function verticalFov(aspect: number): number {
+  if (!(aspect > 0)) return FOV_DEGREES;
+  if (aspect <= 1) return FOV_DEGREES;
+  const v = (2 * Math.atan(Math.tan((FOV_DEGREES * Math.PI) / 360) / aspect) * 180) / Math.PI;
+  return Math.max(MIN_VERTICAL_FOV, v);
+}
 /** Panel units visible across the shorter side of the panel at zoom 1. */
 export const FRAMING_UNITS = 12;
 const PATH_RADIUS = 0.06;
@@ -102,7 +112,7 @@ function buildPath(o: ObjectFrame): { obj: Object3D; geometries: BufferGeometry[
 
 export class PanelScene {
   readonly scene = new Scene();
-  readonly camera = new PerspectiveCamera(FOV_DEGREES, 1, 0.1, 400);
+  readonly camera = new PerspectiveCamera(FOV_DEGREES, 1, 0.3, 1500);
   private nodes = new Map<number, Node>();
   private deps: PanelDeps;
 
@@ -230,12 +240,14 @@ export class PanelScene {
 
   private aim(frame: Frame, aspect: number): void {
     const cam = frame.camera;
-    const tan = Math.tan((FOV_DEGREES * DEG) / 2);
+    const fov = verticalFov(aspect);
+    const tan = Math.tan((fov * DEG) / 2);
     const base = (FRAMING_UNITS / 2 / (aspect >= 1 ? 1 : aspect)) / tan;
     const dist = base / Math.max(0.05, cam.zoom);
     const az = cam.az * DEG, el = Math.max(-89, Math.min(89, cam.el)) * DEG;
     const target = this.focusPoint(cam.focus, new Vector3());
     this.camera.aspect = aspect;
+    this.camera.fov = fov;
     this.camera.position.set(
       target.x + dist * Math.sin(az) * Math.cos(el),
       target.y + dist * Math.sin(el),
