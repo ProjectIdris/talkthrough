@@ -390,6 +390,28 @@ export class Placer {
     return undefined;
   }
 
+  aspectOf(): number {
+    return this.aspect;
+  }
+
+  /** A card that marks may be written on (an enlarged crop): marks written inside the rectangle it was asked for go with it to where it was placed. */
+  home(id: string, from: Box, to: Box): void {
+    this.homes.set(id, { from, to });
+  }
+
+  /**
+   * The smallest rectangle the answer pointed at (a box round a picture) that holds the top-left corner of a label and is clearly larger than it:
+   * the label belongs to what that box encloses and is kept inside it, so a name on a picture never hangs over its caption or the page beside it.
+   */
+  holding(x: number, y: number, w: number, h: number): Box | undefined {
+    let best: Box | undefined;
+    for (const r of this.reserved) {
+      if (x < r.x || x > r.x + r.w || y < r.y || y > r.y + r.h || r.w < 1.15 * w || r.h < 1.15 * h) continue;
+      if (!best || r.w * r.h < best.w * best.h) best = r;
+    }
+    return best;
+  }
+
   /** A card or crop went (cleared by id, or all of them): its place is free for the next. */
   release(target: string): void {
     if (target === 'all' || target === 'marks') {
@@ -480,6 +502,10 @@ export function ownedByDiagram(steps: readonly { actions: readonly Action[] }[],
       seen.push({ x: a.x, y: a.y, w: a.w, h: a.h });
       return false;
     }
+    if (a.op === 'image') {
+      seen.push({ x: a.dx, y: a.dy, w: a.dw, h: imageCardHeight(a) });
+      return false;
+    }
     return seen.length > 0 && insideAny(a, seen, aspect);
   }));
 }
@@ -504,7 +530,7 @@ export function followDiagram(placer: Placer, a: Action, aspect: number): Action
     case 'underline': return { ...a, x: X(a.x), y: Y(a.y), w: r1(a.w * fx) };
     case 'arrow': return { ...a, x1: X(a.x1), y1: Y(a.y1), x2: X(a.x2), y2: Y(a.y2) };
     case 'point': return { ...a, x: X(a.x), y: Y(a.y) };
-    case 'label': return { ...a, x: X(a.x), y: Y(a.y), ...(a.size !== undefined ? { size: r1(a.size * fy) } : {}) };
+    case 'label': return labelWithin({ ...a, x: X(a.x), y: Y(a.y), ...(a.size !== undefined ? { size: r1(a.size * fy) } : {}) }, to, aspect);
     case 'poly': case 'trace': return { ...a, pts: a.pts.map(([x, y]) => [X(x), Y(y)] as [number, number]) };
     default: return undefined;
   }
@@ -528,6 +554,32 @@ export const DIAGRAM_MIN_SIZE = { w: 150, h: 150 };
 
 export const DIAGRAM_MIN_RATIO: Partial<Record<string, number>> = { chart: 1.1 };
 
+/** The room a label takes in units: its text at its size and the pill round it (the page draws it as measured; this is the same to within a few percent). */
+export function labelUnits(a: { text: string; size?: number }, aspect: number): { w: number; h: number } {
+  const size = a.size ?? 24;
+  return { w: ((a.text.length * 0.56 + 1.1) * size) / aspect, h: size * 1.6 };
+}
+
+/** A box of this size put as near as it can to (x, y) while staying inside `inside`; larger than it, it takes the corner. */
+function keepInside(x: number, y: number, w: number, h: number, inside: Box): { x: number; y: number } {
+  return {
+    x: w >= inside.w ? inside.x : Math.min(Math.max(x, inside.x), inside.x + inside.w - w),
+    y: h >= inside.h ? inside.y : Math.min(Math.max(y, inside.y), inside.y + inside.h - h),
+  };
+}
+
+/** A label pulled back inside `inside`, or as it was when it already is. */
+function labelWithin(a: Extract<Action, { op: 'label' }>, inside: Box, aspect: number): Action {
+  const { w, h } = labelUnits(a, aspect);
+  const at = keepInside(a.x, a.y, w, h, inside);
+  return at.x === a.x && at.y === a.y ? a : { ...a, x: r1(at.x), y: r1(at.y) };
+}
+
+/** How tall an enlarged crop card is, in units: the crop at its true shape, with the card's border and its caption. */
+export function imageCardHeight(a: { dw: number; sw: number; sh: number; caption?: string | undefined }): number {
+  return (a.dw * a.sh) / Math.max(1, a.sw) + 16 + (a.caption ? 34 : 0);
+}
+
 /** The action with its stage or card moved off the page's text; any other action comes back as it was. */
 export function placeAction(placer: Placer, a: Action, screenHeight: number): Action {
   if (a.op === 'panel') {
@@ -550,7 +602,16 @@ export function placeAction(placer: Placer, a: Action, screenHeight: number): Ac
   if (a.op === 'image') {
     const h = Math.max(40, (a.dw * a.sh) / Math.max(1, a.sw) * 1.6);
     const box = placer.card({ x: a.dx, y: a.dy, w: a.dw, h }, a.id);
+    // Marks written on the enlargement (the names of its parts) go with the card to wherever it was put.
+    const size = { w: a.dw, h: imageCardHeight(a) };
+    placer.home(a.id, { x: a.dx, y: a.dy, ...size }, { x: box.x, y: box.y, ...size });
     return box.x === a.dx && box.y === a.dy ? a : { ...a, dx: Math.round(box.x), dy: Math.round(box.y) };
+  }
+  if (a.op === 'label') {
+    // A name written on a picture the answer boxed stays inside that box: not over its caption, nor out on the page.
+    const { w, h } = labelUnits(a, placer.aspectOf());
+    const holder = placer.holding(a.x, a.y, w, h);
+    return holder ? labelWithin(a, holder, placer.aspectOf()) : a;
   }
   if (a.op === 'clear') placer.release(a.target);
   return a;

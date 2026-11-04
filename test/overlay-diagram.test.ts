@@ -6,7 +6,7 @@ import { bezierPoints, chartLayout, chartRanges, flowGrowth, flowLayers, flowLay
 import type { Px } from '../src/overlay/diagram-layout.ts';
 import { DiagramPainter } from '../src/overlay/diagram-draw.ts';
 import { fadeFrame } from '../src/overlay/fade.ts';
-import { Placer, followDiagram, insideAny, ownedByDiagram, ownedMarkIds, pageGrid, placeAction, splitOwned } from '../src/overlay/placement.ts';
+import { Placer, followDiagram, imageCardHeight, insideAny, labelUnits, ownedByDiagram, ownedMarkIds, pageGrid, placeAction, reserveMarks, splitOwned } from '../src/overlay/placement.ts';
 import { emptyFrame, evaluate, planStep, settle } from '../src/overlay/timeline.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
 
@@ -569,4 +569,54 @@ test('the size a flow card grows to is worked out once for its layout, not on ev
   assert.ok(second < first / 2, `the second frame does not search again: ${first} then ${second}`);
   assert.equal(third, second, 'and neither does the third');
   assert.ok(cost(five, 48) > second * 2, 'a new node makes the search happen again');
+});
+
+// ---- Names on a picture: an enlarged crop is a card the names are written on --------------------------------
+
+function textPlacer() {
+  const COLS = 192, ROWS = 108;
+  const gray = new Uint8Array(COLS * ROWS);
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) gray[r * COLS + c] = c > 4 && c < COLS * 0.6 && r > 8 && r % 4 < 2 && (c * 7 + r * 13) % 11 !== 0 ? 40 : 238;
+  return new Placer(pageGrid(gray, COLS, ROWS), { aspect: 16 / 9 });
+}
+
+test('an enlarged crop is a card the names of its parts are written on: the marks go with it to where it was placed, and are drawn over it', () => {
+  const placer = textPlacer();
+  const crop = { op: 'image', id: 'big', sx: 600, sy: 300, sw: 100, sh: 200, dx: 100, dy: 200, dw: 300 } as Action;
+  const placed = placeAction(placer, crop, 1080) as { dx: number; dy: number };
+  assert.ok(placed.dx >= 590, 'the crop left the text it was written over');
+  const spot = { op: 'point', id: 'p1', x: 200, y: 300, color: 'red' } as Action;
+  const moved = followDiagram(placer, spot, 16 / 9) as { x: number; y: number };
+  assert.ok(moved, 'a point written on the enlargement is inside the rectangle it was asked for');
+  near(moved.x, placed.dx + (200 - 100));
+  near(moved.y, placed.dy + (300 - 200));
+  assert.equal(followDiagram(placer, { op: 'point', id: 'p2', x: 650, y: 400, color: 'red' } as Action, 16 / 9), undefined, 'a point on the original figure is the page\'s');
+  const owned = ownedByDiagram([{ actions: [crop, spot, { op: 'point', id: 'p2', x: 650, y: 700, color: 'red' } as Action] }], 16 / 9);
+  assert.deepEqual(owned, [[false, true, false]], 'a mark written on the enlargement is owned by it (drawn over it); one elsewhere is not');
+  assert.ok(imageCardHeight({ dw: 300, sw: 100, sh: 200 }) > 600, 'the card is as tall as the crop at its true shape');
+});
+
+test('a label written on an enlargement is kept inside the card, and a name on a boxed picture is kept inside the box (never over the caption below it)', () => {
+  const placer = textPlacer();
+  const crop = { op: 'image', id: 'big', sx: 600, sy: 300, sw: 100, sh: 100, dx: 100, dy: 200, dw: 200 } as Action;
+  const placed = placeAction(placer, crop, 1080) as { dx: number; dy: number };
+  const low = { op: 'label', id: 'l1', x: 100 + 150, y: 200 + 190, text: 'Right ventricle', color: 'red' } as Action;
+  const kept = followDiagram(placer, low, 16 / 9) as { x: number; y: number };
+  const { w, h } = labelUnits({ text: 'Right ventricle' }, 16 / 9);
+  assert.ok(kept.x + w <= placed.dx + 200 + 0.2 && kept.x >= placed.dx - 0.2, `inside the card across: ${JSON.stringify(kept)}`);
+  assert.ok(kept.y + h <= placed.dy + imageCardHeight({ dw: 200, sw: 100, sh: 100 }) + 0.2, 'and down');
+  // A picture the answer boxed, with its caption just under the box.
+  const p2 = textPlacer();
+  const box = { op: 'box', id: 'pic', x: 560, y: 316, w: 300, h: 478, color: 'blue' } as Action;
+  reserveMarks(p2, [box], 16 / 9);
+  const name = { op: 'label', id: 'n1', x: 780, y: 783, text: 'Stewart Island', color: 'purple', size: 22 } as { op: 'label'; x: number; y: number; text: string; size: number };
+  const got = placeAction(p2, name as unknown as Action, 1080) as { x: number; y: number };
+  const size = labelUnits(name, 16 / 9);
+  assert.ok(got.y + size.h <= 794 + 0.2 && got.x + size.w <= 860 + 0.2, `inside the boxed picture: ${JSON.stringify(got)}`);
+  assert.ok(got.x < 780 && got.y < 783, 'pulled back toward the picture, not pushed out');
+  // A name that is already inside, and one written beside the picture rather than on it, stay where they are.
+  const inside = { op: 'label', id: 'n2', x: 600, y: 400, text: 'Cook Strait', color: 'orange', size: 22 } as Action;
+  assert.equal(placeAction(p2, inside, 1080), inside);
+  const beside = { op: 'label', id: 'n3', x: 880, y: 400, text: 'Beside', color: 'orange', size: 22 } as Action;
+  assert.equal(placeAction(p2, beside, 1080), beside);
 });
