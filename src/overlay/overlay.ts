@@ -704,8 +704,8 @@ function placedScene(scene: Scene): Scene {
   const snapped = scene.steps.map((step, i) => ({ ...step, actions: step.actions.map((a, j) => (owned[i]![j] ? a : (snappedActions([a])[0] as Action))) }));
   snapped.forEach((step, i) => reserveMarks(p, step.actions.filter((_, j) => !owned[i]![j]), aspect));
   const placed = snapped.map((step) => ({ ...step, actions: step.actions.map((a) => placeAction(p, a, view.height)) }));
-  for (const step of placed) foreseePoints(p, step.actions, aspect);
-  return { ...scene, steps: placed.map((step, i) => ({ ...step, actions: step.actions.map((a, j) => settleMark(p, owned[i]![j] ? followDiagram(p, a, aspect) ?? a : a)) })) };
+  // The points of a step are known to its names before they are marked (so a name written first finds its point); the next step's are not.
+  return { ...scene, steps: placed.map((step, i) => { foreseePoints(p, step.actions, aspect); return { ...step, actions: step.actions.map((a, j) => settleMark(p, owned[i]![j] ? followDiagram(p, a, aspect) ?? a : a)) }; }) };
 }
 
 function placedAction(action: Action): Action {

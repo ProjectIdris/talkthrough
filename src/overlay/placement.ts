@@ -427,37 +427,40 @@ export class Placer {
 
   /** A point was marked, at the place it finally took. */
   notePoint(id: string, x: number, y: number, color: string): void {
+    const taken = this.points.some((q) => q.id === id && q.taken); // a name written before the point already has it
     this.points = this.points.filter((q) => q.id !== id);
-    this.points.push({ id, x, y, color, taken: false });
+    this.points.push({ id, x, y, color, taken });
   }
 
   /**
-   * A point that comes later in the answer (or the step), at about where it will be: the names written before it keep off its ring. It is no
-   * label's until it is marked itself (notePoint).
+   * A point that comes later in the step, at about where it will be: the names written before it keep off its ring, and a name written before it
+   * may take it when no point of its colour was marked before (a name that comes first). It is no name's of another colour until it is marked itself (notePoint).
    */
-  foresee(id: string, x: number, y: number): void {
-    if (!this.points.some((q) => q.id === id)) this.points.push({ id, x, y, color: '', taken: false, ahead: true });
+  foresee(id: string, x: number, y: number, color: string): void {
+    if (!this.points.some((q) => q.id === id)) this.points.push({ id, x, y, color, taken: false, ahead: true });
   }
 
   /**
-   * The point a label names: the nearest one that has no label yet, of the label's own colour when there is one (any colour otherwise), and
-   * not farther than LABEL_REACH (in units of the screen's height). It is then taken. Undefined when there is none: the label stands as it is.
+   * The point a label names, then taken: the nearest one that has no label yet, of the label's own colour within LABEL_REACH (in units of the
+   * screen's height), a point already marked before one still to come in the step; failing that, a point of any colour within the much shorter
+   * LABEL_REACH_ANY (a title written near an unrelated point is not that point's name). Undefined when there is none: the label stands as it is.
    */
   takePoint(label: { x: number; y: number; color: string }, w: number, h: number): { id: string; x: number; y: number } | undefined {
     const cx = label.x + w / 2, cy = label.y + h / 2;
     const far = (q: { x: number; y: number }): number => Math.hypot((q.x - cx) * this.aspect, q.y - cy);
-    let best: (typeof this.points)[number] | undefined;
-    for (const own of [true, false]) {
-      for (const q of this.points) {
-        if (q.taken || q.ahead || (own && q.color !== label.color) || far(q) > LABEL_REACH) continue;
-        if (!best || far(q) < far(best)) best = q;
-      }
-      if (best) break;
-    }
+    // Where the answer wrote the name's corner, to the point, in plain units: how close it was written to the point it means.
+    const written = (q: { x: number; y: number }): number => Math.hypot(q.x - label.x, q.y - label.y);
+    const nearest = (ok: (q: (typeof this.points)[number]) => boolean, dist: (q: { x: number; y: number }) => number, reach: number): (typeof this.points)[number] | undefined => {
+      let best: (typeof this.points)[number] | undefined;
+      for (const q of this.points) if (!q.taken && ok(q) && dist(q) <= reach && (!best || dist(q) < dist(best))) best = q;
+      return best;
+    };
+    const best = nearest((q) => !q.ahead && q.color === label.color, far, LABEL_REACH)
+      ?? nearest((q) => !!q.ahead && q.color === label.color, far, LABEL_REACH)
+      ?? nearest((q) => !q.ahead, written, LABEL_REACH_ANY);
     if (best) best.taken = true;
     return best;
   }
-
   /** The rectangle a mark placed at (x, y) is kept inside: the card or diagram it sits on, else the picture the answer boxed, else the screen. */
   roomAt(x: number, y: number, w: number, h: number): Box {
     let card: Box | undefined;
@@ -652,8 +655,11 @@ function labelWithin(a: Extract<Action, { op: 'label' }>, inside: Box, room: { w
   return at.x === a.x && at.y === a.y ? a : { ...a, x: r1(at.x), y: r1(at.y) };
 }
 
-/** The farthest (in units of the screen's height) a label may be from the point it names. */
+/** The farthest (in units of the screen's height) a label may be from the point of its own colour that it names. */
 export const LABEL_REACH = 180;
+
+/** The same for a point of another colour, from where the name was written to the point in plain units: short, so a title near an unrelated point stays where it was written. */
+export const LABEL_REACH_ANY = 70;
 
 /** How far a point's ring reaches from its centre, in units of the screen's height: a name keeps off the rings of the other points. */
 const POINT_RING = 14;
@@ -703,7 +709,7 @@ export function foreseePoints(placer: Placer, actions: readonly Action[], aspect
   for (const a of actions) {
     if (a.op !== 'point') continue;
     const at = (followDiagram(placer, a, aspect) ?? a) as { x: number; y: number };
-    placer.foresee(a.id, at.x, at.y);
+    placer.foresee(a.id, at.x, at.y, a.color);
   }
 }
 

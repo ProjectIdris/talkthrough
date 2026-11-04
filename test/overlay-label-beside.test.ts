@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Action } from '../src/scene/index.ts';
-import { LABEL_REACH, Placer, foreseePoints, labelUnits, pageGrid, placeAction, reserveMarks, settleMark } from '../src/overlay/placement.ts';
+import { LABEL_REACH, LABEL_REACH_ANY, Placer, foreseePoints, labelUnits, pageGrid, placeAction, reserveMarks, settleMark } from '../src/overlay/placement.ts';
 
 const COLS = 192, ROWS = 108, ASPECT = 16 / 9;
 const blank = () => new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(238), COLS, ROWS), { aspect: ASPECT });
@@ -36,16 +36,29 @@ test('each label goes to the nearest point of its own colour, each point having 
   assert.ok(Math.abs(at(red).y + h / 2 - 300) < 1, `red label is on the red point's height: ${at(red).y}`);
 });
 
-test('with no point of its colour the nearest point of any colour is used; one more than a point has, or one too far, stays as written', () => {
+test('with no point of its colour a point of another colour close to it is used; a second name for it, or a point of its own colour too far, stays as written', () => {
   const p = blank();
   settleMark(p, point('a', 400, 300, 'red'));
-  const any = settleMark(p, label('l1', 430, 330, 'One', 'green'));
-  assert.ok(at(any).x > 400 && at(any).x < 420, 'a green name takes the red point');
-  const second = label('l2', 430, 340, 'Two', 'green');
+  const any = settleMark(p, label('l1', 395, 296, 'One', 'green'));
+  assert.ok(at(any).x > 400 && at(any).x < 420, 'a green name close to the red point takes it');
+  const second = label('l2', 395, 300, 'Two', 'green');
   assert.equal(settleMark(p, second), second, 'the point already has a name: the second stays');
   settleMark(p, point('far', 100, 100, 'green'));
   const distant = label('l3', 100 + (LABEL_REACH * 1.2) / ASPECT + 200, 100, 'Three', 'green');
   assert.equal(settleMark(p, distant), distant, 'farther than the reach: stays');
+});
+
+test('a title written near an unrelated point of another colour stays where it was written (the short reach for another colour)', () => {
+  const p = blank();
+  // A heading label 75 units from a red point (the case Prism found: it was dragged from (400,200) to (460,240)).
+  settleMark(p, point('r', 450, 262, 'red'));
+  const heading = label('h', 400, 200, 'Blood flow', 'green');
+  assert.equal(settleMark(p, heading), heading);
+  assert.ok(LABEL_REACH_ANY < LABEL_REACH, 'another colour has the shorter reach');
+  // The same distance to a point of its own colour is paired.
+  settleMark(p, point('g', 450, 262, 'green'));
+  const named = settleMark(p, heading);
+  assert.ok(at(named).x > 450 && at(named).x < 470, JSON.stringify(named));
 });
 
 test('no room on the right: the name goes to the left of its point', () => {
@@ -133,6 +146,25 @@ test('a point that comes later in the answer is known ahead: the names before it
   const ring = { x: at(later).x - 14 / ASPECT, y: 300 - 14, w: 28 / ASPECT, h: 28 };
   const room = labelUnits({ text: 'Right ventricle' }, ASPECT);
   assert.ok(!overlap({ x: at(out).x, y: at(out).y, ...room }, ring), JSON.stringify(out));
-  const stray = label('l2', at(later).x + 5, 300, 'Mine?', 'green');
-  assert.equal(settleMark(p, stray), stray, 'a foreseen point is not a name\'s yet');
+  const stray = label('l2', at(later).x + 5, 300, 'Mine?', 'red');
+  assert.equal(settleMark(p, stray), stray, 'a foreseen point is not a name\'s of another colour');
+});
+
+test('a name written before its point takes it when it comes later in the same step with the same colour; a point already marked is taken first, and the point is not named twice', () => {
+  const p = blank();
+  foreseePoints(p, [point('lv', 800, 700, 'orange'), point('rv', 700, 700, 'blue')], ASPECT);
+  const { h } = labelUnits({ text: 'Left ventricle' }, ASPECT);
+  const first = settleMark(p, label('lvl', 760, 730, 'Left ventricle', 'orange'));
+  assert.ok(at(first).x > 800 && at(first).x < 820, `right of the point still to come: ${JSON.stringify(first)}`);
+  assert.ok(Math.abs(at(first).y + h / 2 - 700) < 1);
+  // The point arrives: it keeps its name (not free for another), and the next orange name finds nothing.
+  settleMark(p, point('lv', 800, 700, 'orange'));
+  const again = label('other', 810, 702, 'Another', 'orange');
+  assert.equal(settleMark(p, again), again, 'the point already has its name');
+  // A point marked before is preferred to one still to come.
+  const q = blank();
+  settleMark(q, point('now', 300, 300, 'red'));
+  foreseePoints(q, [point('later', 330, 300, 'red')], ASPECT);
+  const picked = settleMark(q, label('l', 320, 296, 'Name', 'red'));
+  assert.ok(at(picked).x > 300 && at(picked).x < 320, `the marked point, not the one still to come: ${JSON.stringify(picked)}`);
 });
