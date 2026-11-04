@@ -30,13 +30,19 @@ export type ModelRequest = {
   detail?: { steps: readonly unknown[] };
   /**
    * One half of a quick answer written in two calls (see two-step.ts). `first`: write step 1 and nothing after it. `rest`: step 1 is
-   * already drawn and spoken (given raw); write the steps after it. Absent: the whole answer. Not used with `detail`.
+   * already drawn and spoken (given raw, or, when `first` is absent, being written at the same time by the other call); write the steps after it. Absent: the whole answer. Not used with `detail`.
    */
-  stage?: { part: 'first' } | { part: 'rest'; first: unknown };
+  stage?: { part: 'first'; plan?: true } | { part: 'rest'; first?: unknown } | { part: 'next'; /** The number of the step to write (2 or more). */ n: number; /** The steps written so far, raw. */ shown: readonly unknown[]; /** The titles of the steps still to come, the next one first. */ plan: readonly string[]; /** The picture is the screen as it is now, after the person followed the step before (not the one the earlier steps were made from). */ fresh?: true };
   /** Also yield each step's say text and each of its actions as they are written, before the step (see ModelOutput). Default off. */
   pieces?: boolean;
   /** Called once with the model's whole raw text when its answer ends or turns out not to be a scene (a check run's log). Default off. */
   onRaw?: (text: string) => void;
+  /**
+   * For an answer written one step to a call (step-by-step.ts): asked after a step that ends on a wait for the person's click, before the call for
+   * the next step. `waits` is how many steps so far end on such a wait. It answers with the screen as it is after the click (the next call
+   * is made from that picture), 'go' to carry on at once with the picture it has, or 'stop' when the walk is over or its plan has been replaced.
+   */
+  afterStep?: (info: { waits: number; signal: AbortSignal }) => Promise<{ screenshot: Screenshot } | 'go' | 'stop'>;
   /** Aborting drops the request: the stream ends and no more steps are yielded. */
   signal?: AbortSignal;
 };

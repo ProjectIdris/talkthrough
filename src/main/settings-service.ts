@@ -26,7 +26,7 @@ export function formFromSettings(s: Settings): SettingsForm {
     captureBlocklist: [...s.captureBlocklist],
     guideNavigation: s.guideNavigation,
     controlSnap: s.controlSnap,
-    twoStepAnswer: s.twoStepAnswer,
+    splitAnswer: s.splitAnswer,
   };
 }
 
@@ -43,7 +43,7 @@ function readForm(input: unknown, complain: (message: string) => void): Settings
   let ok = true;
   for (const key of FORM_KEYS) {
     const v = raw[key];
-    const want = key === 'codexFast' || key === 'guideNavigation' || key === 'controlSnap' || key === 'twoStepAnswer' ? 'boolean' : key === 'captureBlocklist' ? 'list' : 'string';
+    const want = key === 'codexFast' || key === 'guideNavigation' || key === 'controlSnap' ? 'boolean' : key === 'captureBlocklist' ? 'list' : 'string';
     const right = want === 'list' ? Array.isArray(v) && v.every((x) => typeof x === 'string') : typeof v === want;
     if (!right) {
       complain(`Nothing was saved: "${key}" was missing or of the wrong kind.`);
@@ -94,6 +94,7 @@ export function createSettingsService(options: { path: string; warn?: (message: 
       });
       settingsFromRaw(raw, fileWarn);
       const next: Record<string, unknown> = { ...raw };
+      delete next.twoStepAnswer; // the older form of splitAnswer: 'two'; the form's value replaces it
       const wanted = formToRaw(form);
       for (const key of FORM_KEYS) {
         if (key in wanted) next[key] = wanted[key];
@@ -156,6 +157,6 @@ function formToRaw(form: SettingsForm): Record<string, unknown> {
   put('captureBlocklist', form.captureBlocklist, d.captureBlocklist);
   put('guideNavigation', form.guideNavigation, d.guideNavigation);
   put('controlSnap', form.controlSnap, d.controlSnap);
-  put('twoStepAnswer', form.twoStepAnswer, d.twoStepAnswer);
+  put('splitAnswer', form.splitAnswer, d.splitAnswer);
   return out;
 }

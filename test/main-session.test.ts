@@ -6,7 +6,7 @@ import type { SpeechToText } from '../src/adapters/speech-to-text.ts';
 import { createSession, STROKE_TAIL_MS, STROKE_TAIL_STEP_MS } from '../src/main/session.ts';
 import type { SessionDeps } from '../src/main/session.ts';
 import type { SceneMessage } from '../src/shared/ipc.ts';
-import type { ModelRequest } from '../src/adapters/model.ts';
+import type { ModelOutput, ModelRequest } from '../src/adapters/model.ts';
 import { ModelError } from '../src/adapters/model.ts';
 import type { Backend, BackendReply, BackendRequest } from '../src/adapters/backend.ts';
 
@@ -701,7 +701,7 @@ const guided = (id: string, say: string, withWait = true) => ({
 });
 
 /** A session whose screen is `screen` (set it to change what a look at the display shows) and whose clicks the test makes. */
-function walkRig(plans: unknown[][], navigation?: GuideNavigation, heard?: string[], modelSaw?: Frame) {
+function walkRig(plans: unknown[][], navigation?: GuideNavigation, heard?: string[], modelSaw?: Frame, chain?: (req: ModelRequest, asked: number) => AsyncGenerator<ModelOutput>) {
   let said = 0;
   let screen = flat(235);
   let listener: GuideListener | undefined;
@@ -711,7 +711,7 @@ function walkRig(plans: unknown[][], navigation?: GuideNavigation, heard?: strin
   const r = rig({
     // The session asks for its model more than once a question: the plan is picked when a question is asked of it.
     ...(heard ? { speech: { id: 'fake', transcribe: async () => ({ text: heard[said++] ?? '' }) } } : {}),
-    model: () => ({ ...createScriptedModel([]), ask: (req: ModelRequest) => { requests.push(req); return createScriptedModel(plans[asks++] ?? []).ask(req); } }),
+    model: () => ({ ...createScriptedModel([]), ask: (req: ModelRequest) => { requests.push(req); return chain ? chain(req, asks++) : createScriptedModel(plans[asks++] ?? []).ask(req); } }),
     guide: {
       options: { onTargetChecks: [30, 60], elsewhereChecks: [30, 60], settleMs: 5, navBeatMs: 10, navMsPerChar: 0, navFirstExtraMs: 0, navPollMs: 5 },
       ...(navigation ? { navigation } : {}),
@@ -962,4 +962,58 @@ test('guide mode: the move is compared with the picture the model was given, not
     await wait(500);
     assert.deepEqual(acted, screenNow.grid.luma[0] === 235 ? ['act'] : [], screenNow.grid.luma[0] === 235 ? 'the same screen: done' : 'another screen: not done');
   }
+});
+
+// ---- An answer written one step to a call: a step that waits for a click holds the next call until the click ------------------
+
+test('guide mode, one step to a call: the next call is held until the click, then made from the screen as it is after it, and the page is given that screen', async () => {
+  let got: unknown = 'not asked yet';
+  const w = walkRig([], undefined, undefined, undefined, async function* (req) {
+    yield { type: 'step', step: guided('t1', 'Click File.') };
+    got = await req.afterStep!({ waits: 1, signal: req.signal! });
+    if (typeof got === 'object') yield { type: 'step', step: guided('t2', 'Now click Save.', false) };
+  });
+  await question(w);
+  assert.equal(got, 'not asked yet', 'the chain is held while the person has not clicked');
+  assert.equal(w.sent.filter((m) => m.kind === 'step').length, 1);
+  await w.click(450, 120, flat(90));
+  assert.equal((got as unknown as { screenshot: { base64: string } }).screenshot.base64, 'f90', 'the next call gets the screen after the click');
+  assert.ok(w.sent.some((m) => m.kind === 'screenshot' && m.url === 'data:image/png;base64,f90'), 'the page is given the new screen');
+  assert.ok(w.sent.some((m) => m.kind === 'step' && (m.step as { say: string }).say === 'Now click Save.'), 'the next step is shown');
+  assert.equal(w.sent.filter((m) => m.kind === 'end').length, 1);
+});
+
+test('guide mode, one step to a call: a click elsewhere replaces the plan; the held call stops and does not end the walk, the new plan carries on', async () => {
+  let first: unknown = 'not asked yet';
+  const w = walkRig([], undefined, undefined, undefined, async function* (req, asked) {
+    if (asked === 0) {
+      yield { type: 'step', step: guided('t1', 'Click File.') };
+      first = await req.afterStep!({ waits: 1, signal: req.signal! });
+      return;
+    }
+    await pause(100); // the model takes its time: the walk is between plans meanwhile
+    yield { type: 'step', step: guided('u1', 'Click Open.') }; // the new plan waits too
+    await wait(50);
+    yield { type: 'step', step: guided('u2', 'Then Save.', false) };
+  });
+  await question(w);
+  await w.click(800, 800, flat(90)); // elsewhere, and the screen changed
+  assert.equal(first, 'stop');
+  assert.equal(w.requests.length, 2);
+  assert.ok(w.sent.some((m) => m.kind === 'step' && (m.step as { say: string }).say === 'Click Open.'), 'the new plan is shown');
+  assert.ok(!w.sent.some((m) => m.kind === 'end'), 'the walk is not over: the new plan is still waiting for a click');
+  await w.click(450, 120, flat(40));
+  assert.ok(w.sent.some((m) => m.kind === 'step' && (m.step as { say: string }).say === 'Then Save.'), 'the new plan goes on');
+});
+
+test('guide mode, one step to a call: Escape while the next call is held lets it go', async () => {
+  let got: unknown = 'not asked yet';
+  const w = walkRig([], undefined, undefined, undefined, async function* (req) {
+    yield { type: 'step', step: guided('t1', 'Click File.') };
+    got = await req.afterStep!({ waits: 1, signal: req.signal! });
+  });
+  await question(w);
+  w.escape();
+  await wait(20);
+  assert.equal(got, 'stop');
 });

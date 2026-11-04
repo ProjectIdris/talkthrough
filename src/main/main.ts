@@ -8,7 +8,9 @@ import { createClaudeModel } from '../adapters/claude-model.ts';
 import { createCodexModel } from '../adapters/codex-model.ts';
 import { createLocalSpeechServerRecogniser } from '../adapters/local-speech-server.ts';
 import { createOpenAIModel } from '../adapters/openai-model.ts';
+import { createStepByStepModel } from '../adapters/step-by-step.ts';
 import { createTwoStepModel } from '../adapters/two-step.ts';
+import { sceneSchemaChain } from '../scene/schema.ts';
 import type { Model } from '../adapters/model.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
@@ -212,8 +214,8 @@ async function main(): Promise<void> {
   const chord = parseHotkey(settings.hotkey) ?? parseHotkey('right-ctrl+right-shift')!;
 
   /** One route's model, locked down the same way whichever it is; the detail pass uses the same code with its own choices. */
-  const makeModel = (route: 'codex' | 'claude' | 'openai', name: string, effort: string, quick: boolean): Model => route === 'claude'
-    ? createClaudeModel({ model: name, effort, ...(quick ? {} : { timeoutMs: DETAIL_TIMEOUT_MS }), ...(settings.claudeCommand ? { command: settings.claudeCommand } : {}) })
+  const makeModel = (route: 'codex' | 'claude' | 'openai', name: string, effort: string, quick: boolean, chain = false): Model => route === 'claude'
+    ? createClaudeModel({ model: name, effort, ...(chain ? { schema: sceneSchemaChain } : {}), ...(quick ? {} : { timeoutMs: DETAIL_TIMEOUT_MS }), ...(settings.claudeCommand ? { command: settings.claudeCommand } : {}) })
     : route === 'openai'
       ? createOpenAIModel({
         apiKey: () => keys.load(),
@@ -224,9 +226,10 @@ async function main(): Promise<void> {
         ...(settings.openaiBaseUrl ? { baseUrl: settings.openaiBaseUrl } : {}),
       })
       : createCodexModel({ model: name, keepThread: quick, fast: quick && settings.codexFast, effort, log, ...(quick ? {} : { timeoutMs: DETAIL_TIMEOUT_MS }), ...(settings.codexCommand ? { command: settings.codexCommand } : {}) });
-  const quickModel = makeModel(settings.model, settings.model === 'claude' ? settings.claudeModel : settings.model === 'openai' ? settings.openaiModel : settings.codexModel, settings.effort, true);
-  // The Claude route can write its quick answer in two calls (step 1 first); the other routes answer fast enough on their own.
-  const model: Model = settings.twoStepAnswer && settings.model === 'claude' ? createTwoStepModel(quickModel, { log }) : quickModel;
+  // The Claude route can write its quick answer in pieces (step 1 first); the other routes answer fast enough on their own.
+  const split = settings.model === 'claude' ? settings.splitAnswer : 'off';
+  const quickModel = makeModel(settings.model, settings.model === 'claude' ? settings.claudeModel : settings.model === 'openai' ? settings.openaiModel : settings.codexModel, settings.effort, true, split === 'steps');
+  const model: Model = split === 'two' ? createTwoStepModel(quickModel, { log, early: process.env.EXPLAINER_TWO_EARLY === '1' /* tried, not yet a setting: see the Two Call note */ }) : split === 'steps' ? createStepByStepModel(quickModel, { log }) : quickModel;
   // The detail model starts only when the person first asks for more detail (nothing is launched for it before that).
   let detailModel: Model | undefined;
   const detailRoute = settings.detailRoute;

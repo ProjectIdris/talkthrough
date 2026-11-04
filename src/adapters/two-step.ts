@@ -10,11 +10,13 @@ import { AsyncQueue } from './subscription-shared.ts';
 import type { Model, ModelOutput, ModelRequest, Usage } from './model.ts';
 
 export type TwoStepOptions = {
+  /** Start the second call together with the first, telling it that step 1 is being written separately, instead of when step 1 has arrived (sooner by about the first call's whole time). */
+  early?: boolean;
   /** For the one line that says the second call failed. */
   log?: (message: string) => void;
 };
 
-function sum(usages: readonly Usage[]): Usage {
+export function sumUsage(usages: readonly Usage[]): Usage {
   const total: Usage = { input: 0, cached: 0, output: 0 };
   let wrote = 0;
   for (const u of usages) {
@@ -45,7 +47,8 @@ export function createTwoStepModel(inner: Model, options: TwoStepOptions = {}): 
       const raws: string[] = [];
       const usages: Usage[] = [];
       const part = (index: number): Pick<ModelRequest, 'onRaw'> | Record<string, never> => (req.onRaw ? { onRaw: (text: string) => void (raws[index] = text) } : {});
-      let rest: AsyncQueue<ModelOutput> | null = null;
+      let rest: AsyncQueue<ModelOutput> | null = options.early ? startRest(undefined) : null;
+      let sawStep = false;
       try {
         for await (const out of inner.ask({ ...req, stage: { part: 'first' }, signal: link.signal, ...part(0) })) {
           if (out.type === 'usage') {
@@ -54,11 +57,14 @@ export function createTwoStepModel(inner: Model, options: TwoStepOptions = {}): 
           }
           // The first call was asked for step 1 only. Whatever it writes after that step (its words and marks as they come, further steps) is dropped:
           // the second call writes those, and passing both on would play them twice.
-          if (rest && (out.type === 'step' || out.type === 'say' || out.type === 'action')) continue;
-          if (out.type === 'step') rest = startRest(out.step); // before the step is handed on: the second call must not wait for the reader
+          if (sawStep && (out.type === 'step' || out.type === 'say' || out.type === 'action')) continue;
+          if (out.type === 'step') {
+            sawStep = true;
+            rest ??= startRest(out.step); // before the step is handed on: the second call must not wait for the reader
+          }
           yield out;
         }
-        if (rest) {
+        if (rest && sawStep) {
           try {
             for await (const out of rest) {
               if (out.type === 'usage') usages.push(out.usage);
@@ -70,7 +76,7 @@ export function createTwoStepModel(inner: Model, options: TwoStepOptions = {}): 
           }
         }
         if (usages.length > 1) log(`two calls, tokens (input/cached/output): ${usages.map((u) => `${u.input}/${u.cached}/${u.output}`).join(' then ')}`);
-        if (usages.length > 0) yield { type: 'usage', usage: sum(usages) };
+        if (usages.length > 0) yield { type: 'usage', usage: sumUsage(usages) };
       } finally {
         link.abort();
         req.signal?.removeEventListener('abort', stop);
@@ -78,7 +84,7 @@ export function createTwoStepModel(inner: Model, options: TwoStepOptions = {}): 
       }
 
       /** Starts the second call at once and lets its output queue up until the first call has been read to its end. */
-      function startRest(first: unknown): AsyncQueue<ModelOutput> {
+      function startRest(first: unknown | undefined): AsyncQueue<ModelOutput> {
         const queue = new AsyncQueue<ModelOutput>();
         const began = Date.now();
         void (async () => {

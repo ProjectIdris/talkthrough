@@ -236,6 +236,17 @@ export function createGuide(deps: GuideDeps) {
   const ticked = new Set<string>();
   let pendingTicks: string[] = [];
   let pendingClears: string[] = [];
+  // How many waiting steps the person has followed, and who is waiting for the next one (an answer written one step to a call asks for its
+  // next step only after the click). Each is let go with null when the walk ends or its plan is replaced.
+  let follows = 0;
+  let lastSeen: Frame | null = null;
+  let followers: Array<{ count: number; resolve: (frame: Frame | null) => void }> = [];
+
+  function letGo(frame: Frame | null, upTo = Infinity): void {
+    const due = followers.filter((f) => f.count <= upTo);
+    followers = followers.filter((f) => f.count > upTo);
+    for (const f of due) f.resolve(frame);
+  }
 
   /** Takes note of what a step draws: its marks (to be cleared by the next step) and the checklist and its nodes. */
   function scan(step: Step): void {
@@ -301,6 +312,7 @@ export function createGuide(deps: GuideDeps) {
     queue.length = 0;
     current = null;
     baseline = null;
+    letGo(null);
     history = [];
     shown.length = 0;
     if (asking) {
@@ -463,6 +475,9 @@ export function createGuide(deps: GuideDeps) {
     if (onTarget) {
       remember({ ...event, outcome: via ? 'navigated' : 'followed' });
       tickFollowed();
+      follows++;
+      lastSeen = seen;
+      letGo(seen, follows);
       current = null;
       baseline = null;
       phase = 'idle';
@@ -481,6 +496,7 @@ export function createGuide(deps: GuideDeps) {
     queue.length = 0;
     streamDone = false;
     phase = 'idle';
+    letGo(null); // whoever waited for the next step of the old plan will not get it
     deps.send({ kind: 'status', status: 'working' });
     try {
       await deps.replan({ frame: seen, click, history: [...history], shown: [...shown], clears: [...live, ...pendingClears] });
@@ -638,6 +654,26 @@ export function createGuide(deps: GuideDeps) {
     /** True from the first step until the guide ends. */
     get active(): boolean {
       return phase !== 'ended';
+    },
+    /** How many waiting steps the person has followed so far in this walk. */
+    get followed(): number {
+      return follows;
+    },
+    /**
+     * Resolves with the screen as it is after the person has followed their `count`th waiting step of the walk (at once if they have), or with
+     * null when the walk ends or its plan is replaced first, or `signal` is aborted.
+     */
+    whenFollowed(count: number, signal?: AbortSignal): Promise<Frame | null> {
+      if (follows >= count) return Promise.resolve(lastSeen);
+      if (phase === 'ended' || signal?.aborted) return Promise.resolve(null);
+      return new Promise((resolve) => {
+        const entry = { count, resolve };
+        followers.push(entry);
+        signal?.addEventListener('abort', () => {
+          followers = followers.filter((f) => f !== entry);
+          resolve(null);
+        }, { once: true });
+      });
     },
     /** True while a step is waiting for the person (or being checked after their click). */
     get waiting(): boolean {

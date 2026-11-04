@@ -142,17 +142,30 @@ test('claude: a tool call from the model is refused', async () => {
 });
 
 test('closing a model ends its process and removes its working folder', async () => {
-  const folders = () => readdirSync(tmpdir()).filter((f) => f.startsWith('talkthrough-model-'));
-  const before = folders().length;
-  process.env.FAKE_MODE = 'ok';
-  const codex = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex] });
-  await collect(codex);
-  const claude = createClaudeModel({ command: process.execPath, prefixArgs: [fakeClaude] });
-  await claude.warm?.();
-  assert.equal(folders().length, before + 2);
-  await codex.close?.();
-  await claude.close?.();
-  assert.equal(folders().length, before);
+  // The folders are made in the temporary folder of the moment, so the test gives itself a root of its own: other tests (in other files, in
+  // parallel) make and remove their folders in the shared one, and a count there is theirs as much as ours.
+  const root = mkdtempSync(join(tmpdir(), 'talkthrough-root-'));
+  const saved = { TEMP: process.env.TEMP, TMP: process.env.TMP, TMPDIR: process.env.TMPDIR };
+  process.env.TEMP = process.env.TMP = process.env.TMPDIR = root;
+  try {
+    assert.equal(tmpdir(), root, 'the temporary folder follows the environment');
+    const folders = () => readdirSync(root).filter((f) => f.startsWith('talkthrough-model-'));
+    process.env.FAKE_MODE = 'ok';
+    const codex = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex] });
+    await collect(codex);
+    const claude = createClaudeModel({ command: process.execPath, prefixArgs: [fakeClaude] });
+    await claude.warm?.();
+    assert.equal(folders().length, 2);
+    await codex.close?.();
+    await claude.close?.();
+    assert.equal(folders().length, 0);
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('codex: a process that is alive but silent cannot hang a question (timeout, abort, then a fresh process works)', async () => {
