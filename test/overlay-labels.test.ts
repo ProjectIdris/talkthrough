@@ -88,7 +88,6 @@ test('a long move of the model lays the tags out again and they glide there', ()
   const shifted = anchors.map((p) => ({ x: p.x - 560, y: p.y }));
   b.beginFrame({ width: W, height: H, model: moved, dragging: false, now: 100 });
   const next = shifted.map((anchor, i) => b.place(i + 1, { anchor, ...SIZE }, () => ({ occ })));
-  next.forEach((p, i) => assert.notDeepEqual(p.rect, (first[i] as { rect: Rect }).rect, 'a tag did not move'));
   assert.equal(b.moving, true);
   for (let n = 1; n < 80; n++) {
     b.beginFrame({ width: W, height: H, model: moved, dragging: false, now: 100 + n * 16 });
@@ -98,6 +97,8 @@ test('a long move of the model lays the tags out again and they glide there', ()
   const e = { occ };
   const settled = shifted.map((anchor, i) => b.place(i + 1, { anchor, ...SIZE }, () => e));
   for (const p of settled) assert.equal(occ.fraction(p.rect), 0);
+  settled.forEach((p, i) => assert.notDeepEqual(p.rect, (first[i] as { rect: Rect }).rect, 'a tag did not move'));
+  assert.equal(next.length, settled.length);
 });
 
 test('tags keep off the busy part of the page', () => {
@@ -154,4 +155,27 @@ test('when the model turns and two leaders would cross, the two tags swap places
   }
   assert.equal(segmentsCross(a1, p1.attach, a2, p2.attach), false, 'the leaders no longer cross');
   assert.ok(p1.rect.x > p2.rect.x, 'the tags traded places');
+});
+
+test('two tags that would have to pass through each other fade out and in instead of gliding across', () => {
+  const b = board();
+  const e = env();
+  b.place(1, { anchor: { x: 880, y: 420 }, ...SIZE, hint: { x: -100, y: -80 } }, () => e);
+  b.place(2, { anchor: { x: 1180, y: 420 }, ...SIZE, hint: { x: 100, y: -80 } }, () => e);
+  // The parts trade sides, so the tags swap places.
+  const a1 = { x: 1180, y: 420 }, a2 = { x: 880, y: 420 };
+  let worst = 0, faded = false;
+  for (let n = 1; n < 80; n++) {
+    b.beginFrame({ width: W, height: H, model: MODEL, dragging: false, now: n * 16 });
+    const p1 = b.place(1, { anchor: a1, ...SIZE }, () => e);
+    const p2 = b.place(2, { anchor: a2, ...SIZE }, () => e);
+    if (p1.alpha < 1 || p2.alpha < 1) faded = true;
+    // How much of the one is covered by the other while both are shown at all.
+    const ox = Math.min(p1.rect.x + p1.rect.w, p2.rect.x + p2.rect.w) - Math.max(p1.rect.x, p2.rect.x);
+    const oy = Math.min(p1.rect.y + p1.rect.h, p2.rect.y + p2.rect.h) - Math.max(p1.rect.y, p2.rect.y);
+    if (ox > 0 && oy > 0 && Math.min(p1.alpha, p2.alpha) > 0.05) worst = Math.max(worst, ox * oy);
+  }
+  assert.ok(faded, 'the tags faded');
+  assert.equal(worst, 0, 'two visible tags overlapped on the way');
+  assert.equal(b.moving, false);
 });

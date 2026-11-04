@@ -173,7 +173,7 @@ export function drawPin(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): vo
     const cx = Math.max(w / 2 + 6, Math.min(view.width - w / 2 - 6, anchor.x + off.x));
     const cy = Math.max(h / 2 + 6, Math.min(view.height - h / 2 - 6, anchor.y + off.y));
     const rect = { x: cx - w / 2, y: cy - h / 2, w, h };
-    spot = { rect, attach: attachPoint(rect, anchor) };
+    spot = { rect, attach: attachPoint(rect, anchor), alpha: 1 };
   }
   const tag = { x: snapPx(spot.rect.x, view.dpr), y: snapPx(spot.rect.y, view.dpr), w, h };
 
@@ -181,10 +181,10 @@ export function drawPin(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): vo
   const dot = easeOut(p / 0.25);
   const lead = easeOut((p - 0.12) / 0.5);
   const show = easeOut((p - 0.45) / 0.55);
-  drawLeader(ctx, [anchor, spot.attach], color, alpha, lead);
+  drawLeader(ctx, [anchor, spot.attach], color, alpha * spot.alpha, lead);
   drawAnchor(ctx, anchor, color, alpha * Math.min(1, p / 0.2), (0.5 + 0.5 * dot) * (1 + 0.5 * m.pulse));
 
-  ctx.globalAlpha = alpha * show;
+  ctx.globalAlpha = alpha * show * spot.alpha;
   const grow = 0.94 + 0.06 * show;
   const mx = tag.x + tag.w / 2, my = tag.y + tag.h / 2;
   ctx.translate(mx, my);

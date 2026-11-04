@@ -135,9 +135,13 @@ export function busyFromGray(gray: ArrayLike<number>, cols: number, rows: number
 
 export type Env = { occ: Occupancy; busy?: Busy };
 export type PinRequest = { anchor: Pt; w: number; h: number; /** The author's wish for where the tag goes from the anchor, in pixels; a hint only. */ hint?: Pt };
-export type Placement = { rect: Rect; attach: Pt };
+/** `alpha` is below 1 while a tag that would have to cross another fades out and in at its new place. */
+export type Placement = { rect: Rect; attach: Pt; alpha: number };
 
-type Entry = { target: Rect; shown: Rect; request: PinRequest; seen: number };
+type Entry = { target: Rect; shown: Rect; request: PinRequest; seen: number; fade?: { phase: 'out' | 'in'; alpha: number } };
+
+const FADE_OUT_SECONDS = 0.12;
+const FADE_IN_SECONDS = 0.2;
 
 const MARGIN = 8;
 const GAP = 8;
@@ -171,6 +175,8 @@ function segmentHitsRect(a: Pt, b: Pt, r: Rect): boolean {
   const tl = { x: r.x, y: r.y }, tr = { x: r.x + r.w, y: r.y }, bl = { x: r.x, y: r.y + r.h }, br = { x: r.x + r.w, y: r.y + r.h };
   return segmentsCross(a, b, tl, tr) || segmentsCross(a, b, tr, br) || segmentsCross(a, b, br, bl) || segmentsCross(a, b, bl, tl);
 }
+
+const sameSpot = (a: Rect, b: Rect) => a === b || (a.x === b.x && a.y === b.y);
 
 const overlaps = (a: Rect, b: Rect, pad: number) => a.x < b.x + b.w + pad && b.x < a.x + a.w + pad && a.y < b.y + b.h + pad && b.y < a.y + a.h + pad;
 
@@ -254,13 +260,44 @@ export class LabelBoard {
     entry.request = request;
     entry.seen = this.tick;
     if (!this.dragging) this.untangle(entry);
-    // Glide towards the target (a fresh placement starts there).
+    // Glide towards the target (a fresh placement starts there). A tag whose way would take it through
+    // another tag fades out where it is and in at its place instead.
     const dt = Math.max(0, Math.min(0.25, ((this.now ?? 0) - this.lastNow) / 1000));
     const k = 1 - Math.exp(-dt * 9);
-    const s = entry.shown, t = entry.target;
-    entry.shown = { x: s.x + (t.x - s.x) * k, y: s.y + (t.y - s.y) * k, w: t.w, h: t.h };
-    if (Math.abs(entry.shown.x - t.x) < 0.3 && Math.abs(entry.shown.y - t.y) < 0.3) entry.shown = t;
-    return { rect: entry.shown, attach: attachPoint(entry.shown, request.anchor) };
+    const t = entry.target;
+    if (entry.fade?.phase === 'in' && !sameSpot(entry.shown, t)) entry.fade = undefined;
+    if (!entry.fade && !sameSpot(entry.shown, t) && this.wayIsBlocked(entry)) entry.fade = { phase: 'out', alpha: 1 };
+    if (entry.fade?.phase === 'out') {
+      entry.fade.alpha -= dt / FADE_OUT_SECONDS;
+      if (entry.fade.alpha <= 0) {
+        entry.shown = t;
+        entry.fade = { phase: 'in', alpha: 0 };
+      }
+    } else if (entry.fade?.phase === 'in') {
+      entry.fade.alpha += dt / FADE_IN_SECONDS;
+      if (entry.fade.alpha >= 1) entry.fade = undefined;
+    } else {
+      const s = entry.shown;
+      entry.shown = { x: s.x + (t.x - s.x) * k, y: s.y + (t.y - s.y) * k, w: t.w, h: t.h };
+      if (Math.abs(entry.shown.x - t.x) < 0.3 && Math.abs(entry.shown.y - t.y) < 0.3) entry.shown = t;
+    }
+    const alpha = entry.fade ? Math.max(0, Math.min(1, entry.fade.alpha)) : 1;
+    return { rect: entry.shown, attach: attachPoint(entry.shown, request.anchor), alpha };
+  }
+
+  /** Whether a tag gliding to its target would touch another tag on the way (both moving at the same pace). */
+  private wayIsBlocked(entry: Entry): boolean {
+    const way = (e: Entry): [Rect, Rect] => (e.fade?.phase === 'out' || Number.isNaN(e.target.x) ? [e.shown, e.shown] : [e.shown, e.target]);
+    const at = (w: [Rect, Rect], f: number): Rect => ({ x: w[0].x + (w[1].x - w[0].x) * f, y: w[0].y + (w[1].y - w[0].y) * f, w: w[1].w, h: w[1].h });
+    const mine = way(entry);
+    for (const other of this.entries.values()) {
+      if (other === entry || (other.fade?.phase === 'out' && other.fade.alpha < 0.05)) continue;
+      const theirs = way(other);
+      for (let f = 0.05; f <= 1.001; f += 0.05) {
+        if (overlaps(at(mine, f), at(theirs, f), 4)) return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -289,7 +326,7 @@ export class LabelBoard {
 
   /** Whether any tag is still gliding (the page should keep drawing). */
   get moving(): boolean {
-    for (const e of this.entries.values()) if (e.shown !== e.target && (e.shown.x !== e.target.x || e.shown.y !== e.target.y)) return true;
+    for (const e of this.entries.values()) if (e.fade || !sameSpot(e.shown, e.target)) return true;
     return false;
   }
 

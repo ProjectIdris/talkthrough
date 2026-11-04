@@ -39,7 +39,7 @@ const scenePath = args._[0];
 if (!scenePath || !args.out || !(args.steps || args.play || args.schedule || args.pen)) {
   console.error('usage: electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 [--size WxH] [--dpr N] [--backdrop img] [--after scene.json]');
   console.error('   or: --schedule frames.json renders every frame of a clip plan (see scripts/clip-schedule.ts) as f00001.png, f00002.png, ...');
-  console.error('   or: --pen "x,y;x,y;..." (0..1000) turns the pen on, drags it through the points with real mouse events, saves pen-1.png, then ends the answer and saves pen-2.png after the fade');
+  console.error('   or: --pen "x,y;x,y;..." (0..1000) turns the pen on, drags it through the points with real mouse events, saves pen-1.png (with --keys-first yes the keys come up before the button, then a second short stroke is drawn), then ends the answer and saves pen-2.png after the fade');
   console.error('   or: --play [--every 2] plays the scene in real time (silently) and saves a frame every few seconds until it finishes');
   process.exit(2);
 }
@@ -140,8 +140,26 @@ app.whenReady().then(async () => {
       win.webContents.sendInputEvent({ type: 'mouseMove', ...px(p), button: 'left', modifiers: ['leftButtonDown'] });
       await sleep(40);
     }
-    win.webContents.sendInputEvent({ type: 'mouseUp', ...px(pts[pts.length - 1]), button: 'left', clickCount: 1 });
-    await sleep(100);
+    const last = px(pts[pts.length - 1]);
+    if (args['keys-first'] === 'yes') {
+      // The keys come up while the button is still down; the button goes up afterwards, then the pen goes on again for a short second stroke.
+      win.webContents.send(CHANNEL.scene, { kind: 'pen', on: false });
+      await sleep(150);
+      win.webContents.sendInputEvent({ type: 'mouseUp', ...last, button: 'left', clickCount: 1 });
+      await sleep(100);
+      win.webContents.send(CHANNEL.scene, { kind: 'pen', on: true });
+      await sleep(200);
+      win.webContents.sendInputEvent({ type: 'mouseDown', x: 200, y: 200, button: 'left', clickCount: 1 });
+      for (const [x, y] of [[260, 230], [330, 260], [400, 300]]) {
+        win.webContents.sendInputEvent({ type: 'mouseMove', x, y, button: 'left', modifiers: ['leftButtonDown'] });
+        await sleep(40);
+      }
+      win.webContents.sendInputEvent({ type: 'mouseUp', x: 400, y: 300, button: 'left', clickCount: 1 });
+      await sleep(100);
+    } else {
+      win.webContents.sendInputEvent({ type: 'mouseUp', ...last, button: 'left', clickCount: 1 });
+      await sleep(100);
+    }
     win.webContents.send(CHANNEL.scene, { kind: 'pen', on: false });
     await sleep(300);
     fs.writeFileSync(path.join(args.out, 'pen-1.png'), (await capture()).toPNG());

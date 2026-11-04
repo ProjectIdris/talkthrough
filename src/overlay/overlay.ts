@@ -298,6 +298,17 @@ const interactiveEls = [offerEl, noticeEl];
 
 /** True for a moment after the pen goes off, so a button released then still ends its stroke. */
 let penEnding = false;
+/** The pointer the pen's stroke holds, so it can be let go when the keys come up with the button still down. */
+let penPointer: number | undefined;
+
+/** Ends any stroke in progress and lets go of the pointer, whichever way the press ended. */
+function endPenStroke(): void {
+  pen.up();
+  sendPen();
+  if (penPointer !== undefined && document.documentElement.hasPointerCapture(penPointer)) document.documentElement.releasePointerCapture(penPointer);
+  penPointer = undefined;
+  request();
+}
 
 document.addEventListener('mousemove', (e) => {
   hudHover = interactiveEls.some((el) => el.style.display !== 'none' && el.contains(e.target as Node));
@@ -323,6 +334,7 @@ document.addEventListener('pointerdown', (e) => {
     // While the chord is held the mouse draws; it never turns the model or clicks the app's own words.
     if (e.button !== 0) return;
     document.documentElement.setPointerCapture(e.pointerId);
+    penPointer = e.pointerId;
     pen.down(...toScale(e));
     request();
     return;
@@ -346,10 +358,7 @@ document.addEventListener('pointermove', (e) => {
 });
 const endDrag = (e: PointerEvent): void => {
   if (pen.active || penEnding) {
-    pen.up();
-    sendPen();
-    if (document.documentElement.hasPointerCapture(e.pointerId)) document.documentElement.releasePointerCapture(e.pointerId);
-    request();
+    endPenStroke();
     return;
   }
   if (!dragging) return;
@@ -360,6 +369,10 @@ const endDrag = (e: PointerEvent): void => {
 };
 document.addEventListener('pointerup', endDrag);
 document.addEventListener('pointercancel', endDrag);
+// Capture lost some other way (the window went click-through under a held button): the stroke ends there.
+document.documentElement.addEventListener('lostpointercapture', () => {
+  if (penPointer !== undefined) endPenStroke();
+});
 
 offerButton.addEventListener('click', () => {
   hud.dismissOffer();
@@ -404,6 +417,7 @@ function handleScene(message: SceneMessage): void {
       } else {
         pen.turnOff();
         sendPen();
+        if (penPointer !== undefined) endPenStroke();
         penEnding = true;
         setTimeout(() => { penEnding = false; }, 500);
       }
