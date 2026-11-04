@@ -55,6 +55,9 @@ export class Finishing {
     this.gtao.blendIntensity = 0.9;
     // The colour in the target is premultiplied by its alpha: take that out before toning and put it back after.
     const material = this.output.material;
+    const start = 'gl_FragColor = texture2D( tDiffuse, vUv );';
+    // A shader that changed under a three.js upgrade would otherwise fail to compile without a word: refuse to build instead.
+    if (!material.fragmentShader.includes(start) || !/}\s*$/.test(material.fragmentShader)) throw new Error('the output shader is not the one this expects');
     material.fragmentShader = material.fragmentShader
       .replace('gl_FragColor = texture2D( tDiffuse, vUv );', 'gl_FragColor = texture2D( tDiffuse, vUv );\n\t\t\tfloat coverage = gl_FragColor.a;\n\t\t\tgl_FragColor.rgb /= max(coverage, 0.0001);')
       .replace(/}\s*$/, '\tgl_FragColor.rgb *= coverage;\n\t\t}');
