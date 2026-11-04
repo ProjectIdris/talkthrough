@@ -214,6 +214,15 @@ const GROWTH_COVER_SLACK = 3;
 /** What a place that overlaps something the answer points at costs, however little of it. */
 const POINTED_HIT = 1.5;
 
+/**
+ * A 3D stage the model asked for small is given more room where the page is blank beside it: grown up to this many times its size, but not past
+ * a width and a height (units; about a quarter of the screen across) that leave the cards after it their room. A model drawn into a few hundred pixels of a large screen is hard to read and to turn.
+ */
+const STAGE_GROW = 2;
+const STAGE_BIGGEST = { w: 260, h: 440 };
+/** Growth under this factor is not worth moving the stage for. */
+const STAGE_GROW_LEAST = 1.12;
+
 const TOP_BAND = 200;
 const TOP_COST = 6;
 
@@ -341,9 +350,36 @@ export class Placer {
   /** Where the stage goes: the nearest rectangle of its shape (or a little smaller) that is off the page's text and what is pointed at. */
   panel(want: Box): Box {
     // What the answer points at is what the stage explains or sits beside: covering it counts for three times what covering the page's text does.
-    const placed = this.search(want, [1, 0.88, 0.76, 0.64, 0.52], [...this.reserved, ...this.reserved, ...this.reserved]);
+    const placed = this.enlarge(this.search(want, [1, 0.88, 0.76, 0.64, 0.52], [...this.reserved, ...this.reserved, ...this.reserved]));
     this.stage = placed;
     return placed;
+  }
+
+  /**
+   * A small stage made larger when the blank page beside it has room: the biggest growth (about its own centre, or from one of its corners,
+   * so it can spread toward the free side) that is still blank, clear of what the answer points at and of the cards, and inside the screen.
+   * A stage that sits on text, or is already large, is left as it is.
+   */
+  private enlarge(box: Box): Box {
+    const most = Math.min(STAGE_GROW, STAGE_BIGGEST.w / box.w, STAGE_BIGGEST.h / box.h);
+    if (!(most >= STAGE_GROW_LEAST)) return box;
+    const avoid = [...this.reserved, ...this.cards.values()];
+    const lo = this.margin;
+    for (let f = most; f >= STAGE_GROW_LEAST - 1e-9; f -= 0.1) {
+      const w = box.w * f, h = box.h * f;
+      const anchors: Array<[number, number]> = [
+        [box.x + (box.w - w) / 2, box.y + (box.h - h) / 2], // about the centre
+        [box.x, box.y], [box.x + box.w - w, box.y], [box.x, box.y + box.h - h], [box.x + box.w - w, box.y + box.h - h], // from each corner
+      ];
+      for (const [ax, ay] of anchors) {
+        const x = clamp(ax, lo, 1000 - lo - w), y = clamp(ay, lo, 1000 - lo - h);
+        const grown = { x, y, w, h };
+        const padded = { x: x - 6, y: y - 10, w: w + 12, h: h + 20 };
+        if (this.ink.mean(padded) >= BLANK || avoid.some((r) => overlap(grown, r) > 0)) continue;
+        return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+      }
+    }
+    return box;
   }
 
   /** Where a card or crop goes: the nearest free place, keeping out of the stage, the other cards and what is pointed at. */
