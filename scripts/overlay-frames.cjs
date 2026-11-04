@@ -4,7 +4,7 @@
 //   npm run build
 //   (run it as `env -u ELECTRON_RUN_AS_NODE` if your shell sets that)
 //   npx electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 \
-//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--gpu yes] [--clean yes]
+//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--gpu yes] [--clean yes] [--metrics yes]
 //
 // --steps is a list of step:seconds pairs (seconds into that step; earlier steps are complete).
 // --dpr sets the display scale; offscreen windows always render at 1, so use --hidden (a hidden, non-offscreen window) for dpr other than 1.
@@ -201,6 +201,15 @@ app.whenReady().then(async () => {
   for (const pair of args.steps.split(',')) {
     const [s, t] = pair.split(':').map(Number);
     await seek(scene, s + offset, t, `${label}-s${s}-t${String(t).replace('.', '_')}`);
+  }
+  // --metrics yes: what the graphics card process and the page hold after the last frame, and the time the steps took.
+  if (args.metrics) {
+    for (const m of app.getAppMetrics()) {
+      if (m.type === 'GPU' || m.type === 'Tab') console.log('metrics', m.type, 'working set', Math.round(m.memory.workingSetSize / 1024), 'MB', 'private', Math.round((m.memory.privateBytes || 0) / 1024), 'MB');
+    }
+    const t0 = Date.now();
+    for (let i = 0; i < 20; i++) await seek(scene, 1 + offset, 1 + (i % 4) * 0.5, `bench`);
+    console.log('metrics 20 seeks', Date.now() - t0, 'ms');
   }
   app.quit();
 }).catch((error) => {
