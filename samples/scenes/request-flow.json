@@ -14,18 +14,19 @@
         { "op": "circle", "id": "browser-ring", "x": 60, "y": 290, "w": 220, "h": 130, "color": "orange" },
         { "op": "label", "id": "step1", "x": 100, "y": 495, "text": "1. Request", "color": "orange", "at": 0.5 },
         { "op": "panel", "x": 60, "y": 520, "w": 880, "h": 450, "at": 0.8 },
-        { "op": "add", "shape": "box", "id": "browser", "pos": [-5, 0, 0], "size": [2.2, 1.6, 1.6], "color": "blue", "at": 1.2 },
-        { "op": "add", "shape": "text", "id": "browser-name", "pos": [-5, -1.6, 0], "text": "Browser", "height": 0.55, "color": "white", "at": 1.4 },
-        { "op": "add", "shape": "sphere", "id": "packet", "pos": [-5, 1.5, 0], "size": [0.5, 0.5, 0.5], "color": "yellow", "at": 2 }
+        { "op": "zoom", "to": 2, "dur": 0, "at": 0.8 },
+        { "op": "add", "shape": "box", "id": "browser", "pos": [-7, 0, 0], "size": [2.2, 1.6, 1.6], "color": "blue", "at": 1.2 },
+        { "op": "add", "shape": "text", "id": "browser-name", "pos": [-7, -1.6, 0], "text": "Browser", "height": 0.6, "color": "white", "at": 1.4 },
+        { "op": "add", "shape": "sphere", "id": "packet", "pos": [-7, 1.5, 0], "size": [0.5, 0.5, 0.5], "color": "yellow", "at": 2 }
       ]
     },
     {
       "say": "The request travels across the internet to a server, a computer that is always switched on and waiting.",
       "actions": [
-        { "op": "arrow", "id": "to-server", "x1": 275, "y1": 355, "x2": 395, "y2": 355, "color": "orange" },
+        { "op": "arrow", "id": "to-server", "x1": 272, "y1": 360, "x2": 398, "y2": 360, "color": "orange" },
         { "op": "add", "shape": "box", "id": "server", "pos": [0, 0, 0], "size": [2.2, 2.6, 1.6], "color": "purple", "at": 0.5 },
-        { "op": "add", "shape": "text", "id": "server-name", "pos": [0, -2.1, 0], "text": "Server", "height": 0.55, "color": "white", "at": 0.7 },
-        { "op": "add", "shape": "arrow", "id": "path1", "pts": [[-3.7, 0.6, 0], [-1.4, 0.6, 0]], "color": "orange", "at": 1.2 },
+        { "op": "add", "shape": "text", "id": "server-name", "pos": [0, -2.1, 0], "text": "Server", "height": 0.6, "color": "white", "at": 0.7 },
+        { "op": "add", "shape": "arrow", "id": "path1", "pts": [[-5.7, 0.6, 0], [-1.6, 0.6, 0]], "color": "orange", "at": 1.2 },
         { "op": "move", "id": "packet", "to": [0, 2.1, 0], "at": 1.6, "dur": 1.6 },
         { "op": "highlight", "id": "server", "at": 3.2, "dur": 1 }
       ]
@@ -34,11 +35,11 @@
       "say": "The server does not keep the page's data itself. It asks a database for what you need.",
       "actions": [
         { "op": "label", "id": "step2", "x": 410, "y": 495, "text": "2. Look it up", "color": "orange" },
-        { "op": "arrow", "id": "to-db", "x1": 605, "y1": 355, "x2": 725, "y2": 355, "color": "orange", "at": 0.4 },
-        { "op": "add", "shape": "cylinder", "id": "database", "pos": [5, 0, 0], "size": [2, 2.4, 2], "color": "green", "at": 0.5 },
-        { "op": "add", "shape": "text", "id": "db-name", "pos": [5, -2, 0], "text": "Database", "height": 0.55, "color": "white", "at": 0.7 },
-        { "op": "add", "shape": "arrow", "id": "path2", "pts": [[1.4, 0.6, 0], [3.6, 0.6, 0]], "color": "orange", "at": 1 },
-        { "op": "move", "id": "packet", "to": [5, 2.1, 0], "at": 1.4, "dur": 1.6 },
+        { "op": "arrow", "id": "to-db", "x1": 602, "y1": 360, "x2": 728, "y2": 360, "color": "orange", "at": 0.4 },
+        { "op": "add", "shape": "cylinder", "id": "database", "pos": [7, 0, 0], "size": [2, 2.4, 2], "color": "green", "at": 0.5 },
+        { "op": "add", "shape": "text", "id": "db-name", "pos": [7, -2, 0], "text": "Database", "height": 0.6, "color": "white", "at": 0.7 },
+        { "op": "add", "shape": "arrow", "id": "path2", "pts": [[1.6, 0.6, 0], [5.4, 0.6, 0]], "color": "orange", "at": 1 },
+        { "op": "move", "id": "packet", "to": [7, 2.1, 0], "at": 1.4, "dur": 1.6 },
         { "op": "highlight", "id": "database", "at": 3, "dur": 1 }
       ]
     },
@@ -48,7 +49,7 @@
         { "op": "label", "id": "step3", "x": 720, "y": 495, "text": "3. Answer", "color": "green" },
         { "op": "style", "id": "packet", "color": "green", "dur": 0.4 },
         { "op": "move", "id": "packet", "to": [0, 2.1, 0], "at": 0.4, "dur": 1.4 },
-        { "op": "move", "id": "packet", "to": [-5, 1.5, 0], "at": 1.9, "dur": 1.4 },
+        { "op": "move", "id": "packet", "to": [-7, 1.5, 0], "at": 1.9, "dur": 1.4 },
         { "op": "highlight", "id": "browser", "at": 3.3, "dur": 1 }
       ]
     },
@@ -56,7 +57,7 @@
       "say": "Drag the model to look at it from another side. All of this takes a fraction of a second.",
       "actions": [
         { "op": "orbit", "az": 40, "el": 25, "dur": 2.5 },
-        { "op": "zoom", "to": 1.1, "dur": 2.5 }
+        { "op": "zoom", "to": 1.7, "dur": 2.5 }
       ]
     }
   ]

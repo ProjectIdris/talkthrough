@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Talkthrough overlay</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src file: data:">
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  body { position: relative; user-select: none; -webkit-user-select: none; }
+  #backdrop { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: fill; display: none; }
+  #panel {
+    position: absolute; display: none; box-sizing: border-box; pointer-events: auto; cursor: grab; touch-action: none;
+    background: rgba(14, 20, 34, 0.66); border: 2px solid rgba(255, 255, 255, 0.28); border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+  }
+  #panel.dragging { cursor: grabbing; }
+  canvas { position: absolute; left: 0; top: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<img id="backdrop" alt="">
+<div id="panel"></div>
+<canvas id="gl"></canvas>
+<canvas id="marks"></canvas>
+<script src="./overlay.js"></script>
+</body>
+</html>

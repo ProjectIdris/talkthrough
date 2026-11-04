@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<rect width="1920" height="1080" fill="#fbfbfa"/>
+<rect width="1920" height="64" fill="#ffffff"/><rect y="64" width="1920" height="1" fill="#e3e6ea"/><rect x="60" y="22" width="120" height="20" rx="4" fill="#2b3a55"/><rect x="300" y="26" width="80" height="12" rx="6" fill="#c9ced6"/><rect x="420" y="26" width="80" height="12" rx="6" fill="#c9ced6"/><rect x="540" y="26" width="80" height="12" rx="6" fill="#c9ced6"/><rect x="660" y="26" width="80" height="12" rx="6" fill="#c9ced6"/><text x="115.2" y="108" font-size="46" font-weight="700" fill="#1f2937">Inside the Earth</text>
+<rect x="115.2" y="140.4" width="998.4" height="367.2" rx="10" fill="#10192b"/>
+<circle cx="614.4" cy="324" r="160" fill="#9a6b3f"/><circle cx="614.4" cy="324" r="148.8" fill="#d4662f"/><circle cx="614.4" cy="324" r="88" fill="#f2a529"/><circle cx="614.4" cy="324" r="40" fill="#fbe58a"/><text x="115.2" y="531.4" font-size="22" fill="#6b7280">A cutaway of the Earth showing its layers</text>
+<rect x="153.6" y="567" width="540" height="10" rx="5" fill="#d8dce2"/><text x="153.6" y="602.6" font-size="30" fill="#1f2937">At the centre lies the inner core, solid iron and nickel.</text>
+<rect x="153.6" y="648" width="960" height="10" rx="5" fill="#d8dce2"/>
+<rect x="153.6" y="678" width="960" height="10" rx="5" fill="#d8dce2"/>
+<rect x="153.6" y="708" width="960" height="10" rx="5" fill="#d8dce2"/>
+<rect x="153.6" y="738" width="960" height="10" rx="5" fill="#d8dce2"/>
+<rect x="153.6" y="768" width="576" height="10" rx="5" fill="#d8dce2"/><rect x="153.6" y="842.4" width="960" height="10" rx="5" fill="#d8dce2"/>
+<rect x="153.6" y="872.4" width="960" height="10" rx="5" fill="#d8dce2"/>
+<rect x="153.6" y="902.4" width="960" height="10" rx="5" fill="#d8dce2"/>
+<rect x="153.6" y="932.4" width="576" height="10" rx="5" fill="#d8dce2"/><rect x="1228.8" y="756" width="560" height="10" rx="5" fill="#d8dce2"/>
+<rect x="1228.8" y="786" width="560" height="10" rx="5" fill="#d8dce2"/>
+<rect x="1228.8" y="816" width="560" height="10" rx="5" fill="#d8dce2"/>
+<rect x="1228.8" y="846" width="560" height="10" rx="5" fill="#d8dce2"/>
+<rect x="1228.8" y="876" width="336" height="10" rx="5" fill="#d8dce2"/></svg>

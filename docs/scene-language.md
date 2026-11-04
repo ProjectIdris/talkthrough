@@ -36,7 +36,7 @@ Objects stay on screen until cleared. A follow-up question continues the same sc
 ## Numbers and units
 
 - **Screen coordinates** run 0 to 1000 across the screenshot, whatever its pixel size: `x` to the right, `y` down, `(0,0)` the top-left corner, `(1000,1000)` the bottom-right. The renderer maps them to the display.
-- **3D coordinates** are in panel units: `x` right, `y` up, `z` toward the viewer, origin at the middle of the panel. The default camera frames about 12 units across. Angles are degrees.
+- **3D coordinates** are in panel units: `x` right, `y` up, `z` toward the viewer, origin at the middle of the panel. At zoom 1 the camera fits a square 12 units across inside the panel (so a wide panel shows more to the sides, and a small scene in a wide panel wants a `zoom`). It starts at `az` 0, `el` 15, looking at the middle of the panel. Angles are degrees.
 - **Time** is in seconds. `at` is the delay after the step starts (0 to 60). `dur` is how long a change takes (0 to 30, default 0.6). Things that appear fade in over a short fixed time.
 - **Colour** is a name (`red orange yellow green teal blue purple pink white gray black`) or `#rgb` / `#rrggbb`. The JSON Schema offers only the names.
 - **Opacity** is 0 to 1.

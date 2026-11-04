@@ -23,7 +23,7 @@
       "actions": [
         { "op": "clear", "target": "heat" },
         { "op": "focus", "dur": 1.2 },
-        { "op": "zoom", "to": 0.85, "dur": 1.2 },
+        { "op": "zoom", "to": 1.1, "dur": 1.2 },
         { "op": "style", "id": "crust", "opacity": 0.25, "at": 0.6 },
         { "op": "style", "id": "mantle", "opacity": 0.35, "at": 0.6 },
         { "op": "style", "id": "outer", "opacity": 0.55, "at": 0.6 }

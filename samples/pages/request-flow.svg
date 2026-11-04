@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<rect width="1920" height="1080" fill="#fbfbfa"/>
+<rect width="1920" height="64" fill="#ffffff"/><rect y="64" width="1920" height="1" fill="#e3e6ea"/><rect x="60" y="22" width="120" height="20" rx="4" fill="#2b3a55"/><rect x="300" y="26" width="80" height="12" rx="6" fill="#c9ced6"/><rect x="420" y="26" width="80" height="12" rx="6" fill="#c9ced6"/><rect x="540" y="26" width="80" height="12" rx="6" fill="#c9ced6"/><rect x="660" y="26" width="80" height="12" rx="6" fill="#c9ced6"/><text x="115.2" y="140.4" font-size="46" font-weight="700" fill="#1f2937">How a web page loads</text>
+<rect x="153.6" y="324" width="345.6" height="129.6" rx="14" fill="#dbeafe" stroke="#94a3b8" stroke-width="2"/><text x="326.4" y="397.4" font-size="34" font-weight="600" fill="#334155" text-anchor="middle">Browser</text><rect x="787.2" y="324" width="345.6" height="129.6" rx="14" fill="#ede9fe" stroke="#94a3b8" stroke-width="2"/><text x="960" y="397.4" font-size="34" font-weight="600" fill="#334155" text-anchor="middle">Server</text><rect x="1420.8" y="324" width="345.6" height="129.6" rx="14" fill="#dcfce7" stroke="#94a3b8" stroke-width="2"/><text x="1593.6" y="397.4" font-size="34" font-weight="600" fill="#334155" text-anchor="middle">Database</text><line x1="518.4" y1="388.8" x2="768" y2="388.8" stroke="#64748b" stroke-width="4"/><polygon points="768,388.8 752,378.8 752,398.8" fill="#64748b"/><line x1="1152" y1="388.8" x2="1401.6" y2="388.8" stroke="#64748b" stroke-width="4"/><polygon points="1401.6,388.8 1385.6,378.8 1385.6,398.8" fill="#64748b"/><rect x="115.2" y="540" width="1500" height="10" rx="5" fill="#d8dce2"/>
+<rect x="115.2" y="570" width="1500" height="10" rx="5" fill="#d8dce2"/>
+<rect x="115.2" y="600" width="900" height="10" rx="5" fill="#d8dce2"/><rect x="115.2" y="648" width="1500" height="10" rx="5" fill="#d8dce2"/>
+<rect x="115.2" y="678" width="1500" height="10" rx="5" fill="#d8dce2"/>
+<rect x="115.2" y="708" width="1500" height="10" rx="5" fill="#d8dce2"/>
+<rect x="115.2" y="738" width="1500" height="10" rx="5" fill="#d8dce2"/>
+<rect x="115.2" y="768" width="900" height="10" rx="5" fill="#d8dce2"/><rect x="115.2" y="820.8" width="1500" height="10" rx="5" fill="#d8dce2"/>
+<rect x="115.2" y="850.8" width="1500" height="10" rx="5" fill="#d8dce2"/>
+<rect x="115.2" y="880.8" width="1500" height="10" rx="5" fill="#d8dce2"/>
+<rect x="115.2" y="910.8" width="900" height="10" rx="5" fill="#d8dce2"/></svg>
