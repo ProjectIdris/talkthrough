@@ -1,6 +1,7 @@
 // A stand-in for `codex app-server`, speaking just enough of its JSON-RPC to test the model adapter.
 // FAKE_MODE: ok (default) | tool (reports a command item) | approval (asks the client for approval)
 //   | silent-turn (never answers turn/start) | silent-init (never answers initialize)
+// FAKE_MCP: comma-separated tool server names in the pretend user config; FAKE_MCP_STUBBORN=1 ignores switching them off
 import { createInterface } from 'node:readline';
 
 const mode = process.env.FAKE_MODE ?? 'ok';
@@ -13,12 +14,15 @@ const answer = JSON.stringify({
   escalate: process.env.FAKE_ESCALATE ?? null,
 });
 let threads = 0;
+const servers = (process.env.FAKE_MCP ?? '').split(',').filter(Boolean);
+const switchedOff = (name) => process.env.FAKE_MCP_STUBBORN !== '1' && process.argv.some((a) => a === `mcp_servers.${name}.enabled=false`);
 const fast = process.argv.some((a) => a.includes('service_tier'));
 
 createInterface({ input: process.stdin }).on('line', (line) => {
   const m = JSON.parse(line);
   if (m.method === 'initialize' && mode === 'silent-init') return;
   if (m.method === 'initialize') return send({ id: m.id, result: { userAgent: 'fake' } });
+  if (m.method === 'config/read') return send({ id: m.id, result: { config: { mcp_servers: Object.fromEntries(servers.map((n) => [n, { command: 'x', enabled: !switchedOff(n) }])) } } });
   if (m.method === 'thread/start') {
     const id = `t${++threads}`;
     return send({ id: m.id, result: { thread: { id }, model: m.params.model, serviceTier: fast ? 'priority' : 'default', sandbox: m.params.sandbox, approvalPolicy: m.params.approvalPolicy, cwd: m.params.cwd } });

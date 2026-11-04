@@ -43,8 +43,8 @@ const HARMLESS_ITEMS = new Set(['userMessage', 'agentMessage', 'reasoning', 'pla
 const DISABLED_FEATURES = ['shell_tool', 'unified_exec', 'apps', 'plugins', 'multi_agent', 'view_image', 'image_generation', 'browser_use', 'computer_use'];
 
 type Json = Record<string, unknown>;
-type Waiter = { resolve: (value: Json) => void; reject: (error: Error) => void };
-type Turn = { queue: AsyncQueue<ModelOutput>; stream: StepStream; threadId: string; turnId?: string; done: boolean; firstDeltaAt?: number };
+type Waiter = { proc: ChildProcessWithoutNullStreams; resolve: (value: Json) => void; reject: (error: Error) => void };
+type Turn = { proc?: ChildProcessWithoutNullStreams; queue: AsyncQueue<ModelOutput>; stream: StepStream; threadId: string; turnId?: string; done: boolean; firstDeltaAt?: number };
 
 export function codexLockdownArgs(fast: boolean): string[] {
   const args = ['-c', 'web_search="disabled"'];
@@ -76,7 +76,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
   const request = (proc: ChildProcessWithoutNullStreams, method: string, params: Json): Promise<Json> =>
     new Promise((resolve, reject) => {
       const id = nextId++;
-      waiters.set(id, { resolve, reject });
+      waiters.set(id, { proc, resolve, reject });
       send(proc, { id, method, params });
     });
 
@@ -180,48 +180,89 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
   }
 
   function onExit(proc: ChildProcessWithoutNullStreams): void {
-    if (child === proc) child = null;
-    starting = null;
+    if (child === proc) {
+      child = null;
+      starting = null;
+    }
     const error = new ModelError('unavailable', `codex stopped${stderrTail ? `: ${stderrTail.trim().slice(-300)}` : ''}`);
-    for (const waiter of waiters.values()) waiter.reject(error);
-    waiters.clear();
-    for (const turn of turns.values()) failTurn(turn, error);
+    for (const [id, waiter] of waiters) {
+      if (waiter.proc !== proc) continue;
+      waiters.delete(id);
+      waiter.reject(error);
+    }
+    for (const turn of turns.values()) if (turn.proc === proc) failTurn(turn, error);
   }
 
+  /** Starts one `codex app-server` process (with the given extra arguments) and finishes the handshake. */
+  async function startProcess(extra: string[]): Promise<ChildProcessWithoutNullStreams> {
+    workDir ??= mkdtempSync(join(tmpdir(), 'talkthrough-model-'));
+    const command = resolveCommand('codex', options.command);
+    const proc = spawn(command, [...(options.prefixArgs ?? []), 'app-server', ...codexLockdownArgs(fast), ...extra], {
+      cwd: workDir,
+      env: childEnv(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+    const failed = new Promise<never>((_, reject) => {
+      proc.once('error', (error: NodeJS.ErrnoException) => {
+        reject(new ModelError('unavailable', error.code === 'ENOENT' ? 'the codex command was not found' : `codex could not start: ${error.message}`, { cause: error }));
+      });
+    });
+    proc.stdout.setEncoding('utf8');
+    proc.stdout.on('data', createLineSplitter((line) => {
+      try {
+        onMessage(proc, JSON.parse(line) as Json);
+      } catch {
+        // a line that is not JSON is ignored
+      }
+    }));
+    proc.stderr.setEncoding('utf8');
+    proc.stderr.on('data', (chunk: string) => {
+      stderrTail = (stderrTail + chunk).slice(-2000);
+    });
+    proc.on('exit', () => onExit(proc));
+    proc.stdin.on('error', () => undefined);
+    child = proc;
+    await Promise.race([request(proc, 'initialize', { clientInfo: { name: 'talkthrough', title: 'Talkthrough', version: '0.0.0' } }), failed]);
+    send(proc, { method: 'initialized' });
+    return proc;
+  }
+
+  /** The tool servers (MCP) in the person's own Codex setup, by name; only the enabled ones if asked. */
+  async function toolServers(proc: ChildProcessWithoutNullStreams, enabledOnly: boolean): Promise<string[]> {
+    let config: Json;
+    try {
+      config = await request(proc, 'config/read', { includeLayers: false });
+    } catch (error) {
+      throw new ModelError('unavailable', `could not check the tool servers in your Codex setup: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    }
+    const servers = ((config.config as Json | undefined)?.mcp_servers ?? {}) as Record<string, Json | null>;
+    return Object.entries(servers).filter(([, v]) => !enabledOnly || v?.enabled !== false).map(([name]) => name);
+  }
+
+  /**
+   * Starts the process the model runs in. A person's own Codex setup may list tool servers (which a
+   * model could call); a configuration override cannot remove them, only switch each off by name. So
+   * the first process only reads the list, then a second starts with every listed server switched off,
+   * and the question is refused if any is still on.
+   */
   async function ensure(): Promise<ChildProcessWithoutNullStreams> {
     if (child) return child;
     if (starting) return starting;
     starting = (async () => {
-      workDir ??= mkdtempSync(join(tmpdir(), 'talkthrough-model-'));
-      const command = resolveCommand('codex', options.command);
-      const proc = spawn(command, [...(options.prefixArgs ?? []), 'app-server', ...codexLockdownArgs(fast)], {
-        cwd: workDir,
-        env: childEnv(),
-        stdio: ['pipe', 'pipe', 'pipe'],
-        windowsHide: true,
-      });
-      const failed = new Promise<never>((_, reject) => {
-        proc.once('error', (error: NodeJS.ErrnoException) => {
-          reject(new ModelError('unavailable', error.code === 'ENOENT' ? 'the codex command was not found' : `codex could not start: ${error.message}`, { cause: error }));
-        });
-      });
-      proc.stdout.setEncoding('utf8');
-      proc.stdout.on('data', createLineSplitter((line) => {
-        try {
-          onMessage(proc, JSON.parse(line) as Json);
-        } catch {
-          // a line that is not JSON is ignored
+      let proc = await startProcess([]);
+      const names = await toolServers(proc, false);
+      if (names.length > 0) {
+        child = null;
+        proc.kill();
+        proc = await startProcess(names.flatMap((name) => ['-c', `mcp_servers.${tomlKey(name)}.enabled=false`]));
+        const still = await toolServers(proc, true);
+        if (still.length > 0) {
+          child = null;
+          proc.kill();
+          throw new ModelError('refused', `could not switch off the tool servers in your Codex setup (${still.join(', ')})`);
         }
-      }));
-      proc.stderr.setEncoding('utf8');
-      proc.stderr.on('data', (chunk: string) => {
-        stderrTail = (stderrTail + chunk).slice(-2000);
-      });
-      proc.on('exit', () => onExit(proc));
-      proc.stdin.on('error', () => undefined);
-      child = proc;
-      await Promise.race([request(proc, 'initialize', { clientInfo: { name: 'talkthrough', title: 'Talkthrough', version: '0.0.0' } }), failed]);
-      send(proc, { method: 'initialized' });
+      }
       return proc;
     })();
     try {
@@ -311,7 +352,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
           log(`codex model ${String(started.model)}, service tier ${serviceTier ?? 'default'}`);
         }
 
-        const mine: Turn = { queue: new AsyncQueue<ModelOutput>(), stream: createStepStream(), threadId, done: false };
+        const mine: Turn = { proc, queue: new AsyncQueue<ModelOutput>(), stream: createStepStream(), threadId, done: false };
         turn = mine;
         turns.set(threadId, mine);
         const begun = await within(request(proc, 'turn/start', {
@@ -346,6 +387,11 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
       }
     },
   };
+}
+
+/** A name as a TOML key: bare when it only holds letters, digits, _ and -, quoted otherwise. */
+function tomlKey(name: string): string {
+  return /^[A-Za-z0-9_-]+$/.test(name) ? name : JSON.stringify(name);
 }
 
 /** Sorts a failure message from the tool into one of the error codes. */

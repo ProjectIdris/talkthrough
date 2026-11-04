@@ -185,3 +185,29 @@ test('claude: the default command line stays well under the Windows limit and ca
   assert.ok(length < 30_000, `command line is ${length} characters`);
   assert.ok(!args.join(' ').includes('You are Talkthrough'));
 });
+
+test('codex: tool servers in your own Codex setup are switched off by name, and a server that stays on refuses the question', async () => {
+  process.env.FAKE_MODE = 'ok';
+  process.env.FAKE_MCP = 'repl,odd-name';
+  try {
+    const model = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex] });
+    try {
+      // the fake reports a server as enabled unless this process was started with its switch-off argument
+      assert.equal((await collect(model)).filter((o) => o.type === 'step').length, 2);
+    } finally {
+      await model.close?.();
+    }
+    process.env.FAKE_MCP_STUBBORN = '1';
+    const stubborn = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex] });
+    try {
+      const error = await failure(stubborn);
+      assert.equal(error.code, 'refused');
+      assert.match(error.message, /repl/);
+    } finally {
+      await stubborn.close?.();
+    }
+  } finally {
+    delete process.env.FAKE_MCP;
+    delete process.env.FAKE_MCP_STUBBORN;
+  }
+});
