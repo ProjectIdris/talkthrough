@@ -306,6 +306,10 @@ test('a colour name outside the palette is read as the nearest palette colour, n
   assert.deepEqual(colours, ['yellow', 'blue', 'green']);
   assert.equal(r.issues.filter((i) => i.kind === 'trimmed' && i.message.includes('read as')).length, 3);
   assert.equal(r.issues.filter((i) => i.kind === 'dropped').length, 1);
+  // Names that exist on every object are not colours, and asking for one must not throw.
+  const odd = validateScene(scene(...['constructor', 'toString', '__proto__', 'hasOwnProperty'].map((c, i) => box(`o${i}`, { color: c }))));
+  assert.equal(actionsOf(odd).length, 0);
+  assert.equal(odd.issues.filter((i) => i.kind === 'dropped').length, 4);
   // A colour the palette has is left alone, and a hex colour stays exact.
   const same = validateScene(scene(box('e', { color: 'teal' }), box('f', { color: '#e3b341' })));
   assert.deepEqual(same.issues, []);

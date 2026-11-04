@@ -48,8 +48,9 @@ const hexToRgb = (h: string): Rgb => [parseInt(h.slice(0, 2), 16), parseInt(h.sl
  */
 export function nearestPaletteColor(name: string): string | undefined {
   const key = name.toLowerCase().replace(/[\s_-]+/g, '');
-  const hex = NAMED[key];
-  if (!hex) return undefined;
+  // Own keys only: a name such as "constructor" must not find something on the object's prototype.
+  if (!Object.hasOwn(NAMED, key)) return undefined;
+  const hex = NAMED[key] as string;
   const [r, g, b] = hexToRgb(hex);
   let best: string | undefined;
   let bestD = Infinity;
