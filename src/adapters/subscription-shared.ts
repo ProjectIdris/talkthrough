@@ -203,7 +203,7 @@ export function penText(focus: NonNullable<ModelRequest['focus']>): string {
 }
 
 /** Every spoken sentence opens short: a voice that speaks sentence by sentence starts as soon as the first one is made. */
-export const SHORT_OPENER = 'Open the sentence with a short first sentence, about 8 words or 50 characters at most, and then the rest (the voice starts on the first sentence as soon as it is made).';
+export const SHORT_OPENER = 'Open the sentence with a short first sentence, about 6 words or 30 characters at most, and then the rest (the voice starts on the first sentence as soon as it is made).';
 
 
 /** The text that goes with the screenshot: the question, and the earlier turns if this is a follow-up. */
