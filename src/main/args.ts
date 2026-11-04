@@ -33,6 +33,12 @@ export type Options = {
   captureImage?: string;
   /** Checks: use this WAV file as the microphone (with --fake-mic). */
   fakeMicFile?: string;
+  /** Checks: log every validated step sent to the overlay. */
+  logSteps: boolean;
+  /** Checks: write the grabbed screen frame to this file. */
+  saveCapture?: string;
+  /** Checks: use this text as the transcript instead of calling the speech server. */
+  question?: string;
   /** Checks: never show the overlay windows; they still render. */
   hidden: boolean;
   /** Checks: speak nothing. */
@@ -47,7 +53,7 @@ export type Options = {
 export function parseArgs(argv: readonly string[]): Options {
   const options: Options = {
     playSample: false, noHotkey: false, fakeMic: false, visibleToCapture: false, gpu: false, exitAfterChord: 0, selfChord: false,
-    hidden: false, silentVoice: false, frameEveryMs: 700, settleSeconds: 9,
+    hidden: false, silentVoice: false, logSteps: false, frameEveryMs: 700, settleSeconds: 9,
   };
   const value = (i: number, name: string): string => {
     const v = argv[i + 1];
@@ -77,6 +83,9 @@ export function parseArgs(argv: readonly string[]): Options {
       case '--settings': options.settings = value(i, a); i++; break;
       case '--capture-image': options.captureImage = value(i, a); i++; break;
       case '--fake-mic-file': options.fakeMicFile = value(i, a); options.fakeMic = true; i++; break;
+      case '--save-capture': options.saveCapture = value(i, a); i++; break;
+      case '--log-steps': options.logSteps = true; break;
+      case '--question': options.question = value(i, a); i++; break;
       case '--hidden': options.hidden = true; break;
       case '--silent-voice': options.silentVoice = true; break;
       case '--frames-dir': options.framesDir = value(i, a); i++; break;

@@ -7,6 +7,7 @@ import { createClaudeModel } from '../adapters/claude-model.ts';
 import { createCodexModel } from '../adapters/codex-model.ts';
 import { createLocalSpeechServerRecogniser } from '../adapters/local-speech-server.ts';
 import type { Model } from '../adapters/model.ts';
+import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
 import { displayUnderPointer } from './capture.ts';
 import { runGrab } from './grab.ts';
@@ -119,8 +120,12 @@ async function main(): Promise<void> {
   const media = createMedia({ preload: audioPreload, page: audioPage });
   void media.warm();
 
-  const speech = settings.speechServerUrl ? createLocalSpeechServerRecogniser({ url: settings.speechServerUrl }) : null;
-  if (speech) {
+  const fixedQuestion = options.question;
+  const speech: SpeechToText | null = fixedQuestion
+    ? { id: 'fixed-text', transcribe: async () => ({ text: fixedQuestion }) } // checks only: skips the speech server
+    : settings.speechServerUrl ? createLocalSpeechServerRecogniser({ url: settings.speechServerUrl }) : null;
+  if (fixedQuestion) log('question text fixed for this run (speech server not used)');
+  else if (speech) {
     // Only ever asks whether the server is up; the app never starts it.
     speech.warm?.().then(() => log('speech server reachable'), (error: unknown) => log(`speech server: ${error instanceof Error ? error.message : String(error)}`));
   } else log('no speech server in the settings: questions cannot be heard yet');
@@ -145,13 +150,17 @@ async function main(): Promise<void> {
         if (captureImage) return { screenshot: captureImage, ms: 0 };
         const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
         const c = await media.capture(display, settings.screenshotEdge);
+        if (options.saveCapture) writeFileSync(options.saveCapture, Buffer.from(c.screenshot.base64, 'base64'));
         log(`screenshot ${c.screenshot.width}x${c.screenshot.height} (display ${c.nativeWidth}x${c.nativeHeight}) grabbed in ${c.ms} ms`);
         return c;
       },
     },
     speech,
     model: () => model,
-    send: (displayId, message) => overlays.send(displayId, message),
+    send: (displayId, message) => {
+      if (options.logSteps && message.kind === 'step') log(`step ${JSON.stringify(message.step)}`);
+      overlays.send(displayId, message);
+    },
     log,
     micWindowMs: settings.micWindowMs,
     onReport: (report) => {

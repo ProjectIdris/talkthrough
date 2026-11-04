@@ -27,8 +27,23 @@ window.talkthrough.onDisplay((d) => {
   const bg = document.getElementById('bg');
   if (d.backdrop) { bg.src = d.backdrop; bg.style.display = 'block'; }
 });
+// Live turns: steps are appended and drawn at once; the first one is reported as the first mark and first word.
+let live = { steps: [] };
+let banner = '';
+function drawBanner() {
+  if (!banner) return;
+  ctx.fillStyle = 'black'; ctx.font = '32px sans-serif'; ctx.fillText(banner, 40, canvas.height - 40);
+}
 window.talkthrough.onScene((m) => {
-  if (m.kind === 'clear') ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (m.kind === 'begin') { if (m.turn === 1) live = { steps: [] }; banner = ''; window.__first = false; }
+  if (m.kind === 'step') {
+    live.steps.push(m.step); draw(live, live.steps.length - 1, 99); drawBanner();
+    if (!window.__first) { window.__first = true; const at = Date.now(); window.talkthrough.milestone({ what: 'first-mark', at }); window.talkthrough.milestone({ what: 'first-word', at }); }
+  }
+  if (m.kind === 'end') { if (m.escalate) { banner = 'OFFER: ' + m.escalate; drawBanner(); } setTimeout(() => window.talkthrough.done(), 800); }
+  if (m.kind === 'status') { banner = m.status === 'listening' || m.status === 'working' ? m.status : ''; ctx.clearRect(0, 0, canvas.width, canvas.height); if (live.steps.length) draw(live, live.steps.length - 1, 99); drawBanner(); }
+  if (m.kind === 'notice') { banner = m.text; drawBanner(); }
+  if (m.kind === 'clear') { live = { steps: [] }; ctx.clearRect(0, 0, canvas.width, canvas.height); }
   if (m.kind === 'play') { draw(m.scene, m.scene.steps.length - 1, 99); setTimeout(() => window.talkthrough.done(), 800); }
   if (m.kind === 'seek') { draw(m.scene, m.step, m.t); requestAnimationFrame(() => requestAnimationFrame(() => window.talkthrough.rendered(m.token))); }
 });

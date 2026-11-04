@@ -44,7 +44,7 @@ const DISABLED_FEATURES = ['shell_tool', 'unified_exec', 'apps', 'plugins', 'mul
 
 type Json = Record<string, unknown>;
 type Waiter = { resolve: (value: Json) => void; reject: (error: Error) => void };
-type Turn = { queue: AsyncQueue<ModelOutput>; stream: StepStream; threadId: string; turnId?: string; done: boolean };
+type Turn = { queue: AsyncQueue<ModelOutput>; stream: StepStream; threadId: string; turnId?: string; done: boolean; firstDeltaAt?: number };
 
 export function codexLockdownArgs(fast: boolean): string[] {
   const args = ['-c', 'web_search="disabled"'];
@@ -135,6 +135,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
       }
       case 'item/agentMessage/delta': {
         if (turn.done || typeof params.delta !== 'string') break;
+        turn.firstDeltaAt ??= performance.now();
         try {
           for (const step of turn.stream.push(params.delta)) turn.queue.push({ type: 'step', step });
         } catch (error) {
@@ -264,7 +265,9 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
 
     async *ask(req: ModelRequest): AsyncGenerator<ModelOutput> {
       if (req.signal?.aborted) throw new ModelError('aborted', 'request aborted');
+      const t0 = performance.now();
       const proc = await ensure();
+      const tReady = performance.now();
       const started = await request(proc, 'thread/start', {
         cwd: workDir,
         model: modelName,
@@ -276,6 +279,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
       }).catch((error: unknown) => {
         throw errorFrom(error instanceof Error ? error.message : String(error));
       });
+      const tThread = performance.now();
       const thread = started.thread as Json | undefined;
       const threadId = thread && typeof thread.id === 'string' ? thread.id : '';
       if (!threadId) throw new ModelError('failed', 'codex did not start a thread');
@@ -312,8 +316,11 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
         });
         const t = begun.turn as Json | undefined;
         if (t && typeof t.id === 'string') turn.turnId = t.id;
+        const tTurn = performance.now();
         if (req.signal?.aborted) onAbort();
         yield* turn.queue;
+        const ms = (a: number, b: number) => Math.round(b - a);
+        log(`codex timings: process ${ms(t0, tReady)} ms, thread ${ms(tReady, tThread)} ms, turn accepted ${ms(tThread, tTurn)} ms, first text ${turn.firstDeltaAt === undefined ? '-' : ms(tTurn, turn.firstDeltaAt)} ms after that, all ${ms(tTurn, performance.now())} ms`);
       } finally {
         clearTimeout(timer);
         req.signal?.removeEventListener('abort', onAbort);

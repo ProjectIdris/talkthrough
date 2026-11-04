@@ -56,8 +56,8 @@ export function createMedia(options: { preload: string; page: string }) {
     });
     const ownContents = window.webContents;
     // Only this hidden page may use the microphone or capture the screen.
-    session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => callback(permission === 'media' && contents === ownContents));
-    session.defaultSession.setPermissionCheckHandler((contents, permission) => permission === 'media' && contents === ownContents);
+    session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => callback((permission === 'media' || permission === 'display-capture') && contents === ownContents));
+    session.defaultSession.setPermissionCheckHandler((contents, permission) => (permission === 'media' || permission === 'display-capture') && contents === ownContents);
     ownContents.on('did-fail-load', (_event, code, description) => console.error('[talkthrough] media page failed to load: ' + description + ' (' + code + ')'));
     ready = window.loadFile(options.page).catch((error: unknown) => {
       ready = null; // so the next press tries again
