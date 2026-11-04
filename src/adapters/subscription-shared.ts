@@ -169,8 +169,11 @@ const KIND_WORDS = {
  * What the model is told about the closer picture of what the step before it enlarged (cut from the full-resolution screen), so that points
  * for the parts of that picture are put on the parts themselves: read off the closer picture, then given on the whole screenshot's scale.
  */
-export function pictureText(box: { x: number; y: number; w: number; h: number }, crop: { width: number; height: number }): string {
+export function pictureText(box: { x: number; y: number; w: number; h: number }, crop: { width: number; height: number }, card?: { x: number; y: number; w: number; h: number }): string {
   const r = (n: number) => Math.round(n * 10) / 10;
+  if (card) {
+    return `The picture you enlarged in the step before is also given at full resolution (the last of the images, ${crop.width}x${crop.height} pixels): it is the part of the screen the enlargement card shows, sharper than the card. Marks for the parts of that picture go on the card, where you drew it: the picture fills the card from x ${r(card.x)} to ${r(card.x + card.w)} and from y ${r(card.y)} to ${r(card.y + card.h)} on the 0 to 1000 scale of the whole screenshot. To place a point: find the part on the closer picture, note how far across (u, 0 to 1) and down (v, 0 to 1) it is, and write the point at x = ${r(card.x)} + u * ${r(card.w)}, y = ${r(card.y)} + v * ${r(card.h)}. Put each point on the part itself (an island's land, a chamber's inside), never beside it or on the sea; a label goes beside its point, inside the card.`;
+  }
   return `The picture you enlarged in the step before is also given at full resolution (the last picture of the images, ${crop.width}x${crop.height} pixels): it is the part of the screen from x ${r(box.x)} to ${r(box.x + box.w)}, y ${r(box.y)} to ${r(box.y + box.h)} on the 0 to 1000 scale of the whole screenshot, so ${r(box.w)} wide and ${r(box.h)} tall on that scale. Use it to place points on the parts of that picture: find the part on the closer picture, note how far across (u, 0 to 1) and down (v, 0 to 1) it is, and give the point on the whole screenshot's scale as x = ${r(box.x)} + u * ${r(box.w)}, y = ${r(box.y)} + v * ${r(box.h)}. Put each point on the part itself, not beside it.`;
 }
 
@@ -210,7 +213,7 @@ export function questionText(request: ModelRequest): string {
   const pen = (request.focus ?? []).filter((f) => f.kind !== 'picture');
   const picture = (request.focus ?? []).find((f) => f.kind === 'picture');
   if (pen.length > 0) parts.push(penText(pen));
-  if (picture) parts.push(pictureText(picture.box, picture.crop));
+  if (picture) parts.push(pictureText(picture.box, picture.crop, picture.card));
   parts.push(`The user's question, transcribed from speech (it may contain recognition errors): ${JSON.stringify(request.question)}`);
   if (request.detail) parts.push(detailText(request.detail.steps));
   if (request.stage) parts.push(stageText(request.stage));

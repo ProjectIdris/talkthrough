@@ -7,6 +7,8 @@ export type FocusCrop = {
   box: { x: number; y: number; w: number; h: number };
   /** Default: a circle. */
   kind?: 'circle' | 'underline' | 'arrow' | 'picture';
+  /** For a closer picture of an enlargement: where the enlargement card's picture is drawn on the screenshot (0..1000), the rectangle its points are written in. */
+  card?: { x: number; y: number; w: number; h: number };
   /** A circle that was gone round more than once. */
   loops?: number;
   /** A circle that was not closed. */

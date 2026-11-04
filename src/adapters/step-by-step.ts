@@ -26,14 +26,16 @@ function endsOnWait(step: unknown): boolean {
 }
 
 /** The part of the screenshot a step enlarges (an `image` action's source box, 0..1000), or null. */
-function enlargedBox(step: unknown): { x: number; y: number; w: number; h: number } | null {
+function enlargedBox(step: unknown): { box: { x: number; y: number; w: number; h: number }; card: { x: number; y: number; w: number; h: number } } | null {
   const actions = (step as { actions?: unknown }).actions;
   if (!Array.isArray(actions)) return null;
   for (const a of actions) {
-    const m = a as { op?: unknown; sx?: unknown; sy?: unknown; sw?: unknown; sh?: unknown };
-    if (m.op === 'image' && [m.sx, m.sy, m.sw, m.sh].every((v) => typeof v === 'number' && Number.isFinite(v)) && (m.sw as number) > 0 && (m.sh as number) > 0) {
+    const m = a as { op?: unknown; sx?: unknown; sy?: unknown; sw?: unknown; sh?: unknown; dx?: unknown; dy?: unknown; dw?: unknown };
+    if (m.op === 'image' && [m.sx, m.sy, m.sw, m.sh, m.dx, m.dy, m.dw].every((v) => typeof v === 'number' && Number.isFinite(v)) && (m.sw as number) > 0 && (m.sh as number) > 0 && (m.dw as number) > 0) {
       const x = Math.max(0, Math.min(1000, m.sx as number)), y = Math.max(0, Math.min(1000, m.sy as number));
-      return { x, y, w: Math.min(1000 - x, m.sw as number), h: Math.min(1000 - y, m.sh as number) };
+      // The card shows the part at its own shape (the same scale across and down, so the units agree), with a border of about 8 above the picture.
+      const card = { x: m.dx as number, y: (m.dy as number) + 8, w: m.dw as number, h: ((m.dw as number) * (m.sh as number)) / (m.sw as number) };
+      return { box: { x, y, w: Math.min(1000 - x, m.sw as number), h: Math.min(1000 - y, m.sh as number) }, card };
     }
   }
   return null;
@@ -112,7 +114,7 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
       let asking = false;
       const { focus: _pen, ...plain } = req;
       // What the step just written enlarged, being cut from the full-resolution frame while that step is spoken: the next call gets it as a sharp picture to place points on.
-      let zoom: { box: { x: number; y: number; w: number; h: number }; crop: Promise<Awaited<ReturnType<NonNullable<ModelRequest['cropOf']>>>> } | undefined;
+      let zoom: { box: { x: number; y: number; w: number; h: number }; card: { x: number; y: number; w: number; h: number }; crop: Promise<Awaited<ReturnType<NonNullable<ModelRequest['cropOf']>>>> } | undefined;
       try {
         for (let n = 1; n <= maxSteps; n++) {
           const began = Date.now();
@@ -124,7 +126,7 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
           const closer: FocusCrop[] = [];
           if (zoom) {
             const crop = await zoom.crop;
-            if (crop && !link.signal.aborted) closer.push({ crop, box: zoom.box, kind: 'picture' });
+            if (crop && !link.signal.aborted) closer.push({ crop, box: zoom.box, card: zoom.card, kind: 'picture' });
             log(`step ${n}: ${crop ? 'given a full-resolution picture of what step ' + (n - 1) + ' enlarged' : 'the enlarged part could not be cut (the frame is gone)'}`);
             zoom = undefined;
           }
@@ -142,7 +144,7 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
                 sawStep = true;
                 shown.push(out.step);
                 const enlarged = !fresh && req.cropOf ? enlargedBox(out.step) : null;
-                if (enlarged) zoom = { box: enlarged, crop: req.cropOf!(enlarged).catch(() => null) };
+                if (enlarged) zoom = { box: enlarged.box, card: enlarged.card, crop: req.cropOf!(enlarged.box).catch(() => null) };
                 waited = endsOnWait(out.step);
                 if (waited) waits++;
               }

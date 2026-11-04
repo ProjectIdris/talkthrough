@@ -293,6 +293,7 @@ async function main(): Promise<void> {
         return c;
       },
       release: (grabId) => media.release(grabId),
+      crop: (grabId, box) => media.crop(grabId, box),
       compose: async (grabId, strokes) => {
         const c = await media.compose(grabId, strokes, settings.screenshotEdge);
         if (options.savePen) {
