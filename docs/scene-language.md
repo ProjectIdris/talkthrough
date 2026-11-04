@@ -64,6 +64,21 @@ Marks take `id`, `color` (cards, images and pins may leave it out: the look choo
 | `image` | `sx sy sw sh dx dy dw caption?` | a crop of the screenshot (region `sx,sy,sw,sh`) shown as a card at `dx,dy`, `dw` wide, with an optional caption; it needs the screenshot, so it is left out where the page has none |
 | `pin` | `on point? text off?` | a tag pinned to the 3D object `on`: a dot at `point` (in the object's own space, default its middle), a leader line and the text; `off` is only a hint for the side the tag goes to (screen units from the dot); the renderer places tags itself so they keep off the model, each other and the page's text. It follows the object as it moves and goes when the object does |
 
+## Flat diagrams
+
+When the thing to explain is a process, a sequence of events, a how-to or a trend, and the page has no figure for it, a flat diagram draws one in free space beside the page: written as data, laid out for you, drawn on as you write it. A `diagram` is a rectangle `x,y,w,h` (screen units; it is moved off the page's text like a card, and may be made a little smaller to fit) and its pieces name it with `of`. Pieces keep to their kind of diagram: a piece for another kind is dropped with a reason.
+
+| op | fields | |
+|---|---|---|
+| `diagram` | `id kind x y w h title? xlabel? ylabel? xrange? yrange? color?` | `kind` is `flow`, `timeline`, `steps` or `chart`. `title` is up to 60 characters. `xlabel` and `ylabel` name a chart's axes (24 characters); `xrange` and `yrange` are `[min,max]` and fix the axes, else they fit the data. Sent again under the same id it replaces the diagram and keeps its pieces |
+| `node` | `id of text note? when? pos? color?` | in a `flow` a box; in a `timeline` an event; in `steps` a numbered step (numbered in the order written). `text` is up to 40 characters, `note` a short line under it (60). `when` is the date or time a timeline event is shown with (24), `pos` where it falls on the axis as a number (a day, a year): when every event has one they are spaced to scale, otherwise evenly in the order written |
+| `edge` | `id from to text? color?` | an arrow between two nodes of a flow, drawn on from `from` to `to`; `text` is a label on it (24). Flows are laid out in layers from what nothing points at, the way the arrows run; an arrow back to an earlier node goes round |
+| `series` | `id of pts label? curve? color?` | a line through 2 to 40 points `[x,y]` in chart units, or a smooth curve with `curve` true, drawn along from its first point; `label` names it at its end |
+| `dot` | `id of x y text? color?` | a labelled point of a chart |
+| `tick` | `id done?` | ticks a step of a steps diagram off (`done` false takes the tick away): the guide does this as the person gets through each step |
+
+`at` times each of them like any action, so an edge can be drawn on just as the voice reaches it. A piece with no `at` in a step that is played whole comes half a second after the one before; a piece never comes before the diagram, or the nodes, it belongs to. A diagram holds at most 12 nodes, 24 edges, 4 series and 16 dots, and 3 diagrams are on screen at once. `style` and `highlight` work on a diagram and on each piece; `clear` takes a diagram with all its pieces, or one piece; `clear marks` takes the diagrams with the marks. Pieces added or moved later glide to their new places. An edge goes with the node it leaves (written again, the node does not bring it back); an edge into a node that has been cleared stays and is not drawn while that node is away.
+
 ## The 3D stage
 
 `{ "op": "panel", "x", "y", "w", "h", "frame"?, "at"?, "dur"? }` places the stage as a rectangle on the screenshot: the model is fitted to it, and may reach past it. `frame` true draws a box behind the model; by default there is none. Sent again, it moves or resizes. If objects are added before any `panel`, the renderer uses a default rectangle.
@@ -153,7 +168,7 @@ The user can still drag to rotate; the next camera action tweens from wherever t
 
 ### Clearing
 
-`{ "op": "clear", "target": ... }`: an id (the object and everything attached to it), or `all`, `marks` (every screen mark, card and pin) or `panel` (the stage and its objects, with the pins on them). A cleared id may be used again.
+`{ "op": "clear", "target": ... }`: an id (the object and everything attached to it), or `all`, `marks` (every screen mark, card, flat diagram and pin) or `panel` (the stage and its objects, with the pins on them). A cleared id may be used again.
 
 ## When the user circled something
 
@@ -191,6 +206,8 @@ The validator enforces these; the numbers are in `LIMITS` in `spec.ts`.
 | points in an outline or profile | 40 |
 | copies from arrays | 64 each, 400 in all |
 | rows on a card | 6 |
+| flat diagrams on screen | 3, holding 12 nodes, 24 edges, 4 series and 16 dots each |
+| points in a chart series | 40 |
 | `escalate` | 160 characters |
 
 ## What the validator does

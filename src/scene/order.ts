@@ -5,7 +5,7 @@
 // the raw answer, steps and actions as the model wrote them, before any validation. It is cheap, and it
 // is a measure to watch, not a rule: nothing is dropped because of it.
 
-import { RESERVED_IDS, VARIANTS } from './spec.ts';
+import { RESERVED_IDS, SCREEN_KINDS, VARIANTS } from './spec.ts';
 import type { ObjectKind, Variant } from './spec.ts';
 
 export type OrderScore = {
@@ -81,7 +81,7 @@ export function orderScore(steps: readonly Raw[], known: Iterable<string> = []):
       };
       if (made.has(ref)) {
         const kind = made.get(ref);
-        const fits = kind === undefined || needs === 'any' || (needs === 'holder' ? kind !== 'mark' && kind !== 'pin' && kind !== 'text' : kind !== 'mark' && kind !== 'pin');
+        const fits = kind === undefined || needs === 'any' || (needs === 'holder' ? !SCREEN_KINDS.has(kind) && kind !== 'text' : !SCREEN_KINDS.has(kind));
         if (!fits) {
           result.wrong++;
           note();

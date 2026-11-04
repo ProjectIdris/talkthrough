@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "Here is the method in four steps. I will tick them off as we go.",
+      "actions": [
+        { "op": "diagram", "id": "method", "kind": "steps", "x": 600, "y": 130, "w": 370, "h": 420, "title": "Banana bread" },
+        { "op": "node", "id": "s1", "of": "method", "text": "Cream butter and sugar", "note": "until pale", "at": 0.6 },
+        { "op": "node", "id": "s2", "of": "method", "text": "Beat in eggs and mashed bananas", "at": 1.6 },
+        { "op": "node", "id": "s3", "of": "method", "text": "Fold in flour, soda and salt", "note": "do not overmix", "at": 2.6 },
+        { "op": "node", "id": "s4", "of": "method", "text": "Bake 60 minutes at 175 C", "at": 3.6 }
+      ]
+    },
+    {
+      "say": "First, cream the butter and the sugar until pale. That is done, so on to the eggs.",
+      "actions": [
+        { "op": "tick", "id": "s1", "at": 3 },
+        { "op": "highlight", "id": "s2", "at": 3.4 }
+      ]
+    }
+  ]
+}

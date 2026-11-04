@@ -9,7 +9,7 @@ From back to front inside the overlay window:
 1. **Backdrop** (development and frame grabs only): an image shown behind everything. It is also the source of image-card crops.
 2. **The stage frame** (optional): a rounded box behind the model, only when the scene asks for `frame`. It never takes the pointer.
 3. **The 3D canvas**: one WebGL canvas covering the display. The model floats on it, lit and shadowed, over the page.
-4. **The marks canvas**: a 2D canvas covering the display, drawn in device pixels: marks, tags pinned to 3D parts, note cards, image cards.
+4. **The marks canvas**: a 2D canvas covering the display, drawn in device pixels: marks, tags pinned to 3D parts, note cards, image cards, and over them the flat diagrams.
 5. **The app's own words**: a listening cue, a thinking indicator, an offer card and a short notice (DOM, from `index.html`).
 
 Scene coordinates run 0 to 1000 across each axis of the window, which covers the display that was captured. Every rectangle is snapped to physical pixels, so lines stay crisp at any display scaling.
@@ -76,6 +76,10 @@ Frame grabs can show these states without a pointer: `--steps step:t:az:el:zoom:
 A model writes coordinates without seeing the page, so the overlay moves what it would cover (`src/overlay/placement.ts`). From a small gray picture of the screenshot it finds where there is something on the page (an edge, or a tone that is not the page's own background) and, for the 3D stage and for each note card or crop, picks the nearest free rectangle: off the text, off what the answer points at (boxes, circles, underlines, arrow ends, labels, crop regions), off the stage and off the cards still showing. The stage may come out a little smaller (down to two thirds) to fit. A place that is already free stays where the model put it, a move has to be clearly worth it, and a page with nowhere free is left as written. A card's place is free again when it is cleared. The scene's messages wait, up to a second and a half, for the screenshot to be decoded so the first stage is placed on the real page; without a picture of the page nothing moves. The optional `frame` behind the stage is light over a light page and dark over a dark one.
 
 Marks that are strokes (box, circle, underline, arrow) are drawn on like a pen: 0.8 to 1.2 seconds by length, the leading end feathered, and wiped off along the line when cleared. With the system's "reduce motion" setting they appear and go in one step.
+
+## Flat diagrams
+
+`diagram-plan.ts` plans them in the timeline (a diagram and its pieces have a birth, a death, and changes of colour, opacity, tick and pulse; a piece written again under its id takes the old one's place and key), `diagram-layout.ts` decides where the pieces go inside the rectangle as pure functions of the pieces and the size (layers for a flow, an axis with non-overlapping labels for a timeline, rows for steps, nice ticks and a map from chart units for a chart), and `diagram-draw.ts` draws them in the look of the cards: dark glass, a coloured accent, thin light lines. A piece that is not there yet still counts toward the layout, so a diagram that builds as the model writes it does not jump about; a later arrival moves the others and they glide (the page keeps asking for frames until they are in place). Edges and series are drawn along from their start as the voice reaches them. The diagram's rectangle is placed like a card, and may be shrunk a little to fit a free place, because the drawing scales to it.
 
 ## Cutting a model open
 

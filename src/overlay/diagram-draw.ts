@@ -1,0 +1,626 @@
+// Draws the flat diagrams (flow, timeline, steps, chart) on the marks canvas in the look of the cards and tags: dark glass,
+// a coloured accent, thin light lines. Everything is in CSS pixels inside the diagram's own rectangle. Where pieces
+// go comes from diagram-layout.ts; a piece that is moved by a later arrival eases to its new place instead of jumping.
+
+import type { DiagramFrame, DiagramItemFrame } from './diagram-plan.ts';
+import { bezierPoints, chartLayout, flowLayout, formatTick, smoothPoints, stepsLayout, timelineLayout, routeEdge } from './diagram-layout.ts';
+import type { Pt, Px } from './diagram-layout.ts';
+import type { View } from './marks.ts';
+import { THEME, fontAt } from './theme.ts';
+import { parseColor, rgbCss } from './timeline.ts';
+import type { Rgb } from './timeline.ts';
+import type { EdgeAction, NodeAction, SeriesAction, DotAction } from '../scene/types.ts';
+
+type Ctx = CanvasRenderingContext2D;
+
+const GREEN: Rgb = [92, 224, 168];
+
+function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
+  const rr = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+/** The text cut into lines no wider than `maxW`, at most `maxLines` of them (the last one ends in "..." when cut). */
+export function wrapLines(measure: (s: string) => number, text: string, maxW: number, maxLines: number): string[] {
+  const out: string[] = [];
+  let line = '';
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && measure(next) > maxW) {
+      out.push(line);
+      line = word;
+    } else line = next;
+  }
+  if (line) out.push(line);
+  if (out.length > maxLines) {
+    const kept = out.slice(0, maxLines);
+    kept[maxLines - 1] = `${kept[maxLines - 1] ?? ''}...`;
+    return kept;
+  }
+  return out;
+}
+
+/** A polyline stroked from its start for `fraction` of its length; returns where the stroke ended and the way it was heading there. */
+function strokePartial(ctx: Ctx, pts: readonly Pt[], fraction: number): { tip: Pt; angle: number } {
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i]!.x - pts[i - 1]!.x, pts[i]!.y - pts[i - 1]!.y);
+  let left = total * Math.max(0, Math.min(1, fraction));
+  ctx.beginPath();
+  ctx.moveTo(pts[0]!.x, pts[0]!.y);
+  let tip = pts[0]!;
+  let angle = 0;
+  for (let i = 1; i < pts.length && left > 0; i++) {
+    const a = pts[i - 1]!, b = pts[i]!;
+    const seg = Math.hypot(b.x - a.x, b.y - a.y);
+    angle = Math.atan2(b.y - a.y, b.x - a.x);
+    if (seg <= left) {
+      ctx.lineTo(b.x, b.y);
+      tip = b;
+      left -= seg;
+    } else {
+      const t = left / seg;
+      tip = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+      ctx.lineTo(tip.x, tip.y);
+      left = 0;
+    }
+  }
+  ctx.stroke();
+  return { tip, angle };
+}
+
+const easeOut = (t: number): number => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
+const accentOf = (color: string | undefined, index: number): Rgb => (color !== undefined ? parseColor(color) : (THEME.accents[index % THEME.accents.length] as Rgb));
+
+type Env = { ctx: Ctx; view: View; alpha: number; accent: Rgb; px: number; painter: DiagramPainter; dt: number };
+
+/** Draws diagrams, remembering where each piece was last put so a re-layout glides. One per canvas. */
+export class DiagramPainter {
+  private cur = new Map<string, Px>();
+  private last: number | undefined;
+  moving = false;
+
+  /** A rectangle that eases toward `target` (the first time it is just there). `key` names it; it is forgotten when not asked for. */
+  ease(key: string, target: Px, dt: number, seen: Set<string>): Px {
+    seen.add(key);
+    const was = this.cur.get(key);
+    if (!was) {
+      this.cur.set(key, { ...target });
+      return target;
+    }
+    const k = 1 - Math.exp(-Math.max(0, dt) * 10);
+    const next = { x: was.x + (target.x - was.x) * k, y: was.y + (target.y - was.y) * k, w: was.w + (target.w - was.w) * k, h: was.h + (target.h - was.h) * k };
+    const far = Math.max(Math.abs(target.x - next.x), Math.abs(target.y - next.y), Math.abs(target.w - next.w), Math.abs(target.h - next.h));
+    if (far < 0.4) {
+      this.cur.set(key, { ...target });
+      return target;
+    }
+    this.moving = true;
+    this.cur.set(key, next);
+    return next;
+  }
+
+  /** Draws every diagram of the frame; `now` is a clock in milliseconds. Returns true while something is still gliding into place. */
+  draw(ctx: Ctx, diagrams: readonly DiagramFrame[], view: View, now: number): boolean {
+    const dt = this.last === undefined ? 0 : Math.min(0.1, (now - this.last) / 1000);
+    this.last = now;
+    this.moving = false;
+    const seen = new Set<string>();
+    for (const d of diagrams) {
+      const alpha = Math.max(0, Math.min(1, d.opacity * d.fade));
+      if (alpha <= 0.002 || d.appear <= 0) continue;
+      ctx.save();
+      ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+      try {
+        this.one(ctx, d, view, alpha, dt, seen);
+      } finally {
+        ctx.restore();
+      }
+    }
+    for (const key of [...this.cur.keys()]) if (!seen.has(key)) this.cur.delete(key);
+    return this.moving;
+  }
+
+  private one(ctx: Ctx, d: DiagramFrame, view: View, alpha: number, dt: number, seen: Set<string>): void {
+    const theme = THEME;
+    const r: Px = { x: (d.def.x / 1000) * view.width, y: (d.def.y / 1000) * view.height, w: Math.min((d.def.w / 1000) * view.width, view.width - 8), h: Math.min((d.def.h / 1000) * view.height, view.height - 8) };
+    r.x = Math.max(4, Math.min(view.width - r.w - 4, r.x));
+    r.y = Math.max(4, Math.min(view.height - r.h - 4, r.y));
+    const accent = accentOf(d.color, 0);
+    // One size for the text of the whole diagram, from how much room it has.
+    const scale = Math.max(0.72, Math.min(1.25, Math.min(r.w / 440, r.h / 300)));
+    const base = Math.max(12, Math.min(view.height * 0.0215, view.height * 0.0185 * scale));
+    const pad = Math.max(10, base * 0.9);
+    const slide = (1 - d.appear) * 10;
+    ctx.globalAlpha = alpha * Math.min(1, d.appear * 1.5);
+    ctx.translate(0, slide);
+    ctx.shadowColor = d.pulse > 0 ? rgbCss(d.pulseColor !== undefined ? parseColor(d.pulseColor) : accent, 0.9 * d.pulse) : 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = d.pulse > 0 ? 30 * d.pulse : 24;
+    ctx.shadowOffsetY = d.pulse > 0 ? 0 : 8;
+    ctx.fillStyle = theme.surface;
+    roundRect(ctx, r.x, r.y, r.w, r.h, theme.radius + 3);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = theme.line;
+    ctx.stroke();
+    ctx.fillStyle = rgbCss(accent, 1);
+    roundRect(ctx, r.x, r.y + 10, 4, Math.min(r.h - 20, base * 2.2), 2);
+    ctx.fill();
+    let top = r.y;
+    if (d.def.title) {
+      ctx.font = fontAt(theme.titleFont, base * 1.12);
+      ctx.fillStyle = theme.ink;
+      ctx.textBaseline = 'alphabetic';
+      const lines = wrapLines((s) => ctx.measureText(s).width, d.def.title, r.w - pad * 2, 2);
+      lines.forEach((l, i) => ctx.fillText(l, r.x + pad, r.y + pad + base * 1.12 * (1 + i * 1.1)));
+      top = r.y + pad + base * 1.12 * (1.1 * lines.length) + base * 0.5;
+    }
+    const area: Px = { x: r.x, y: top, w: r.w, h: Math.max(20, r.y + r.h - top) };
+    const env: Env = { ctx, view, alpha: 1, accent, px: base, painter: this, dt };
+    ctx.save();
+    roundRect(ctx, r.x + 1, r.y + 1, r.w - 2, r.h - 2, theme.radius + 2);
+    ctx.clip();
+    switch (d.def.kind) {
+      case 'flow': drawFlow(env, d, area, pad, seen); break;
+      case 'timeline': drawTimeline(env, d, area, pad, seen); break;
+      case 'steps': drawSteps(env, d, area, pad, seen); break;
+      case 'chart': drawChart(env, d, area, pad); break;
+    }
+    ctx.restore();
+  }
+}
+
+/** The alpha of one piece: it comes in with its own `appear`, and goes with its fade and opacity. */
+const pieceAlpha = (it: DiagramItemFrame): number => Math.max(0, Math.min(1, it.opacity * it.fade));
+
+function glow(ctx: Ctx, it: DiagramItemFrame, accent: Rgb): void {
+  if (it.pulse > 0) {
+    ctx.shadowColor = rgbCss(it.pulseColor !== undefined ? parseColor(it.pulseColor) : accent, 0.95 * it.pulse);
+    ctx.shadowBlur = 22 * it.pulse;
+  }
+}
+
+// ---- Flow ------------------------------------------------------------------------------------------
+
+function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<string>): void {
+  const { ctx, painter } = env;
+  const theme = THEME;
+  const nodes = d.items.filter((i): i is DiagramItemFrame & { def: NodeAction } => i.def.op === 'node');
+  const edges = d.items.filter((i): i is DiagramItemFrame & { def: EdgeAction } => i.def.op === 'edge');
+  const maxBox = { w: Math.max(80, env.px * 11), h: Math.max(36, env.px * (nodes.some((n) => n.def.note) ? 4.6 : 3.4)) };
+  ctx.font = fontAt(theme.font, env.px * 0.78);
+  const labelW = Math.max(0, ...edges.map((e) => (e.def.text ? ctx.measureText(e.def.text).width + 12 : 0)));
+  const lay = flowLayout(nodes.map((n) => n.id), edges.map((e) => ({ id: e.id, from: e.def.from, to: e.def.to })), area, { maxBox, pad, labelW, labelH: labelW > 0 ? env.px * 1.55 : 0 });
+  const boxes = new Map<string, Px & { layer: number }>();
+  for (const n of nodes) {
+    const t = lay.nodes.get(n.id);
+    if (t) boxes.set(n.id, { ...painter.ease(`${d.key}:${n.key}`, t, env.dt, seen), layer: t.layer });
+  }
+  // Edges first, so a node sits over the end of its own arrows.
+  edges.forEach((e, k) => {
+    const s = boxes.get(e.def.from), t = boxes.get(e.def.to);
+    if (!s || !t || e.appear <= 0) return;
+    const route = routeEdge(lay.dir, s, t);
+    const color = accentOf(e.color, 0);
+    const a = pieceAlpha(e) * d.appear;
+    const pts = bezierPoints(route.a, route.b, route.c, route.d);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = a * 0.55;
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 4.4;
+    strokePartial(ctx, pts, easeOut(e.appear));
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = rgbCss(color, 1);
+    ctx.lineWidth = 2;
+    glow(ctx, e, color);
+    const { tip, angle } = strokePartial(ctx, pts, easeOut(e.appear));
+    ctx.shadowBlur = 0;
+    if (e.appear > 0.55) {
+      const h = Math.max(7, env.px * 0.55);
+      ctx.fillStyle = rgbCss(color, 1);
+      ctx.beginPath();
+      ctx.moveTo(tip.x, tip.y);
+      ctx.lineTo(tip.x - h * Math.cos(angle - 0.45), tip.y - h * Math.sin(angle - 0.45));
+      ctx.lineTo(tip.x - h * Math.cos(angle + 0.45), tip.y - h * Math.sin(angle + 0.45));
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (e.def.text && e.appear > 0.7) {
+      const px = env.px * 0.78;
+      ctx.font = fontAt(theme.font, px);
+      const tw = ctx.measureText(e.def.text).width;
+      ctx.globalAlpha = a * Math.min(1, (e.appear - 0.7) / 0.3);
+      ctx.fillStyle = theme.surface;
+      roundRect(ctx, route.mid.x - tw / 2 - 6, route.mid.y - px * 0.78, tw + 12, px * 1.55, px * 0.7);
+      ctx.fill();
+      ctx.fillStyle = theme.muted;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(e.def.text, route.mid.x - tw / 2, route.mid.y + px * 0.04);
+    }
+    ctx.restore();
+    void k;
+  });
+  nodes.forEach((n, i) => {
+    const b = boxes.get(n.id);
+    if (!b || n.appear <= 0) return;
+    const color = accentOf(n.color, n.color === undefined ? 0 : i);
+    const a = pieceAlpha(n) * d.appear;
+    const grow = 0.9 + 0.1 * easeOut(n.appear);
+    ctx.save();
+    ctx.globalAlpha = a * Math.min(1, n.appear * 1.6);
+    const mx = b.x + b.w / 2, my = b.y + b.h / 2;
+    ctx.translate(mx, my);
+    ctx.scale(grow, grow);
+    ctx.translate(-mx, -my);
+    glow(ctx, n, color);
+    ctx.fillStyle = 'rgba(255,255,255,0.075)';
+    roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.h * 0.3));
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = rgbCss(color, 0.85);
+    ctx.stroke();
+    textInBox(ctx, n.def.text, n.def.note, b, env.px, theme.ink, theme.muted);
+    ctx.restore();
+  });
+}
+
+/** Centred text (and an optional smaller note under it) fitted inside a box: the size comes down until it fits. */
+function textInBox(ctx: Ctx, text: string, note: string | undefined, b: Px, basePx: number, ink: string, muted: string): void {
+  const innerW = b.w - 14;
+  let px = Math.max(9, Math.min(basePx * 1.05, b.h * 0.36));
+  let lines: string[] = [];
+  for (; px >= 9; px -= 1) {
+    ctx.font = fontAt(THEME.font, px);
+    lines = wrapLines((s) => ctx.measureText(s).width, text, innerW, 3);
+    const noteRoom = note && b.h >= 44 ? px * 0.95 : 0;
+    if (lines.every((l) => ctx.measureText(l).width <= innerW) && lines.length * px * 1.2 + noteRoom <= b.h - 8) break;
+  }
+  const notePx = Math.max(9, px * 0.82);
+  const noteLines = note && b.h >= 44 ? wrapLines((s) => { ctx.font = fontAt(THEME.font, notePx); return ctx.measureText(s).width; }, note, innerW, 2) : [];
+  const total = lines.length * px * 1.2 + noteLines.length * notePx * 1.2;
+  let y = b.y + (b.h - total) / 2 + px * 0.95;
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = fontAt(THEME.font, px);
+  ctx.fillStyle = ink;
+  for (const l of lines) {
+    ctx.fillText(l, b.x + b.w / 2 - ctx.measureText(l).width / 2, y);
+    y += px * 1.2;
+  }
+  ctx.font = fontAt(THEME.font, notePx);
+  ctx.fillStyle = muted;
+  for (const l of noteLines) {
+    ctx.fillText(l, b.x + b.w / 2 - ctx.measureText(l).width / 2, y);
+    y += notePx * 1.2;
+  }
+}
+
+// ---- Timeline --------------------------------------------------------------------------------------
+
+function drawTimeline(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<string>): void {
+  const { ctx } = env;
+  const theme = THEME;
+  const events = d.items.filter((i): i is DiagramItemFrame & { def: NodeAction } => i.def.op === 'node');
+  if (events.length === 0) return;
+  const measureAt = (font: string) => (t: string): number => { ctx.font = font; return ctx.measureText(t).width; };
+  type Label = { when: string[]; text: string[]; note: string[]; w: number; h: number };
+  const build = (px: number): { labels: Map<string, Label>; lay: ReturnType<typeof timelineLayout> } => {
+  const whenPx = px * 1.08, textPx = px, notePx = px * 0.84;
+  // Each label: its lines and size, wrapped to a width that leaves room for the others.
+  const maxW = Math.max(70, Math.min(area.w * 0.3, px * 15));
+  const labels = new Map<string, Label>();
+  for (const e of events) {
+    const when = e.def.when ? wrapLines(measureAt(fontAt(theme.titleFont, whenPx)), e.def.when, maxW, 1) : [];
+    const text = wrapLines(measureAt(fontAt(theme.font, textPx)), e.def.text, maxW, 3);
+    const note = e.def.note ? wrapLines(measureAt(fontAt(theme.font, notePx)), e.def.note, maxW, 2) : [];
+    let w = 0;
+    for (const l of when) w = Math.max(w, measureAt(fontAt(theme.titleFont, whenPx))(l));
+    for (const l of text) w = Math.max(w, measureAt(fontAt(theme.font, textPx))(l));
+    for (const l of note) w = Math.max(w, measureAt(fontAt(theme.font, notePx))(l));
+    labels.set(e.id, { when, text, note, w: w + 4, h: when.length * whenPx * 1.25 + text.length * textPx * 1.22 + note.length * notePx * 1.2 + 2 });
+  }
+  const lay = timelineLayout(events.map((e) => ({ id: e.id, ...(e.def.pos !== undefined ? { pos: e.def.pos } : {}) })), area, pad, (id) => labels.get(id) ?? { w: 40, h: 20 });
+  return { labels, lay };
+  };
+  // If the labels do not fit the room, the text comes down a size at a time (to a floor) until they do.
+  let px = env.px * 1.02;
+  let made = build(px);
+  for (let tries = 0; made.lay.overflow && px > env.px * 0.62 && tries < 6; tries++) {
+    px *= 0.92;
+    made = build(px);
+  }
+  const { labels, lay } = made;
+  const whenPx = px * 1.08, textPx = px, notePx = px * 0.84;
+  // The axis draws on along with the diagram.
+  ctx.save();
+  ctx.globalAlpha = d.appear * 0.9;
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(lay.axis.a.x, lay.axis.a.y);
+  ctx.lineTo(lay.axis.b.x, lay.axis.b.y);
+  ctx.stroke();
+  ctx.restore();
+  events.forEach((e, i) => {
+    const slot = lay.events.get(e.id);
+    const label = labels.get(e.id);
+    if (!slot || !label || e.appear <= 0) return;
+    const dotBox = env.painter.ease(`${d.key}:${e.key}`, { x: slot.dot.x, y: slot.dot.y, w: 0, h: 0 }, env.dt, seen);
+    const dot = { x: dotBox.x, y: dotBox.y };
+    const rect = env.painter.ease(`${d.key}:${e.key}:label`, slot.rect, env.dt, seen);
+    const color = accentOf(e.color, e.color === undefined ? 0 : i);
+    const a = pieceAlpha(e) * d.appear;
+    ctx.save();
+    glow(ctx, e, color);
+    const pop = easeOut(e.appear / 0.5);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = theme.surface;
+    ctx.beginPath();
+    ctx.arc(dot.x, dot.y, 8 * pop, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = rgbCss(color, 1);
+    ctx.beginPath();
+    ctx.arc(dot.x, dot.y, 5.2 * pop, 0, Math.PI * 2);
+    ctx.fill();
+    const show = easeOut((e.appear - 0.35) / 0.65);
+    if (show > 0) {
+      ctx.globalAlpha = a * show;
+      // The stem from the dot to the label.
+      ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      if (lay.horizontal) {
+        ctx.moveTo(dot.x, dot.y + slot.side * 8);
+        ctx.lineTo(dot.x, slot.side === -1 ? rect.y + rect.h + 2 : rect.y - 2);
+      } else {
+        ctx.moveTo(dot.x + 8, dot.y);
+        ctx.lineTo(rect.x - 3, Math.max(rect.y + 6, Math.min(rect.y + rect.h - 6, dot.y)));
+      }
+      ctx.stroke();
+      ctx.textBaseline = 'alphabetic';
+      let y = rect.y;
+      const center = lay.horizontal;
+      const put = (l: string, font: string, ink: string, size: number, lead: number): void => {
+        ctx.font = font;
+        ctx.fillStyle = ink;
+        y += size * lead * 0.82;
+        const w = ctx.measureText(l).width;
+        ctx.fillText(l, center ? rect.x + (rect.w - w) / 2 : rect.x, y);
+        y += size * lead * 0.18;
+      };
+      for (const l of label.when) put(l, fontAt(theme.titleFont, whenPx), rgbCss(color, 1), whenPx, 1.25);
+      for (const l of label.text) put(l, fontAt(theme.font, textPx), theme.ink, textPx, 1.22);
+      for (const l of label.note) put(l, fontAt(theme.font, notePx), theme.muted, notePx, 1.2);
+    }
+    ctx.restore();
+  });
+}
+
+// ---- Steps -----------------------------------------------------------------------------------------
+
+function drawSteps(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<string>): void {
+  const { ctx } = env;
+  const theme = THEME;
+  const steps = d.items.filter((i): i is DiagramItemFrame & { def: NodeAction } => i.def.op === 'node');
+  if (steps.length === 0) return;
+  const lay = stepsLayout(steps.length, area, pad, env.px * 4.4);
+  steps.forEach((s, i) => {
+    const target = lay.rows[i];
+    if (!target || s.appear <= 0) return;
+    const row = env.painter.ease(`${d.key}:${s.key}`, target, env.dt, seen);
+    const color = accentOf(s.color, i);
+    const a = pieceAlpha(s) * d.appear;
+    const done = s.done;
+    ctx.save();
+    ctx.globalAlpha = a * Math.min(1, s.appear * 1.6);
+    ctx.translate((1 - easeOut(s.appear)) * -8, 0);
+    glow(ctx, s, color);
+    const r = Math.max(9, Math.min(row.h * 0.32, env.px * 0.95));
+    const cx = row.x + r + 2, cy = row.y + row.h / 2;
+    ctx.fillStyle = done > 0 ? rgbCss(GREEN, done) : 'rgba(255,255,255,0.06)';
+    ctx.strokeStyle = done > 0.5 ? rgbCss(GREEN, 1) : rgbCss(color, 1);
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.textBaseline = 'middle';
+    if (done > 0.5) {
+      ctx.strokeStyle = '#10141c';
+      ctx.lineWidth = 2.4;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx - r * 0.42, cy + r * 0.02);
+      ctx.lineTo(cx - r * 0.1, cy + r * 0.34);
+      ctx.lineTo(cx + r * 0.44, cy - r * 0.32);
+      ctx.stroke();
+    } else {
+      ctx.font = fontAt(theme.titleFont, r * 1.1);
+      ctx.fillStyle = theme.ink;
+      const n = String(i + 1);
+      ctx.fillText(n, cx - ctx.measureText(n).width / 2, cy + r * 0.05);
+    }
+    const x = cx + r + env.px * 0.7;
+    const innerW = row.x + row.w - x - 4;
+    const px = Math.min(env.px * 1.02, row.h * 0.4);
+    const notePx = px * 0.82;
+    const measure = (font: string) => (t: string): number => { ctx.font = font; return ctx.measureText(t).width; };
+    const text = wrapLines(measure(fontAt(theme.font, px)), s.def.text, innerW, row.h > px * 3.2 ? 2 : 1);
+    const note = s.def.note && row.h > px * (text.length * 1.25 + 1.9) ? wrapLines(measure(fontAt(theme.font, notePx)), s.def.note, innerW, 1) : [];
+    const total = text.length * px * 1.22 + note.length * notePx * 1.2;
+    let y = cy - total / 2;
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = done > 0.5 ? theme.muted : theme.ink;
+    ctx.font = fontAt(theme.font, px);
+    for (const l of text) {
+      y += px * 1.0;
+      ctx.fillText(l, x, y);
+      y += px * 0.22;
+    }
+    ctx.font = fontAt(theme.font, notePx);
+    ctx.fillStyle = theme.muted;
+    for (const l of note) {
+      y += notePx * 1.0;
+      ctx.fillText(l, x, y);
+      y += notePx * 0.2;
+    }
+    ctx.restore();
+  });
+}
+
+// ---- Chart -----------------------------------------------------------------------------------------
+
+function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
+  const { ctx } = env;
+  const theme = THEME;
+  const series = d.items.filter((i): i is DiagramItemFrame & { def: SeriesAction } => i.def.op === 'series');
+  const dots = d.items.filter((i): i is DiagramItemFrame & { def: DotAction } => i.def.op === 'dot');
+  const tickPx = env.px * 0.78;
+  ctx.font = fontAt(theme.font, tickPx);
+  const probe = chartLayout(
+    { series: series.map((s) => ({ pts: s.def.pts as Array<[number, number]> })), dots: dots.map((p) => ({ x: p.def.x, y: p.def.y })), ...(d.def.xrange ? { xrange: d.def.xrange } : {}), ...(d.def.yrange ? { yrange: d.def.yrange } : {}) },
+    area, { left: 40, bottom: 30, top: 8, right: 20 },
+  );
+  const yLabelW = Math.max(0, ...probe.yTicks.map((t) => ctx.measureText(formatTick(t.v)).width));
+  const labelRoom = Math.max(0, ...series.map((s) => (s.def.label ? Math.min(area.w * 0.28, ctx.measureText(s.def.label).width + 10) : 0)));
+  const room = {
+    left: pad * 0.6 + yLabelW + (d.def.ylabel ? tickPx * 1.5 : 0) + 8,
+    bottom: tickPx * 2 + (d.def.xlabel ? tickPx * 1.6 : 0) + 6,
+    top: 10,
+    right: Math.max(18, labelRoom),
+  };
+  const lay = chartLayout(
+    { series: series.map((s) => ({ pts: s.def.pts as Array<[number, number]> })), dots: dots.map((p) => ({ x: p.def.x, y: p.def.y })), ...(d.def.xrange ? { xrange: d.def.xrange } : {}), ...(d.def.yrange ? { yrange: d.def.yrange } : {}) },
+    area, room,
+  );
+  const { plot } = lay;
+  ctx.save();
+  ctx.globalAlpha = d.appear;
+  // Grid and axes.
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+  ctx.beginPath();
+  for (const t of lay.yTicks) { ctx.moveTo(plot.x, t.px); ctx.lineTo(plot.x + plot.w, t.px); }
+  for (const t of lay.xTicks) { ctx.moveTo(t.px, plot.y); ctx.lineTo(t.px, plot.y + plot.h); }
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(plot.x, plot.y);
+  ctx.lineTo(plot.x, plot.y + plot.h);
+  ctx.lineTo(plot.x + plot.w, plot.y + plot.h);
+  ctx.stroke();
+  ctx.fillStyle = theme.muted;
+  ctx.font = fontAt(theme.font, tickPx);
+  ctx.textBaseline = 'middle';
+  for (const t of lay.yTicks) {
+    const s = formatTick(t.v);
+    ctx.fillText(s, plot.x - 6 - ctx.measureText(s).width, t.px);
+  }
+  ctx.textBaseline = 'alphabetic';
+  for (const t of lay.xTicks) {
+    const s = formatTick(t.v);
+    ctx.fillText(s, t.px - ctx.measureText(s).width / 2, plot.y + plot.h + tickPx * 1.45);
+  }
+  ctx.font = fontAt(theme.font, tickPx * 1.05);
+  ctx.fillStyle = theme.ink;
+  if (d.def.xlabel) ctx.fillText(d.def.xlabel, plot.x + plot.w / 2 - ctx.measureText(d.def.xlabel).width / 2, plot.y + plot.h + tickPx * 3.2);
+  if (d.def.ylabel) {
+    ctx.save();
+    ctx.translate(area.x + pad * 0.6 + tickPx * 0.5, plot.y + plot.h / 2 + ctx.measureText(d.def.ylabel).width / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(d.def.ylabel, 0, 0);
+    ctx.restore();
+  }
+  ctx.restore();
+  // Lines and curves, drawn along from their first point; they stay inside the plot.
+  series.forEach((s, i) => {
+    if (s.appear <= 0) return;
+    const color = accentOf(s.color, i);
+    const px = s.def.pts.map(([x, y]) => lay.toPx(x, y));
+    const pts = s.def.curve ? smoothPoints(px) : px;
+    const a = pieceAlpha(s) * d.appear;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(plot.x - 2, plot.y - 4, plot.w + 4, plot.h + 8);
+    ctx.clip();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = a * 0.5;
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 6;
+    strokePartial(ctx, pts, easeOut(s.appear));
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = rgbCss(color, 1);
+    ctx.lineWidth = 3;
+    glow(ctx, s, color);
+    const { tip } = strokePartial(ctx, pts, easeOut(s.appear));
+    ctx.restore();
+    if (s.def.label && s.appear > 0.8) {
+      ctx.save();
+      ctx.globalAlpha = a * Math.min(1, (s.appear - 0.8) / 0.2);
+      ctx.font = fontAt(theme.titleFont, tickPx * 1.1);
+      ctx.fillStyle = rgbCss(color, 1);
+      ctx.textBaseline = 'middle';
+      const end = pts[pts.length - 1]!;
+      const w = ctx.measureText(s.def.label).width;
+      const x = end.x + 8 + w <= area.x + area.w - 4 ? end.x + 8 : end.x - 8 - w;
+      ctx.fillText(s.def.label, x, Math.max(plot.y + 6, Math.min(plot.y + plot.h - 6, end.y - (x < end.x ? 12 : 0))));
+      ctx.restore();
+    }
+    void tip;
+  });
+  dots.forEach((p, i) => {
+    if (p.appear <= 0) return;
+    const color = accentOf(p.color, series.length + i);
+    const c = lay.toPx(p.def.x, p.def.y);
+    const a = pieceAlpha(p) * d.appear;
+    const pop = easeOut(p.appear / 0.5);
+    ctx.save();
+    ctx.globalAlpha = a;
+    glow(ctx, p, color);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 6.5 * pop, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = rgbCss(color, 1);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 3.6 * pop, 0, Math.PI * 2);
+    ctx.fill();
+    if (p.def.text && p.appear > 0.5) {
+      ctx.globalAlpha = a * Math.min(1, (p.appear - 0.5) / 0.5);
+      const px = tickPx * 1.05;
+      ctx.font = fontAt(theme.font, px);
+      const w = ctx.measureText(p.def.text).width;
+      // Beside the dot, on the side with room, kept inside the diagram.
+      const right = c.x + 12 + w + 12 <= area.x + area.w - 4;
+      const lx = right ? c.x + 12 : c.x - 12 - w - 12;
+      const above = c.y - px * 1.6 > area.y;
+      const ly = above ? c.y - px * 1.4 : c.y + px * 0.2;
+      ctx.fillStyle = theme.surface;
+      roundRect(ctx, lx, ly, w + 12, px * 1.5, px * 0.7);
+      ctx.fill();
+      ctx.strokeStyle = theme.line;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = theme.ink;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(p.def.text, lx + 6, ly + px * 0.78);
+    }
+    ctx.restore();
+  });
+}

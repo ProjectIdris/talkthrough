@@ -31,10 +31,32 @@ export const LIMITS = {
   maxCopies: 400,
   /** Rows of a note card. */
   maxRows: 6,
+  /** Flat diagrams alive at once, and what one may hold. */
+  maxDiagrams: 3,
+  maxNodes: 12,
+  maxEdges: 24,
+  maxSeries: 4,
+  maxDots: 16,
+  /** Points of one line or curve of a chart. */
+  maxSeriesPts: 40,
 } as const;
 
-/** `pin` is a label pinned to a 3D object: it lives on the screen but goes with its object. */
-export type ObjectKind = 'mark' | 'pin' | 'solid' | 'path' | 'text' | 'group';
+/** The flat diagrams a `diagram` action draws. */
+export const DIAGRAM_KINDS = ['flow', 'timeline', 'steps', 'chart'] as const;
+export type DiagramKind = (typeof DIAGRAM_KINDS)[number];
+/** The bounds of a number on a chart's axes or a timeline (the validator clamps to them). */
+const AXIS = { min: -1_000_000, max: 1_000_000 } as const;
+
+/**
+ * `pin` is a label pinned to a 3D object: it lives on the screen but goes with its object. `diagram` is a flat diagram on the
+ * screen, and `node`, `edge`, `series` and `dot` are what is drawn in it.
+ */
+export type ObjectKind = 'mark' | 'pin' | 'solid' | 'path' | 'text' | 'group' | 'diagram' | 'node' | 'edge' | 'series' | 'dot';
+
+/** The kinds that live on the screen and are not 3D objects: none can be moved, turned or hold parts. */
+export const SCREEN_KINDS: ReadonlySet<string | undefined> = new Set(['mark', 'pin', 'diagram', 'node', 'edge', 'series', 'dot']);
+/** The kinds that make up a flat diagram: a `clear` of marks takes them away with the marks. */
+export const DIAGRAM_PARTS: ReadonlySet<string | undefined> = new Set(['diagram', 'node', 'edge', 'series', 'dot']);
 
 /** One field of an action. `opt` fields may be missing or null. */
 export type Field =
@@ -44,7 +66,7 @@ export type Field =
   | { k: 'color'; opt?: boolean; doc?: string }
   | { k: 'newId'; doc?: string }
   /** An existing id. `of` limits which kinds it may name. */
-  | { k: 'ref'; of: 'any' | 'object3d'; opt?: boolean; doc?: string }
+  | { k: 'ref'; of: 'any' | 'object3d' | 'diagram' | 'node'; opt?: boolean; doc?: string }
   | { k: 'parent'; opt?: boolean; doc?: string }
   /** An id, or one of the reserved clear targets. */
   | { k: 'target'; doc?: string }
@@ -150,6 +172,53 @@ export const VARIANTS: readonly Variant[] = [
       dx: { k: 'num', ...SCREEN }, dy: { k: 'num', ...SCREEN }, dw: { k: 'num', min: 40, max: 800 },
       caption: { k: 'str', min: 1, max: 60, opt: true }, color: COLOR_OPT, at: AT,
     },
+  },
+  {
+    name: 'diagram', op: 'diagram', creates: 'diagram',
+    doc: 'A flat diagram in the rectangle x,y,w,h (moved off the page\'s text if it sits on it), filled by node, edge, series and dot pieces that name it with of. kind flow: nodes joined by edges, laid out for you. timeline: nodes along an axis. steps: numbered nodes, ticked off with tick. chart: series (lines or curves through points) and dots on labelled axes; xrange and yrange [min,max] fix the axes, else they fit the data. Sent again under the same id it replaces the diagram.',
+    fields: {
+      id: { k: 'newId' }, kind: { k: 'enum', values: DIAGRAM_KINDS },
+      x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN }, w: { k: 'num', min: 80, max: 1000 }, h: { k: 'num', min: 60, max: 1000 },
+      title: { k: 'str', min: 1, max: 60, opt: true }, xlabel: { k: 'str', min: 1, max: 24, opt: true }, ylabel: { k: 'str', min: 1, max: 24, opt: true },
+      xrange: { k: 'vec2', ...AXIS, opt: true }, yrange: { k: 'vec2', ...AXIS, opt: true }, color: COLOR_OPT, at: AT,
+    },
+  },
+  {
+    name: 'node', op: 'node', creates: 'node', attach: 'of',
+    doc: 'A piece of a flow, timeline or steps diagram: a box in a flow; an event on a timeline (when is its date, pos where it falls on the axis as a number, else events are spread in the order written); a numbered step in steps (in the order written). note is a short line under the text. A piece with no at appears with the words, one after another.',
+    fields: {
+      id: { k: 'newId' }, of: { k: 'ref', of: 'diagram' }, text: { k: 'str', min: 1, max: 40 }, note: { k: 'str', min: 1, max: 60, opt: true },
+      when: { k: 'str', min: 1, max: 24, opt: true }, pos: { k: 'num', ...AXIS, opt: true }, color: COLOR_OPT, at: AT,
+    },
+  },
+  {
+    name: 'edge', op: 'edge', creates: 'edge', attach: 'from',
+    doc: 'An arrow from one node of a flow to another, drawn on as it comes in; text is a short label on it.',
+    fields: {
+      id: { k: 'newId' }, from: { k: 'ref', of: 'node' }, to: { k: 'ref', of: 'node' },
+      text: { k: 'str', min: 1, max: 24, opt: true }, color: COLOR_OPT, at: AT,
+    },
+  },
+  {
+    name: 'series', op: 'series', creates: 'series', attach: 'of',
+    doc: 'A line (a smooth curve with curve true) through points [x,y] in chart units, drawn along from its first point; label names it at its end.',
+    fields: {
+      id: { k: 'newId' }, of: { k: 'ref', of: 'diagram' }, pts: { k: 'pts2', min: 2, max: LIMITS.maxSeriesPts, lo: AXIS.min, hi: AXIS.max },
+      label: { k: 'str', min: 1, max: 24, opt: true }, curve: { k: 'bool', opt: true }, color: COLOR_OPT, at: AT,
+    },
+  },
+  {
+    name: 'dot', op: 'dot', creates: 'dot', attach: 'of',
+    doc: 'A labelled point of a chart at x,y in chart units.',
+    fields: {
+      id: { k: 'newId' }, of: { k: 'ref', of: 'diagram' }, x: { k: 'num', ...AXIS }, y: { k: 'num', ...AXIS },
+      text: { k: 'str', min: 1, max: 30, opt: true }, color: COLOR_OPT, at: AT,
+    },
+  },
+  {
+    name: 'tick', op: 'tick',
+    doc: 'Tick a step of a steps diagram off (done false takes the tick away): the guide does this as the person gets through each step.',
+    fields: { id: { k: 'ref', of: 'node' }, done: { k: 'bool', opt: true }, at: AT },
   },
   {
     name: 'panel', op: 'panel',
@@ -342,7 +411,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'clear', op: 'clear',
-    doc: 'Remove an object or mark (and what is attached to it), or everything with "all", every mark, card and pin with "marks", the 3D stage and its objects with "panel".',
+    doc: 'Remove an object or mark (and what is attached to it), or everything with "all", every mark, card, diagram and pin with "marks", the 3D stage and its objects with "panel".',
     fields: { target: { k: 'target' }, at: AT },
   },
 ];

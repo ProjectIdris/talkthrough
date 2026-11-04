@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "As the price goes up buyers want less, so demand slopes down; sellers offer more, so supply slopes up. They meet where the market settles.",
+      "actions": [
+        { "op": "diagram", "id": "market", "kind": "chart", "x": 560, "y": 130, "w": 400, "h": 420, "title": "Supply and demand", "xlabel": "Quantity", "ylabel": "Price", "xrange": [0, 10], "yrange": [0, 10] },
+        { "op": "series", "id": "demand", "of": "market", "pts": [[1, 9], [3, 6.2], [5, 4.6], [7, 3.4], [9, 2.4]], "label": "Demand", "curve": true, "color": "red", "at": 1 },
+        { "op": "series", "id": "supply", "of": "market", "pts": [[1, 1.6], [3, 3], [5, 4.6], [7, 6.4], [9, 8.8]], "label": "Supply", "curve": true, "color": "blue", "at": 3.4 },
+        { "op": "dot", "id": "eq", "of": "market", "x": 5, "y": 4.6, "text": "Equilibrium", "color": "green", "at": 6 }
+      ]
+    }
+  ]
+}

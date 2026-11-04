@@ -176,6 +176,15 @@ export class Placer {
     return placed;
   }
 
+  /** Where a flat diagram goes: like a card, but it may also be a little smaller, down to three quarters (its drawing scales to its rectangle, and its small print needs the room). */
+  diagram(want: Box, id: string): Box {
+    const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...(this.stage ? [this.stage] : [])];
+    // What the answer points at is what the diagram explains: keeping off it counts for three times as much as it does for a card.
+    const placed = this.search(want, [1, 0.88, 0.76], [...keepOut, ...this.reserved, ...this.reserved]);
+    this.cards.set(id, placed);
+    return placed;
+  }
+
   /** A card or crop went (cleared by id, or all of them): its place is free for the next. */
   release(target: string): void {
     if (target === 'all' || target === 'marks') this.cards.clear();
@@ -225,6 +234,11 @@ export function placeAction(placer: Placer, a: Action, screenHeight: number): Ac
     const w = a.w ?? 300;
     const box = placer.card({ x: a.x, y: a.y, w, h: cardHeightUnits(a, screenHeight) }, a.id);
     return box.x === a.x && box.y === a.y ? a : { ...a, x: Math.round(box.x), y: Math.round(box.y) };
+  }
+  if (a.op === 'diagram') {
+    // A diagram is kept off the page's text like a card, and out of the stage and the other cards.
+    const box = placer.diagram({ x: a.x, y: a.y, w: a.w, h: a.h }, a.id);
+    return box.x === a.x && box.y === a.y && box.w === a.w && box.h === a.h ? a : { ...a, ...round(box) };
   }
   if (a.op === 'image') {
     const h = Math.max(40, (a.dw * a.sh) / Math.max(1, a.sw) * 1.6);

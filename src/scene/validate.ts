@@ -3,8 +3,8 @@
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
 import { nearestPaletteColor } from './colors.ts';
-import { ID_PATTERN, LIMITS, PALETTE, RESERVED_IDS, VARIANTS } from './spec.ts';
-import type { Field, ObjectKind, Variant } from './spec.ts';
+import { DIAGRAM_PARTS, ID_PATTERN, LIMITS, PALETTE, RESERVED_IDS, SCREEN_KINDS, VARIANTS } from './spec.ts';
+import type { DiagramKind, Field, ObjectKind, Variant } from './spec.ts';
 import type { Action, Issue, IssueKind, Scene, Step } from './types.ts';
 
 /** What the scene holds so far. Keep one per session and pass it to every turn so follow-ups reach earlier ids. */
@@ -12,6 +12,8 @@ export type SceneState = {
   ids: Map<string, ObjectKind>;
   parents: Map<string, string | undefined>;
   depth: Map<string, number>;
+  /** What each flat diagram on screen is (flow, timeline, steps or chart), which says what may be drawn in it. */
+  diagramKinds: Map<string, DiagramKind>;
   turnSteps: number;
   turnActions: number;
   /** Copies made by `array` actions so far. */
@@ -34,7 +36,7 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 export function createSceneState(): SceneState {
-  return { ids: new Map(), parents: new Map(), depth: new Map(), turnSteps: 0, turnActions: 0, copies: 0 };
+  return { ids: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), turnSteps: 0, turnActions: 0, copies: 0 };
 }
 
 /**
@@ -43,7 +45,7 @@ export function createSceneState(): SceneState {
  */
 export function createDetailState(onScreen: SceneState): SceneState {
   return {
-    ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth),
+    ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds),
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
   };
 }
@@ -152,14 +154,17 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       if (typeof v !== 'string') return bad('expected an id');
       const kind = state.ids.get(v);
       if (!kind) return bad(`unknown id "${v}"`);
-      return f.of === 'object3d' && (kind === 'mark' || kind === 'pin') ? bad(`"${v}" is a screen mark, not a 3D object`) : good(v);
+      if (f.of === 'object3d' && SCREEN_KINDS.has(kind)) return bad(`"${v}" is on the screen (a mark or diagram), not a 3D object`);
+      if (f.of === 'diagram' && kind !== 'diagram') return bad(`"${v}" is not a diagram`);
+      if (f.of === 'node' && kind !== 'node') return bad(`"${v}" is not a node`);
+      return good(v);
     }
     case 'parent': {
       if (typeof v !== 'string') return bad('expected the id of a group or a part');
       // Any 3D object can hold children: a group, or a part or shape that others are attached to.
       const kind = state.ids.get(v);
       if (!kind) return bad(`unknown id "${v}"`);
-      if (kind === 'mark' || kind === 'pin' || kind === 'text') return bad(`"${v}" cannot hold parts`);
+      if (SCREEN_KINDS.has(kind) || kind === 'text') return bad(`"${v}" cannot hold parts`);
       return (state.depth.get(v) ?? 0) + 1 > LIMITS.maxDepth ? bad('groups nested too deep') : good(v);
     }
     case 'target':
@@ -242,16 +247,18 @@ function removeWithDescendants(state: SceneState, id: string): void {
     state.ids.delete(d);
     state.parents.delete(d);
     state.depth.delete(d);
+    state.diagramKinds.delete(d);
   }
 }
 
 function applyClear(state: SceneState, target: string): void {
   if (target === 'all') {
-    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.copies = 0;
+    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.copies = 0;
   } else if (target === 'marks' || target === 'panel') {
+    // Marks, pins and flat diagrams are the screen's; the 3D stage is the rest.
     const wantMark = target === 'marks';
     for (const [id, kind] of [...state.ids]) {
-      if ((kind === 'mark' || kind === 'pin') === wantMark) removeWithDescendants(state, id);
+      if ((kind === 'mark' || kind === 'pin' || DIAGRAM_PARTS.has(kind)) === wantMark) removeWithDescendants(state, id);
     }
   } else {
     removeWithDescendants(state, target);
@@ -305,6 +312,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
       return null;
     }
   }
+  if (DIAGRAM_PIECES.has(variant.name) && !checkDiagramPiece(variant.name, out, state, path, notes)) return null;
   if (variant.name === 'addArray') {
     const of = out.of as string;
     let subtree = 1;
@@ -331,12 +339,65 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     state.replaceable?.delete(id);
     const parent = (variant.attach ? out[variant.attach] : out.parent) as string | undefined;
     state.ids.set(id, variant.creates);
+    if (variant.creates === 'diagram') state.diagramKinds.set(id, out.kind as DiagramKind);
+    else state.diagramKinds.delete(id);
     state.parents.set(id, parent);
     state.depth.set(id, parent === undefined ? 1 : (state.depth.get(parent) ?? 0) + 1);
   } else if (variant.op === 'clear') {
     applyClear(state, out.target as string);
   }
   return out as Action;
+}
+
+const DIAGRAM_PIECES: ReadonlySet<string> = new Set(['diagram', 'node', 'edge', 'series', 'dot', 'tick']);
+
+/** The diagram a node, edge, series or dot is drawn in (an edge hangs from its first node). */
+function diagramOf(state: SceneState, id: string): string | undefined {
+  for (let cur: string | undefined = id, n = 0; cur !== undefined && n < 8; cur = state.parents.get(cur), n++) {
+    if (state.ids.get(cur) === 'diagram') return cur;
+  }
+  return undefined;
+}
+
+/** What each kind of diagram may hold, and how much. */
+const DIAGRAM_HOLDS: Record<DiagramKind, readonly string[]> = {
+  flow: ['node', 'edge'], timeline: ['node'], steps: ['node'], chart: ['series', 'dot'],
+};
+const PIECE_KIND: Record<string, ObjectKind> = { node: 'node', edge: 'edge', series: 'series', dot: 'dot' };
+const PIECE_CAP: Record<string, number> = { node: LIMITS.maxNodes, edge: LIMITS.maxEdges, series: LIMITS.maxSeries, dot: LIMITS.maxDots };
+
+/** Whether a diagram, or a piece of one, fits the diagram it is for: its kind, the caps, and what an edge joins. Notes why not. */
+function checkDiagramPiece(name: string, out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const drop = (why: string): false => {
+    note(notes, 'dropped', path, why);
+    return false;
+  };
+  const id = out.id as string | undefined;
+  if (name === 'diagram') {
+    const replacing = id !== undefined && state.ids.get(id) === 'diagram';
+    let alive = 0;
+    for (const kind of state.ids.values()) if (kind === 'diagram') alive++;
+    return !replacing && alive >= LIMITS.maxDiagrams ? drop(`${LIMITS.maxDiagrams} diagrams are on screen already; clear one first`) : true;
+  }
+  if (name === 'tick') {
+    const home = diagramOf(state, out.id as string);
+    return home !== undefined && state.diagramKinds.get(home) === 'steps' ? true : drop('tick is for a step of a steps diagram');
+  }
+  const home = name === 'edge' ? diagramOf(state, out.from as string) : (out.of as string);
+  const homeKind = home !== undefined ? state.diagramKinds.get(home) : undefined;
+  if (home === undefined || homeKind === undefined) return drop('no such diagram');
+  if (!DIAGRAM_HOLDS[homeKind].includes(name)) return drop(`a ${homeKind} diagram holds ${DIAGRAM_HOLDS[homeKind].join(' and ')}, not ${name}`);
+  if (name === 'edge') {
+    if (out.from === out.to) return drop('an edge joins two different nodes');
+    if (diagramOf(state, out.to as string) !== home) return drop('an edge joins nodes of the same diagram');
+  }
+  // The caps count what the diagram holds already; a piece written again under its id takes the old one's place.
+  const kind = PIECE_KIND[name];
+  const replacing = id !== undefined && state.ids.get(id) === kind && diagramOf(state, id) === home;
+  let held = 0;
+  for (const [other, k] of state.ids) if (k === kind && diagramOf(state, other) === home) held++;
+  if (!replacing && held >= (PIECE_CAP[name] as number)) return drop(`a diagram holds at most ${PIECE_CAP[name]} ${name}s`);
+  return true;
 }
 
 const SOLID_KINDS: ReadonlySet<string | undefined> = new Set(['solid', 'path', 'group']);
