@@ -27,6 +27,12 @@ Talkthrough is built from small, self-contained pieces, and each is a good first
 
 Start with `src/adapters/` (the three interfaces are a few lines each) and `docs/scene-language.md`.
 
+## Install
+
+Download `Talkthrough-Setup-<version>.exe` from the [releases page](https://github.com/ProjectIdris/talkthrough/releases) and run it. It installs for your own account only (no administrator rights) and starts from the Start menu. You still need a way to hear you and a model: see [docs/setup.md](docs/setup.md).
+
+**Windows may warn you.** The first releases are not code-signed, because a signing certificate costs money and the project is new, free and open source. Windows SmartScreen therefore shows *"Windows protected your PC"* with *Unknown publisher* for a file it has not seen many times. This does not mean the file is bad; it means Windows does not know it yet. To go on, choose **More info**, then **Run anyway**. If you would rather not, you can build the installer yourself from this repository (`npm ci`, then `npm run dist`; see [docs/setup.md](docs/setup.md)) and read every line first.
+
 ## Quick start
 
 Requires Windows and Node.js 24 or newer.
