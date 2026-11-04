@@ -269,6 +269,12 @@
         "color": {
           "type": "string"
         },
+        "cell": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "at": {
           "type": [
             "number",
@@ -282,6 +288,7 @@
         "x",
         "y",
         "color",
+        "cell",
         "at"
       ],
       "additionalProperties": false

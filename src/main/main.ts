@@ -293,7 +293,14 @@ async function main(): Promise<void> {
         return c;
       },
       release: (grabId) => media.release(grabId),
-      crop: (grabId, box) => media.crop(grabId, box),
+      crop: async (grabId, box) => {
+        const c = await media.crop(grabId, box);
+        if (c && options.savePen) {
+          mkdirSync(options.savePen, { recursive: true });
+          writeFileSync(join(options.savePen, 'picture-crop.png'), Buffer.from(c.base64, 'base64'));
+        }
+        return c;
+      },
       compose: async (grabId, strokes) => {
         const c = await media.compose(grabId, strokes, settings.screenshotEdge);
         if (options.savePen) {

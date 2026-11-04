@@ -169,8 +169,12 @@ const KIND_WORDS = {
  * What the model is told about the closer picture of what the step before it enlarged (cut from the full-resolution screen), so that points
  * for the parts of that picture are put on the parts themselves: read off the closer picture, then given on the whole screenshot's scale.
  */
-export function pictureText(box: { x: number; y: number; w: number; h: number }, crop: { width: number; height: number }, card?: { x: number; y: number; w: number; h: number }): string {
+export function pictureText(box: { x: number; y: number; w: number; h: number }, crop: { width: number; height: number }, card?: { x: number; y: number; w: number; h: number }, grid?: { cols: number; rows: number }): string {
   const r = (n: number) => Math.round(n * 10) / 10;
+  if (card && grid) {
+    const last = String.fromCharCode(64 + grid.cols);
+    return `The picture you enlarged in the step before is also given at full resolution (the last of the images, ${crop.width}x${crop.height} pixels): it is the part of the screen the enlargement card shows, sharper than the card, with a grid drawn on it: columns A to ${last} across, rows 1 to ${grid.rows} down, each cell named in its top-left corner. To mark a part of this picture, write a point for it as usual (x,y: your best guess on the card, which fills x ${r(card.x)} to ${r(card.x + card.w)} and y ${r(card.y)} to ${r(card.y + card.h)}) and also give "cell": the cell the part is in, such as "C4". If the part is small inside the cell, add a letter for the quarter of that cell it is in: a top left, b top right, c bottom left, d bottom right ("C4b"). The app puts the point in the middle of the cell you name, so choose the cell the part itself is in (an island's land, a chamber's inside), never one beside it or on the sea. A label goes beside its point, inside the card, with no cell.`;
+  }
   if (card) {
     return `The picture you enlarged in the step before is also given at full resolution (the last of the images, ${crop.width}x${crop.height} pixels): it is the part of the screen the enlargement card shows, sharper than the card. Marks for the parts of that picture go on the card, where you drew it: the picture fills the card from x ${r(card.x)} to ${r(card.x + card.w)} and from y ${r(card.y)} to ${r(card.y + card.h)} on the 0 to 1000 scale of the whole screenshot. To place a point: find the part on the closer picture, note how far across (u, 0 to 1) and down (v, 0 to 1) it is, and write the point at x = ${r(card.x)} + u * ${r(card.w)}, y = ${r(card.y)} + v * ${r(card.h)}. Put each point on the part itself (an island's land, a chamber's inside), never beside it or on the sea; a label goes beside its point, inside the card.`;
   }
@@ -213,7 +217,7 @@ export function questionText(request: ModelRequest): string {
   const pen = (request.focus ?? []).filter((f) => f.kind !== 'picture');
   const picture = (request.focus ?? []).find((f) => f.kind === 'picture');
   if (pen.length > 0) parts.push(penText(pen));
-  if (picture) parts.push(pictureText(picture.box, picture.crop, picture.card));
+  if (picture) parts.push(pictureText(picture.box, picture.crop, picture.card, picture.grid));
   parts.push(`The user's question, transcribed from speech (it may contain recognition errors): ${JSON.stringify(request.question)}`);
   if (request.detail) parts.push(detailText(request.detail.steps));
   if (request.stage) parts.push(stageText(request.stage));

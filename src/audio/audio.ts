@@ -5,6 +5,8 @@ import { grayOf } from '../overlay/page-gray.ts';
 import { Snapper } from '../overlay/snap.ts';
 import type { InkGrid } from '../shared/pen-blocks.ts';
 import type { ComposeRequest } from '../shared/ipc.ts';
+import { gridFor } from '../shared/pen-grid.ts';
+import type { Grid } from '../shared/pen-grid.ts';
 import { readPen } from '../shared/pen-read.ts';
 import { strokeBounds } from '../shared/pen.ts';
 
@@ -64,8 +66,41 @@ function drawStrokes(canvas: OffscreenCanvas, strokes: Array<Array<[number, numb
 
 type Cut = { box: { x: number; y: number; w: number; h: number }; kind: 'circle' | 'underline' | 'arrow' | 'picture'; loops?: number; open?: boolean };
 
+/**
+ * A lettered and numbered grid over a closer picture: thin light lines with a dark edge so they show on any picture, and each cell's name in
+ * its top-left corner (columns A.. across, rows 1.. down), small enough to leave the picture readable. See pen-grid.ts.
+ */
+function drawGrid(context: OffscreenCanvasRenderingContext2D, width: number, height: number, grid: Grid): void {
+  const cw = width / grid.cols, ch = height / grid.rows;
+  const font = Math.max(10, Math.round(Math.min(cw, ch) * 0.22));
+  context.save();
+  context.lineWidth = 1;
+  for (const [style, offset] of [['rgba(0,0,0,0.55)', 1], ['rgba(255,255,255,0.8)', 0]] as const) {
+    context.strokeStyle = style;
+    context.beginPath();
+    for (let c = 1; c < grid.cols; c++) { context.moveTo(Math.round(c * cw) + offset + 0.5, 0); context.lineTo(Math.round(c * cw) + offset + 0.5, height); }
+    for (let r = 1; r < grid.rows; r++) { context.moveTo(0, Math.round(r * ch) + offset + 0.5); context.lineTo(width, Math.round(r * ch) + offset + 0.5); }
+    context.stroke();
+  }
+  context.font = `bold ${font}px sans-serif`;
+  context.textBaseline = 'top';
+  context.textAlign = 'left';
+  for (let r = 0; r < grid.rows; r++) {
+    for (let c = 0; c < grid.cols; c++) {
+      const text = `${String.fromCharCode(65 + c)}${r + 1}`;
+      const x = c * cw + 3, y = r * ch + 2;
+      context.lineWidth = 3;
+      context.strokeStyle = 'rgba(0,0,0,0.75)';
+      context.strokeText(text, x, y);
+      context.fillStyle = 'rgba(255,255,255,0.95)';
+      context.fillText(text, x, y);
+    }
+  }
+  context.restore();
+}
+
 /** Each box (0..1000) cut from the full-resolution frame and scaled to at most `cropEdge` on its longer side, as PNGs. */
-async function cropsOf(bitmap: ImageBitmap, cuts: Cut[], cropEdge: number) {
+async function cropsOf(bitmap: ImageBitmap, cuts: Cut[], cropEdge: number, withGrid = false) {
   const out = [];
   for (const cut of cuts) {
     const box = cut.box;
@@ -79,7 +114,9 @@ async function cropsOf(bitmap: ImageBitmap, cuts: Cut[], cropEdge: number) {
     if (!context) throw new Error('no 2d canvas');
     context.imageSmoothingQuality = 'high';
     context.drawImage(bitmap, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
-    out.push({ png: await toPng(crop), width: crop.width, height: crop.height, box, kind: cut.kind, ...(cut.loops !== undefined ? { loops: cut.loops } : {}), ...(cut.open ? { open: true } : {}) });
+    const grid = withGrid ? gridFor(crop.width, crop.height) : undefined;
+    if (grid) drawGrid(context, crop.width, crop.height, grid);
+    out.push({ png: await toPng(crop), width: crop.width, height: crop.height, box, kind: cut.kind, ...(grid ? { grid } : {}), ...(cut.loops !== undefined ? { loops: cut.loops } : {}), ...(cut.open ? { open: true } : {}) });
   }
   return out;
 }
@@ -115,7 +152,7 @@ async function compose(request: ComposeRequest): Promise<void> {
     if (!bitmap) throw new Error('that frame is no longer held');
     if (request.boxes) {
       // Only parts of the frame, at full resolution (the closer picture of what an answer enlarged): nothing is drawn, nothing is read.
-      window.talkthroughAudio.composed({ id: request.id, marks: await cropsOf(bitmap, request.boxes.map((box) => ({ box, kind: 'picture' as const })), request.cropEdge) });
+      window.talkthroughAudio.composed({ id: request.id, marks: await cropsOf(bitmap, request.boxes.map((box) => ({ box, kind: 'picture' as const })), request.cropEdge, request.grid === true) });
       return;
     }
     if (!strokeBounds(request.strokes)) throw new Error('no strokes');

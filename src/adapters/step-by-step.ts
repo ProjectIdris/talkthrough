@@ -10,6 +10,8 @@
 // A call after the first that fails ends the answer there (what was shown stays) with one line in the log; a failure of the first call
 // fails the question. Whatever a call writes after its one step is dropped. Ending the question aborts the call in progress.
 
+import { cellPoint } from '../shared/pen-grid.ts';
+import type { Grid } from '../shared/pen-grid.ts';
 import { sumUsage } from './two-step.ts';
 import type { FocusCrop, Model, ModelOutput, ModelRequest, Usage } from './model.ts';
 
@@ -88,6 +90,24 @@ function planAndDone(raw: string): { plan: string[]; done: boolean; given: boole
   return { plan, done: scene.done === true, given: scene.plan !== undefined || scene.done !== undefined };
 }
 
+type Box = { x: number; y: number; w: number; h: number };
+
+/**
+ * The action with its point moved to the middle of the grid cell the model named (`cell`), when the closer picture had a grid and the name is a
+ * cell of it; anything else comes back as it was. `note` is told each move (for the log).
+ */
+function placedFromCell(action: unknown, grid: Grid, card: Box, note: (line: string) => void): unknown {
+  const a = action as { op?: unknown; cell?: unknown; x?: unknown; y?: unknown; id?: unknown };
+  if (typeof a !== 'object' || a === null || a.op !== 'point' || a.cell === undefined) return action;
+  const at = cellPoint(a.cell, grid, card);
+  if (!at) {
+    note(`point ${String(a.id)}: "${String(a.cell)}" is not a cell of the grid, its own x,y kept`);
+    return action;
+  }
+  note(`point ${String(a.id)}: cell ${String(a.cell)} -> ${at[0]},${at[1]} (it wrote ${String(a.x)},${String(a.y)})`);
+  return { ...a, x: at[0], y: at[1] };
+}
+
 export function createStepByStepModel(inner: Model, options: StepByStepOptions = {}): Model {
   const log = options.log ?? (() => undefined);
   const maxSteps = Math.max(2, options.maxSteps ?? 6);
@@ -124,16 +144,28 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
           let escalated = false;
           let waited = false;
           const closer: FocusCrop[] = [];
+          let cells: { grid: Grid; card: Box } | undefined;
           if (zoom) {
-            const crop = await zoom.crop;
-            if (crop && !link.signal.aborted) closer.push({ crop, box: zoom.box, card: zoom.card, kind: 'picture' });
-            log(`step ${n}: ${crop ? 'given a full-resolution picture of what step ' + (n - 1) + ' enlarged' : 'the enlarged part could not be cut (the frame is gone)'}`);
+            const cut = await zoom.crop;
+            const { grid, ...crop } = cut ?? ({} as { grid?: Grid });
+            if (cut && !link.signal.aborted) {
+              closer.push({ crop: crop as unknown as FocusCrop['crop'], box: zoom.box, card: zoom.card, ...(grid ? { grid } : {}), kind: 'picture' });
+              if (grid) cells = { grid, card: zoom.card };
+            }
+            log(`step ${n}: ${cut ? 'given a full-resolution picture of what step ' + (n - 1) + ' enlarged' : 'the enlarged part could not be cut (the frame is gone)'}`);
             zoom = undefined;
           }
           const focusNow = [...(fresh ? [] : req.focus ?? []), ...closer];
           const stage: NonNullable<ModelRequest['stage']> = n === 1 ? { part: 'first', plan: true } : { part: 'next', n, shown: [...shown], plan, ...(asking ? { unplanned: true as const } : {}), ...(fresh ? { fresh: true as const } : {}) };
           try {
-            for await (const out of inner.ask({ ...plain, ...(focusNow.length > 0 ? { focus: focusNow } : {}), screenshot, stage, signal: link.signal, onRaw: (text: string) => void (raw = text) })) {
+            for await (const got of inner.ask({ ...plain, ...(focusNow.length > 0 ? { focus: focusNow } : {}), screenshot, stage, signal: link.signal, onRaw: (text: string) => void (raw = text) })) {
+              // Points the model gave as a grid cell are put in the middle of that cell.
+              let out: ModelOutput = got;
+              if (cells && got.type === 'action') out = { type: 'action', action: placedFromCell(got.action, cells.grid, cells.card, log) };
+              else if (cells && got.type === 'step' && Array.isArray((got.step as { actions?: unknown }).actions)) {
+                const s = got.step as { actions: unknown[] };
+                out = { type: 'step', step: { ...s, actions: s.actions.map((a) => placedFromCell(a, cells.grid, cells.card, () => undefined)) } };
+              }
               if (out.type === 'usage') {
                 usages.push(out.usage);
                 continue;

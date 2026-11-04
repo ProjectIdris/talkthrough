@@ -26,7 +26,7 @@ export type CircleMark = { op: 'circle'; id: string; x: number; y: number; w: nu
 export type UnderlineMark = { op: 'underline'; id: string; x: number; y: number; w: number; color: Color } & At;
 export type ArrowMark = { op: 'arrow'; id: string; x1: number; y1: number; x2: number; y2: number; color: Color } & At;
 export type PolyMark = { op: 'poly'; id: string; pts: Vec2[]; color: Color } & At;
-export type PointMark = { op: 'point'; id: string; x: number; y: number; color: Color } & At;
+export type PointMark = { op: 'point'; id: string; x: number; y: number; color: Color; cell?: string } & At;
 export type TraceMark = { op: 'trace'; id: string; pts: Vec2[]; head?: boolean; color: Color } & At;
 export type LabelMark = { op: 'label'; id: string; x: number; y: number; text: string; color: Color; size?: number } & At;
 

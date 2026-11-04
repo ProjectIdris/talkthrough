@@ -193,7 +193,7 @@ export function createMedia(options: { preload: string; page: string }) {
     /** A part of a grabbed frame (a 0..1000 box), cut from the full-resolution picture with nothing drawn on it. Null when the frame is no longer held. */
     async crop(grabId: number, box: { x: number; y: number; w: number; h: number }, cropEdge = 1024) {
       const id = nextCompose++;
-      const request: ComposeRequest = { id, grab: grabId, maxEdge: 0, cropEdge, strokes: [], boxes: [box] };
+      const request: ComposeRequest = { id, grab: grabId, maxEdge: 0, cropEdge, strokes: [], boxes: [box], grid: true };
       try {
         const result = await new Promise<ComposeResult>((resolve, reject) => {
           composing.set(id, { resolve, reject });
@@ -203,7 +203,7 @@ export function createMedia(options: { preload: string; page: string }) {
           }, 5_000).unref();
         });
         const m = result.marks[0];
-        return m ? { mime: 'image/png' as const, base64: Buffer.from(m.png).toString('base64'), width: m.width, height: m.height } : null;
+        return m ? { mime: 'image/png' as const, base64: Buffer.from(m.png).toString('base64'), width: m.width, height: m.height, ...(m.grid ? { grid: m.grid } : {}) } : null;
       } catch {
         return null;
       }

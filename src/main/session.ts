@@ -34,7 +34,7 @@ export type SessionDeps = {
     release?(grabId: number): void;
     compose?(grabId: number, strokes: Point[][]): Promise<{ screenshot: Screenshot; focus: FocusCrop[] }>;
     /** A part of the frame (a 0..1000 box) at full resolution, nothing drawn on it; null when the frame is gone. */
-    crop?(grabId: number, box: Box): Promise<Screenshot | null>;
+    crop?(grabId: number, box: Box): Promise<(Screenshot & { grid?: { cols: number; rows: number } }) | null>;
   };
   /**
    * Turns the pen on for one display (its overlay takes the mouse) or, with null, off everywhere and

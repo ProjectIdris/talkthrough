@@ -157,6 +157,8 @@ export type ComposeRequest = {
   strokes: Array<Array<[number, number]>>;
   /** Instead of strokes: just these parts of the frame (0..1000 boxes), cropped at full resolution, with nothing drawn (see ComposeResult.marks, kind 'picture'). */
   boxes?: Array<{ x: number; y: number; w: number; h: number }>;
+  /** With boxes: draw a lettered and numbered grid on each cut (columns A.., rows 1..), see pen-grid.ts. */
+  grid?: boolean;
 };
 export type ComposeResult = {
   id: number;
@@ -166,7 +168,7 @@ export type ComposeResult = {
    * One entry for each mark the person made (up to three, in the order drawn): a higher-resolution crop of what the mark is on, without the
    * strokes, the crop's box on the 0..1000 scale of the full screenshot, and what kind of mark it was.
    */
-  marks: Array<{ png: Uint8Array; width: number; height: number; box: { x: number; y: number; w: number; h: number }; kind: 'circle' | 'underline' | 'arrow' | 'picture'; loops?: number; open?: boolean }>;
+  marks: Array<{ png: Uint8Array; width: number; height: number; box: { x: number; y: number; w: number; h: number }; kind: 'circle' | 'underline' | 'arrow' | 'picture'; loops?: number; open?: boolean; grid?: { cols: number; rows: number } }>;
 };
 /** Checks only: decode this PNG as if it had been grabbed from a screen. */
 export type UseImageRequest = { id: number; png: Uint8Array; maxEdge: number };
