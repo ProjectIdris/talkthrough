@@ -36,3 +36,9 @@ test('a frame grab can ask for a turned, zoomed or opened view', () => {
   assert.deepEqual(parseSteps('7:20:-30:10:1.5:0.5,0:1'), [{ step: 7, t: 20, view: { az: -30, el: 10, zoom: 1.5, explode: 0.5 } }, { step: 0, t: 1 }]);
   assert.throws(() => parseSteps('7:20:a'), /az is not a number/);
 });
+
+test('a check can ask for more detail a while after the first answer', () => {
+  assert.equal(parseArgs([]).detailAfter, undefined);
+  assert.equal(parseArgs(['--detail-after', '2']).detailAfter, 2);
+  assert.throws(() => parseArgs(['--detail-after', '-1']), /zero or more/);
+});

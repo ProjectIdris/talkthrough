@@ -22,7 +22,7 @@ import { createPrefs } from './prefs.ts';
 import { createSamplePlayer } from './samples.ts';
 import { createSession } from './session.ts';
 import { createSettingsWindow } from './settings-window.ts';
-import { loadSettings } from './settings.ts';
+import { DETAIL_EFFORT, DETAIL_MODELS, loadSettings } from './settings.ts';
 import { createTray } from './tray.ts';
 
 // Nothing in this process may ever pop an error dialog on the user's screen: log it and leave.
@@ -128,6 +128,7 @@ async function main(): Promise<void> {
     onDone: () => session?.done(),
     onStroke: (displayId, stroke) => session?.stroke(displayId, stroke),
     onOffer: (displayId) => void session?.offer(displayId),
+    ...(settings.detailRoute ? { onDetail: (displayId: number) => void session?.detail(displayId) } : {}),
     onMilestone: (m) => session?.milestone(m),
   });
   overlays.start();
@@ -151,22 +152,31 @@ async function main(): Promise<void> {
   const keys = createKeyStore({ file: join(app.getPath('userData'), 'api-key.bin'), safeStorage });
   const settingsWindow = createSettingsWindow({ preload: settingsPreload, page: settingsPage, keys });
 
-  const model: Model = settings.model === 'claude'
-    ? createClaudeModel({ model: settings.claudeModel, effort: settings.effort, ...(settings.claudeCommand ? { command: settings.claudeCommand } : {}) })
-    : settings.model === 'openai'
+  /** One route's model, locked down the same way whichever it is; the detail pass uses the same code with its own choices. */
+  const makeModel = (route: 'codex' | 'claude' | 'openai', name: string, effort: string, quick: boolean): Model => route === 'claude'
+    ? createClaudeModel({ model: name, effort, ...(settings.claudeCommand ? { command: settings.claudeCommand } : {}) })
+    : route === 'openai'
       ? createOpenAIModel({
         apiKey: () => keys.load(),
-        model: settings.openaiModel,
-        effort: settings.effort,
-        ...(settings.openaiServiceTier ? { serviceTier: settings.openaiServiceTier } : {}),
+        model: name,
+        effort,
+        ...(quick && settings.openaiServiceTier ? { serviceTier: settings.openaiServiceTier } : {}),
         ...(settings.openaiBaseUrl ? { baseUrl: settings.openaiBaseUrl } : {}),
       })
-      : createCodexModel({ model: settings.codexModel, keepThread: true, fast: settings.codexFast, effort: settings.effort, log, ...(settings.codexCommand ? { command: settings.codexCommand } : {}) });
+      : createCodexModel({ model: name, keepThread: quick, fast: quick && settings.codexFast, effort, log, ...(settings.codexCommand ? { command: settings.codexCommand } : {}) });
+  const model: Model = makeModel(settings.model, settings.model === 'claude' ? settings.claudeModel : settings.model === 'openai' ? settings.openaiModel : settings.codexModel, settings.effort, true);
+  // The detail model starts only when the person first asks for more detail (nothing is launched for it before that).
+  let detailModel: Model | undefined;
+  const detailRoute = settings.detailRoute;
+  const detail = detailRoute
+    ? () => (detailModel ??= makeModel(detailRoute, settings.detailModel ?? DETAIL_MODELS[detailRoute], settings.detailEffort ?? DETAIL_EFFORT, false))
+    : undefined;
   model.warm?.().catch((error: unknown) => log(`model: ${error instanceof Error ? error.message : String(error)}`));
   log(`model ${model.id}`);
 
   const captureImage = options.captureImage ? readFileSync(options.captureImage) : null;
   let chordsDone = 0;
+  let detailAsked = false;
   const frames = options.framesDir ? createFrameRecorder(options.framesDir, options.frameEveryMs, overlays, log) : null;
 
   const backend = settings.backendUrl ? createHttpBackend({ url: settings.backendUrl, ...(settings.backendTimeoutMs ? { timeoutMs: settings.backendTimeoutMs } : {}) }) : undefined;
@@ -176,6 +186,7 @@ async function main(): Promise<void> {
     pin: (input) => pins.save(input),
     pinScreenshot: () => prefs.get().pinScreenshot,
     ...(backend ? { backend } : {}),
+    ...(detail ? { detailModel: detail } : {}),
     pointerDisplayId: () => displayUnderPointer().id,
     media: {
       startMic: () => media.startMic(),
@@ -212,11 +223,16 @@ async function main(): Promise<void> {
     logText: options.logSteps,
     micWindowMs: settings.micWindowMs,
     onReport: (report) => {
-      if (!options.exitAfterChord) return;
+      if (!options.exitAfterChord && options.detailAfter === undefined) return;
       if (report.endMs === undefined && !report.error) return;
       if (reported.has(report)) return;
       reported.add(report);
-      if (++chordsDone >= options.exitAfterChord) setTimeout(quit, (report.error ? 3 : options.settleSeconds) * 1000);
+      // Checks: ask for more detail once, a while after the first answer has ended, as the page's button does.
+      if (options.detailAfter !== undefined && !report.detail && !report.error && !detailAsked) {
+        detailAsked = true;
+        setTimeout(() => void session?.detail(displayUnderPointer().id), options.detailAfter * 1000);
+      }
+      if (options.exitAfterChord && ++chordsDone >= options.exitAfterChord) setTimeout(quit, (report.error ? 3 : options.settleSeconds) * 1000);
     },
   });
   media.onStarted = () => session?.micStarted();
@@ -241,7 +257,7 @@ async function main(): Promise<void> {
     settingsWindow.dispose();
     tray.destroy();
     // Let the model's process end (and its working folder go) before we leave, but never hang on it.
-    void Promise.race([Promise.resolve(model.close?.()), new Promise((r) => setTimeout(r, 3000))]).finally(() => app.exit(0));
+    void Promise.race([Promise.all([model.close?.(), detailModel?.close?.()]), new Promise((r) => setTimeout(r, 3000))]).finally(() => app.exit(0));
   };
   let quitting = false;
   const tray = createTray({
@@ -299,7 +315,7 @@ async function main(): Promise<void> {
       }, holdMs);
     };
     // One press per question asked for (two by default); a further press would stop an answer still arriving.
-    const presses = options.exitAfterChord || 2;
+    const presses = options.detailAfter !== undefined ? 1 : options.exitAfterChord || 2;
     for (let i = 0; i < presses; i++) setTimeout(() => press(options.chordHoldMs), 2500 + i * (options.chordHoldMs + 6000));
   }
   if (options.maxSeconds) setTimeout(quit, options.maxSeconds * 1000);
