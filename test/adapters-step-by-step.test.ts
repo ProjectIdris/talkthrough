@@ -425,9 +425,9 @@ test('with the card where the enlargement is drawn, points are told to go on the
 test('every spoken sentence is told to open short, in the guide (the one-call answer) and in each step prompt, and the 30-word cap stays', () => {
   const rule = sceneGuide.split('\n').find((l) => l.startsWith('- The say of every explanation step opens with a short first sentence'));
   assert.ok(rule, 'a rule of its own in the guide');
-  assert.match(rule, /about 8 words or 50 characters at most/);
+  assert.match(rule, /about 6 words or 30 characters at most/);
   assert.match(rule, /The cap on the whole say stays/);
-  const opener = /short first sentence, about 8 words or 50 characters at most, and then the rest/;
+  const opener = /short first sentence, about 6 words or 30 characters at most, and then the rest/;
   const steps = [
     { part: 'first', plan: true } as const,
     { part: 'first' } as const,
