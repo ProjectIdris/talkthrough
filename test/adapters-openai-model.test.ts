@@ -195,3 +195,21 @@ test('a circled area adds a second, closer picture and says what it is; without 
     assert.ok(!(content(1).find((c) => c.type === 'input_text')?.text ?? '').includes('pen stroke'));
   });
 });
+
+test('with pieces asked for, each say and action comes before its step; without, only the steps (as before)', async () => {
+  await withServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.end([...scene.matchAll(/.{1,11}/g)].map((m) => sse('response.output_text.delta', { delta: m[0] })).join('') + sse('response.completed'));
+  }, async (baseUrl) => {
+    const model = createOpenAIModel({ apiKey: () => KEY, baseUrl });
+    const plain: ModelOutput[] = [];
+    for await (const o of model.ask(request)) plain.push(o);
+    assert.deepEqual(plain.map((o) => o.type), ['step', 'step', 'escalate']);
+    const out: ModelOutput[] = [];
+    for await (const o of model.ask({ ...request, pieces: true })) out.push(o);
+    assert.deepEqual(out.map((o) => o.type), ['say', 'action', 'step', 'say', 'step', 'escalate']);
+    assert.equal((out[0] as { say: string }).say, 'First.');
+    assert.deepEqual((out[1] as { action: unknown }).action, { op: 'box', id: 'a', x: 1, y: 2, w: 3, h: 4, color: 'red' });
+    assert.deepEqual((out[2] as { step: unknown }).step, (plain[0] as { step: unknown }).step);
+  });
+});

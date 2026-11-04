@@ -1,7 +1,6 @@
-import { createStepStream } from '../scene/stream.ts';
 import { ModelError } from './model.ts';
 import type { Model, ModelOutput, ModelRequest, Usage } from './model.ts';
-import { questionText, systemPrompt } from './subscription-shared.ts';
+import { createOutputStream, questionText, systemPrompt } from './subscription-shared.ts';
 
 /**
  * A model that calls the OpenAI Responses API directly with an API key the person provides. The reply
@@ -95,15 +94,15 @@ export function createOpenAIModel(options: OpenAIModelOptions): Model {
       if (!response.ok) throw await httpError(response, key);
       if (!response.body) throw new ModelError('failed', 'the API sent no answer');
 
-      const stream = createStepStream();
+      const stream = createOutputStream(req.pieces === true);
       let completed = false;
       let usage: Usage | undefined;
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let pending = '';
 
-      /** One server-sent event: returns the steps it completed; throws on an error event. */
-      const handle = (data: string): unknown[] => {
+      /** One server-sent event: returns the outputs it completed; throws on an error event. */
+      const handle = (data: string): ModelOutput[] => {
         if (data === '[DONE]') return [];
         let event: { type?: string; delta?: string; refusal?: string; error?: { message?: string }; response?: { error?: { message?: string }; incomplete_details?: { reason?: string }; usage?: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } } } };
         try {
@@ -152,14 +151,14 @@ export function createOpenAIModel(options: OpenAIModelOptions): Model {
             pending = pending.slice(at + 2);
             const data = block.split('\n').filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trimStart()).join('\n');
             if (!data) continue;
-            let steps: unknown[];
+            let outputs: ModelOutput[];
             try {
-              steps = handle(data);
+              outputs = handle(data);
             } catch (error) {
               if (error instanceof ModelError) throw error;
               throw new ModelError('bad-output', error instanceof Error ? error.message : String(error), { cause: error });
             }
-            for (const step of steps) yield { type: 'step', step };
+            for (const piece of outputs) yield piece;
           }
         }
         if (!completed) throw new ModelError('unavailable', 'the answer ended before it was complete');

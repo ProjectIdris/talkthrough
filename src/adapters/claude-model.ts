@@ -4,10 +4,9 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sceneSchemaLean } from '../scene/schema.ts';
-import { createStepStream } from '../scene/stream.ts';
 import { ModelError } from './model.ts';
 import type { Model, ModelOutput, ModelRequest } from './model.ts';
-import { AsyncQueue, childEnv, createLineSplitter, questionText, resolveCommand, stopAndRemove, systemPrompt } from './subscription-shared.ts';
+import { AsyncQueue, childEnv, createLineSplitter, createOutputStream, questionText, resolveCommand, stopAndRemove, systemPrompt } from './subscription-shared.ts';
 
 /**
  * A model that runs on the person's own Claude plan by starting their own, unmodified `claude`
@@ -125,7 +124,7 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
       if (req.signal?.aborted) throw new ModelError('aborted', 'request aborted');
       const { proc } = take();
       const queue = new AsyncQueue<ModelOutput>();
-      const stream = createStepStream();
+      const stream = createOutputStream(req.pieces === true);
       let finished = false;
       let stderrTail = '';
       let streamingTool = false;
@@ -138,7 +137,7 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
       };
       const feed = (text: string) => {
         try {
-          for (const step of stream.push(text)) queue.push({ type: 'step', step });
+          for (const piece of stream.push(text)) queue.push(piece);
         } catch (error) {
           fail(new ModelError('bad-output', error instanceof Error ? error.message : String(error), { cause: error }));
         }

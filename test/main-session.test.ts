@@ -48,10 +48,10 @@ async function question(r: ReturnType<typeof rig>) {
   await wait(60);
 }
 
-test('an answer streams as begin, steps, end, with the working status before it', async () => {
+test('an answer streams as begin, steps opened and closed around their actions, end, with the working status before it', async () => {
   const r = rig();
   await question(r);
-  assert.deepEqual(r.kinds(), ['pen', 'status:hush', 'pen', 'status:working', 'screenshot', 'begin', 'step', 'step', 'end']);
+  assert.deepEqual(r.kinds(), ['pen', 'status:hush', 'pen', 'status:working', 'screenshot', 'begin', 'step-open', 'action', 'step-close', 'step-open', 'step-close', 'end']); // the second step reuses the first one's id, so its action is dropped
   const begin = r.sent.find((m) => m.kind === 'begin');
   assert.deepEqual(begin, { kind: 'begin', turn: 1 });
 });
@@ -520,4 +520,63 @@ test('a new press clears "with the backend" (and "working") on the overlay befor
   assert.ok(kinds.indexOf('status:idle') >= 0 && kinds.indexOf('status:idle') < kinds.indexOf('status:hush'), kinds.join(','));
   r.session.stop();
   await wait(60);
+});
+
+// ---- steps drawn as they are written -----------------------------------------------------------
+
+const kindsOf = (sent: SceneMessage[]) => sent.map((m) => (m.kind === 'action' ? `action:${(m.action as { id?: string }).id ?? m.action.op}` : m.kind === 'step-open' ? `open:${m.say}` : m.kind));
+
+test('words and actions go to the page as they arrive, and what the thread keeps is the validated step', async () => {
+  const lock = { say: 'A lock.', actions: [
+    { op: 'add', shape: 'array', id: 'pins', of: 'pin', count: 3, step: [2, 0, 0] },
+    { op: 'add', shape: 'cylinder', id: 'pin', size: [1, 2, 1] },
+    { op: 'box', id: 'b', x: 100, y: 100, w: 50, h: 50, color: 'gold' },
+    { op: 'pin', id: 'tag', on: 'nowhere', text: 'Lost' },
+  ] };
+  const r = rig({ model: () => createScriptedModel([lock]) });
+  await question(r);
+  await question(r);
+  const first = kindsOf(r.sent).slice(kindsOf(r.sent).indexOf('begin'), kindsOf(r.sent).indexOf('end') + 1);
+  assert.deepEqual(first, ['begin', 'open:A lock.', 'action:pin', 'action:pins', 'action:b', 'step-close', 'end'], 'the array waited for its source; the pin to nowhere was dropped; the unknown colour was read');
+  const gold = r.sent.find((m) => m.kind === 'action' && (m.action as { id?: string }).id === 'b');
+  assert.equal((gold as { action: { color: string } }).action.color, 'yellow');
+});
+
+test('a stream that breaks in the middle of a step closes it on the page before the notice', async () => {
+  const broken = { id: 'broken', async *ask() {
+    yield { type: 'say' as const, say: 'Half.' };
+    yield { type: 'action' as const, action: { op: 'box', id: 'a', x: 1, y: 1, w: 5, h: 5, color: 'red' } };
+    throw new ModelError('failed', 'the connection dropped');
+  } };
+  const r = rig({ model: () => broken });
+  await question(r);
+  const k = kindsOf(r.sent);
+  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'open:Half.', 'action:a', 'step-close', 'end', 'status', 'notice']);
+});
+
+test('a step that arrives whole (no pieces) is checked and sent in one go, as before', async () => {
+  const whole = { id: 'whole', async *ask() {
+    yield { type: 'step' as const, step: step('Whole.') };
+    yield { type: 'escalate' as const, reason: 'deeper' };
+  } };
+  const r = rig({ model: () => whole });
+  await question(r);
+  assert.deepEqual(r.kinds().slice(r.kinds().indexOf('begin')), ['begin', 'step', 'end']);
+  assert.deepEqual(r.sent.at(-1), { kind: 'end', escalate: 'deeper' });
+});
+
+test('a new press while an answer is still being written stops it: nothing more reaches the page for it', async () => {
+  const slow = createScriptedModel([{ say: 'Slow.', actions: [1, 2, 3, 4, 5, 6].map((i) => ({ op: 'box', id: `s${i}`, x: i * 10, y: 10, w: 5, h: 5, color: 'red' })) }], { pieceGapMs: 25 });
+  const r = rig({ model: () => slow });
+  r.session.arm();
+  r.session.start();
+  r.session.stop();
+  await wait(70);
+  const before = r.sent.filter((m) => m.kind === 'action').length;
+  assert.ok(before > 0 && before < 6, `mid-step (${before} of 6)`);
+  r.session.arm();
+  r.session.start(); // a new press aborts the answer
+  await wait(200);
+  assert.equal(r.sent.filter((m) => m.kind === 'action').length, before, 'no action reached the page after the press');
+  r.session.dispose();
 });

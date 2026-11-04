@@ -4,11 +4,10 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sceneSchemaLean } from '../scene/schema.ts';
-import { createStepStream } from '../scene/stream.ts';
-import type { StepStream } from '../scene/stream.ts';
 import { ModelError } from './model.ts';
 import type { Model, ModelOutput, ModelRequest, Usage } from './model.ts';
-import { AsyncQueue, childEnv, createLineSplitter, questionText, resolveCommand, stopAndRemove, systemPrompt } from './subscription-shared.ts';
+import { AsyncQueue, childEnv, createLineSplitter, createOutputStream, questionText, resolveCommand, stopAndRemove, systemPrompt } from './subscription-shared.ts';
+import type { OutputStream } from './subscription-shared.ts';
 
 /**
  * A model that runs on the person's own ChatGPT plan by starting their `codex app-server` as a child
@@ -65,7 +64,7 @@ const DISABLED_FEATURES = ['shell_tool', 'unified_exec', 'apps', 'plugins', 'mul
 
 type Json = Record<string, unknown>;
 type Waiter = { proc: ChildProcessWithoutNullStreams; resolve: (value: Json) => void; reject: (error: Error) => void };
-type Turn = { proc?: ChildProcessWithoutNullStreams; queue: AsyncQueue<ModelOutput>; stream: StepStream; threadId: string; turnId?: string; done: boolean; firstDeltaAt?: number; usage?: Usage };
+type Turn = { proc?: ChildProcessWithoutNullStreams; queue: AsyncQueue<ModelOutput>; stream: OutputStream; threadId: string; turnId?: string; done: boolean; firstDeltaAt?: number; usage?: Usage };
 
 export function codexLockdownArgs(fast: boolean): string[] {
   const args = ['-c', 'web_search="disabled"'];
@@ -200,7 +199,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
         if (turn.done || typeof params.delta !== 'string') break;
         turn.firstDeltaAt ??= performance.now();
         try {
-          for (const step of turn.stream.push(params.delta)) turn.queue.push({ type: 'step', step });
+          for (const piece of turn.stream.push(params.delta)) turn.queue.push(piece);
         } catch (error) {
           failTurn(turn, new ModelError('bad-output', error instanceof Error ? error.message : String(error), { cause: error }));
           stopTurn(proc, turn);
@@ -366,7 +365,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
       const thread = started.thread as Json | undefined;
       const threadId = thread && typeof thread.id === 'string' ? thread.id : '';
       if (!threadId) return null;
-      const turn: Turn = { proc, queue: new AsyncQueue<ModelOutput>(), stream: createStepStream(), threadId, done: false };
+      const turn: Turn = { proc, queue: new AsyncQueue<ModelOutput>(), stream: createOutputStream(), threadId, done: false };
       turns.set(threadId, turn);
       try {
         const begun = await request(proc, 'turn/start', {
@@ -498,7 +497,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
           log(`codex model ${String(started.model)}, service tier ${serviceTier ?? 'default'}`);
         }
 
-        const mine: Turn = { proc, queue: new AsyncQueue<ModelOutput>(), stream: createStepStream(), threadId, done: false };
+        const mine: Turn = { proc, queue: new AsyncQueue<ModelOutput>(), stream: createOutputStream(req.pieces === true), threadId, done: false };
         turn = mine;
         turns.set(threadId, mine);
         const begun = await within(request(proc, 'turn/start', {

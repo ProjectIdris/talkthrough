@@ -46,7 +46,8 @@ In real time (`player.ts`):
 - The next step is spoken once its speech has ended and the step's drawing has finished.
 - A voice that never starts does not stall the picture: after 2.5 s, or as soon as it reports the end, the drawing plays anyway.
 - Steps may arrive while earlier ones play (`begin`, `step`, `end` messages): they queue. Running out of steps is not the end of the turn until `end` has come.
-- `hush` stops the speech at once and drops queued steps; the step in progress finishes drawing.
+- A step can also arrive piece by piece, as the model writes it: `step-open` brings the words (spoken at once; the step's clock starts with them), each `action` joins the open step and is drawn when it arrives with its own build-in motion (a model assembles in view as its parts come), and `step-close` says the step is whole. An action keeps the order it arrives in, and starts at its authored `at` or at the moment it arrives, whichever is later. The step stays the unit of timing: it does not end, and the next one does not begin, until it is closed, spoken and drawn.
+- `hush` stops the speech at once and drops queued steps and the open step's later actions; the step in progress finishes drawing.
 - After the last step a model that is on screen turns slowly by itself (about 5 degrees a second after a pause, easing in) until the user takes hold of it or the scene fades; a follow-up carries on from where it got to.
 - A new turn continues the picture on screen (a follow-up); the first turn of a question clears it first.
 
