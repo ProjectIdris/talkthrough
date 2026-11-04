@@ -234,6 +234,12 @@ function drawPoint(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number): 
     ctx.shadowBlur = 26 * m.pulse;
     ctx.shadowOffsetY = 0;
   }
+  // A thin white keyline under the ring and the dot: a point is most often on a photo or a drawing, where a thin calm colour alone is lost.
+  ctx.lineWidth = lw + 2.4;
+  ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+  circle(ring);
+  ctx.stroke();
+  noShadow(ctx);
   ctx.lineWidth = lw;
   ctx.strokeStyle = rgbCss(m.pulse > 0 && m.pulseColor ? m.pulseColor : m.color, 1);
   circle(ring);
