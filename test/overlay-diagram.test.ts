@@ -6,7 +6,7 @@ import { chartLayout, chartRanges, flowLayers, flowLayout, niceTicks, stepsLayou
 import type { Px } from '../src/overlay/diagram-layout.ts';
 import { DiagramPainter } from '../src/overlay/diagram-draw.ts';
 import { fadeFrame } from '../src/overlay/fade.ts';
-import { Placer, pageGrid, placeAction } from '../src/overlay/placement.ts';
+import { Placer, followDiagram, insideAny, pageGrid, placeAction } from '../src/overlay/placement.ts';
 import { emptyFrame, evaluate, planStep, settle } from '../src/overlay/timeline.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
 
@@ -313,4 +313,32 @@ test('a long chain in a small card wraps into rows (each runs back the way the l
   assert.equal(flowLayout(['a', 'b', 'c'], chain.slice(0, 2), card, opts).rows, 1);
   const fork = [{ id: '1', from: 'a', to: 'b' }, { id: '2', from: 'a', to: 'c' }, { id: '3', from: 'b', to: 'd' }, { id: '4', from: 'c', to: 'd' }, { id: '5', from: 'd', to: 'e' }, { id: '6', from: 'e', to: 'f' }, { id: '7', from: 'f', to: 'g' }];
   assert.equal(flowLayout(ids, fork, card, opts).rows, 1);
+});
+
+test('a mark written inside the rectangle a diagram was asked for goes with the diagram to where it was placed; a mark on the page does not', () => {
+  const COLS = 192, ROWS = 108;
+  const gray = new Uint8Array(COLS * ROWS);
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) gray[r * COLS + c] = c > 4 && c < COLS * 0.6 && r > 8 && r % 4 < 2 && (c * 7 + r * 13) % 11 !== 0 ? 40 : 238;
+  const placer = new Placer(pageGrid(gray, COLS, ROWS), { aspect: 16 / 9 });
+  const asked = { x: 100, y: 200, w: 300, h: 400 };
+  const diagram = placeAction(placer, { op: 'diagram', id: 'f', kind: 'chart', ...asked } as Action, 1080) as { x: number; y: number; w: number; h: number };
+  assert.ok(diagram.x >= 590, 'the diagram left the text');
+  const ring = { op: 'circle', id: 'eq', x: 200, y: 300, w: 50, h: 60, color: 'green' } as Action;
+  const moved = followDiagram(placer, ring, 16 / 9) as { x: number; y: number; w: number; h: number };
+  assert.ok(moved, 'the ring is inside the asked-for rectangle');
+  const sx = diagram.w / asked.w, sy = diagram.h / asked.h;
+  near(moved.x, diagram.x + (200 - asked.x) * sx);
+  near(moved.y, diagram.y + (300 - asked.y) * sy);
+  near(moved.w, 50 * sx);
+  assert.ok(moved.x >= diagram.x && moved.x + moved.w <= diagram.x + diagram.w && moved.y >= diagram.y && moved.y + moved.h <= diagram.y + diagram.h, 'it sits inside the placed diagram');
+  const arrow = followDiagram(placer, { op: 'arrow', id: 'a', x1: 150, y1: 250, x2: 250, y2: 350, color: 'red' } as Action, 16 / 9) as { x1: number; x2: number };
+  assert.ok(arrow.x1 >= diagram.x && arrow.x2 <= diagram.x + diagram.w);
+  // Marks on the page, a card, and a mark with no diagram behind it are left alone.
+  assert.equal(followDiagram(placer, { op: 'box', id: 'p', x: 600, y: 600, w: 50, h: 50, color: 'red' } as Action, 16 / 9), undefined);
+  assert.equal(followDiagram(placer, { op: 'card', id: 'c', x: 200, y: 300, w: 100, color: 'blue', rows: ['x'] } as unknown as Action, 16 / 9), undefined);
+  assert.equal(followDiagram(new Placer(pageGrid(gray, COLS, ROWS), { aspect: 16 / 9 }), ring, 16 / 9), undefined);
+  assert.ok(insideAny(ring, [asked], 16 / 9) && !insideAny(ring, [{ x: 700, y: 700, w: 100, h: 100 }], 16 / 9));
+  // Cleared with the diagram, the mark is the page's again.
+  placeAction(placer, { op: 'clear', target: 'f' } as Action, 1080);
+  assert.equal(followDiagram(placer, ring, 16 / 9), undefined);
 });

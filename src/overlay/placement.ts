@@ -82,6 +82,8 @@ export class Placer {
   private luma: Sums;
   private reserved: Box[] = [];
   private cards = new Map<string, Box>();
+  /** Each flat diagram's rectangle as asked for and as placed: marks written inside the first go with it to the second. */
+  private homes = new Map<string, { from: Box; to: Box }>();
   private stage: Box | undefined;
   private aspect: number;
   private margin: number;
@@ -98,6 +100,7 @@ export class Placer {
   reset(): void {
     this.reserved = [];
     this.cards.clear();
+    this.homes.clear();
   }
 
   /** The page under a rectangle is being pointed at, or is otherwise to be kept clear. */
@@ -184,13 +187,25 @@ export class Placer {
     // What the answer points at is what the diagram explains: keeping off it counts for three times as much as it does for a card.
     const placed = this.search(want, [1, 0.88, 0.76], [...keepOut, ...this.reserved, ...this.reserved]);
     this.cards.set(id, placed);
+    this.homes.set(id, { from: want, to: placed });
     return placed;
+  }
+
+  /** The flat diagram a point on the screen belongs to (it is inside the rectangle the diagram was asked for), and where it was placed. */
+  homeOf(x: number, y: number): { from: Box; to: Box } | undefined {
+    for (const h of this.homes.values()) if (x >= h.from.x && x <= h.from.x + h.from.w && y >= h.from.y && y <= h.from.y + h.from.h) return h;
+    return undefined;
   }
 
   /** A card or crop went (cleared by id, or all of them): its place is free for the next. */
   release(target: string): void {
-    if (target === 'all' || target === 'marks') this.cards.clear();
-    else this.cards.delete(target);
+    if (target === 'all' || target === 'marks') {
+      this.cards.clear();
+      this.homes.clear();
+    } else {
+      this.cards.delete(target);
+      this.homes.delete(target);
+    }
   }
 }
 
@@ -220,6 +235,49 @@ export function markFootprint(m: Mark, aspect: number): Box[] {
     case 'label': return [{ x: m.x, y: m.y, w: Math.max(30, m.text.length * 11 / aspect * ((m.size ?? 24) / 24)), h: m.size ?? 24 }];
     case 'image': return [{ x: m.sx, y: m.sy, w: m.sw, h: m.sh }];
     default: return [];
+  }
+}
+
+const MARK_OPS: ReadonlySet<string> = new Set(['box', 'circle', 'underline', 'arrow', 'poly', 'point', 'trace', 'label']);
+
+/** The middle of what a mark covers, in units. */
+function markCentre(m: Mark, aspect: number): { x: number; y: number } | undefined {
+  const foot = markFootprint(m, aspect);
+  if (foot.length === 0) return undefined;
+  const b = boundsOf(foot.flatMap((f) => [[f.x, f.y], [f.x + f.w, f.y + f.h]] as Pt[]));
+  return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+}
+
+/** Whether a mark sits inside one of these rectangles (the places flat diagrams were asked for): it is part of that diagram, not a pointer at the page. */
+export function insideAny(a: Action, rects: readonly Box[], aspect: number): boolean {
+  if (!MARK_OPS.has(a.op)) return false;
+  const c = markCentre(a as Mark, aspect);
+  return c !== undefined && rects.some((r) => c.x >= r.x && c.x <= r.x + r.w && c.y >= r.y && c.y <= r.y + r.h);
+}
+
+const r1 = (v: number): number => Math.round(v * 10) / 10;
+
+/**
+ * A mark written inside the rectangle a flat diagram was asked for (a ring on its equilibrium, an arrow at a bar) belongs to the
+ * diagram: when the diagram was placed elsewhere or smaller, the mark goes with it, to the same place in the new rectangle.
+ * Nothing when the mark is not inside a diagram's rectangle.
+ */
+export function followDiagram(placer: Placer, a: Action, aspect: number): Action | undefined {
+  if (!MARK_OPS.has(a.op)) return undefined;
+  const c = markCentre(a as Mark, aspect);
+  const home = c ? placer.homeOf(c.x, c.y) : undefined;
+  if (!home) return undefined;
+  const { from, to } = home;
+  const fx = to.w / from.w, fy = to.h / from.h;
+  const X = (x: number): number => r1(to.x + (x - from.x) * fx), Y = (y: number): number => r1(to.y + (y - from.y) * fy);
+  switch (a.op) {
+    case 'box': case 'circle': return { ...a, x: X(a.x), y: Y(a.y), w: r1(a.w * fx), h: r1(a.h * fy) };
+    case 'underline': return { ...a, x: X(a.x), y: Y(a.y), w: r1(a.w * fx) };
+    case 'arrow': return { ...a, x1: X(a.x1), y1: Y(a.y1), x2: X(a.x2), y2: Y(a.y2) };
+    case 'point': return { ...a, x: X(a.x), y: Y(a.y) };
+    case 'label': return { ...a, x: X(a.x), y: Y(a.y), ...(a.size !== undefined ? { size: r1(a.size * fy) } : {}) };
+    case 'poly': case 'trace': return { ...a, pts: a.pts.map(([x, y]) => [X(x), Y(y)] as [number, number]) };
+    default: return undefined;
   }
 }
 
