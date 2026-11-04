@@ -308,6 +308,160 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   return out as Action;
 }
 
+/** What a live step tells its caller as the step is written. */
+export type LiveStepEvents = {
+  /** The step has begun: these are its words (cleaned), to be spoken. Always called before any action. */
+  open(say: string): void;
+  /** An action was accepted, and is to be drawn now. */
+  action(action: Action): void;
+};
+
+export type LiveStep = {
+  /** The step's `say` text arrived (raw). A second one is ignored. */
+  say(raw: unknown): void;
+  /** An action arrived (raw). */
+  action(raw: unknown): void;
+  /** The step is complete: what is still held is tried a last time, and the step is what was accepted. */
+  finish(): StepResult;
+  /** True once the step is over its place in the turn (too many steps): nothing in it will be kept. */
+  readonly refused: boolean;
+};
+
+/** Held actions: how many may wait for the object they name, and for how many later actions. */
+const HELD_MAX = 8;
+const HELD_FOR = 6;
+
+type Held = { raw: unknown; path: string; age: number; why: Notes };
+
+/**
+ * A step validated as it is written: the words first, then each action as it arrives, against the ids
+ * the scene already holds. An action that names an object not seen yet (an array before the object it
+ * copies, a pin before its part) is held for a few more actions, and then dropped with its reason. Actions
+ * that arrive before the words are kept until the words come, or the step ends. The same limits apply as
+ * to a whole step, so what is drawn as it streams is exactly what validateStep would have kept.
+ */
+export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: number = state.turnSteps, slotTaken = false): LiveStep {
+  const notes: Notes = [];
+  const path = `steps[${index}]`;
+  const kept: Action[] = [];
+  const early: unknown[] = [];
+  let held: Held[] = [];
+  let said = false;
+  let spoken = '';
+  let seen = 0;
+  let cutNoted = false;
+  let refused = false;
+  if (!slotTaken) {
+    state.turnSteps++;
+    if (state.turnSteps > LIMITS.maxSteps) {
+      note(notes, 'dropped', path, `more than ${LIMITS.maxSteps} steps in one turn (a new question needs startTurn)`);
+      refused = true;
+    }
+  }
+
+  function attempt(raw: unknown, at: string): { action: Action | null; why: Notes } {
+    const why: Notes = [];
+    const a = validateAction(raw, state, at, why);
+    return { action: a, why };
+  }
+
+  const missing = (why: Notes): boolean => why.some((n) => n.kind === 'dropped' && n.message.includes('unknown id "'));
+
+  function accept(action: Action, why: Notes): void {
+    for (const n of why) note(notes, n.kind, n.path, n.message);
+    kept.push(action);
+    events.action(action);
+  }
+
+  function retryHeld(final: boolean): void {
+    let progress = true;
+    while (progress && held.length > 0) {
+      progress = false;
+      const still: Held[] = [];
+      for (const h of held) {
+        const r = attempt(h.raw, h.path);
+        if (r.action) {
+          accept(r.action, r.why);
+          progress = true;
+        } else if (!final && missing(r.why)) {
+          still.push({ ...h, why: r.why });
+        } else {
+          for (const n of r.why) note(notes, n.kind, n.path, n.message);
+        }
+      }
+      held = still;
+    }
+  }
+
+  function process(raw: unknown): void {
+    const i = seen++;
+    if (i >= LIMITS.maxActionsPerStep) {
+      if (!cutNoted) note(notes, 'trimmed', `${path}.actions`, `actions cut to ${LIMITS.maxActionsPerStep}`);
+      cutNoted = true;
+      return;
+    }
+    const at = `${path}.actions[${i}]`;
+    if (state.turnActions >= LIMITS.maxActionsPerTurn) {
+      note(notes, 'dropped', at, `more than ${LIMITS.maxActionsPerTurn} actions in one turn`);
+      return;
+    }
+    state.turnActions++;
+    const r = attempt(raw, at);
+    if (r.action) {
+      accept(r.action, r.why);
+      retryHeld(false);
+    } else if (missing(r.why) && held.length < HELD_MAX) {
+      held.push({ raw, path: at, age: 0, why: r.why });
+    } else {
+      for (const n of r.why) note(notes, n.kind, n.path, n.message);
+    }
+    // A held action that has waited through enough later actions for its object is given up.
+    for (const h of held) h.age++;
+    const expired = held.filter((h) => h.age > HELD_FOR);
+    if (expired.length > 0) {
+      held = held.filter((h) => h.age <= HELD_FOR);
+      for (const h of expired) for (const n of h.why) note(notes, n.kind, n.path, n.message);
+    }
+  }
+
+  function open(raw: unknown): void {
+    said = true;
+    if (typeof raw === 'string') {
+      const p = cleanText(raw, 0, LIMITS.maxSay, `${path}.say`, notes);
+      spoken = p.ok ? (p.value as string) : '';
+    } else {
+      note(notes, 'dropped', `${path}.say`, 'say must be text');
+    }
+    events.open(spoken);
+    for (const r of early.splice(0)) process(r);
+  }
+
+  return {
+    get refused() {
+      return refused;
+    },
+    say(raw) {
+      if (refused || said) return;
+      open(raw);
+    },
+    action(raw) {
+      if (refused) return;
+      if (!said) early.push(raw);
+      else process(raw);
+    },
+    finish() {
+      if (refused) return { step: null, issues: notes };
+      if (!said) open('');
+      retryHeld(true);
+      if (spoken === '' && kept.length === 0) {
+        note(notes, 'dropped', path, 'step has nothing to say or show');
+        return { step: null, issues: notes };
+      }
+      return { step: { say: spoken, actions: kept }, issues: notes };
+    },
+  };
+}
+
 export function validateStep(raw: unknown, state: SceneState, index: number = state.turnSteps): StepResult {
   const notes: Notes = [];
   const path = `steps[${index}]`;
@@ -333,25 +487,11 @@ export function validateStep(raw: unknown, state: SceneState, index: number = st
   for (const key of ownKeys(raw)) {
     if (key !== 'say' && key !== 'actions') note(notes, 'trimmed', `${path}.${key.slice(0, 40)}`, 'unknown field ignored');
   }
-  const spoken = cleanText(say, 0, LIMITS.maxSay, `${path}.say`, notes);
-  const actions: Action[] = [];
-  const count = Math.min(list.length, LIMITS.maxActionsPerStep);
-  if (list.length > count) note(notes, 'trimmed', `${path}.actions`, `actions cut to ${LIMITS.maxActionsPerStep}`);
-  for (let i = 0; i < count; i++) {
-    if (state.turnActions >= LIMITS.maxActionsPerTurn) {
-      note(notes, 'dropped', `${path}.actions[${i}]`, `more than ${LIMITS.maxActionsPerTurn} actions in one turn`);
-      break;
-    }
-    state.turnActions++;
-    const a = validateAction(list[i], state, `${path}.actions[${i}]`, notes);
-    if (a) actions.push(a);
-  }
-  const text = spoken.ok ? (spoken.value as string) : '';
-  if (text === '' && actions.length === 0) {
-    note(notes, 'dropped', path, 'step has nothing to say or show');
-    return { step: null, issues: notes };
-  }
-  return { step: { say: text, actions }, issues: notes };
+  const live = beginLiveStep(state, { open: () => undefined, action: () => undefined }, index, true);
+  live.say(say);
+  for (const a of list) live.action(a);
+  const done = live.finish();
+  return { step: done.step, issues: [...notes, ...done.issues] };
 }
 
 /** The reason text of an `escalate` field, cleaned and cut to length, or undefined when there is none worth keeping. */

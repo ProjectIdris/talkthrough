@@ -78,3 +78,72 @@ test('broken text throws instead of guessing', () => {
   assert.throws(() => run('{"steps":[{"say":"x","actions":[]}', 100), /before the scene was complete/);
   assert.throws(() => run('{"steps":[{"say":"' + 'a'.repeat(300_000) + '","actions":[]}]}', 5000), /too large/);
 });
+
+// ---- pieces: a step's say and each action, before the step is whole ----------------------------
+
+const PIECE_TEXT = JSON.stringify({
+  steps: [
+    { say: 'Here is "a lock", \ done.', actions: [
+      { op: 'box', id: 'a', x: 1, y: 2, w: 3, h: 4 },
+      { op: 'add', shape: 'tube', id: 't', pts: [[0, 0, 0], [1, 1, 1]], radius: 0.1 },
+      { op: 'card', title: 'List', rows: ['one', 'two {braces} ]'] },
+    ] },
+    { say: 'Second.', actions: [] },
+    { say: 'Third.', actions: [{ op: 'clear', target: 'all' }] },
+  ],
+  escalate: null,
+});
+
+function chunked(text: string, size: number): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < text.length; i += size) out.push(text.slice(i, i + size));
+  return out;
+}
+
+test('pieces: each say and action arrives whole, then its step, in order, at any chunk size', () => {
+  const expected = JSON.parse(PIECE_TEXT).steps;
+  for (const size of [1, 2, 3, 5, 7, 13, 50, PIECE_TEXT.length]) {
+    const log: string[] = [];
+    const stream = createStepStream({ onPiece: (p) => log.push(p.type === 'say' ? `say:${p.say}` : p.type === 'action' ? `action:${JSON.stringify(p.action)}` : `step:${(p.step as { say: string }).say}`) });
+    const steps: unknown[] = [];
+    for (const c of chunked(PIECE_TEXT, size)) steps.push(...stream.push(c));
+    stream.end();
+    assert.deepEqual(steps, expected, `size ${size}`);
+    assert.deepEqual(log, [
+      'say:Here is "a lock", \ done.',
+      `action:${JSON.stringify(expected[0].actions[0])}`,
+      `action:${JSON.stringify(expected[0].actions[1])}`,
+      `action:${JSON.stringify(expected[0].actions[2])}`,
+      'step:Here is "a lock", \ done.',
+      'say:Second.',
+      'step:Second.',
+      'say:Third.',
+      `action:${JSON.stringify(expected[2].actions[0])}`,
+      'step:Third.',
+    ], `size ${size}`);
+  }
+});
+
+test('pieces: a step written with its actions first still gives every piece, and without onPiece nothing changes', () => {
+  const text = '{"steps":[{"actions":[{"op":"clear","target":"all"}],"say":"Late words."}]}';
+  const log: string[] = [];
+  const stream = createStepStream({ onPiece: (p) => log.push(p.type) });
+  assert.equal(stream.push(text).length, 1);
+  assert.deepEqual(log, ['action', 'say', 'step']);
+  const plain = createStepStream();
+  assert.deepEqual(plain.push(text), [{ actions: [{ op: 'clear', target: 'all' }], say: 'Late words.' }]);
+});
+
+test('pieces: a stream cut off mid-action gives the actions that were whole, then end() throws', () => {
+  const text = '{"steps":[{"say":"Hi","actions":[{"op":"clear","target":"all"},{"op":"box","id":"b","x":1';
+  const pieces: unknown[] = [];
+  const stream = createStepStream({ onPiece: (p) => pieces.push(p) });
+  for (const c of chunked(text, 4)) assert.deepEqual(stream.push(c), []);
+  assert.deepEqual(pieces, [{ type: 'say', say: 'Hi' }, { type: 'action', action: { op: 'clear', target: 'all' } }]);
+  assert.throws(() => stream.end());
+});
+
+test('pieces: an action that is not valid JSON is an error, like a step that is not', () => {
+  const stream = createStepStream({ onPiece: () => undefined });
+  assert.throws(() => stream.push('{"steps":[{"say":"a","actions":[{"op":"box",,}]}]}'));
+});
