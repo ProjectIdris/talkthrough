@@ -22,7 +22,7 @@ import { createPrefs } from './prefs.ts';
 import { createSamplePlayer } from './samples.ts';
 import { createSession } from './session.ts';
 import { createSettingsWindow } from './settings-window.ts';
-import { DETAIL_EFFORT, DETAIL_MODELS, loadSettings } from './settings.ts';
+import { DETAIL_EFFORT, DETAIL_MODELS, DETAIL_TIMEOUT_MS, loadSettings } from './settings.ts';
 import { createTray } from './tray.ts';
 
 // Nothing in this process may ever pop an error dialog on the user's screen: log it and leave.
@@ -154,16 +154,17 @@ async function main(): Promise<void> {
 
   /** One route's model, locked down the same way whichever it is; the detail pass uses the same code with its own choices. */
   const makeModel = (route: 'codex' | 'claude' | 'openai', name: string, effort: string, quick: boolean): Model => route === 'claude'
-    ? createClaudeModel({ model: name, effort, ...(settings.claudeCommand ? { command: settings.claudeCommand } : {}) })
+    ? createClaudeModel({ model: name, effort, ...(quick ? {} : { timeoutMs: DETAIL_TIMEOUT_MS }), ...(settings.claudeCommand ? { command: settings.claudeCommand } : {}) })
     : route === 'openai'
       ? createOpenAIModel({
         apiKey: () => keys.load(),
         model: name,
         effort,
+        ...(quick ? {} : { timeoutMs: DETAIL_TIMEOUT_MS }),
         ...(quick && settings.openaiServiceTier ? { serviceTier: settings.openaiServiceTier } : {}),
         ...(settings.openaiBaseUrl ? { baseUrl: settings.openaiBaseUrl } : {}),
       })
-      : createCodexModel({ model: name, keepThread: quick, fast: quick && settings.codexFast, effort, log, ...(settings.codexCommand ? { command: settings.codexCommand } : {}) });
+      : createCodexModel({ model: name, keepThread: quick, fast: quick && settings.codexFast, effort, log, ...(quick ? {} : { timeoutMs: DETAIL_TIMEOUT_MS }), ...(settings.codexCommand ? { command: settings.codexCommand } : {}) });
   const model: Model = makeModel(settings.model, settings.model === 'claude' ? settings.claudeModel : settings.model === 'openai' ? settings.openaiModel : settings.codexModel, settings.effort, true);
   // The detail model starts only when the person first asks for more detail (nothing is launched for it before that).
   let detailModel: Model | undefined;
@@ -217,6 +218,8 @@ async function main(): Promise<void> {
     model: () => model,
     send: (displayId, message) => {
       if (options.logSteps && message.kind === 'step') log(`step ${JSON.stringify(message.step)}`);
+      if (options.logSteps && message.kind === 'step-open') log(`step-open ${JSON.stringify(message.say)}`);
+      if (options.logSteps && message.kind === 'action') log(`action ${JSON.stringify(message.action)}`);
       overlays.send(displayId, message);
     },
     log,

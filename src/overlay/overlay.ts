@@ -640,11 +640,26 @@ function applyScene(message: SceneMessage): void {
       else if (message.status === 'idle') {
         hud.setStatus('idle');
         pen.fade(labelClock());
+        // A detail pass that was asked for and ended without starting (a new press cancelled it): the model fades as usual.
+        if (detailState === 'asked') {
+          detailState = 'none';
+          fader.arm(performance.now());
+        }
       }
-      else hud.setStatus(message.status);
+      else {
+        hud.setStatus(message.status);
+        // A detail pass can take a minute to start: the model on screen stays until it arrives instead of fading under the wait.
+        if (message.status === 'detail') {
+          fader.disarm();
+          if (detailState === 'none') detailState = 'asked'; // asked by voice: the same wait as after the button
+        }
+      }
       break;
     case 'notice':
-      if (detailState === 'asked' || detailState === 'running') detailState = 'none'; // it failed: the person may ask again
+      if (detailState === 'asked' || detailState === 'running') {
+        detailState = 'none'; // it failed: the person may ask again, and the model fades as usual
+        fader.arm(performance.now());
+      }
       pen.fade(labelClock());
       hud.showNotice(message.text, message.level, performance.now());
       break;
