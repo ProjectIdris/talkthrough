@@ -125,7 +125,11 @@ async function main(): Promise<void> {
     hidden: options.hidden,
     silent: options.silentVoice,
     onReady: log,
-    onDone: () => session?.done(),
+    onDone: () => {
+      session?.done();
+      pageDone = true;
+      askDetail();
+    },
     onStroke: (displayId, stroke) => session?.stroke(displayId, stroke),
     onOffer: (displayId) => void session?.offer(displayId),
     ...(settings.detailRoute ? { onDetail: (displayId: number) => void session?.detail(displayId) } : {}),
@@ -178,6 +182,13 @@ async function main(): Promise<void> {
   const captureImage = options.captureImage ? readFileSync(options.captureImage) : null;
   let chordsDone = 0;
   let detailAsked = false;
+  let answerEnded = false;
+  let pageDone = false;
+  const askDetail = (): void => {
+    if (options.detailAfter === undefined || detailAsked || !answerEnded || !pageDone) return;
+    detailAsked = true;
+    setTimeout(() => void session?.detail(displayUnderPointer().id), options.detailAfter * 1000);
+  };
   const frames = options.framesDir ? createFrameRecorder(options.framesDir, options.frameEveryMs, overlays, log) : null;
 
   const backend = settings.backendUrl ? createHttpBackend({ url: settings.backendUrl, ...(settings.backendTimeoutMs ? { timeoutMs: settings.backendTimeoutMs } : {}) }) : undefined;
@@ -230,10 +241,10 @@ async function main(): Promise<void> {
       if (report.endMs === undefined && !report.error) return;
       if (reported.has(report)) return;
       reported.add(report);
-      // Checks: ask for more detail once, a while after the first answer has ended, as the page's button does.
-      if (options.detailAfter !== undefined && !report.detail && !report.error && !detailAsked) {
-        detailAsked = true;
-        setTimeout(() => void session?.detail(displayUnderPointer().id), options.detailAfter * 1000);
+      // Checks: ask for more detail once, a while after the page has finished showing the first answer (where its button appears).
+      if (options.detailAfter !== undefined && !report.detail && !report.error) {
+        answerEnded = true;
+        askDetail();
       }
       if (options.exitAfterChord && ++chordsDone >= options.exitAfterChord) setTimeout(quit, (report.error ? 3 : options.settleSeconds) * 1000);
     },
