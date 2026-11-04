@@ -67,3 +67,43 @@ test('a reader that will not load, or dies, makes every read fail, so the check 
     }
   }
 });
+
+const sleepMs = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+test('a reader that misses three reads in a row is stopped and a fresh one is started on the next read, at once, so one hang does not refuse every press', async () => {
+  let launches = 0;
+  const reader = createFrontWindowReader({ file: file('worker-flaky.mjs'), missAfterMs: 30, start: (f) => new Worker(f, { workerData: { hang: launches++ === 0, delays: [0] } }) });
+  try {
+    const stuck: Promise<unknown>[] = [];
+    for (let i = 0; i < 3; i++) {
+      stuck.push(reader.read().catch(() => 'rejected'));
+      await sleepMs(45); // each read is given its time and misses
+    }
+    assert.equal(launches, 1);
+    await sleepMs(20);
+    assert.deepEqual(await Promise.all(stuck), ['rejected', 'rejected', 'rejected'], 'the stopped reader gives its owing reads up');
+    const fresh = await Promise.race([reader.read(), sleepMs(2000).then(() => 'late' as const)]);
+    assert.equal(launches, 2, 'a fresh reader, with no wait of seconds');
+    assert.deepEqual(fresh, { title: 'Fixed window', appName: 'Fixture' }, 'and it answers');
+  } finally {
+    reader.dispose();
+  }
+});
+
+test('an answer in between clears the count: two misses, an answer, two more misses do not replace the reader', async () => {
+  let launches = 0;
+  // reads: late, late, quick, late, late (late = 100 ms, the miss time being 30 ms)
+  const reader = createFrontWindowReader({ file: file('worker-flaky.mjs'), missAfterMs: 30, start: (f) => (launches++, new Worker(f, { workerData: { delays: [100, 100, 0, 100, 100] } })) });
+  try {
+    const all: Promise<unknown>[] = [reader.read(), reader.read()];
+    await sleepMs(50); // both have missed
+    all.push(reader.read()); // answered at once: the count starts again
+    await sleepMs(20);
+    all.push(reader.read(), reader.read());
+    await sleepMs(50); // two more have missed, four in all but not three in a row
+    assert.equal(launches, 1, 'not replaced');
+    await Promise.all(all);
+  } finally {
+    reader.dispose();
+  }
+});

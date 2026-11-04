@@ -4,6 +4,7 @@
 // reader is started again on a later read, at most every few seconds.
 
 import { Worker } from 'node:worker_threads';
+import { SKIP_DEADLINE_MS } from './skip-list.ts';
 import type { FrontWindow } from './skip-list.ts';
 
 export type FrontWindowReader = {
@@ -12,14 +13,18 @@ export type FrontWindowReader = {
   dispose(): void;
 };
 
-type Pending = { resolve(w: FrontWindow | null): void; reject(e: Error): void };
+type Pending = { resolve(w: FrontWindow | null): void; reject(e: Error): void; miss?: ReturnType<typeof setTimeout> };
 
 /** How long a reader that stopped is left before it is started again. */
 const RESTART_AFTER_MS = 5000;
+/** A reader that misses this many reads in a row (no answer within the deadline each time) is stopped and replaced on the next read. */
+export const MISSES_BEFORE_REPLACING = 3;
 /** A reader that has this many answers owing is not asked more (the oldest are dropped): a hung one must not pile them up. */
 const PENDING_MAX = 20;
 
-export function createFrontWindowReader(options: { file: string; log?(line: string): void; now?(): number; start?(file: string): Worker }): FrontWindowReader {
+export function createFrontWindowReader(options: { file: string; log?(line: string): void; now?(): number; start?(file: string): Worker; /** How long a read may take before it counts as missed. Default: the skip check's deadline. */ missAfterMs?: number }): FrontWindowReader {
+  const missAfterMs = options.missAfterMs ?? SKIP_DEADLINE_MS;
+  let misses = 0;
   const now = options.now ?? (() => Date.now());
   const start = options.start ?? ((file: string) => new Worker(file));
   const log = options.log ?? (() => undefined);
@@ -31,7 +36,10 @@ export function createFrontWindowReader(options: { file: string; log?(line: stri
   const pending = new Map<number, Pending>();
 
   const failAll = (why: string): void => {
-    for (const p of pending.values()) p.reject(new Error(why));
+    for (const p of pending.values()) {
+      if (p.miss) clearTimeout(p.miss);
+      p.reject(new Error(why));
+    }
     pending.clear();
   };
 
@@ -39,6 +47,7 @@ export function createFrontWindowReader(options: { file: string; log?(line: stri
     lastStart = now();
     failure = null;
     ready = false;
+    misses = 0;
     let w: Worker;
     try {
       w = start(options.file);
@@ -67,6 +76,8 @@ export function createFrontWindowReader(options: { file: string; log?(line: stri
       const p = typeof m.id === 'number' ? pending.get(m.id) : undefined;
       if (!p || typeof m.id !== 'number') return; // a late answer to a read already given up on
       pending.delete(m.id);
+      if (p.miss) clearTimeout(p.miss);
+      misses = 0; // it answered, so it is not stuck
       if (m.error) p.reject(new Error(m.error));
       else p.resolve(m.window ?? null);
     });
@@ -85,8 +96,22 @@ export function createFrontWindowReader(options: { file: string; log?(line: stri
           pending.get(oldest)?.reject(new Error('the read did not finish'));
           pending.delete(oldest);
         }
-        pending.set(id, { resolve, reject });
-        worker!.postMessage({ id });
+        const entry: Pending = { resolve, reject };
+        const w = worker!;
+        // A read that has not been answered in time is a miss; three in a row means the thread is stuck, so it is replaced (the next read starts a fresh one).
+        entry.miss = setTimeout(() => {
+          if (!pending.has(id) || worker !== w) return;
+          if (++misses < MISSES_BEFORE_REPLACING) return;
+          log(`the window reader missed ${misses} reads in a row; replacing it`);
+          worker = null;
+          ready = false;
+          failure = 'the reader was stuck and was stopped';
+          lastStart = -Infinity; // the next read starts a fresh one at once
+          failAll(failure);
+          void w.terminate();
+        }, missAfterMs);
+        pending.set(id, entry);
+        w.postMessage({ id });
       });
     },
     dispose() {
