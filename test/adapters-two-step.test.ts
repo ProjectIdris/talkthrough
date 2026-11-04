@@ -269,5 +269,6 @@ test('the later calls are reminded that a figure adds what the page lacks and fo
   for (const text of [rest, next]) {
     assert.match(text, /A figure adds what the page lacks and follows what the page shows: never draw again what the page already has/);
     assert.match(text, /where the page has none say that it is general knowledge/);
+    assert.ok(text.includes('What the page only says in words (a rearrangement, a process) a step draws and does not only speak'));
   }
 });

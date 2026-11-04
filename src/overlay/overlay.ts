@@ -17,7 +17,7 @@ import { HudState } from './hud.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
 import { PageMemory } from './page-memory.ts';
-import { Placer, followDiagram, ownedByDiagram, ownedMarkIds, pageGrid, placeAction, reserveMarks, splitOwned } from './placement.ts';
+import { Placer, followDiagram, ownedByDiagram, ownedMarkIds, pageGrid, foreseePoints, placeAction, reserveMarks, settleMark, splitOwned } from './placement.ts';
 import { snapToControl } from '../shared/controls.ts';
 import type { ControlBox } from '../shared/controls.ts';
 import { snapActions } from './snap.ts';
@@ -356,7 +356,7 @@ function placer(): Placer | undefined {
   const source = cropSource();
   if (!page || !source) return undefined;
   const aspect = view.width / view.height;
-  return pageMemory.recall('placer', source.image, String(aspect), () => new Placer(page.grid, { aspect }));
+  return pageMemory.recall('placer', source.image, `${aspect}:${view.height}`, () => new Placer(page.grid, { aspect, height: view.height }));
 }
 
 /** The page's edges and corners, for putting marks on what they point at (snap.ts); kept for as long as the picture is the same. */
@@ -704,7 +704,8 @@ function placedScene(scene: Scene): Scene {
   const snapped = scene.steps.map((step, i) => ({ ...step, actions: step.actions.map((a, j) => (owned[i]![j] ? a : (snappedActions([a])[0] as Action))) }));
   snapped.forEach((step, i) => reserveMarks(p, step.actions.filter((_, j) => !owned[i]![j]), aspect));
   const placed = snapped.map((step) => ({ ...step, actions: step.actions.map((a) => placeAction(p, a, view.height)) }));
-  return { ...scene, steps: placed.map((step, i) => ({ ...step, actions: step.actions.map((a, j) => (owned[i]![j] ? followDiagram(p, a, aspect) ?? a : a)) })) };
+  // The points of a step are known to its names before they are marked (so a name written first finds its point); the next step's are not.
+  return { ...scene, steps: placed.map((step, i) => { foreseePoints(p, step.actions, aspect); return { ...step, actions: step.actions.map((a, j) => settleMark(p, owned[i]![j] ? followDiagram(p, a, aspect) ?? a : a)) }; }) };
 }
 
 function placedAction(action: Action): Action {
@@ -713,12 +714,12 @@ function placedAction(action: Action): Action {
   const following = followDiagram(p, action, view.width / view.height);
   if (following) {
     if ('id' in following && typeof following.id === 'string') ownedMarks.add(following.id);
-    return following;
+    return settleMark(p, following);
   }
   if ('id' in action && typeof action.id === 'string') ownedMarks.delete(action.id);
   const [snapped] = snappedActions([action]) as [Action];
   reserveMarks(p, [snapped], view.width / view.height);
-  return placeAction(p, snapped, view.height);
+  return settleMark(p, placeAction(p, snapped, view.height));
 }
 
 /**
@@ -796,6 +797,10 @@ function applyScene(message: SceneMessage): void {
       pen.fade(labelClock());
       fader.disarm();
       hud.stopWorking();
+      {
+        const p = placer();
+        if (p) foreseePoints(p, message.step.actions, view.width / view.height);
+      }
       player.pushStep({ ...message.step, actions: message.step.actions.map(placedAction) });
       break;
     case 'step-open':
