@@ -196,11 +196,15 @@ const clampRect = (r: ScreenRect, pad: number): ScreenRect => {
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 reduceMotion.addEventListener('change', () => request());
 
+/** The stage's size in pixels this frame: tags are drawn smaller beside a small stage. */
+let stageSize: { w: number; h: number } | undefined;
+
 function draw(frame: Frame): void {
   renderer.setScissorTest(false);
   renderer.clear();
   const rect = panelRect(frame.panel, view);
   modelRect = undefined;
+  stageSize = undefined;
   if (rect && frame.panel) {
     const { x, y, w, h, alpha } = rect;
     if (frame.panel.frame) {
@@ -216,7 +220,8 @@ function draw(frame: Frame): void {
     } else {
       frameEl.style.display = 'none';
     }
-    panelScene.sync(frame, w / h, { rect: { x, y, w, h }, width: view.width, height: view.height });
+    panelScene.sync(frame, w / h, { rect: { x, y, w, h }, width: view.width, height: view.height, now: labelClock() });
+    stageSize = { w, h };
     const bounds = panelScene.screenBounds(view.width, view.height);
     if (bounds) {
       modelRect = frame.panel.frame ? { x, y, w, h } : bounds.model;
@@ -250,6 +255,7 @@ function draw(frame: Frame): void {
   board.keep(new Set(frame.marks.filter((m) => m.mark.op === 'pin').map((m) => m.key)));
   drawMarks(marksCtx, frame.marks, view, {
     view,
+    ...(stageSize ? { stage: stageSize } : {}),
     place: (key, request) => board.place(key, request, labelEnvironment),
     project: (key, point, anchor) => panelScene.project(key, point, view.width, view.height, anchor),
     ...(cropSource() ? { source: cropSource()! } : {}),
@@ -425,7 +431,7 @@ function loop(): void {
   if (pen.active) sendPen();
   showHud();
   const fading = fader.armed && k < 1 && k > 0;
-  if (player.active || dragging || fading || board.moving || diagramsMoving || pen.animating(now) || pen.active) {
+  if (player.active || dragging || fading || board.moving || diagramsMoving || panelScene.fitting || pen.animating(now) || pen.active) {
     request();
     return;
   }

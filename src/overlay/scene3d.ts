@@ -51,7 +51,10 @@ type CanvasLike = HTMLCanvasElement | OffscreenCanvas;
 export type PanelDeps = { makeCanvas?: (width: number, height: number) => CanvasLike; tier?: Tier };
 
 /** The stage in window pixels, and the size of the window it sits in. */
-export type StageView = { rect: { x: number; y: number; w: number; h: number }; width: number; height: number };
+/** `now` (milliseconds on any steady clock) lets the camera glide to a new framing when parts are added; without it the framing jumps. */
+export type StageView = { rect: { x: number; y: number; w: number; h: number }; width: number; height: number; now?: number };
+/** Seconds the framing takes to settle (about two thirds of the way in this time) when the model grows or opens. */
+const FIT_SETTLE_SECONDS = 0.45;
 export type ScreenRect = { x: number; y: number; w: number; h: number };
 
 type NodePiece = {
@@ -106,6 +109,10 @@ export class PanelScene {
   private hasBox = false;
   /** The middle of the model, as of the last camera placement: where the camera looks when nothing is named. */
   private fitCenter: Vector3 | undefined;
+  /** The framing sphere the camera is using, which eases to the model's own as parts come and go. */
+  private shownFit: { center: Vector3; radius: number } | undefined;
+  private fitClock: number | undefined;
+  private settling = false;
   private cutaway = new Cutaway();
 
   constructor(deps: PanelDeps = {}) {
@@ -435,7 +442,7 @@ export class PanelScene {
     // Zoom 1 is the whole model filling the stage, whatever size it was written at (a model of 3 units and one of 30 both fit).
     // The distance comes from a sphere round the visible parts; it also takes in an opened (exploded) model, which is
     // laid out by now, so the camera stands back for it without being told.
-    const fit = this.modelSphere();
+    const fit = this.eased(this.modelSphere(), view?.now);
     let base = (FRAMING_UNITS / 2 / (aspect >= 1 ? 1 : aspect)) / tan;
     if (fit) {
       const tanShort = tan * Math.min(1, aspect);
@@ -459,6 +466,37 @@ export class PanelScene {
     this.camera.lookAt(target);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld(true);
+  }
+
+  /** True while the framing is still gliding to the model's size: the page should keep drawing frames. */
+  get fitting(): boolean {
+    return this.settling;
+  }
+
+  /**
+   * The framing sphere eased toward the model's: a part added makes the model bigger, and a camera that jumped back for it would
+   * make the whole model leap smaller; instead it glides. Without a clock, or with nothing shown before, it is taken as it is.
+   */
+  private eased(target: { center: Vector3; radius: number } | undefined, now: number | undefined): { center: Vector3; radius: number } | undefined {
+    this.settling = false;
+    if (!target || now === undefined || !this.shownFit || this.fitClock === undefined) {
+      this.shownFit = target ? { center: target.center.clone(), radius: target.radius } : undefined;
+      this.fitClock = now;
+      return target;
+    }
+    const dt = Math.max(0, Math.min(250, now - this.fitClock)) / 1000;
+    this.fitClock = now;
+    const shown = this.shownFit;
+    const k = 1 - Math.exp(-dt / FIT_SETTLE_SECONDS);
+    shown.radius += (target.radius - shown.radius) * k;
+    shown.center.lerp(target.center, k);
+    if (Math.abs(target.radius - shown.radius) <= target.radius * 0.003 && shown.center.distanceTo(target.center) <= target.radius * 0.003) {
+      shown.radius = target.radius;
+      shown.center.copy(target.center);
+    } else {
+      this.settling = true;
+    }
+    return { center: shown.center.clone(), radius: shown.radius };
   }
 
   /**
@@ -582,7 +620,9 @@ export class PanelScene {
     const shadow = rect([-1, 1].flatMap((sx) => [-1, 1].map((sz) => new Vector3(centre.x + sx * span, floorY, centre.z + sz * span))));
     const x0 = Math.min(model.x, shadow.x), y0 = Math.min(model.y, shadow.y);
     const x1 = Math.max(model.x + model.w, shadow.x + shadow.w), y1 = Math.max(model.y + model.h, shadow.y + shadow.h);
-    return { model, drawn: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } };
+    // A little room all round: what is drawn (a lit edge, a part a pixel or two past its box) must not be cut by the scissor.
+    const pad = 6 + 0.04 * Math.max(model.w, model.h);
+    return { model, drawn: { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad } };
   }
 
   /**

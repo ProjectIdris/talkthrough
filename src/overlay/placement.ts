@@ -165,7 +165,7 @@ export class Placer {
 
   /** Where the stage goes: the nearest rectangle of its shape (or a little smaller) that is off the page's text and what is pointed at. */
   panel(want: Box): Box {
-    const placed = this.search(want, [1, 0.88, 0.76, 0.66], this.reserved);
+    const placed = this.search(want, [1, 0.88, 0.76], this.reserved);
     this.stage = placed;
     return placed;
   }
