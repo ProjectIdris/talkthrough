@@ -3035,6 +3035,49 @@
       "additionalProperties": false,
       "description": "Guide mode: once this step has been drawn and spoken, wait for the person to click, and go on to the next step only when the screen has really changed. x,y,w,h is the box (top-left corner and size, on the screenshot) the click should land in; leave it out when it could be anywhere. Draw the target with a mark as well, and give each guide step its own ids."
     },
+    "go": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "go"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "tab",
+            "open",
+            "scroll"
+          ]
+        },
+        "x": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "y": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "dir": {
+          "enum": [
+            "down",
+            "up",
+            "left",
+            "right",
+            null
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "kind",
+        "x",
+        "y",
+        "dir"
+      ],
+      "additionalProperties": false,
+      "description": "Guide mode, optional: let the app make one navigation move for the person, in a step that points at it (the wait stays: if the app does not do it, they click). kind is tab (a tab), open (a menu item that opens a submenu) or scroll (a window or area; dir down by default). x,y is the middle of that control on the screenshot (anywhere in the area for scroll). The app does it only in a native window, only if the person has allowed it, says so aloud first, and refuses everything that is not exactly this (a button, a link, a checkbox, a field, anything that saves, sends, deletes or buys). At most one a step."
+    },
     "clear": {
       "type": "object",
       "properties": {
@@ -3199,6 +3242,9 @@
         },
         {
           "$ref": "#/$defs/wait"
+        },
+        {
+          "$ref": "#/$defs/go"
         },
         {
           "$ref": "#/$defs/clear"

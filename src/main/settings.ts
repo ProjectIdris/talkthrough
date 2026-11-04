@@ -40,6 +40,12 @@ export type Settings = {
    */
   controlSnap: boolean;
   /**
+   * Guide mode may open a tab, open a menu that has a submenu, or scroll for the person (see guide-nav.ts): it says so aloud
+   * first, they can stop it, and the guard refuses everything else (a button, a link, a check box, a field, anything that
+   * saves, sends, deletes or buys). Windows, native windows only, and off until the person turns it on.
+   */
+  guideNavigation: boolean;
+  /**
    * The detail pass: which route writes a much richer version of the scene on screen when the person asks for more
    * detail (a button beside the model, or "show me in detail"). Unset: there is no detail pass and nothing offers it.
    * It is never started by itself.
@@ -71,6 +77,7 @@ export const DEFAULT_SETTINGS: Settings = {
   screenshotEdge: 1280,
   effort: 'low',
   controlSnap: false,
+  guideNavigation: false,
 };
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
@@ -115,6 +122,7 @@ export function loadSettings(path: string, warn: (message: string) => void = () 
   if (typeof raw.screenshotEdge === 'number' && raw.screenshotEdge >= 640 && raw.screenshotEdge <= 2560) settings.screenshotEdge = Math.round(raw.screenshotEdge);
   settings.effort = str(raw.effort) ?? settings.effort;
   if (typeof raw.controlSnap === 'boolean') settings.controlSnap = raw.controlSnap;
+  if (typeof raw.guideNavigation === 'boolean') settings.guideNavigation = raw.guideNavigation;
   if (raw.detailRoute === 'codex' || raw.detailRoute === 'claude' || raw.detailRoute === 'openai') settings.detailRoute = raw.detailRoute;
   else if (raw.detailRoute !== undefined) warn('detailRoute must be codex, claude or openai; there is no detail pass');
   const detailModel = str(raw.detailModel);

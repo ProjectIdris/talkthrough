@@ -12,6 +12,7 @@ const api: TalkthroughApi = {
   rendered: (token) => ipcRenderer.send(CHANNEL.rendered, token),
   done: () => ipcRenderer.send(CHANNEL.done),
   offer: () => ipcRenderer.send(CHANNEL.offer),
+  consent: (yes) => ipcRenderer.send(CHANNEL.consent, yes === true),
   detail: () => ipcRenderer.send(CHANNEL.detail),
   stroke: (stroke) => ipcRenderer.send(CHANNEL.stroke, stroke),
   milestone: (milestone) => ipcRenderer.send(CHANNEL.milestone, milestone),

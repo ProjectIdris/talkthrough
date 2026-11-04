@@ -457,6 +457,15 @@ export const VARIANTS: readonly Variant[] = [
     },
   },
   {
+    name: 'go', op: 'go',
+    doc: 'Guide mode, optional: let the app make one navigation move for the person, in a step that points at it (the wait stays: if the app does not do it, they click). kind is tab (a tab), open (a menu item that opens a submenu) or scroll (a window or area; dir down by default). x,y is the middle of that control on the screenshot (anywhere in the area for scroll). The app does it only in a native window, only if the person has allowed it, says so aloud first, and refuses everything that is not exactly this (a button, a link, a checkbox, a field, anything that saves, sends, deletes or buys). At most one a step.',
+    fields: {
+      kind: { k: 'enum', values: ['tab', 'open', 'scroll'] },
+      x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN },
+      dir: { k: 'enum', values: ['down', 'up', 'left', 'right'], opt: true },
+    },
+  },
+  {
     name: 'clear', op: 'clear',
     doc: 'Remove an object or mark (and what is attached to it), or everything with "all", every mark, card, diagram and pin with "marks", the 3D stage and its objects with "panel".',
     fields: { target: { k: 'target' }, at: AT },

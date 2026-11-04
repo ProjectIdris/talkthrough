@@ -25,11 +25,12 @@ export function startHotkey(events: ChordEvents) {
  * While guide mode waits for the person's click: their mouse button going down and up, as screen points, and Escape.
  * Nothing is kept or logged; the listeners are taken off as soon as the returned function is called.
  */
-export function watchGuideInput(handlers: { down(point: { x: number; y: number }): void; up(point: { x: number; y: number }): void; escape(): void }): () => void {
+export function watchGuideInput(handlers: { down(point: { x: number; y: number }): void; up(point: { x: number; y: number }): void; escape(): void; /** Any other key (only told that one was pressed, never which). */ key?(): void }): () => void {
   const down = (event: { x: number; y: number }): void => handlers.down({ x: event.x, y: event.y });
   const up = (event: { x: number; y: number }): void => handlers.up({ x: event.x, y: event.y });
   const key = (event: { keycode: number }): void => {
     if (event.keycode === UiohookKey.Escape) handlers.escape();
+    else handlers.key?.();
   };
   uIOhook.on('mousedown', down);
   uIOhook.on('mouseup', up);

@@ -11,7 +11,8 @@ import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
 import { isRealStroke } from '../shared/pen.ts';
 import { createGuide, guideQuestion, waitOf } from './guide.ts';
-import type { Frame, GuideListener, GuideOptions } from './guide.ts';
+import { parseConsent } from './nav-consent.ts';
+import type { Frame, GuideListener, GuideNavigation, GuideOptions } from './guide.ts';
 import { parseSpoken } from './phrases.ts';
 import type { Box, Point } from '../shared/pen.ts';
 
@@ -70,6 +71,8 @@ export type SessionDeps = {
     listen(displayId: number, listener: GuideListener): () => void;
     /** Timings of the walk (when to look at the screen after a click, how long to wait); the defaults are in guide.ts. */
     options?: Partial<GuideOptions>;
+    /** The app's own hands (open a tab or menu, scroll), when the person has allowed them (see guide-nav.ts). Absent: it only points. */
+    navigation?: GuideNavigation;
   };
   /**
    * The real controls of the window in front (see uia.ts), on the 0..1000 scale of the display. Started when the key goes
@@ -415,6 +418,7 @@ export function createSession(deps: SessionDeps) {
         },
         log: deps.log,
         ...(deps.guide?.options ? { options: deps.guide.options } : {}),
+        ...(deps.guide?.navigation ? { navigation: deps.guide.navigation } : {}),
       });
       walking = { guide: g, controller: new AbortController() };
       return g;
@@ -589,7 +593,11 @@ export function createSession(deps: SessionDeps) {
 
   async function ask(a: Attempt): Promise<void> {
     const controller = new AbortController();
-    walking?.guide.end('superseded'); // a new question ends the walk
+    // A new question ends the walk, unless the app is waiting for a yes: a short answer is then the answer, not a question, so the
+    // walk stays until the words are known.
+    const consent = deps.guide?.navigation?.consent;
+    const answering = consent?.pending() === true;
+    if (!answering) walking?.guide.end('superseded');
     asking?.abort();
     asking = controller;
     const model = deps.model();
@@ -646,6 +654,16 @@ export function createSession(deps: SessionDeps) {
       if (!question) {
         r.error = 'empty transcript';
         return notice(a.displayId, "I didn't catch that. Try again?");
+      }
+      if (answering) {
+        const said = parseConsent(question);
+        if (said) {
+          consent!.answer(said === 'yes'); // false when it just timed out: a late yes is still not a question
+          deps.log(`navigation: they said ${said}`);
+          r.question = '(an answer to the app)';
+          return;
+        }
+        walking?.guide.end('superseded'); // it was a question after all
       }
       if (parseSpoken(question)?.kind === 'pin') {
         // Not a question: keep what is on screen. No picture is needed, and the model is not asked.

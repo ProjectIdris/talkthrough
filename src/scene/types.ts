@@ -126,12 +126,14 @@ export type ClearAction = { op: 'clear'; target: string } & At;
 
 /** Guide mode: wait for the person's click (in the box, when there is one) before the next step. */
 export type WaitAction = { op: 'wait'; for: 'click'; x?: number; y?: number; w?: number; h?: number } & At;
+/** Guide mode: the app may open this tab or menu or scroll this area for the person (see main/guide.ts and shared/nav-guard.ts). */
+export type GoAction = { op: 'go'; kind: 'tab' | 'open' | 'scroll'; x: number; y: number; dir?: 'down' | 'up' | 'left' | 'right' } & At;
 
 export type Action =
   | Mark | PanelAction | AddAction | DiagramThing | TickAction
   | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | StyleAction | HighlightAction
   | CutAction | SpinAction | CrankAction | CamAction | FlashAction
-  | OrbitAction | ZoomAction | FocusAction | ClearAction | WaitAction;
+  | OrbitAction | ZoomAction | FocusAction | ClearAction | WaitAction | GoAction;
 
 export type Step = { say: string; actions: Action[] };
 /**
