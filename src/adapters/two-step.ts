@@ -76,9 +76,15 @@ export function createTwoStepModel(inner: Model, options: TwoStepOptions = {}): 
       /** Starts the second call at once and lets its output queue up until the first call has been read to its end. */
       function startRest(first: unknown): AsyncQueue<ModelOutput> {
         const queue = new AsyncQueue<ModelOutput>();
+        const began = Date.now();
         void (async () => {
           try {
-            for await (const out of inner.ask({ ...req, stage: { part: 'rest', first }, signal: link.signal, ...part(1) })) queue.push(out);
+            let firstAt = 0;
+            for await (const out of inner.ask({ ...req, stage: { part: 'rest', first }, signal: link.signal, ...part(1) })) {
+              firstAt ||= Date.now() - began;
+              queue.push(out);
+            }
+            log(`second call: first output after ${firstAt} ms, ended after ${Date.now() - began} ms`);
             queue.close();
           } catch (error) {
             queue.fail(error);
