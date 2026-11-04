@@ -11,6 +11,9 @@ import type { Vec3 } from '../scene/types.ts';
 export const BLOB_CELLS = { low: 14_000, mid: 40_000, high: 90_000 } as const;
 /** The most triangles one blob may make, whatever its shape. */
 export const BLOB_MAX_TRIANGLES = 160_000;
+/** The triangles all the blobs of a scene may make together before later ones are cut finer-grained (coarser), by tier; a blob is never dropped, it gets at least BLOB_MIN_TRIANGLES. */
+export const SCENE_BLOB_TRIANGLES = { low: 40_000, mid: 90_000, high: 180_000 } as const;
+export const BLOB_MIN_TRIANGLES = 2_500;
 
 type Lump = { c: Vec3; r: Vec3 };
 
@@ -73,7 +76,19 @@ const CORNERS: ReadonlyArray<readonly [number, number, number]> = [
  * `soft` (0.05 almost hard, 1 very soft; about 0.5 is a usual organic neck). Centred where the centres are; returns the
  * mesh without an index (each triangle has its own vertices and the field's own normals).
  */
-export function blobGeometry(centres: readonly Vec3[], sizes: readonly Vec3[], soft: number, cells: number): BufferGeometry {
+export function blobGeometry(centres: readonly Vec3[], sizes: readonly Vec3[], soft: number, cells: number, maxTriangles: number = BLOB_MAX_TRIANGLES): BufferGeometry {
+  // Triangles grow with the cell count to about the two thirds power; a skin over its allowance is made again with fewer cells.
+  let geo = cut(centres, sizes, soft, cells);
+  for (let tries = 0; tries < 3 && geo.attributes.position!.count / 3 > maxTriangles; tries++) {
+    const over = geo.attributes.position!.count / 3 / maxTriangles;
+    cells = Math.max(200, Math.floor(cells / over ** 1.5 / 1.1));
+    geo = cut(centres, sizes, soft, cells);
+  }
+  geo.userData.triangles = geo.attributes.position!.count / 3;
+  return geo;
+}
+
+function cut(centres: readonly Vec3[], sizes: readonly Vec3[], soft: number, cells: number): BufferGeometry {
   const lumps: Lump[] = centres.map((c, i) => {
     const s = (sizes[Math.min(i, sizes.length - 1)] ?? [1, 1, 1]) as Vec3;
     return { c, r: [Math.max(1e-3, s[0] / 2), Math.max(1e-3, s[1] / 2), Math.max(1e-3, s[2] / 2)] as Vec3 };

@@ -7,15 +7,15 @@ import {
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { BLOB_CELLS } from './blob.ts';
+import { BLOB_CELLS, SCENE_BLOB_TRIANGLES } from './blob.ts';
 import { catmull } from './timeline.ts';
 import type { Vec2, Vec3 } from '../scene/types.ts';
 
-export type Detail = { curve: number; bevel: number; radial: number; tube: number; blob: number };
+export type Detail = { curve: number; bevel: number; radial: number; tube: number; blob: number; blobTriangles: number };
 export const DETAIL: Record<'low' | 'mid' | 'high', Detail> = {
-  low: { curve: 20, bevel: 2, radial: 10, tube: 8, blob: BLOB_CELLS.low },
-  mid: { curve: 36, bevel: 3, radial: 14, tube: 12, blob: BLOB_CELLS.mid },
-  high: { curve: 64, bevel: 5, radial: 24, tube: 18, blob: BLOB_CELLS.high },
+  low: { curve: 20, bevel: 2, radial: 10, tube: 8, blob: BLOB_CELLS.low, blobTriangles: SCENE_BLOB_TRIANGLES.low },
+  mid: { curve: 36, bevel: 3, radial: 14, tube: 12, blob: BLOB_CELLS.mid, blobTriangles: SCENE_BLOB_TRIANGLES.mid },
+  high: { curve: 64, bevel: 5, radial: 24, tube: 18, blob: BLOB_CELLS.high, blobTriangles: SCENE_BLOB_TRIANGLES.high },
 };
 
 /** The default rounding of a box edge: a small fraction of its smallest side, so parts look moulded rather than cut. */
