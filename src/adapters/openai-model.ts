@@ -94,7 +94,7 @@ export function createOpenAIModel(options: OpenAIModelOptions): Model {
       if (!response.ok) throw await httpError(response, key);
       if (!response.body) throw new ModelError('failed', 'the API sent no answer');
 
-      const stream = createOutputStream(req.pieces === true);
+      const stream = createOutputStream(req.pieces === true, req.onRaw);
       let completed = false;
       let usage: Usage | undefined;
       const reader = response.body.getReader();

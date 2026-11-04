@@ -497,7 +497,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
           log(`codex model ${String(started.model)}, service tier ${serviceTier ?? 'default'}`);
         }
 
-        const mine: Turn = { proc, queue: new AsyncQueue<ModelOutput>(), stream: createOutputStream(req.pieces === true), threadId, done: false };
+        const mine: Turn = { proc, queue: new AsyncQueue<ModelOutput>(), stream: createOutputStream(req.pieces === true, req.onRaw), threadId, done: false };
         turn = mine;
         turns.set(threadId, mine);
         const begun = await within(request(proc, 'turn/start', {

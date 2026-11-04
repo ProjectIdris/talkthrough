@@ -32,7 +32,7 @@ The app writes its log to the console it was started from, and an installed copy
 "%LOCALAPPDATA%\Programs\Talkthrough\Talkthrough.exe" > talkthrough-log.txt 2>&1
 ```
 
-Do the thing that went wrong, quit from the tray, and read `talkthrough-log.txt`. It lists what the app did, with no screenshot and no question text unless you start it with `--log-steps`. Remove anything private before you share it.
+Do the thing that went wrong, quit from the tray, and read `talkthrough-log.txt`. It lists what the app did, with no screenshot, no question text and no model answer unless you start it with `--log-steps` (which also writes each answer's raw text, one `answer-raw` line per answer, so a garbled one can be read). Remove anything private before you share it.
 
 Talkthrough needs two things outside itself: a way to hear you and a model.
 

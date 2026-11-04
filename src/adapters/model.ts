@@ -30,6 +30,8 @@ export type ModelRequest = {
   detail?: { steps: readonly unknown[] };
   /** Also yield each step's say text and each of its actions as they are written, before the step (see ModelOutput). Default off. */
   pieces?: boolean;
+  /** Called once with the model's whole raw text when its answer ends or turns out not to be a scene (a check run's log). Default off. */
+  onRaw?: (text: string) => void;
   /** Aborting drops the request: the stream ends and no more steps are yielded. */
   signal?: AbortSignal;
 };
