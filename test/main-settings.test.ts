@@ -93,3 +93,9 @@ test('the voice is the system voice unless a server is named; its address must b
   const wild = settingsFrom(JSON.stringify({ voiceFirstAudioMs: 9000, voiceCooldownMs: 5, voiceTimeoutMs: 1, voiceServerVoice: 'x'.repeat(200) })).settings;
   assert.deepEqual([wild.voiceFirstAudioMs, wild.voiceCooldownMs, wild.voiceTimeoutMs, wild.voiceServerVoice], [2000, 20_000, 30_000, undefined]);
 });
+
+test('a second Claude model for the steps after step 1 is off unless named, and naming the same model as the first is the same as not naming one', () => {
+  assert.equal(settingsFrom(JSON.stringify({ claudeModel: 'claude-haiku-5-5' })).settings.claudeLaterModel, undefined);
+  assert.equal(settingsFrom(JSON.stringify({ claudeLaterModel: 'claude-sonnet-5-5' })).settings.claudeLaterModel, 'claude-sonnet-5-5');
+  assert.equal(settingsFrom(JSON.stringify({ claudeModel: 'claude-sonnet-5-5', claudeLaterModel: 'claude-sonnet-5-5' })).settings.claudeLaterModel, undefined);
+});

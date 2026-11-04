@@ -35,6 +35,7 @@ import { createConsentCard } from './consent-card.ts';
 import { electronCardWindow } from './consent-window.ts';
 import { createNavConsent } from './nav-consent.ts';
 import { createVoiceBridge } from './voice-bridge.ts';
+import { createStageModel } from '../adapters/stage-model.ts';
 import { createNavigator } from './nav.ts';
 import { createHelper } from './ps-helper.ts';
 import { createUiaReader, toDisplayBoxes } from './uia.ts';
@@ -228,7 +229,9 @@ async function main(): Promise<void> {
       : createCodexModel({ model: name, keepThread: quick, fast: quick && settings.codexFast, effort, log, ...(quick ? {} : { timeoutMs: DETAIL_TIMEOUT_MS }), ...(settings.codexCommand ? { command: settings.codexCommand } : {}) });
   // The Claude route can write its quick answer in pieces (step 1 first); the other routes answer fast enough on their own.
   const split = settings.model === 'claude' ? settings.splitAnswer : 'off';
-  const quickModel = makeModel(settings.model, settings.model === 'claude' ? settings.claudeModel : settings.model === 'openai' ? settings.openaiModel : settings.codexModel, settings.effort, true, split === 'steps');
+  const firstModel = makeModel(settings.model, settings.model === 'claude' ? settings.claudeModel : settings.model === 'openai' ? settings.openaiModel : settings.codexModel, settings.effort, true, split === 'steps');
+  // Two models for one answer (claude route, a step at a time, only when the settings name a second): step 1 from the first, the steps after it from the other.
+  const quickModel = split === 'steps' && settings.claudeLaterModel ? createStageModel(firstModel, makeModel('claude', settings.claudeLaterModel, settings.effort, true, true)) : firstModel;
   const model: Model = split === 'two' ? createTwoStepModel(quickModel, { log, early: process.env.EXPLAINER_TWO_EARLY === '1' /* tried, not yet a setting: see the Two Call note */ }) : split === 'steps' ? createStepByStepModel(quickModel, { log }) : quickModel;
   // The detail model starts only when the person first asks for more detail (nothing is launched for it before that).
   let detailModel: Model | undefined;

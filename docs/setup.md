@@ -57,6 +57,7 @@ The window writes a JSON file, `%APPDATA%\talkthrough\settings.json` (the app lo
 | `backendTimeoutMs` | How long to wait for the backend's answer, 5,000 to 900,000 | `180000` |
 | `codexFast` | Fast mode for the Codex process this app starts (uses more of your usage allowance; your own Codex settings are not touched) | `false` |
 | `claudeModel` | Claude model name | `"claude-haiku-5-5"` |
+| `claudeLaterModel` | Claude route, answered a step at a time: a second model for the steps after step 1 (step 1 stays with `claudeModel`); not set, or the same name, means one model | not set |
 | `openaiModel` | Model name for the API-key route | `"gpt-6-luna"` |
 | `openaiServiceTier` | Optional service tier for the API-key route (`"fast"` costs more) | none |
 | `openaiBaseUrl` | Optional API address, https only (or a loopback address) | OpenAI's |
