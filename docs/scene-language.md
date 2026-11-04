@@ -182,6 +182,24 @@ While the keys are held, a drag with the mouse draws a pen stroke on the display
 
 The question text says that the circled area is what "this" or "here" means and gives the crop's position. **Coordinates do not change:** marks still run 0 to 1000 across the whole screenshot, never across the crop, so an answer can point at the circled thing with the same `box`, `arrow` or `label` as always. The red stroke is the person's, not part of the page, and is not described. With no stroke nothing changes: one picture, as before.
 
+## Guide steps
+
+For "how do I do this in that app", the steps become a walk. A step that ends with a `wait` action is a guide step:
+
+`{ "op": "wait", "for": "click", "x"?, "y"?, "w"?, "h"? }`: once the step has been drawn and spoken, the app waits for the person's own click. `x,y,w,h` is the box (top-left corner and size, on the screenshot) the click should land in; leave it out when it could be anywhere. Draw the target with a `box` or `circle` as well: `wait` itself draws nothing.
+
+What the app does with a guide:
+
+1. It shows the first guide step, then holds the later ones back.
+2. When the person clicks, it takes a fresh screenshot and compares it with the screen as it was at the click. It goes on to the next step only when the screen has really changed (a visible change over an area, not one pixel). A click on the target that changes nothing is waited out and tried again.
+3. A click somewhere else that changes the screen means the plan was made for a screen that is gone: the question is asked again from the new screen, with a short list of what happened so far, and the new steps replace the old.
+4. Each guide step starts from a clear page (`clear` of every mark), so give each its own ids. A step without a `wait` is shown at once and does not stop the walk, so a last step like "That's it, you're done" ends it.
+5. Escape, or holding the keys for a new question, ends the guide. The app never clicks for the person.
+
+The checklist: in the first step, after its mark and `wait`, the model draws a `steps` diagram (a short node for each move it expects; see Flat diagrams). Each later guide step takes the last step's marks away by id and leaves the diagram, and a step the person followed (the click was on the target and the screen changed) is ticked off with a `tick` placed at the start of the next step, with the next node pulsed; the last one goes alone when the walk ends. A click elsewhere that changes the screen takes the old checklist away with the old marks, ticks nothing, and the new plan draws its own. The model never writes the ticks.
+
+The history of the walk is kept in memory only while the guide runs. Later steps are the model's best guess of screens it has not seen yet; the first step is the one to get right.
+
 ## Escalating
 
 If the question is beyond the fast model (long research, deep reasoning, something it cannot see), it says so with a top-level `escalate`: a short reason, up to 160 characters.

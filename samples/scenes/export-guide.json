@@ -1,0 +1,31 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "To save this as a PDF, start with the File menu at the top left.",
+      "actions": [
+        { "op": "circle", "id": "file-menu", "x": 20, "y": 30, "w": 70, "h": 50, "color": "green" },
+        { "op": "label", "id": "file-hint", "x": 100, "y": 40, "text": "Click File", "color": "green", "size": 28 },
+        { "op": "wait", "for": "click", "x": 20, "y": 30, "w": 70, "h": 50 },
+        { "op": "diagram", "id": "plan", "kind": "steps", "x": 700, "y": 110, "w": 280, "h": 260, "title": "Save as PDF" },
+        { "op": "node", "id": "n1", "of": "plan", "text": "Open the File menu", "at": 0.4 },
+        { "op": "node", "id": "n2", "of": "plan", "text": "Choose Export", "at": 0.8 },
+        { "op": "node", "id": "n3", "of": "plan", "text": "Pick PDF and Save", "at": 1.2 }
+      ]
+    },
+    {
+      "say": "In the menu that opens, choose Export.",
+      "actions": [
+        { "op": "box", "id": "export-item", "x": 20, "y": 190, "w": 180, "h": 50, "color": "green" },
+        { "op": "label", "id": "export-hint", "x": 220, "y": 200, "text": "Choose Export", "color": "green", "size": 28 },
+        { "op": "wait", "for": "click", "x": 20, "y": 190, "w": 180, "h": 50 }
+      ]
+    },
+    {
+      "say": "Pick PDF in the list, and press Save. That's it, you're done.",
+      "actions": [
+        { "op": "card", "id": "pdf-card", "x": 300, "y": 260, "w": 300, "title": "Last two clicks", "rows": ["Pick PDF in the list", "Press Save"] }
+      ]
+    }
+  ]
+}

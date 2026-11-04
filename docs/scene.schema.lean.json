@@ -2468,6 +2468,54 @@
       ],
       "additionalProperties": false
     },
+    "wait": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "wait"
+          ]
+        },
+        "for": {
+          "enum": [
+            "click"
+          ]
+        },
+        "x": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "y": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "w": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "h": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "for",
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "additionalProperties": false
+    },
     "clear": {
       "type": "object",
       "properties": {
@@ -2623,6 +2671,9 @@
         },
         {
           "$ref": "#/$defs/focus"
+        },
+        {
+          "$ref": "#/$defs/wait"
         },
         {
           "$ref": "#/$defs/clear"

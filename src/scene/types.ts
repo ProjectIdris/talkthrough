@@ -121,11 +121,14 @@ export type FocusAction = { op: 'focus'; id?: string } & Timing;
 /** target: an id, or one of "all", "marks", "panel". */
 export type ClearAction = { op: 'clear'; target: string } & At;
 
+/** Guide mode: wait for the person's click (in the box, when there is one) before the next step. */
+export type WaitAction = { op: 'wait'; for: 'click'; x?: number; y?: number; w?: number; h?: number } & At;
+
 export type Action =
   | Mark | PanelAction | AddAction | DiagramThing | TickAction
   | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | StyleAction | HighlightAction
   | CutAction | SpinAction | CrankAction | CamAction | FlashAction
-  | OrbitAction | ZoomAction | FocusAction | ClearAction;
+  | OrbitAction | ZoomAction | FocusAction | ClearAction | WaitAction;
 
 export type Step = { say: string; actions: Action[] };
 /**

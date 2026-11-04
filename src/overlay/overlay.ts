@@ -140,7 +140,7 @@ const player = new Player({
   onDone: () => {
     window.talkthrough.done();
     // The quick answer can finish playing while a detail pass is still being waited for: the model stays until that arrives.
-    if (detailState !== 'asked' && detailState !== 'running') fader.arm(performance.now());
+    if (detailState !== 'asked' && detailState !== 'running' && !guiding) fader.arm(performance.now());
     if (pendingOffer !== undefined) {
       hud.offer(pendingOffer);
       pendingOffer = undefined;
@@ -160,6 +160,8 @@ let display: DisplayInfo | undefined;
  * Where "More detail" is for this answer: offered (none), asked and not yet begun (asked), being drawn (running), or
  * done. Only a failure (a notice while asked or running) offers it again; a new question starts afresh.
  */
+/** A guide walk is on (a step waits for the person's click, or the next is being made): the page stays until it ends. */
+let guiding = false;
 let detailState: 'none' | 'asked' | 'running' | 'done' = 'none';
 let view: View = { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 };
 /** Where the model is on screen (for the pointer), and the stage's frame when it has one. */
@@ -602,6 +604,7 @@ function beginTurn(turn: number, detail = false): void {
   hud.newTurn();
   pendingOffer = undefined;
   detailState = 'none';
+  guiding = false;
   // The first turn of a question starts clean; later turns continue it, keeping objects and ids.
   if (turn <= 1) player.clear();
   milestones.mark = false;
@@ -725,6 +728,7 @@ function applyScene(message: SceneMessage): void {
       if (message.status === 'hush') player.hush();
       else if (message.status === 'idle') {
         hud.setStatus('idle');
+        guiding = false;
         pen.fade(labelClock());
         // A detail pass that was asked for and ended without starting (a new press cancelled it): the model fades as usual.
         if (detailState === 'asked') {
@@ -734,6 +738,10 @@ function applyScene(message: SceneMessage): void {
       }
       else {
         hud.setStatus(message.status);
+        if (message.status === 'waiting' || message.status === 'checking') {
+          guiding = true;
+          fader.disarm();
+        }
         // A detail pass can take a minute to start: the model on screen stays until it arrives instead of fading under the wait.
         if (message.status === 'detail') {
           fader.disarm();
@@ -757,6 +765,7 @@ function applyScene(message: SceneMessage): void {
       hud.reset();
       pendingOffer = undefined;
       detailState = 'none';
+      guiding = false;
       break;
     case 'seek':
       seekClock = (seekClock ?? 0) + 1000 / 30;

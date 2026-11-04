@@ -432,6 +432,15 @@ export const VARIANTS: readonly Variant[] = [
     fields: { id: { k: 'ref', of: 'object3d', opt: true }, at: AT, dur: DUR },
   },
   {
+    name: 'wait', op: 'wait',
+    doc: 'Guide mode: once this step has been drawn and spoken, wait for the person to click, and go on to the next step only when the screen has really changed. x,y,w,h is the box (top-left corner and size, on the screenshot) the click should land in; leave it out when it could be anywhere. Draw the target with a mark as well, and give each guide step its own ids.',
+    fields: {
+      for: { k: 'enum', values: ['click'] },
+      x: { k: 'num', ...SCREEN, opt: true }, y: { k: 'num', ...SCREEN, opt: true },
+      w: { k: 'num', ...SPAN, opt: true }, h: { k: 'num', ...SPAN, opt: true },
+    },
+  },
+  {
     name: 'clear', op: 'clear',
     doc: 'Remove an object or mark (and what is attached to it), or everything with "all", every mark, card, diagram and pin with "marks", the 3D stage and its objects with "panel".',
     fields: { target: { k: 'target' }, at: AT },

@@ -13,7 +13,9 @@ import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
 import { displayUnderPointer } from './capture.ts';
 import { runGrab } from './grab.ts';
-import { startHotkey } from './hotkey.ts';
+import { gridOf } from './frame-grid.ts';
+import type { Click } from './guide.ts';
+import { startHotkey, watchGuideInput } from './hotkey.ts';
 import { createKeyStore } from './keystore.ts';
 import { createMedia } from './media.ts';
 import { createOverlayManager } from './overlay-windows.ts';
@@ -222,6 +224,24 @@ async function main(): Promise<void> {
         }
         log(`pen: ${strokes.length} stroke(s), full ${c.screenshot.width}x${c.screenshot.height}, crop ${c.crop.width}x${c.crop.height} (box ${Math.round(c.box.x)},${Math.round(c.box.y)} ${Math.round(c.box.w)}x${Math.round(c.box.h)})`);
         return c;
+      },
+    },
+    guide: {
+      // A fresh look at the screen for the guide: the frame is let go at once (only the picture and its grid are kept).
+      capture: async (displayId) => {
+        const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
+        const c = captureImage ? await media.captureFromImage(display, captureImage, settings.screenshotEdge) : await media.capture(display, settings.screenshotEdge);
+        media.release(c.grabId);
+        return { screenshot: c.screenshot, grid: gridOf(c.screenshot) };
+      },
+      listen: (_displayId, listener) => {
+        // Screen pixels from the hook, on the 0..1000 scale of the display they landed on.
+        const clickOf = (p: { x: number; y: number }): Click => {
+          const dip = screen.screenToDipPoint(p);
+          const d = screen.getDisplayNearestPoint(dip);
+          return { x: ((dip.x - d.bounds.x) / d.bounds.width) * 1000, y: ((dip.y - d.bounds.y) / d.bounds.height) * 1000, displayId: d.id };
+        };
+        return watchGuideInput({ down: (p) => listener.down(clickOf(p)), up: (p) => listener.up(clickOf(p)), escape: () => listener.escape() });
       },
     },
     setPen: (displayId) => overlays.setPen(displayId),
