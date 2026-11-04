@@ -129,8 +129,8 @@ export function createCaptionDriver(options: CaptionDriverOptions) {
 export type Rect = { x: number; y: number; w: number; h: number };
 
 /**
- * Where a caption of this size goes in a view: the bottom middle, unless something is there (a mark, the stage, a card), then the top
- * middle, then the corners, whichever leaves the most clear. `keepOut` is what to keep clear of, in pixels. The first candidate wins a tie.
+ * Where a caption of this size goes in a view: the bottom middle, unless something is there (a mark, the stage, a card, a tag), then the bottom corners (the page's
+ * heading and its bar at the top are kept readable), then the top, whichever leaves the most clear. `keepOut` is what to keep clear of, in pixels. The first candidate wins a tie.
  */
 export function captionSpot(view: { width: number; height: number }, size: { w: number; h: number }, keepOut: readonly Rect[], prefer?: { x: number; y: number }): { x: number; y: number } {
   const edge = Math.round(Math.min(view.width, view.height) * 0.04);
@@ -138,9 +138,9 @@ export function captionSpot(view: { width: number; height: number }, size: { w: 
   const bottom = view.height - size.h - edge;
   const candidates = [
     { x: midX, y: bottom },
-    { x: midX, y: edge },
     { x: edge, y: bottom },
     { x: view.width - size.w - edge, y: bottom },
+    { x: midX, y: edge },
     { x: edge, y: edge },
     { x: view.width - size.w - edge, y: edge },
   ];

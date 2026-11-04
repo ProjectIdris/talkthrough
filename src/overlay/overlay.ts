@@ -17,7 +17,7 @@ import { HudState } from './hud.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
 import { PageMemory } from './page-memory.ts';
-import { Placer, followDiagram, markFootprint, ownedByDiagram, ownedMarkIds, pageGrid, foreseePoints, placeAction, reserveMarks, settleMark, splitOwned } from './placement.ts';
+import { Placer, cardFootprint, followDiagram, markFootprint, ownedByDiagram, ownedMarkIds, pageGrid, foreseePoints, placeAction, reserveMarks, settleMark, splitOwned } from './placement.ts';
 import { snapToControl } from '../shared/controls.ts';
 import type { ControlBox } from '../shared/controls.ts';
 import { snapActions } from './snap.ts';
@@ -494,7 +494,9 @@ function captionKeepOut(frame: Frame): Rect[] {
   const aspect = view.width / view.height;
   const px = (b: { x: number; y: number; w: number; h: number }): Rect => ({ x: (b.x / 1000) * view.width, y: (b.y / 1000) * view.height, w: (b.w / 1000) * view.width, h: (b.h / 1000) * view.height });
   for (const m of frame.marks) if (m.appear > 0.05 && m.fade > 0.05) for (const b of markFootprint(m.mark, aspect)) out.push(px(b));
+  for (const m of frame.marks) if (m.appear > 0.05 && m.fade > 0.05) for (const b of cardFootprint(m.mark, view.height)) out.push(px(b));
   for (const d of frame.diagrams) if (d.appear > 0.05 && d.fade > 0.05) out.push(px(d.def));
+  out.push(...board.shownRects());
   if (modelRect) out.push(modelRect);
   for (const el of [explodeEl, cutEl, detailEl, statusEl, offerEl, noticeEl, undoEl]) {
     if (el.style.display === 'none' || el.style.display === '') continue;

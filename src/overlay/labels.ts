@@ -393,6 +393,13 @@ export class LabelBoard {
     entry.target = rect;
   }
 
+  /** Where the tags are shown now (screen pixels): what else drawn on the page, such as a caption, keeps clear of. */
+  shownRects(): Rect[] {
+    const out: Rect[] = [];
+    for (const e of this.entries.values()) if (!Number.isNaN(e.shown.x) && e.shown.w > 0) out.push(e.shown);
+    return out;
+  }
+
   /** Whether any tag is still gliding (the page should keep drawing). */
   get moving(): boolean {
     for (const e of this.entries.values()) if (e.fade || !sameSpot(e.shown, e.target)) return true;
