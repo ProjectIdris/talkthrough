@@ -24,6 +24,8 @@ npm install
 npm start          # builds, then starts the app in the tray
 ```
 
+Electron downloads its own program the first time it is installed. npm 11 can skip that step on `npm ci`; `npm start` and `npm run dist` notice and run it for you, once (it needs the network). If you ever see "Electron failed to install correctly", run `node node_modules/electron/install.js`.
+
 Setup (a speech recogniser, a model) is in [docs/setup.md](docs/setup.md). You do not need either to work on the overlay: from the tray, *Play a sample scene* draws a hand-written scene with no model and no microphone. Useful options for `npm start -- <options>` are listed in `src/main/args.ts`; for example `--hidden`, `--no-hotkey` and `--max-seconds 10` run the app without taking over your screen, and `--grab <scene.json> --out <folder>` renders a scene to a picture.
 
 The app works on your real screen: be careful with `--visible-to-capture` and with anything that takes screenshots while a private window is open.
