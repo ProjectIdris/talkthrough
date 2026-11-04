@@ -252,6 +252,8 @@ async function main(): Promise<void> {
 
   const captureImage = options.captureImage ? readFileSync(options.captureImage) : null;
   let chordsDone = 0;
+  /** Recording: the script is run once, after the first answer (a detail pass that follows reports again, and does not start it over). */
+  let driven = false;
   let detailAsked = false;
   let answerEnded = false;
   let pageDone = false;
@@ -401,8 +403,9 @@ async function main(): Promise<void> {
         answerEnded = true;
         askDetail();
       }
-      if (options.exitAfterChord && ++chordsDone >= options.exitAfterChord) {
+      if (options.exitAfterChord && ++chordsDone >= options.exitAfterChord && !(drive && driven)) {
         if (drive && !report.error) {
+          driven = true;
           // Recording: a while after the answer, the scripted mouse (turn the model, Explode, Cut), then the settle, then the end.
           setTimeout(() => {
             const id = overlays.displayIds()[0] ?? -1;
