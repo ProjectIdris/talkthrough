@@ -394,3 +394,101 @@ test('a scene with no model does not turn, and a faded scene stops turning', () 
   advance(5000);
   assert.equal(p2.update().camera.az, az);
 });
+
+// ---- a step written piece by piece ---------------------------------------------------------
+
+test('open step: its words are spoken at once, and each action appears when it arrives', () => {
+  const { clock, advance } = fakeClock();
+  const v = manualVoice();
+  const player = new Player({ voice: v.voice, clock });
+  player.beginTurn();
+  player.openStep('one two three four five');
+  assert.equal(v.spoken.length, 1, 'the words are spoken without waiting for the drawing');
+  assert.deepEqual(ids(player.update()), []);
+  v.spoken[0]?.listener.start?.({ estimatedMs: 2000 });
+  advance(100);
+  assert.deepEqual(ids(player.update()), [], 'nothing has arrived yet');
+  player.addAction(box('a') as never);
+  assert.deepEqual(ids(player.update()), ['a'], 'a part is drawn as it arrives');
+  advance(900);
+  player.addAction(box('b', { at: 0.1 }) as never); // authored for the start: it comes now, not in the past
+  assert.deepEqual(ids(player.update()), ['a', 'b']);
+  advance(400);
+  player.addAction(box('c', { at: 0.2 }) as never);
+  assert.deepEqual(ids(player.update()), ['a', 'b', 'c'], 'what was drawn stays while later parts are added');
+});
+
+test('open step: the step does not end, nor the next begin, while it is still being written', () => {
+  const { clock, advance } = fakeClock();
+  const v = manualVoice();
+  let done = 0;
+  const player = new Player({ voice: v.voice, clock, onDone: () => done++ });
+  player.beginTurn();
+  player.openStep('first');
+  v.spoken[0]?.listener.start?.({ estimatedMs: 300 });
+  player.addAction(box('a') as never);
+  v.spoken[0]?.listener.end?.({ reason: 'finished' });
+  advance(5000);
+  player.update();
+  player.pushStep({ say: 'second', actions: [box('z')] } as never);
+  advance(5000);
+  player.update();
+  assert.equal(v.spoken.length, 1, 'the second step waits for the first to be closed');
+  player.addAction(box('b') as never);
+  assert.deepEqual(ids(player.update()), ['a', 'b'], 'a late part still joins the open step');
+  player.closeStep();
+  advance(600); // the late part finishes appearing
+  player.update();
+  assert.equal(v.spoken.length, 2, 'closed: the next step is spoken');
+  player.endTurn();
+  assert.equal(done, 0);
+});
+
+test('open step: actions keep the order they arrive in even when authored times are out of order', () => {
+  const { clock, advance } = fakeClock();
+  const v = manualVoice();
+  const player = new Player({ voice: v.voice, clock });
+  player.beginTurn();
+  player.openStep('one two three four five');
+  v.spoken[0]?.listener.start?.({ estimatedMs: 2000 });
+  player.addAction(box('late', { at: 1.5 }) as never);
+  player.addAction(box('early', { at: 0.2 }) as never);
+  assert.deepEqual(ids(player.update()), [], 'the first waits for its time');
+  advance(1600);
+  assert.deepEqual(ids(player.update()), ['late', 'early'], 'the second never comes before the first');
+});
+
+test('open step queued behind a playing one takes its actions at their authored times when it begins', () => {
+  const { clock, advance } = fakeClock();
+  const v = manualVoice();
+  const player = new Player({ voice: v.voice, clock });
+  player.beginTurn();
+  player.pushStep({ say: 'one', actions: [box('a')] } as never);
+  player.openStep('two words here now');
+  player.addAction(box('b') as never);
+  player.addAction(box('c', { at: 1 }) as never);
+  player.closeStep();
+  v.spoken[0]?.listener.start?.({ estimatedMs: 300 });
+  v.spoken[0]?.listener.end?.({ reason: 'finished' });
+  advance(2000);
+  player.update();
+  assert.equal(v.spoken.length, 2);
+  v.spoken[1]?.listener.start?.({ estimatedMs: 1600 });
+  assert.deepEqual(ids(player.update()), ['a', 'b']);
+  advance(1200);
+  assert.deepEqual(ids(player.update()), ['a', 'b', 'c']);
+});
+
+test('hush closes the open step: nothing more joins it, and it finishes drawing what it has', () => {
+  const { clock, advance } = fakeClock();
+  const v = manualVoice();
+  const player = new Player({ voice: v.voice, clock });
+  player.beginTurn();
+  player.openStep('first words');
+  v.spoken[0]?.listener.start?.({ estimatedMs: 400 });
+  player.addAction(box('a') as never);
+  player.hush();
+  player.addAction(box('b') as never);
+  advance(100);
+  assert.deepEqual(ids(player.update()), ['a']);
+});
