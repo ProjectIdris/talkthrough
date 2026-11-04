@@ -350,8 +350,8 @@
           "id": "card1",
           "x": 656,
           "y": 152,
-          "w": 285,
-          "title": "1  Intake",
+          "w": 130,
+          "title": "1 Intake",
           "color": "blue",
           "at": 0.1
         },
@@ -396,8 +396,8 @@
           "id": "card2",
           "x": 656,
           "y": 152,
-          "w": 285,
-          "title": "2  Compression",
+          "w": 130,
+          "title": "2 Compression",
           "color": "blue",
           "at": 0.1
         },
@@ -427,8 +427,8 @@
           "id": "card3",
           "x": 656,
           "y": 152,
-          "w": 285,
-          "title": "3  Power",
+          "w": 130,
+          "title": "3 Power",
           "color": "blue",
           "at": 0.1
         },
@@ -453,8 +453,8 @@
           "id": "card4",
           "x": 656,
           "y": 152,
-          "w": 285,
-          "title": "4  Exhaust",
+          "w": 130,
+          "title": "4 Exhaust",
           "color": "blue",
           "at": 0.1
         },
@@ -510,7 +510,7 @@
           "id": "card5",
           "x": 656,
           "y": 152,
-          "w": 285,
+          "w": 130,
           "title": "Two turns, four strokes",
           "color": "blue",
           "at": 0.1

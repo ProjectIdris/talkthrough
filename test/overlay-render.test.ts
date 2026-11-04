@@ -170,7 +170,7 @@ function strokeRecorder() {
 const alphaOf = (style: string): number => Number(/,\s*([\d.]+)\)$/.exec(style)?.[1] ?? 'NaN');
 
 test('a stroke mark is drawn along like a pen: the end of it feathers, a finished one is one plain stroke, and reduced motion skips the drawing', () => {
-  const under = { op: 'underline', id: 'u', x: 100, y: 500, w: 600, color: 'red' };
+  const under = { op: 'underline', id: 'u', x: 100, y: 500, w: 600, color: 'red' } as const;
   const frame = (t: number) => frameAt([{ say: '', actions: [under] }], 0, t);
   const view = { width: 1920, height: 1080, dpr: 1 };
   const done = strokeRecorder();
