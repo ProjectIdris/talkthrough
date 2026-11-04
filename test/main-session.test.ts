@@ -46,7 +46,7 @@ async function question(r: ReturnType<typeof rig>) {
 test('an answer streams as begin, steps, end, with the working status before it', async () => {
   const r = rig();
   await question(r);
-  assert.deepEqual(r.kinds(), ['status:hush', 'status:working', 'begin', 'step', 'step', 'end']);
+  assert.deepEqual(r.kinds(), ['status:hush', 'status:working', 'screenshot', 'begin', 'step', 'step', 'end']);
   const begin = r.sent.find((m) => m.kind === 'begin');
   assert.deepEqual(begin, { kind: 'begin', turn: 1 });
 });

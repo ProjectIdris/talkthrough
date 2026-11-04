@@ -198,6 +198,7 @@ export function createSession(deps: SessionDeps) {
       if (controller.signal.aborted) return;
       r.captureMs = shot.ms;
       lastAsk = { question, screenshot: shot.screenshot };
+      deps.send(a.displayId, { kind: 'screenshot', url: `data:${shot.screenshot.mime};base64,${shot.screenshot.base64}` });
 
       const continuing = thread.length > 0 && now() - lastActivity < THREAD_WINDOW_MS;
       if (!continuing) {
