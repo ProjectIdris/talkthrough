@@ -7,20 +7,32 @@ import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
+const downloaded = (dir) => existsSync(join(dir, 'dist')) && existsSync(join(dir, 'path.txt'));
+
 /**
  * @param {{ electronDir?: string, run?: (script: string) => number }} [options] for tests: where the
  * package is, and how the installer is run (returns its exit code).
  * @returns {boolean} true when the installer had to run.
+ * @throws {Error} when the installer fails, or exits without leaving Electron's files (it does that when
+ * ELECTRON_SKIP_BINARY_DOWNLOAD is set); the message says what to do.
  */
 export function ensureElectron(options = {}) {
   const dir = options.electronDir ?? dirname(createRequire(import.meta.url).resolve('electron/package.json'));
-  if (existsSync(join(dir, 'dist')) && existsSync(join(dir, 'path.txt'))) return false;
+  if (downloaded(dir)) return false;
   console.log('Electron has not been downloaded yet; running its installer (a one-time download).');
   const script = join(dir, 'install.js');
   const code = (options.run ?? ((file) => spawnSync(process.execPath, [file], { stdio: 'inherit' }).status ?? 1))(script);
-  if (code !== 0) {
-    console.error('Electron\'s installer failed. Check your network connection, then run: node node_modules/electron/install.js');
-    process.exit(code || 1);
-  }
+  if (code !== 0) throw new Error("Electron's installer failed. Check your network connection, then run: node node_modules/electron/install.js");
+  if (!downloaded(dir)) throw new Error("Electron's installer ran but left nothing to start (ELECTRON_SKIP_BINARY_DOWNLOAD is set?). Unset it and run: node node_modules/electron/install.js");
   return true;
+}
+
+/** For the scripts: ensure Electron, and stop with a plain message instead of a stack trace when it cannot. */
+export function ensureElectronOrExit() {
+  try {
+    ensureElectron();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 }
