@@ -35,23 +35,37 @@ function inkOf(grid: PageGrid): Float32Array {
   return out;
 }
 
-/** A line of ink wider than this share of the page is a line of a column of body text. */
-const BODY_MIN_WIDTH = 0.22;
+/** A line of ink this share of the page wide or less counts wholly as a fixture by width; the share ramps up to PROSE_FULL_WIDTH, from which it counts wholly as prose. */
+const PROSE_RAMP_FROM = 0.15;
+const PROSE_FULL_WIDTH = 0.3;
+/** A run wider than this share of the page is a bar (a toolbar, a header, a rule), not a line of text, unless it is one of a block of regular lines. */
+const BAR_WIDTH = 0.85;
+/** The shortest run of ink (cells) that can be a line of text, and the tallest a line is (rows): taller is a picture. */
+const MIN_RUN = 4;
+const MAX_LINE_ROWS = 5;
+/** How many lines in a column make it a block of text, and how regular they must be. */
+const MIN_BLOCK_LINES = 4;
+
+type TextLine = { r0: number; r1: number; c0: number; c1: number };
 
 /**
- * The ink that is plain body text, as against the page's controls and figures. A line of text runs a good way across the page (words close
- * up: a gap of one cell is joined); a sidebar, an infobox and its picture, a panel of options and a toolbar are each narrower than a fifth
- * of the page. So ink in a horizontal run wider than that is prose, which a card may cover if it must; the rest is what it should not.
- * Returns 1 for a cell of ink in such a run and 0 elsewhere.
+ * How much of each cell of ink is plain body text, 0 to 1, as against the page's controls and figures. Two things say so.
+ * Lines: a column of text is a stack of lines that start at the same place, repeat at a steady pitch and mostly run nearly as long as
+ * the longest, which holds however narrow the column is (a split pane, a chat, an ultrawide screen), while a toolbar is one line, an
+ * infobox's picture is a block with no lines in it and a panel of options has lines of all lengths. Width: for the ink that is not in
+ * such a stack, a run narrower than 15% of the page is a fixture, one 30% or wider is prose, with a ramp between so a figure does not
+ * flip at a cliff, and one wider than 85% is a bar and a fixture again.
  */
 export function bodyTextOf(grid: PageGrid, ink: Float32Array = inkOf(grid)): Float32Array {
   const { cols, rows } = grid;
-  const body = new Float32Array(cols * rows);
-  const least = Math.ceil(BODY_MIN_WIDTH * cols);
+  const weight = new Float32Array(cols * rows);
+  // Runs of ink along each row (a gap of one cell is joined), then lines: runs on neighbouring rows that lie over one another.
+  const runs: { r: number; c0: number; c1: number }[][] = [];
   for (let r = 0; r < rows; r++) {
+    const here: { r: number; c0: number; c1: number }[] = [];
     let start = -1, last = -1;
     const close = (): void => {
-      if (start >= 0 && last - start + 1 >= least) for (let c = start; c <= last; c++) if (ink[r * cols + c]! > 0) body[r * cols + c] = 1;
+      if (start >= 0 && last - start + 1 >= MIN_RUN) here.push({ r, c0: start, c1: last });
       start = -1;
     };
     for (let c = 0; c < cols; c++) {
@@ -61,8 +75,64 @@ export function bodyTextOf(grid: PageGrid, ink: Float32Array = inkOf(grid)): Flo
       last = c;
     }
     close();
+    runs.push(here);
   }
-  return body;
+  const lines: TextLine[] = [];
+  let open: TextLine[] = [];
+  for (let r = 0; r < rows; r++) {
+    const next: TextLine[] = [];
+    for (const run of runs[r]!) {
+      const into = open.find((l) => Math.min(l.c1, run.c1) - Math.max(l.c0, run.c0) + 1 >= 0.5 * Math.min(l.c1 - l.c0 + 1, run.c1 - run.c0 + 1));
+      if (into) {
+        into.r1 = r;
+        into.c0 = Math.min(into.c0, run.c0);
+        into.c1 = Math.max(into.c1, run.c1);
+        next.push(into);
+      } else {
+        const line = { r0: r, r1: r, c0: run.c0, c1: run.c1 };
+        lines.push(line);
+        next.push(line);
+      }
+    }
+    open = next;
+  }
+  const text = lines.filter((l) => l.r1 - l.r0 + 1 <= MAX_LINE_ROWS);
+  // Stack lines that start at the same place, one under another, into columns.
+  const parent = text.map((_, i) => i);
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i]!)));
+  text.forEach((l, i) => {
+    let best = -1;
+    text.forEach((p, j) => {
+      if (p.r1 >= l.r0 || l.r0 - p.r1 > 6 || Math.abs(p.c0 - l.c0) > 2) return;
+      if (Math.min(p.c1, l.c1) - Math.max(p.c0, l.c0) + 1 < 0.6 * Math.min(p.c1 - p.c0 + 1, l.c1 - l.c0 + 1)) return;
+      if (best < 0 || p.r1 > text[best]!.r1) best = j;
+    });
+    if (best >= 0) parent[find(i)] = find(best);
+  });
+  const columns = new Map<number, TextLine[]>();
+  text.forEach((l, i) => columns.set(find(i), [...(columns.get(find(i)) ?? []), l]));
+  const regular = new Set<TextLine>();
+  for (const column of columns.values()) {
+    if (column.length < MIN_BLOCK_LINES) continue;
+    column.sort((a, b) => a.r0 - b.r0);
+    const gaps = column.slice(1).map((l, i) => (l.r0 + l.r1) / 2 - (column[i]!.r0 + column[i]!.r1) / 2);
+    const sorted = [...gaps].sort((a, b) => a - b);
+    const pitch = sorted[Math.floor(sorted.length / 2)]!;
+    const steady = gaps.filter((g) => Math.abs(g - pitch) <= 1.01).length / gaps.length;
+    const longest = Math.max(...column.map((l) => l.c1 - l.c0 + 1));
+    const full = column.filter((l) => l.c1 - l.c0 + 1 >= 0.75 * longest).length / column.length;
+    if (steady >= 0.6 && full >= 0.6) for (const l of column) regular.add(l);
+  }
+  // Cells of lines in a regular column are prose; the ink in any other run is weighed by the run's width.
+  const ramp = (share: number): number => (share > BAR_WIDTH ? 0 : Math.max(0, Math.min(1, (share - PROSE_RAMP_FROM) / (PROSE_FULL_WIDTH - PROSE_RAMP_FROM))));
+  for (const row of runs) {
+    for (const run of row) {
+      const inColumn = [...regular].some((l) => run.r >= l.r0 && run.r <= l.r1 && run.c0 >= l.c0 && run.c1 <= l.c1);
+      const w = inColumn ? 1 : ramp((run.c1 - run.c0 + 1) / cols);
+      for (let c = run.c0; c <= run.c1; c++) if (ink[run.r * cols + c]! > 0) weight[run.r * cols + c] = w;
+    }
+  }
+  return weight;
 }
 
 /** Summed-area table over a cols x rows field, for the mean of any rectangle at once. */
@@ -141,7 +211,7 @@ export class Placer {
     const prose = bodyTextOf(grid, ink);
     this.ink = new Sums(grid.cols, grid.rows, ink);
     this.prose = new Sums(grid.cols, grid.rows, prose);
-    this.fixtures = new Sums(grid.cols, grid.rows, ink.map((v, i) => (v > 0 && !(prose[i]! > 0) ? 1 : 0)));
+    this.fixtures = new Sums(grid.cols, grid.rows, ink.map((v, i) => (v > 0 ? 1 - prose[i]! : 0)));
     this.luma = new Sums(grid.cols, grid.rows, grid.gray);
     this.aspect = options.aspect;
     this.margin = options.margin ?? 12;

@@ -56,6 +56,8 @@ export type SessionDeps = {
   micWindowMs: number;
   /** Epoch milliseconds. */
   now?(): number;
+  /** Waits this long (default: a timer). Checks give it a clock of their own so a wait cannot race the test. */
+  sleep?(ms: number): Promise<void>;
   /**
    * Keeps an answer (see pins.ts). Absent: pinning is not available. `screenshot` is given only when the
    * person has chosen to keep a picture of the screen with their pins.
@@ -121,8 +123,12 @@ export type QuestionReport = {
 /** What a screen grab gives: the picture, how long it took, and (if the media page kept it) the id of the full-resolution frame. */
 type Grab = { screenshot: Screenshot; ms: number; grabId?: number };
 
-/** After release, how long an unfinished stroke may still be waiting for its last piece. */
-const STROKE_TAIL_MS = 150;
+/**
+ * After release, how long an unfinished stroke may still be waiting for its last piece, counted in the steps of `STROKE_TAIL_STEP_MS` the wait is
+ * made of (not by the clock): a machine that is busy or has a coarse timer waits longer and never less, so it cannot cut a tail it would have caught.
+ */
+export const STROKE_TAIL_MS = 150;
+export const STROKE_TAIL_STEP_MS = 10;
 
 /** Shortest recording that counts as a question. */
 const MIN_CLIP_MS = 400;
@@ -153,6 +159,7 @@ export function createSession(deps: SessionDeps) {
   /** Checks only (logText): each answer's raw text goes in the log, so a garbled one can be read afterwards. Otherwise nothing is asked for. */
   const rawLog = (): { onRaw?: (text: string) => void } => (deps.logText ? { onRaw: (text) => deps.log(`answer-raw ${JSON.stringify(text)}`) } : {});
   const now = deps.now ?? (() => Date.now());
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const backend = deps.backend;
   let attempt: Attempt | null = null;
   let nextId = 1;
@@ -622,7 +629,7 @@ export function createSession(deps: SessionDeps) {
       }
       if (controller.signal.aborted) return;
       // The strokes are final by now. Draw them onto the frame while the speech is being recognised.
-      for (let waited = 0; a.open.size > 0 && waited < STROKE_TAIL_MS; waited += 10) await new Promise<void>((resolve) => setTimeout(resolve, 10));
+      for (let waited = 0; a.open.size > 0 && waited < STROKE_TAIL_MS; waited += STROKE_TAIL_STEP_MS) await sleep(STROKE_TAIL_STEP_MS);
       const strokes = [...a.strokes.values()];
       if (penFor === a) penFor = null;
       const circled = isRealStroke(strokes) && deps.media.compose !== undefined;

@@ -156,22 +156,75 @@ function articlePage(freeRight = true) {
   put(26, 132, 10, 104, (c, r) => r % 4 < 2 && (c * 7 + r * 13) % 11 !== 0); // prose
   put(138, 170, 28, 50, () => true); // the figure
   put(138, 170, 50, 62, (c, r) => r % 4 < 2 && c % 2 === 0); // its table
-  put(174, 190, 12, 52, (c, r) => r % 8 < 2 && c % 3 !== 0); // the panel of options
-  put(4, 22, 14, 100, (c, r) => r % 5 < 2 && c % 4 !== 0); // the sidebar
+  // The panel of options and the sidebar are lists: lines of all lengths, as labels are.
+  const list = (c0: number, r0: number, n: number, pitch: number, lengths: number[]) => { for (let k = 0; k < n; k++) put(c0, c0 + lengths[k % lengths.length]!, r0 + k * pitch, r0 + k * pitch + 2, (c) => c % 4 !== 0); };
+  list(174, 12, 5, 8, [6, 12, 9, 14, 7]); // the panel of options
+  list(4, 14, 17, 5, [8, 14, 18, 10, 16, 6, 12, 17, 9, 15]); // the sidebar
   if (!freeRight) put(138, 190, 64, 104, (c, r) => r % 3 < 2); // the margin is full too
   return pageGrid(gray, COLS, ROWS);
 }
 const AC = (c: number) => (c / COLS) * 1000; // a grid column in units
 
-test('prose is told from controls and figures by the width of its lines: a column of text is body, a sidebar, an infobox and a panel of options are not', () => {
+test('prose is told from controls and figures: a column of text is body, a sidebar, an infobox and a panel of options are not', () => {
   const grid = articlePage();
   const body = bodyTextOf(grid);
   const at = (c: number, r: number) => body[r * COLS + c]!;
-  let prose = 0, fixtures = 0, proseInk = 0;
+  let prose = 0, fixtures = 0, proseInk = 0, fixtureInk = 0;
   for (let r = 10; r < 104; r++) for (let c = 26; c < 132; c++) if (grid.gray[r * COLS + c]! < 100) { proseInk++; prose += at(c, r); }
-  for (const [c0, c1, r0, r1] of [[138, 170, 28, 62], [174, 190, 12, 52], [4, 22, 14, 100]] as const) for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) fixtures += at(c, r);
+  for (const [c0, c1, r0, r1] of [[138, 170, 28, 62], [174, 190, 12, 52], [4, 22, 14, 100]] as const) for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) if (grid.gray[r * COLS + c]! < 100) { fixtureInk++; fixtures += at(c, r); }
   assert.ok(prose / proseInk > 0.9, `the prose is body: ${(prose / proseInk).toFixed(2)}`);
-  assert.equal(fixtures, 0, 'the infobox, the options panel and the sidebar are not');
+  assert.ok(fixtures / fixtureInk < 0.15, `the infobox, the options panel and the sidebar are not: ${(fixtures / fixtureInk).toFixed(2)}`);
+});
+
+/** A page of one kind of ink: a function says which cells are ink. */
+function inkPage(ink: (c: number, r: number) => boolean) {
+  const gray = new Uint8Array(COLS * ROWS);
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) gray[r * COLS + c] = ink(c, r) ? 40 : 238;
+  return pageGrid(gray, COLS, ROWS);
+}
+/** The mean prose weight over the ink in a block of the page. */
+function weightOf(grid: ReturnType<typeof pageGrid>, c0: number, c1: number, r0: number, r1: number): number {
+  const w = bodyTextOf(grid);
+  let sum = 0, n = 0;
+  for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) if (grid.gray[r * COLS + c]! < 100) { sum += w[r * COLS + c]!; n++; }
+  assert.ok(n > 0, 'the block has ink');
+  return sum / n;
+}
+
+test('the share of a figure that counts as prose ramps with its width, from 15% to 30% of the page, and does not flip at a cliff', () => {
+  // A dense block (no lines in it) of each width; 192 columns across.
+  const widths = [20, 29, 36, 44, 52, 62];
+  const weights = widths.map((w) => weightOf(inkPage((c, r) => c >= 10 && c < 10 + w && r >= 20 && r < 60), 10, 10 + w, 20, 60));
+  assert.ok(weights[0]! < 0.1, `10% wide is a fixture: ${weights[0]}`);
+  assert.ok(weights[5]! > 0.95, `32% wide is prose: ${weights[5]}`);
+  for (let i = 1; i < weights.length; i++) assert.ok(weights[i]! >= weights[i - 1]! - 1e-9, `rises with width: ${weights.join(' ')}`);
+  for (let i = 1; i < weights.length; i++) assert.ok(weights[i]! - weights[i - 1]! < 0.45, `no cliff between neighbours: ${weights.join(' ')}`);
+  assert.ok(weights[2]! > 0.1 && weights[2]! < 0.9, `a figure 19% wide is part way: ${weights[2]}`);
+});
+
+test('a run wider than 85% of the page is a bar (a toolbar), not prose; a block of regular lines that wide is still prose', () => {
+  const bar = inkPage((c, r) => r >= 10 && r < 12 && c >= 6 && c < COLS - 6 && c % 5 !== 0);
+  assert.ok(weightOf(bar, 6, COLS - 6, 10, 12) < 0.05, 'one line across the whole page is a toolbar');
+  const paragraph = inkPage((c, r) => r >= 10 && r < 90 && r % 4 < 2 && c >= 6 && c < COLS - 6 && (c * 7 + r * 13) % 11 !== 0);
+  assert.ok(weightOf(paragraph, 6, COLS - 6, 10, 90) > 0.95, 'a paragraph on a narrow screen is prose whatever its width');
+});
+
+test('body text in a narrow column still reads as prose (an ultrawide screen, a split pane, a chat), by the regularity of its lines; a list of labels of the same width does not', () => {
+  const narrow = 16; // 8% of the page
+  const column = inkPage((c, r) => c >= 90 && c < 90 + narrow && r >= 10 && r < 90 && r % 4 < 2 && (c * 7 + r * 13) % 11 !== 0);
+  assert.ok(weightOf(column, 90, 90 + narrow, 10, 90) > 0.95, 'twenty lines of one width and pitch are text');
+  // A chat: lines start together, repeat at a pitch, and run to different lengths, but most of them nearly full.
+  const lengths = [16, 15, 16, 9, 16, 14, 16, 16, 10, 15, 16, 12];
+  const chat = inkPage((c, r) => { const k = Math.floor((r - 10) / 5); return r >= 10 && r < 70 && (r - 10) % 5 < 2 && c >= 90 && c < 90 + lengths[k]! && c % 4 !== 0; });
+  assert.ok(weightOf(chat, 90, 106, 10, 70) > 0.9, `a chat of ragged lines is text: ${weightOf(chat, 90, 106, 10, 70)}`);
+  // The same width as a list of labels: lengths all over the place, and uneven spacing.
+  const labels = [5, 14, 7, 16, 4, 12, 9, 6];
+  const at = [10, 18, 24, 36, 42, 54, 60, 74];
+  const list = inkPage((c, r) => { const k = at.findIndex((a) => r >= a && r < a + 2); return k >= 0 && c >= 90 && c < 90 + labels[k]! && c % 4 !== 0; });
+  assert.ok(weightOf(list, 90, 106, 10, 80) < 0.2, `a list of labels is not text: ${weightOf(list, 90, 106, 10, 80)}`);
+  // Evenly spaced, as a menu is, but with labels of all lengths.
+  const menu = inkPage((c, r) => { const k = Math.floor((r - 10) / 6); return r >= 10 && r < 70 && (r - 10) % 6 < 2 && c >= 90 && c < 90 + [5, 14, 7, 16, 4, 12, 9, 6, 15, 8][k]! && c % 4 !== 0; });
+  assert.ok(weightOf(menu, 90, 106, 10, 70) < 0.2, `an evenly spaced menu of labels of all lengths is not text: ${weightOf(menu, 90, 106, 10, 70)}`);
 });
 
 test('a diagram goes smaller, to what it can be read at, before it covers a page\'s figure or controls, and keeps readable bounds', () => {
