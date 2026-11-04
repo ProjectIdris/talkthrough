@@ -10,7 +10,7 @@
 import {
   AmbientLight, Box3, BufferGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight, EdgesGeometry, Euler,
   Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Material, Mesh, MeshBasicMaterial, Object3D,
-  PerspectiveCamera, PlaneGeometry, Scene, ShadowMaterial, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector3,
+  PerspectiveCamera, PlaneGeometry, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector3,
 } from 'three';
 import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
@@ -41,6 +41,9 @@ export function verticalFov(aspect: number): number {
 
 /** Units visible across the shorter side of the stage at zoom 1. */
 export const FRAMING_UNITS = 12;
+/** The sphere round the model gets this much room on the stage, and the camera never comes nearer than this to it (world units). */
+const FIT_MARGIN = 1.1;
+const MIN_FIT_DISTANCE = 0.8;
 const PATH_RADIUS = 0.06;
 const DEG = Math.PI / 180;
 
@@ -101,6 +104,8 @@ export class PanelScene {
   private blobMaterial: MeshBasicMaterial | undefined;
   private box = new Box3();
   private hasBox = false;
+  /** The middle of the model, as of the last camera placement: where the camera looks when nothing is named. */
+  private fitCenter: Vector3 | undefined;
   private cutaway = new Cutaway();
 
   constructor(deps: PanelDeps = {}) {
@@ -415,7 +420,8 @@ export class PanelScene {
   }
 
   private focusPoint(f: FocusFrame, out: Vector3): Vector3 {
-    const to = new Vector3(0, 0, 0);
+    // With nothing named, the camera looks at the middle of the model (not at the origin, where it may not be).
+    const to = this.fitCenter ? this.fitCenter.clone() : new Vector3(0, 0, 0);
     if (f.key !== null) this.nodes.get(f.key)?.obj.getWorldPosition(to);
     if (!f.from || f.k >= 1) return out.copy(to);
     const from = this.focusPoint(f.from, new Vector3());
@@ -426,8 +432,18 @@ export class PanelScene {
     const cam = frame.camera;
     const fov = verticalFov(aspect);
     const tan = Math.tan((fov * DEG) / 2);
-    const base = (FRAMING_UNITS / 2 / (aspect >= 1 ? 1 : aspect)) / tan;
-    const dist = base * standBack / Math.max(0.05, cam.zoom);
+    // Zoom 1 is the whole model filling the stage, whatever size it was written at (a model of 3 units and one of 30 both fit).
+    // The distance comes from a sphere round the visible parts; it also takes in an opened (exploded) model, which is
+    // laid out by now, so the camera stands back for it without being told.
+    const fit = this.modelSphere();
+    let base = (FRAMING_UNITS / 2 / (aspect >= 1 ? 1 : aspect)) / tan;
+    if (fit) {
+      const tanShort = tan * Math.min(1, aspect);
+      base = Math.max(MIN_FIT_DISTANCE, (fit.radius * FIT_MARGIN * Math.sqrt(1 + tanShort * tanShort)) / tanShort);
+    }
+    void standBack;
+    this.fitCenter = fit ? fit.center : undefined;
+    const dist = base / Math.max(0.05, cam.zoom);
     const az = cam.az * DEG, el = Math.max(-89, Math.min(89, cam.el)) * DEG;
     const target = this.focusPoint(cam.focus, new Vector3());
     this.camera.aspect = aspect;
@@ -443,6 +459,35 @@ export class PanelScene {
     this.camera.lookAt(target);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld(true);
+  }
+
+  /**
+   * A sphere round every visible part, from the parts' own bounding spheres (so a part turning on its axis does not make
+   * the camera breathe the way a box round it would). Undefined when nothing is there.
+   */
+  private modelSphere(): { center: Vector3; radius: number } | undefined {
+    const spheres: Sphere[] = [];
+    for (const node of this.nodes.values()) {
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || node.path) continue;
+      for (const p of node.pieces) {
+        const mesh = p.object as Mesh;
+        const geo = mesh.geometry;
+        if (!geo) continue;
+        if (!geo.boundingSphere) geo.computeBoundingSphere();
+        if (!geo.boundingSphere) continue;
+        spheres.push(geo.boundingSphere.clone().applyMatrix4(mesh.matrixWorld));
+      }
+    }
+    if (spheres.length === 0) return undefined;
+    const lo = new Vector3(Infinity, Infinity, Infinity), hi = new Vector3(-Infinity, -Infinity, -Infinity);
+    for (const s of spheres) {
+      lo.min(new Vector3(s.center.x - s.radius, s.center.y - s.radius, s.center.z - s.radius));
+      hi.max(new Vector3(s.center.x + s.radius, s.center.y + s.radius, s.center.z + s.radius));
+    }
+    const center = lo.add(hi).multiplyScalar(0.5);
+    let radius = 0;
+    for (const s of spheres) radius = Math.max(radius, s.center.distanceTo(center) + s.radius);
+    return { center, radius };
   }
 
   /** How far the visible parts reach from a point: the largest distance to a corner of a part's box. */

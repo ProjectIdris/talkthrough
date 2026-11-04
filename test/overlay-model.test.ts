@@ -99,13 +99,14 @@ test('a flat tube is a ribbon: wide across the path, thin the other way', () => 
 });
 
 test('a point on an object lands where the camera sees it, and follows the object when it moves', () => {
-  const frame = (x: number) => settled({ op: 'add', shape: 'box', id: 'a', size: [1, 1, 1] }, { op: 'move', id: 'a', to: [x, 0, 0], dur: 0 }, { op: 'orbit', az: 0, el: 0, dur: 0 });
+  // A big fixed box keeps the camera where it is while the small one moves inside it.
+  const frame = (x: number) => settled({ op: 'add', shape: 'box', id: 'floor', size: [20, 20, 20], opacity: 0.2 }, { op: 'add', shape: 'box', id: 'a', size: [1, 1, 1] }, { op: 'move', id: 'a', to: [x, 0, 0], dur: 0 }, { op: 'orbit', az: 0, el: 0, dur: 0 });
   const scene = new PanelScene();
   const f0 = frame(0);
   scene.sync(f0, 1, { rect: { x: 100, y: 100, w: 400, h: 400 }, width: 1200, height: 800 });
   const centre = scene.project(keyOf(f0, 'a'), undefined, 1200, 800);
   assert.ok(centre && Math.abs(centre.x - 300) < 2 && Math.abs(centre.y - 300) < 2, `${centre?.x},${centre?.y}: the middle of the stage`);
-  const f1 = frame(3);
+  const f1 = frame(8);
   scene.sync(f1, 1, { rect: { x: 100, y: 100, w: 400, h: 400 }, width: 1200, height: 800 });
   const moved = scene.project(keyOf(f1, 'a'), undefined, 1200, 800);
   assert.ok(moved && moved.x > 300 + 40, 'moved right on screen');
@@ -128,8 +129,27 @@ test('the model may reach past the stage: nothing is clipped to its rectangle', 
   const scene2 = new PanelScene();
   scene2.sync(wide, 1, small);
   const b2 = scene2.screenBounds(1200, 800);
-  assert.ok(b2 && b2.model.w > bounds.model.w * 2, 'a wider model is wider on screen, whatever the stage size');
-  assert.ok(b2.drawn.w >= b2.model.w && b2.drawn.h >= b2.model.h, 'what is drawn includes the model');
+  assert.ok(b2 && b2.drawn.w >= b2.model.w && b2.drawn.h >= b2.model.h, 'what is drawn includes the model');
+});
+
+test('whatever size and place a model is written at, it fits its stage and fills most of it', () => {
+  const stage = { x: 300, y: 100, w: 420, h: 420 };
+  const models: Array<[string, unknown[]]> = [
+    ['tiny', [{ op: 'add', shape: 'box', id: 'a', size: [0.5, 0.5, 0.5] }]],
+    ['ordinary', [{ op: 'add', shape: 'box', id: 'a', size: [6, 4, 5] }]],
+    ['huge', [{ op: 'add', shape: 'box', id: 'a', size: [80, 50, 60] }]],
+    ['long and thin', [{ op: 'add', shape: 'box', id: 'a', size: [40, 2, 2] }]],
+    ['far from the origin', [{ op: 'add', shape: 'sphere', id: 'a', size: [5, 5, 5], pos: [60, -30, 10] }, { op: 'add', shape: 'sphere', id: 'b', size: [5, 5, 5], pos: [70, -20, 0] }]],
+  ];
+  for (const [name, actions] of models) {
+    const frame = settled(...(actions as never[]), { op: 'orbit', az: 20, el: 10, dur: 0 });
+    const scene = new PanelScene();
+    scene.sync(frame, 1, { rect: stage, width: 1200, height: 800 });
+    const b = scene.screenBounds(1200, 800)!.model;
+    const slack = 4;
+    assert.ok(b.x >= stage.x - slack && b.y >= stage.y - slack && b.x + b.w <= stage.x + stage.w + slack && b.y + b.h <= stage.y + stage.h + slack, `${name}: inside the stage (${JSON.stringify(b)})`);
+    assert.ok(Math.max(b.w / stage.w, b.h / stage.h) > 0.6, `${name}: fills the stage (${Math.round(Math.max(b.w / stage.w, b.h / stage.h) * 100)}%)`);
+  }
 });
 
 test('with no model there is nothing to bound', () => {

@@ -12,7 +12,7 @@ import { mergeGeometries, toCreasedNormals } from 'three/examples/jsm/utils/Buff
 import type { AddPart, Vec3 } from '../scene/types.ts';
 import { boxGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
-import { crankThrow, pistonPinDrop, rodEnds } from './mechanism-geometry.ts';
+import { crankThrow, normalSize, pistonPinDrop, rodEnds } from './mechanism-geometry.ts';
 import { SECTION } from './materials.ts';
 import { Builder, cyl } from './parts-base.ts';
 import type { Rgb } from './timeline.ts';
@@ -381,7 +381,7 @@ function bearing(b: Builder, def: AddPart, d: Detail): void {
 
 function pipe(b: Builder, def: AddPart, d: Detail): void {
   const [sx, sy] = def.size;
-  const ro = sx / 2;
+  const ro = sx / 2 / 1.28; // the flanges are a little wider than the tube, and the box holds them
   const ri = ro * 0.84;
   const h = sy / 2;
   b.add(spin([[ri, -h], [ro, -h], [ro, h], [ri, h], [ri, -h]], d.curve, 0.8), 'metal', { tint: true, edges: false });
@@ -393,8 +393,9 @@ function pipe(b: Builder, def: AddPart, d: Detail): void {
 function elbow(b: Builder, def: AddPart, d: Detail): void {
   const [sx, sy, sz] = def.size;
   const r = sz / 2;
-  const bend = Math.max(r * 1.4, Math.min(sx, sy) - r);
-  const cx = -(bend + r) / 2, cy = -(bend + r) / 2;
+  // The tube's outside, end to end, is the smaller of the box's two sides (bend plus a tube width).
+  const bend = Math.max(r * 1.2, Math.min(sx, sy) - 2 * r);
+  const cx = -bend / 2, cy = -bend / 2;
   b.add(toCreasedNormals(new TorusGeometry(bend, r, d.radial, d.curve, Math.PI / 2), 0.8).translate(cx, cy, 0), 'metal', { tint: true, edges: false });
   // Flanges at the two ends: one opens downwards at (bend, 0), the other to the left at (0, bend).
   b.add(cyl(r * 1.3, r * 1.3, r * 0.22, d.curve), 'metal', { color: DARK_STEEL, pos: [cx + bend, cy - r * 0.02, 0], edges: true });
@@ -438,7 +439,7 @@ const BUILDERS: Record<string, (b: Builder, def: AddPart, d: Detail) => void> = 
 export function buildMechanismPart(b: Builder, def: AddPart, d: Detail): boolean {
   const build = BUILDERS[def.part];
   if (!build) return false;
-  build(b, def, d);
+  build(b, { ...def, size: normalSize(def.part, def.size) }, d);
   return true;
 }
 
