@@ -27,7 +27,8 @@ export const TIERS: Record<Tier, TierSettings> = {
   high: { msaa: true, shadows: true, shadowMapSize: 2048, edges: true, maxPixelRatio: 2, clearcoat: true },
 };
 
-export type SurfaceName = 'plastic' | 'metal' | 'rubber' | 'pcb' | 'glass' | 'glow' | 'paper';
+/** The surfaces a scene can name, and two the parts kit uses inside itself: painted metal and rough cast metal. */
+export type SurfaceName = 'plastic' | 'metal' | 'rubber' | 'pcb' | 'glass' | 'glow' | 'paper' | 'enamel' | 'cast';
 
 type Recipe = {
   roughness: number; metalness: number; clearcoat?: number; clearcoatRoughness?: number;
@@ -43,6 +44,10 @@ const RECIPES: Record<SurfaceName, Recipe> = {
   glass: { roughness: 0.04, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, opacity: 0.34, envMapIntensity: 1.5, doubleSided: true },
   glow: { roughness: 0.6, metalness: 0, emissive: 1.25 },
   paper: { roughness: 0.96, metalness: 0, doubleSided: true },
+  // Painted metal: a little of the metal under the paint shows in the shine, and the lacquer over it is glassy.
+  enamel: { roughness: 0.34, metalness: 0.55, clearcoat: 1, clearcoatRoughness: 0.12, envMapIntensity: 1.1 },
+  // Sand-cast metal: rough and even, with no mirror in it.
+  cast: { roughness: 0.42, metalness: 1, envMapIntensity: 1.05 },
 };
 
 export type Surface = MeshPhysicalMaterial & { userData: { base: number; glow: number } };

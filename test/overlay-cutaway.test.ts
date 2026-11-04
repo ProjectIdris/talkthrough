@@ -55,9 +55,10 @@ test('what is cut is clipped on the removed side of the plane, closed parts get 
   const beside = scene.nodeOf(frame.objects.find((o) => o.id === 'beside')!.key)!;
   assert.equal(clipped(beside).length, 0, 'an object outside the cut one is left whole');
   const m = scene.nodeOf(frame.objects.find((o) => o.id === 'm')!.key)!;
-  const closedParts = parts(m).filter((p) => !isOpen(p));
+  // instanced bolts are not capped (a cap needs the part's own geometry), so they are not counted either
+  const closedParts = parts(m).filter((p) => !isOpen(p) && !(p as { isInstancedMesh?: boolean }).isInstancedMesh);
   assert.ok(parts(m).some(isOpen), 'the block has an open liner');
-  assert.equal(caps(scene).length, closedParts.length, 'one cap for each closed part, none for the open liner');
+  assert.equal(caps(scene).length, closedParts.length, 'one cap for each closed part, none for the open liner or the instanced bolts');
   // the caps hang from the scene, not from the model, so they never count toward its size
   const content = scene.scene.children.find((c) => c.type === 'Group' && c.children.length > 0)!;
   const size = new Box3().setFromObject(content).getSize(new Vector3());

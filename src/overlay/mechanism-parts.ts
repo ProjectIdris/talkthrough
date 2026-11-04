@@ -6,9 +6,9 @@
 // docs/scene-language.md, "The mechanism kit".
 
 import {
-  BufferGeometry, CatmullRomCurve3, CylinderGeometry, ExtrudeGeometry, LatheGeometry, Path, Shape, SphereGeometry, TorusGeometry, TubeGeometry, Vector2, Vector3,
+  BufferGeometry, CatmullRomCurve3, CylinderGeometry, ExtrudeGeometry, InstancedMesh, LatheGeometry, Matrix4, Path, Shape, SphereGeometry, TorusGeometry, TubeGeometry, Vector2, Vector3,
 } from 'three';
-import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { AddPart, Vec3 } from '../scene/types.ts';
 import { boxGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
@@ -70,6 +70,24 @@ function spin(points: ReadonlyArray<readonly [number, number]>, sides: number, c
 
 const alongZ = <T extends BufferGeometry>(geo: T): T => geo.rotateX(Math.PI / 2);
 
+/**
+ * Hex-headed bolts, one instanced draw for all of them. The head stands `h` proud of where it is placed (axis y: pointing
+ * up; axis z: pointing towards the viewer) and has a washer face under it. An instanced piece is not capped when cut.
+ */
+function bolts(b: Builder, at: ReadonlyArray<Vec3>, r: number, h: number, axis: 'y' | 'z', color: Rgb = BRIGHT): void {
+  if (at.length === 0) return;
+  const head = new CylinderGeometry(r, r, h * 0.7, 6).translate(0, h * 0.35 + h * 0.3, 0);
+  const washer = new CylinderGeometry(r * 1.25, r * 1.25, h * 0.3, 14).translate(0, h * 0.15, 0);
+  const merged = mergeGeometries([head, washer].map((g) => g.toNonIndexed()))!;
+  const geo = toCreasedNormals(axis === 'z' ? alongZ(merged) : merged, 0.6);
+  const mesh = new InstancedMesh(geo, undefined as never, at.length);
+  const m = new Matrix4();
+  at.forEach((p, i) => mesh.setMatrixAt(i, m.makeTranslation(p[0], p[1], p[2])));
+  mesh.instanceMatrix.needsUpdate = true;
+  b.root.add(mesh);
+  b.pieces.push({ object: mesh, surface: 'metal', tint: false, color, edges: false, closed: false });
+}
+
 // ---- Cylinder block: a block with a bore, optionally cut open to show inside, optionally finned ----------
 
 function cylinderBlock(b: Builder, def: AddPart, d: Detail): void {
@@ -92,7 +110,11 @@ function cylinderBlock(b: Builder, def: AddPart, d: Detail): void {
     shape.copy(outer);
   }
   const geo = slab(shape, sy, 0.02 * sy, d).rotateX(-Math.PI / 2);
-  b.add(geo, 'metal', { tint: true, edges: true });
+  b.add(geo, 'cast', { tint: true, edges: true });
+  // Head bolts at the corners of the deck.
+  const m = Math.min(sx, sz) * 0.11;
+  const bz = cut ? [-(sz / 2 - m)] : [-(sz / 2 - m), sz / 2 - m];
+  bolts(b, [-1, 1].flatMap((i) => bz.map((z): Vec3 => [i * (sx / 2 - m), sy / 2, z])), m * 0.42, m * 0.5, 'y', STEEL);
   // The bore wall, a darker honed liner, so the hole reads as a hole.
   const liner = new CylinderGeometry(bore * 1.004, bore * 1.004, sy * 0.98, d.curve, 1, true, cut ? Math.PI : 0, cut ? Math.PI : Math.PI * 2);
   b.add(liner, 'metal', { color: [78, 84, 96], open: true });
@@ -100,7 +122,7 @@ function cylinderBlock(b: Builder, def: AddPart, d: Detail): void {
     const n = def.n ?? 6;
     for (let i = 0; i < n; i++) {
       const y = -sy / 2 + sy * (0.18 + (0.62 * i) / Math.max(1, n - 1));
-      for (const side of [-1, 1]) b.add(boxGeometry([sx * 0.16, sy * 0.028, sz * 0.96], 0.01, d), 'metal', { tint: true, pos: [side * (sx / 2 + sx * 0.06), y, 0] });
+      for (const side of [-1, 1]) b.add(boxGeometry([sx * 0.16, sy * 0.028, sz * 0.96], 0.01, d), 'cast', { tint: true, pos: [side * (sx / 2 + sx * 0.06), y, 0] });
     }
   }
   b.anchors['bore-top'] = [0, sy / 2, 0];
@@ -113,8 +135,16 @@ function cylinderBlock(b: Builder, def: AddPart, d: Detail): void {
 function piston(b: Builder, def: AddPart, d: Detail): void {
   const [sx, sy] = def.size;
   const r = sx / 2;
-  b.add(spin([[0, -sy / 2], [r * 0.92, -sy / 2], [r * 0.97, -sy / 2 + sy * 0.05], [r, -sy / 2 + sy * 0.12], [r, sy / 2 - sy * 0.03], [r * 0.9, sy / 2], [0, sy / 2]], d.curve, 0.6), 'metal', { tint: true, edges: false });
-  for (const k of [0.12, 0.2, 0.28]) b.add(cyl(r * 1.012, r * 1.012, sy * 0.04, d.curve), 'metal', { color: DARK_STEEL, pos: [0, sy / 2 - sy * k, 0] });
+  // The crown is rounded over, and three ring grooves are cut into the land (the rings sit proud in them).
+  const top = sy / 2;
+  const profile: Array<[number, number]> = [[0, -sy / 2], [r * 0.92, -sy / 2], [r * 0.97, -sy / 2 + sy * 0.05], [r, -sy / 2 + sy * 0.12]];
+  const groove = sy * 0.045, depth = r * 0.07;
+  const centres = [0.1, 0.18, 0.26].map((k) => top - sy * k - sy * 0.04);
+  profile.push([r, top - sy * 0.3 - groove]);
+  for (const y of centres.slice().reverse()) profile.push([r, y - groove / 2], [r - depth, y - groove / 2], [r - depth, y + groove / 2], [r, y + groove / 2]);
+  profile.push([r, top - sy * 0.035], [r * 0.97, top - sy * 0.012], [r * 0.9, top], [0, top]);
+  b.add(spin(profile, d.curve, 0.6), 'metal', { tint: true, edges: false });
+  for (const y of centres) b.add(cyl(r * 1.006, r * 1.006, groove * 0.72, d.curve), 'metal', { color: DARK_STEEL, pos: [0, y, 0] });
   b.add(cyl(r * 0.62, r * 0.62, sy * 0.012, d.curve), 'metal', { color: BRIGHT, pos: [0, sy / 2 + 0.002, 0] });
   b.add(alongZ(cyl(r * 0.2, r * 0.2, def.size[2] * 0.96, 18)), 'metal', { color: STEEL, pos: [0, -pistonPinDrop(def.size), 0] });
   b.anchors['crown'] = [0, sy / 2, 0];
@@ -171,13 +201,13 @@ function crankshaft(b: Builder, def: AddPart, d: Detail): void {
     for (const side of [-1, 1]) {
       const zz = z + side * pitch * 0.2;
       const slot = roundRect(rj * 3, throwR + rj * 3, rj * 1.4);
-      b.add(rot(slab(slot, web, web * 0.2, d).translate(0, throwR / 2, 0)).translate(0, 0, zz), 'metal', { tint: true, edges: true });
+      b.add(rot(slab(slot, web, web * 0.2, d).translate(0, throwR / 2, 0)).translate(0, 0, zz), 'cast', { tint: true, edges: true });
       const cw = new Shape();
       const half = 62 * DEG;
       cw.moveTo(0, 0);
       cw.absarc(0, 0, m * 0.44, -Math.PI / 2 - half, -Math.PI / 2 + half, false);
       cw.closePath();
-      b.add(rot(slab(cw, web * 1.14, web * 0.2, d)).translate(0, 0, zz), 'metal', { tint: true, edges: true });
+      b.add(rot(slab(cw, web * 1.14, web * 0.2, d)).translate(0, 0, zz), 'cast', { tint: true, edges: true });
     }
     const pin = alongZ(cyl(rp, rp, pitch * 0.4, d.curve));
     pin.translate(0, throwR, 0);
@@ -363,21 +393,21 @@ function housing(b: Builder, def: AddPart, d: Detail): void {
   const [sx, sy, sz] = def.size;
   const t = Math.min(sx, sy, sz) * 0.07;
   if (def.variant === 'cutaway') {
-    b.add(boxGeometry([sx, sy, t], t * 0.3, d), 'metal', { tint: true, pos: [0, 0, -sz / 2 + t / 2], edges: true });
-    for (const side of [-1, 1]) b.add(boxGeometry([t, sy, sz], t * 0.3, d), 'metal', { tint: true, pos: [side * (sx / 2 - t / 2), 0, 0], edges: true });
-    for (const side of [-1, 1]) b.add(boxGeometry([sx, t, sz], t * 0.3, d), 'metal', { tint: true, pos: [0, side * (sy / 2 - t / 2), 0], edges: true });
+    b.add(boxGeometry([sx, sy, t], t * 0.3, d), 'enamel', { tint: true, pos: [0, 0, -sz / 2 + t / 2], edges: true });
+    for (const side of [-1, 1]) b.add(boxGeometry([t, sy, sz], t * 0.3, d), 'enamel', { tint: true, pos: [side * (sx / 2 - t / 2), 0, 0], edges: true });
+    for (const side of [-1, 1]) b.add(boxGeometry([sx, t, sz], t * 0.3, d), 'enamel', { tint: true, pos: [0, side * (sy / 2 - t / 2), 0], edges: true });
   } else {
-    b.add(boxGeometry(def.size, t * 0.5, d), 'metal', { tint: true, edges: true });
+    b.add(boxGeometry(def.size, t * 0.5, d), 'enamel', { tint: true, edges: true });
   }
   // A lip round the open or front face, and a bolt in each corner.
   const lip = [sx * 1.04, sy * 1.04, t * 0.6] as Vec3;
   if (def.variant === 'cutaway') {
-    for (const sideX of [-1, 1]) b.add(boxGeometry([t * 1.2, sy * 1.04, t * 0.6], t * 0.2, d), 'metal', { tint: true, pos: [sideX * (sx / 2 - t * 0.1), 0, sz / 2], edges: true });
-    for (const sideY of [-1, 1]) b.add(boxGeometry([sx * 1.04, t * 1.2, t * 0.6], t * 0.2, d), 'metal', { tint: true, pos: [0, sideY * (sy / 2 - t * 0.1), sz / 2], edges: true });
+    for (const sideX of [-1, 1]) b.add(boxGeometry([t * 1.2, sy * 1.04, t * 0.6], t * 0.2, d), 'enamel', { tint: true, pos: [sideX * (sx / 2 - t * 0.1), 0, sz / 2], edges: true });
+    for (const sideY of [-1, 1]) b.add(boxGeometry([sx * 1.04, t * 1.2, t * 0.6], t * 0.2, d), 'enamel', { tint: true, pos: [0, sideY * (sy / 2 - t * 0.1), sz / 2], edges: true });
   } else {
-    b.add(boxGeometry(lip, t * 0.2, d), 'metal', { tint: true, pos: [0, 0, sz / 2 - t * 0.3], edges: true });
+    b.add(boxGeometry(lip, t * 0.2, d), 'enamel', { tint: true, pos: [0, 0, sz / 2 - t * 0.3], edges: true });
   }
-  for (const sx1 of [-1, 1]) for (const sy1 of [-1, 1]) b.add(alongZ(cyl(t * 0.55, t * 0.55, t * 0.5, 6)), 'metal', { color: BRIGHT, pos: [sx1 * (sx / 2 - t * 1.1), sy1 * (sy / 2 - t * 1.1), sz / 2 + t * 0.1], edges: true });
+  bolts(b, [-1, 1].flatMap((sx1) => [-1, 1].map((sy1): Vec3 => [sx1 * (sx / 2 - t * 1.1), sy1 * (sy / 2 - t * 1.1), sz / 2 - t * 0.1])), t * 0.5, t * 0.6, 'z');
   b.anchors['front'] = [0, 0, sz / 2];
   b.anchors['back'] = [0, 0, -sz / 2];
 }

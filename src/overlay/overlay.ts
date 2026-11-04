@@ -21,6 +21,7 @@ import { createHold, explodeButtonBox, overModel, wheelFactor } from './orbit.ts
 import { drawMarks } from './marks.ts';
 import type { View } from './marks.ts';
 import { TIERS } from './materials.ts';
+import { Finishing } from './post.ts';
 import type { Tier } from './materials.ts';
 import { PenLayer, drawPen } from './pen.ts';
 import { Player, createSilentVoice } from './player.ts';
@@ -71,6 +72,9 @@ renderer.setClearColor(0x000000, 0);
 renderer.autoClear = false;
 renderer.shadowMap.enabled = settings.shadows;
 
+/** The high tier's occlusion and smoothing; absent on the others, and if the graphics stack will not run it. */
+let finishing: Finishing | undefined;
+
 const panelScene = new PanelScene({
   tier,
   makeCanvas: (width, height) => {
@@ -84,6 +88,13 @@ const panelScene = new PanelScene({
   const pmrem = new PMREMGenerator(renderer);
   panelScene.setEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture, 0.8);
   pmrem.dispose();
+}
+if (tier === 'high') {
+  try {
+    finishing = new Finishing(renderer, panelScene.scene, panelScene.camera);
+  } catch {
+    finishing = undefined; // the plain render is the fallback
+  }
 }
 
 /**
@@ -152,6 +163,7 @@ function resize(): void {
   document.documentElement.style.height = `${height}px`;
   renderer.setPixelRatio(Math.min(dpr, settings.maxPixelRatio));
   renderer.setSize(width, height);
+  finishing?.setSize(width * renderer.getPixelRatio(), height * renderer.getPixelRatio());
   marksCanvas.width = Math.round(width * dpr);
   marksCanvas.height = Math.round(height * dpr);
   marksCanvas.style.width = `${width}px`;
@@ -198,7 +210,8 @@ function draw(frame: Frame): void {
         renderer.setViewport(0, 0, view.width, view.height);
         renderer.setScissor(r.x, view.height - r.y - r.h, r.w, r.h);
         renderer.setScissorTest(true);
-        renderer.render(panelScene.scene, panelScene.camera);
+        if (finishing) finishing.render(panelScene.scene, panelScene.camera);
+        else renderer.render(panelScene.scene, panelScene.camera);
       }
     }
   } else {

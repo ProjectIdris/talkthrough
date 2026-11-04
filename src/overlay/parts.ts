@@ -45,7 +45,7 @@ function header(b: Builder, def: AddPart, d: Detail): void {
   }
   pins.instanceMatrix.needsUpdate = true;
   b.root.add(pins);
-  b.pieces.push({ object: pins, surface: 'metal', tint: false, color: GOLD, edges: false });
+  b.pieces.push({ object: pins, surface: 'metal', tint: false, color: GOLD, edges: false, closed: false });
 }
 
 function port(b: Builder, def: AddPart, d: Detail): void {

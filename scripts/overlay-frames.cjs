@@ -4,7 +4,7 @@
 //   npm run build
 //   (run it as `env -u ELECTRON_RUN_AS_NODE` if your shell sets that)
 //   npx electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 \
-//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high]
+//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--gpu yes]
 //
 // --steps is a list of step:seconds pairs (seconds into that step; earlier steps are complete).
 // --dpr sets the display scale; offscreen windows always render at 1, so use --hidden (a hidden, non-offscreen window) for dpr other than 1.
@@ -47,7 +47,8 @@ const [width, height] = (args.size || '1920x1080').split('x').map(Number);
 const dpr = Number(args.dpr || 1);
 const root = path.resolve(__dirname, '..');
 
-app.disableHardwareAcceleration();
+// The graphics card is used only when asked for (--gpu); the default is software rendering, which is what runs without one.
+if (!args.gpu) app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('force-device-scale-factor', String(dpr));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
