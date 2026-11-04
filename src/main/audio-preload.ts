@@ -11,6 +11,7 @@ const api: TalkthroughAudioApi = {
   composed: (result: ComposeResult) => ipcRenderer.send(AUDIO_CHANNEL.composed, result),
   composeError: (id: number, message: string) => ipcRenderer.send(AUDIO_CHANNEL.composeError, id, message),
   onUseImage: (listener) => void ipcRenderer.on(AUDIO_CHANNEL.useImage, (_event, request: UseImageRequest) => listener(request)),
+  onRelease: (listener) => void ipcRenderer.on(AUDIO_CHANNEL.release, (_event, grabId: number) => listener(grabId)),
   result: (result: MicResult) => ipcRenderer.send(AUDIO_CHANNEL.result, result),
   error: (message: string) => ipcRenderer.send(AUDIO_CHANNEL.error, message),
   started: () => ipcRenderer.send(AUDIO_CHANNEL.started),

@@ -177,6 +177,7 @@ async function main(): Promise<void> {
         log(`screenshot ${c.screenshot.width}x${c.screenshot.height} (display ${c.nativeWidth}x${c.nativeHeight}) grabbed in ${c.ms} ms`);
         return c;
       },
+      release: (grabId) => media.release(grabId),
       compose: async (grabId, strokes) => {
         const c = await media.compose(grabId, strokes, settings.screenshotEdge);
         if (options.savePen) {

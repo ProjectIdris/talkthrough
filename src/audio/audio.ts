@@ -240,5 +240,9 @@ window.talkthroughAudio.onStart(() => void start());
 window.talkthroughAudio.onAbort(abort);
 window.talkthroughAudio.onGrab((request) => void grab(request));
 window.talkthroughAudio.onCompose((request) => void compose(request));
+window.talkthroughAudio.onRelease((grabId) => {
+  frames.get(grabId)?.close();
+  frames.delete(grabId);
+});
 window.talkthroughAudio.onUseImage((request) => void useImage(request));
 window.talkthroughAudio.onStop(() => void stop());

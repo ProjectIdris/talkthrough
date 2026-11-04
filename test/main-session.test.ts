@@ -259,3 +259,63 @@ test('a stroke that cannot be drawn falls back to the plain screenshot and the q
   assert.ok(r.sent.some((m) => m.kind === 'end'));
   assert.ok(lines.some((l) => l.includes('could not be drawn')));
 });
+
+/** Media for the pen timing tests: stopMic takes `stopMs`, and what compose is given and what is released is recorded. */
+function penMedia(stopMs: number, log: { composed: unknown[]; released: number[] }): SessionDeps['media'] {
+  return {
+    startMic: async () => undefined,
+    stopMic: async () => {
+      await wait(stopMs);
+      return { samples: new Float32Array(16), sampleRate: 16000, durationMs: 1500, startLatencyMs: 100 };
+    },
+    abortMic: () => undefined,
+    capture: async () => ({ screenshot: shotOf('CLEAN'), ms: 5, grabId: 4 }),
+    compose: async (_grab, strokes) => {
+      log.composed.push(strokes);
+      return { screenshot: shotOf('MARKED'), crop: shotOf('CROP'), box: { x: 0, y: 0, w: 500, h: 500 } };
+    },
+    release: (grabId) => void log.released.push(grabId),
+  };
+}
+
+test('the tail of a stroke still counts: a piece after release but before the microphone closes, and the last piece of an open stroke within a short grace; later ones do not', async () => {
+  const log = { composed: [] as unknown[], released: [] as number[] };
+  const r = rig({ media: penMedia(40, log) });
+  r.session.arm();
+  r.session.start();
+  r.session.stroke(7, { id: 1, points: [[100, 100], [300, 120]], done: false });
+  r.session.stop();
+  r.session.stroke(7, { id: 1, points: [[400, 300]], done: false }); // after release, before stopMic resolves
+  await wait(50); // stopMic is done: the stroke is still open, so the snapshot waits for its last piece
+  r.session.stroke(7, { id: 1, points: [[500, 500]], done: true });
+  await wait(100);
+  assert.deepEqual(log.composed[0], [[[100, 100], [300, 120], [400, 300], [500, 500]]]);
+
+  // an open stroke whose last piece never comes is cut after the grace, and a piece after that is dropped
+  const log2 = { composed: [] as unknown[], released: [] as number[] };
+  const q = rig({ media: penMedia(0, log2) });
+  q.session.arm();
+  q.session.start();
+  q.session.stroke(7, { id: 1, points: [[100, 100], [400, 400]], done: false });
+  q.session.stop();
+  await wait(300);
+  q.session.stroke(7, { id: 1, points: [[900, 900]], done: true });
+  assert.deepEqual(log2.composed[0], [[[100, 100], [400, 400]]]);
+});
+
+test('the full-resolution frame is released when the question ends, however it ends', async () => {
+  const log = { composed: [] as unknown[], released: [] as number[] };
+  await question(rig({ media: penMedia(0, log) })); // a normal answer, no stroke
+  assert.deepEqual(log.released, [4]);
+  const failed = { composed: [] as unknown[], released: [] as number[] };
+  const media = penMedia(0, failed);
+  const r = rig({ media: { ...media, stopMic: async () => { throw new Error('no device'); } } });
+  await question(r);
+  assert.deepEqual(failed.released, [4], 'also when the microphone failed');
+  const dropped = { composed: [] as unknown[], released: [] as number[] };
+  const d = rig({ media: penMedia(0, dropped) });
+  d.session.arm();
+  d.session.cancel();
+  await wait(20);
+  assert.deepEqual(dropped.released, [4], 'and when the press was dropped');
+});

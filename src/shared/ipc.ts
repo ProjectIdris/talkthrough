@@ -132,6 +132,7 @@ export const AUDIO_CHANNEL = {
   composed: 'tt:cap-composed',
   composeError: 'tt:cap-compose-error',
   useImage: 'tt:cap-use-image',
+  release: 'tt:cap-release',
 } as const;
 
 export interface TalkthroughAudioApi {
@@ -148,6 +149,8 @@ export interface TalkthroughAudioApi {
   composed(result: ComposeResult): void;
   composeError(id: number, message: string): void;
   onUseImage(listener: (request: UseImageRequest) => void): void;
+  /** The question is over: close the full-resolution frame held under this grab id. */
+  onRelease(listener: (grabId: number) => void): void;
 }
 
 /** The small settings window (API key entry). The key only ever travels page -> main. */

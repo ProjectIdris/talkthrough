@@ -143,6 +143,10 @@ export function createMedia(options: { preload: string; page: string }) {
         grabId: id,
       };
     },
+    /** Closes the full-resolution frame the page holds for this grab (the question no longer needs it). */
+    release(grabId: number): void {
+      window?.webContents.send(AUDIO_CHANNEL.release, grabId);
+    },
     /** Checks only: a PNG taken as if it were the screen (the page keeps it for pen crops like a real grab). */
     async captureFromImage(display: Display, png: Buffer, maxEdge = 1280): Promise<Capture> {
       const started = performance.now();

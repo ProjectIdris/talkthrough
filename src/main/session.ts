@@ -26,6 +26,7 @@ export type SessionDeps = {
      * Draws the strokes onto the frame grabbed under `grabId` and crops around them from the
      * full-resolution frame. Absent when this build cannot (then the plain screenshot is used).
      */
+    release?(grabId: number): void;
     compose?(grabId: number, strokes: Point[][]): Promise<{ screenshot: Screenshot; crop: Screenshot; box: Box }>;
   };
   /**
@@ -72,6 +73,9 @@ export type QuestionReport = {
 /** What a screen grab gives: the picture, how long it took, and (if the media page kept it) the id of the full-resolution frame. */
 type Grab = { screenshot: Screenshot; ms: number; grabId?: number };
 
+/** After release, how long an unfinished stroke may still be waiting for its last piece. */
+const STROKE_TAIL_MS = 150;
+
 /** Shortest recording that counts as a question. */
 const MIN_CLIP_MS = 400;
 /** A new question within this long of the last answer continues it (the page fades a scene after FADE_AFTER_MS). */
@@ -83,6 +87,8 @@ type Attempt = {
   capture: Promise<Grab>;
   /** The pen strokes of this press, by stroke id, in the 0..1000 scale. */
   strokes: Map<number, Point[]>;
+  /** Stroke ids whose last piece (`done`) has not arrived yet. */
+  open: Set<number>;
   micStarted: boolean;
   chord: boolean;
   timer: NodeJS.Timeout | null;
@@ -102,6 +108,13 @@ export function createSession(deps: SessionDeps) {
   let releasedAt = 0;
   /** The press whose pen strokes still count: the one held now, and for a moment after release. */
   let penFor: Attempt | null = null;
+
+  /** The full-resolution frame of a press is not needed once its question is over. */
+  function releaseFrame(a: Attempt): void {
+    a.capture.then((grab) => {
+      if (grab.grabId !== undefined) deps.media.release?.(grab.grabId);
+    }, () => undefined);
+  }
 
   /** Click-through back and the page told, whatever fails on the way. */
   function penOff(displayId: number): void {
@@ -129,13 +142,13 @@ export function createSession(deps: SessionDeps) {
     attempt = null;
     if (a.timer) clearTimeout(a.timer);
     deps.media.abortMic();
-    a.capture.catch(() => undefined); // the frame is simply never used
+    releaseFrame(a); // the frame is simply never used
     deps.log(`early microphone and capture dropped (${why})`);
   }
 
   function begin(withWindow: boolean): Attempt {
     const displayId = deps.pointerDisplayId();
-    const a: Attempt = { id: nextId++, displayId, capture: deps.media.capture(displayId), strokes: new Map(), micStarted: false, chord: false, timer: null };
+    const a: Attempt = { id: nextId++, displayId, capture: deps.media.capture(displayId), strokes: new Map(), open: new Set(), micStarted: false, chord: false, timer: null };
     a.capture.catch(() => undefined); // an error is reported when the question is asked
     deps.media.startMic().catch((error: unknown) => deps.log(`microphone: ${error instanceof Error ? error.message : String(error)}`));
     if (withWindow) a.timer = setTimeout(() => dropAttempt('Right Shift did not follow in time'), deps.micWindowMs);
@@ -209,6 +222,7 @@ export function createSession(deps: SessionDeps) {
       }
       if (controller.signal.aborted) return;
       // The strokes are final by now. Draw them onto the frame while the speech is being recognised.
+      for (let waited = 0; a.open.size > 0 && waited < STROKE_TAIL_MS; waited += 10) await new Promise<void>((resolve) => setTimeout(resolve, 10));
       const strokes = [...a.strokes.values()];
       if (penFor === a) penFor = null;
       const circled = isRealStroke(strokes) && deps.media.compose !== undefined;
@@ -330,6 +344,8 @@ export function createSession(deps: SessionDeps) {
       thread.push({ question, steps: shown });
       lastActivity = now();
     } finally {
+      if (penFor === a) penFor = null;
+      releaseFrame(a);
       if (asking === controller) asking = null;
       deps.log(`report ${JSON.stringify(deps.logText ? r : { ...r, question: r.question ? '(not logged)' : '' })}`);
       deps.onReport?.(r);
@@ -352,6 +368,8 @@ export function createSession(deps: SessionDeps) {
         points = [];
         a.strokes.set(piece.id, points);
       }
+      if (piece.done) a.open.delete(piece.id);
+      else a.open.add(piece.id);
       for (const p of piece.points) {
         if (points.length >= 5000) break;
         points.push([p[0], p[1]]);
