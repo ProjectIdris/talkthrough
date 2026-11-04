@@ -22,11 +22,11 @@ export const MISSES_BEFORE_REPLACING = 3;
 /** A reader that has this many answers owing is not asked more (the oldest are dropped): a hung one must not pile them up. */
 const PENDING_MAX = 20;
 
-export function createFrontWindowReader(options: { file: string; log?(line: string): void; now?(): number; start?(file: string): Worker; /** How long a read may take before it counts as missed. Default: the skip check's deadline. */ missAfterMs?: number }): FrontWindowReader {
+export function createFrontWindowReader(options: { file: string; /** The folder of the `get-windows` package, whose native file the reader loads (default: the one in the working folder). */ addonDir?: string; log?(line: string): void; now?(): number; start?(file: string): Worker; /** How long a read may take before it counts as missed. Default: the skip check's deadline. */ missAfterMs?: number }): FrontWindowReader {
   const missAfterMs = options.missAfterMs ?? SKIP_DEADLINE_MS;
   let misses = 0;
   const now = options.now ?? (() => Date.now());
-  const start = options.start ?? ((file: string) => new Worker(file));
+  const start = options.start ?? ((file: string) => new Worker(file, { workerData: { addonDir: options.addonDir } }));
   const log = options.log ?? (() => undefined);
   let worker: Worker | null = null;
   let ready = false;

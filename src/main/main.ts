@@ -189,7 +189,9 @@ async function main(): Promise<void> {
   const keys = createKeyStore({ file: join(app.getPath('userData'), 'api-key.bin'), safeStorage });
   // The windows the person asked us not to look at (see skip-list.ts). The list is read each time, so one just saved protects at once.
   let skipList: readonly string[] = settings.captureBlocklist;
-  const frontReader = createFrontWindowReader({ file: join(__dirname, 'front-window-worker.cjs').replace('app.asar' + sep, 'app.asar.unpacked' + sep), log });
+  // In a packaged app both the worker and the native file it loads are outside the archive (asarUnpack).
+  const unpacked = (path: string): string => path.replace('app.asar' + sep, 'app.asar.unpacked' + sep);
+  const frontReader = createFrontWindowReader({ file: unpacked(join(__dirname, 'front-window-worker.cjs')), addonDir: unpacked(join(__dirname, '..', '..', 'node_modules', 'get-windows')), log });
   const skipped = createSkipCheck(() => skipList, { read: () => frontReader.read(), log });
   if (skipList.length > 0) void frontReader.read().catch(() => undefined); // starts the reader now, not at the first press
   const settingsWindow = createSettingsWindow({
