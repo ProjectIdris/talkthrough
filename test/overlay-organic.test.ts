@@ -124,3 +124,28 @@ test('the model is told about the organic forms: blob, swell and tissue', async 
   for (const word of ['blob', 'swell', 'tissue', 'lump']) assert.ok(sceneGuide.includes(word), word);
   assert.ok(sceneGuide.includes('are never boxes and cylinders'), 'the instruction is a rule, not a description');
 });
+
+test('ten blobs in one scene stay inside the scene budget of triangles: later ones are cut coarser, none is dropped', async () => {
+  const { SCENE_BLOB_TRIANGLES, BLOB_MIN_TRIANGLES } = await import('../src/overlay/blob.ts');
+  const lumps = (i: number) => ({
+    op: 'add', shape: 'blob', id: `b${i}`, pts: [[i * 0.5, 0, 0], [i * 0.5 + 1, 0.4, 0.2], [i * 0.5 + 0.5, 1, -0.2]], sizes: [[2, 2, 2], [1.6, 1.6, 1.6], [1.8, 1.8, 1.8]],
+  });
+  const scene: Scene = { steps: [{ say: 'x', actions: [{ op: 'panel', x: 100, y: 100, w: 400, h: 400 }, ...Array.from({ length: 10 }, (_, i) => lumps(i))] as Scene['steps'][0]['actions'] }] };
+  for (const tier of ['low', 'mid'] as const) {
+    const panel = new PanelScene({ tier });
+    panel.sync(frameAt(scene.steps, 0, 99), 1, VIEW);
+    const per: number[] = [];
+    panel.scene.traverse((o) => {
+      const tri = (o as { geometry?: { userData: { triangles?: number } } }).geometry?.userData.triangles;
+      if (tri !== undefined) per.push(tri);
+    });
+    const total = per.reduce((a, b) => a + b, 0);
+    assert.equal(per.length, 10, `${tier}: every blob is built`);
+    assert.ok(per.every((t) => t > 0), `${tier}: none is empty`);
+    assert.ok(total <= SCENE_BLOB_TRIANGLES[tier] + 10 * BLOB_MIN_TRIANGLES * 1.5, `${tier}: ${total} triangles in all`);
+    assert.ok(per[0]! > per[9]!, `${tier}: the first keeps more detail than the last (${per[0]} against ${per[9]})`);
+  }
+  // Without the budget the same ten blobs on the low tier would be far over it.
+  const free = blobGeometry([[0, 0, 0], [1, 0.4, 0.2], [0.5, 1, -0.2]], [[2, 2, 2], [1.6, 1.6, 1.6], [1.8, 1.8, 1.8]], 0.5, BLOB_CELLS.low);
+  assert.ok(free.attributes.position!.count / 3 * 10 > SCENE_BLOB_TRIANGLES.low, 'ten uncapped blobs would exceed the low budget');
+});

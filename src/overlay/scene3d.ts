@@ -14,7 +14,7 @@ import {
 } from 'three';
 import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
-import { blobGeometry } from './blob.ts';
+import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, samplePath, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { TIERS, applySurface, makeSurface } from './materials.ts';
@@ -258,7 +258,10 @@ export class PanelScene {
       }
       case 'blob': {
         const b = def as { pts: Vec3[]; sizes: Vec3[]; soft?: number };
-        return blobGeometry(b.pts, b.sizes, b.soft ?? 0.5, d.blob);
+        // Past the scene's budget of blob triangles a later blob is cut coarser (never dropped, never below a floor).
+        let used = 0;
+        for (const n of this.nodes.values()) for (const g of n.geometries) used += (g.userData.triangles as number | undefined) ?? 0;
+        return blobGeometry(b.pts, b.sizes, b.soft ?? 0.5, d.blob, Math.max(BLOB_MIN_TRIANGLES, d.blobTriangles - used));
       }
       case 'lathe': {
         const l = def as { profile: Array<[number, number]>; sides?: number };
