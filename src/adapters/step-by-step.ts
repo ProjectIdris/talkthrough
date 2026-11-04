@@ -25,16 +25,51 @@ function endsOnWait(step: unknown): boolean {
   return Array.isArray(actions) && actions.some((a) => typeof a === 'object' && a !== null && (a as { op?: unknown }).op === 'wait');
 }
 
-/** `plan` and `done` from a call's raw text, when it is a scene that has them. */
-function planAndDone(raw: string): { plan: string[]; done: boolean } {
+/** The end of the first JSON object in the text (the index after its closing brace), or -1. */
+function objectEnd(text: string, from: number): number {
+  let depth = 0;
+  let inString = false;
+  for (let i = from; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (c === '\\') i++;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) return i + 1;
+  }
+  return -1;
+}
+
+/**
+ * `plan` and `done` from a call's raw text, when it is a scene that has them. `given` is whether the call wrote either (null counts: it says
+ * the answer is whole). The model sometimes closes the scene right after its steps and then carries on with `, "plan": ...`: those fields are read too.
+ */
+function planAndDone(raw: string): { plan: string[]; done: boolean; given: boolean } {
+  let scene: { plan?: unknown; done?: unknown };
   try {
     const at = raw.indexOf('{');
-    const scene = JSON.parse(at >= 0 ? raw.slice(at) : raw) as { plan?: unknown; done?: unknown };
-    const plan = Array.isArray(scene.plan) ? scene.plan.filter((t): t is string => typeof t === 'string' && t.trim() !== '').map((t) => t.trim()) : [];
-    return { plan, done: scene.done === true };
+    const text = at >= 0 ? raw.slice(at) : raw;
+    try {
+      scene = JSON.parse(text) as typeof scene;
+    } catch {
+      const end = objectEnd(text, 0);
+      if (end < 0) throw new Error('not a scene');
+      scene = JSON.parse(text.slice(0, end)) as typeof scene;
+      const rest = text.slice(end).trim();
+      if (rest.startsWith(',')) {
+        try {
+          scene = { ...scene, ...(JSON.parse('{' + rest.slice(1)) as typeof scene) };
+        } catch {
+          // what follows is not read
+        }
+      }
+    }
   } catch {
-    return { plan: [], done: true };
+    return { plan: [], done: true, given: true };
   }
+  const plan = Array.isArray(scene.plan) ? scene.plan.filter((t): t is string => typeof t === 'string' && t.trim() !== '').map((t) => t.trim()) : [];
+  return { plan, done: scene.done === true, given: scene.plan !== undefined || scene.done !== undefined };
 }
 
 export function createStepByStepModel(inner: Model, options: StepByStepOptions = {}): Model {
@@ -59,6 +94,8 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
       let screenshot = req.screenshot;
       let fresh = false;
       let waits = 0;
+      // The first call wrote neither a plan nor done: the next call is asked once whether the answer goes on, and for a plan.
+      let asking = false;
       const { focus, ...plain } = req;
       try {
         for (let n = 1; n <= maxSteps; n++) {
@@ -68,7 +105,7 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
           let sawStep = false;
           let escalated = false;
           let waited = false;
-          const stage: NonNullable<ModelRequest['stage']> = n === 1 ? { part: 'first', plan: true } : { part: 'next', n, shown: [...shown], plan, ...(fresh ? { fresh: true as const } : {}) };
+          const stage: NonNullable<ModelRequest['stage']> = n === 1 ? { part: 'first', plan: true } : { part: 'next', n, shown: [...shown], plan, ...(asking ? { unplanned: true as const } : {}), ...(fresh ? { fresh: true as const } : {}) };
           try {
             for await (const out of inner.ask({ ...(fresh ? plain : req), screenshot, stage, signal: link.signal, onRaw: (text: string) => void (raw = text) })) {
               if (out.type === 'usage') {
@@ -96,9 +133,17 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
           else log(`step 1: first output after ${firstAt} ms, ended after ${Date.now() - began} ms`);
           if (!sawStep || escalated) break;
           const got = planAndDone(raw);
-          if (n === 1) plan = got.plan.slice(0, maxSteps - 1);
+          const wasAsking = asking;
+          asking = false;
+          if (n === 1) {
+            plan = got.plan.slice(0, maxSteps - 1);
+            if (!got.given) {
+              asking = true;
+              log('step 1 came with no plan and no done: asking once more, for the next step and a plan');
+            }
+          } else if (wasAsking) plan = got.plan.slice(0, maxSteps - n);
           else plan = plan.slice(1);
-          if (got.done || plan.length === 0) break;
+          if (got.done || (plan.length === 0 && !asking)) break;
           if (waited && req.afterStep) {
             const held = Date.now();
             const gone = new Promise<'stop'>((resolve) => link.signal.addEventListener('abort', () => resolve('stop'), { once: true }));
