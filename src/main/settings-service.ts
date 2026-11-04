@@ -27,6 +27,7 @@ export function formFromSettings(s: Settings): SettingsForm {
     guideNavigation: s.guideNavigation,
     controlSnap: s.controlSnap,
     splitAnswer: s.splitAnswer,
+    captions: s.captions,
   };
 }
 
@@ -158,5 +159,6 @@ function formToRaw(form: SettingsForm): Record<string, unknown> {
   put('guideNavigation', form.guideNavigation, d.guideNavigation);
   put('controlSnap', form.controlSnap, d.controlSnap);
   put('splitAnswer', form.splitAnswer, d.splitAnswer);
+  put('captions', form.captions, d.captions);
   return out;
 }

@@ -148,7 +148,8 @@ async function main(): Promise<void> {
     })
     : undefined;
   // A voice server, when the person has set one up (never in a development run that speaks nothing): the pages ask main for its audio.
-  const voice = (settings.voiceServerUrl || options.voiceDir) && !options.silentVoice
+  // With text only nothing is spoken, so no voice server is asked and no system voice is used.
+  const voice = (settings.voiceServerUrl || options.voiceDir) && !options.silentVoice && settings.captions !== 'text'
     ? {
       bridge: ((bridge) => (options.saveVoice ? saveVoice(bridge, options.saveVoice, log) : bridge))(options.voiceDir ? recordedVoice(options.voiceDir, log) : createVoiceBridge({ url: settings.voiceServerUrl!, ...(settings.voiceServerVoice ? { voice: settings.voiceServerVoice } : {}), timeoutMs: settings.voiceTimeoutMs, log })),
       firstAudioMs: settings.voiceFirstAudioMs,
@@ -163,6 +164,7 @@ async function main(): Promise<void> {
     hidden: options.hidden,
     globalKeys: !isCheckRun(options),
     silent: options.silentVoice,
+    captions: settings.captions,
     ...(options.windowSize ? { size: options.windowSize } : {}),
     ...(options.record && !options.recordAudio ? { muted: true } : {}),
     ...(voice ? { voice } : {}),

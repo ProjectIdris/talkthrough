@@ -22,6 +22,7 @@ for (const menu of [hotkeyA, hotkeyB]) {
 el('warnNav').textContent = SWITCH_WARNINGS.guideNavigation;
 el('warnSnap').textContent = SWITCH_WARNINGS.controlSnap;
 el('warnSplit').textContent = SWITCH_WARNINGS.splitAnswer;
+el('warnCaptions').textContent = SWITCH_WARNINGS.captions;
 
 /** Shows only what matters for the choices made: the model of the chosen route, the key box when a route needs a key, the voice address when a server is chosen. */
 function arrange(): void {
@@ -54,6 +55,7 @@ function fill(form: SettingsForm): void {
   box('guideNavigation').checked = form.guideNavigation;
   box('controlSnap').checked = form.controlSnap;
   select('splitAnswer').value = form.splitAnswer;
+  select('captions').value = form.captions;
   arrange();
 }
 
@@ -76,6 +78,7 @@ function collect(): SettingsForm {
     guideNavigation: box('guideNavigation').checked,
     controlSnap: box('controlSnap').checked,
     splitAnswer: select('splitAnswer').value as SettingsForm['splitAnswer'],
+    captions: select('captions').value as SettingsForm['captions'],
   };
 }
 

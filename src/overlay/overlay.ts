@@ -17,7 +17,7 @@ import { HudState } from './hud.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
 import { PageMemory } from './page-memory.ts';
-import { Placer, followDiagram, ownedByDiagram, ownedMarkIds, pageGrid, foreseePoints, placeAction, reserveMarks, settleMark, splitOwned } from './placement.ts';
+import { Placer, followDiagram, markFootprint, ownedByDiagram, ownedMarkIds, pageGrid, foreseePoints, placeAction, reserveMarks, settleMark, splitOwned } from './placement.ts';
 import { snapToControl } from '../shared/controls.ts';
 import type { ControlBox } from '../shared/controls.ts';
 import { snapActions } from './snap.ts';
@@ -34,6 +34,9 @@ import { Finishing } from './post.ts';
 import type { Tier } from './materials.ts';
 import { PenLayer, drawPen, routePenPointer, undoPlace } from './pen.ts';
 import { Player, createSilentVoice } from './player.ts';
+import { captionSpot, createCaptionDriver } from './captions.ts';
+import type { CaptionDriver, CaptionState, Rect } from './captions.ts';
+import { readingSeconds } from '../shared/captions.ts';
 import { PanelScene } from './scene3d.ts';
 import type { ScreenRect } from './scene3d.ts';
 import type { Frame } from './timeline.ts';
@@ -464,6 +467,87 @@ function keyRegion(): { x: number; y: number; w: number; h: number } | undefined
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
+// ---- Captions ----------------------------------------------------------------------------------------------------------------------
+
+const captionEl = byId<HTMLDivElement>('caption');
+let captionDriver: CaptionDriver | undefined;
+let captionState: CaptionState | null = null;
+let captionDrawn = { text: '', upTo: -1 };
+let captionAt: { x: number; y: number } | undefined;
+/** How long the words stay once the step has been said (or read), and how long they take to go. */
+const CAPTION_HOLD_MS = 6000;
+const CAPTION_FADE_MS = 500;
+
+/** What the person chose (settings): voice only shows no words; text only speaks nothing and keeps each step up for its reading time. */
+let captionMode: string | undefined;
+function setCaptions(mode: 'voice' | 'text' | 'both'): void {
+  if (mode === captionMode) return;
+  captionMode = mode;
+  captionDriver = mode === 'voice' ? undefined : createCaptionDriver({ mode, onChange: (s) => { captionState = s; request(); } });
+  player.setCaptions(captionDriver);
+  if (mode === 'text') player.setVoice(createSilentVoice(undefined, readingSeconds));
+}
+
+/** What the caption keeps clear of, in pixels: the marks and diagrams on screen, the model, the buttons, the status pills. */
+function captionKeepOut(frame: Frame): Rect[] {
+  const out: Rect[] = [];
+  const aspect = view.width / view.height;
+  const px = (b: { x: number; y: number; w: number; h: number }): Rect => ({ x: (b.x / 1000) * view.width, y: (b.y / 1000) * view.height, w: (b.w / 1000) * view.width, h: (b.h / 1000) * view.height });
+  for (const m of frame.marks) if (m.appear > 0.05 && m.fade > 0.05) for (const b of markFootprint(m.mark, aspect)) out.push(px(b));
+  for (const d of frame.diagrams) if (d.appear > 0.05 && d.fade > 0.05) out.push(px(d.def));
+  if (modelRect) out.push(modelRect);
+  for (const el of [explodeEl, cutEl, detailEl, statusEl, offerEl, noticeEl, undoEl]) {
+    if (el.style.display === 'none' || el.style.display === '') continue;
+    const r = el.getBoundingClientRect();
+    out.push({ x: r.left, y: r.top, w: r.width, h: r.height });
+  }
+  return out;
+}
+
+/** Draws the caption: the words said so far, in the pill that is sized for the whole sentence, clear of the marks; it goes a while after the step ends. */
+function showCaption(frame: Frame): void {
+  const s = captionState;
+  if (!s || s.upTo <= 0) {
+    if (captionEl.style.display !== 'none') captionEl.style.display = 'none';
+    captionDrawn = { text: '', upTo: -1 };
+    captionAt = undefined;
+    return;
+  }
+  const now = performance.now();
+  let alpha = 1;
+  if (s.endedAt !== undefined) {
+    const late = now - s.endedAt - CAPTION_HOLD_MS;
+    if (late >= CAPTION_FADE_MS) {
+      captionDriver?.clear();
+      return;
+    }
+    if (late > 0) alpha = 1 - late / CAPTION_FADE_MS;
+  }
+  if (captionDrawn.text !== s.text || captionDrawn.upTo !== s.upTo) {
+    const said = document.createElement('span');
+    said.textContent = s.text.slice(0, s.upTo);
+    const rest = document.createElement('span');
+    rest.className = 'off';
+    rest.textContent = s.text.slice(s.upTo);
+    captionEl.replaceChildren(said, rest);
+    if (captionDrawn.text !== s.text) captionAt = undefined;
+    captionDrawn = { text: s.text, upTo: s.upTo };
+  }
+  captionEl.style.display = 'block';
+  captionEl.style.opacity = String(alpha);
+  const at = captionSpot(view, { w: captionEl.offsetWidth, h: captionEl.offsetHeight }, captionKeepOut(frame), captionAt);
+  captionAt = at;
+  captionEl.style.left = `${at.x}px`;
+  captionEl.style.top = `${at.y}px`;
+}
+
+/** Milliseconds until the caption next changes by itself (it starts to go), or undefined. */
+function captionUntilChange(now: number): number | undefined {
+  const s = captionState;
+  if (!s || s.endedAt === undefined) return undefined;
+  return Math.max(0, s.endedAt + CAPTION_HOLD_MS - now);
+}
+
 /** Shows the Explode / Assemble control at the corner of a finished model with parts to spread, and hides it otherwise. */
 function placeExplode(frame: Frame): void {
   if (!modelRect || !player.settled || frame.objects.length < 2 || pen.active) {
@@ -531,16 +615,18 @@ function loop(): void {
   if (k <= 0 && player.idling) player.stopIdle();
   if (k < 1) frame = fadeFrame(frame, k);
   draw(frame);
+  showCaption(frame);
   if (pen.active) sendPen();
   showHud();
   reportButtons();
   const fading = fader.armed && k < 1 && k > 0;
-  if (player.active || dragging || fading || board.moving || diagramsMoving || panelScene.fitting || pen.animating(labelClock(), { reduceMotion: reduceMotion.matches }) || pen.active) {
+  const captionFading = captionState?.endedAt !== undefined && now > captionState.endedAt + CAPTION_HOLD_MS;
+  if (player.active || dragging || fading || board.moving || diagramsMoving || panelScene.fitting || captionFading || pen.animating(labelClock(), { reduceMotion: reduceMotion.matches }) || pen.active) {
     request();
     return;
   }
   // Nothing is moving: wake up only when the next thing is due (the scene starting to fade, a notice going).
-  const due = [fader.untilChange(now), hud.untilChange(now)].filter((n): n is number => n !== undefined);
+  const due = [fader.untilChange(now), hud.untilChange(now), captionUntilChange(now)].filter((n): n is number => n !== undefined);
   if (due.length) {
     if (wake) clearTimeout(wake);
     wake = setTimeout(request, Math.max(16, Math.min(...due) + 16));
@@ -970,6 +1056,7 @@ window.talkthrough.onDisplay((info) => {
     player.setVoice(createServerVoice(window.talkthrough.voice, info.voice, chooseVoice(), (line) => console.info(`talkthrough: ${line}`)));
   }
   if (info.silent) player.setVoice(createSilentVoice());
+  setCaptions(info.captions ?? 'voice');
   if (info.backdrop) {
     backdropEl.onload = () => request();
     backdropEl.src = info.backdrop;

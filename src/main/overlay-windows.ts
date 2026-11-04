@@ -25,6 +25,8 @@ export type OverlayOptions = {
   globalKeys?: boolean;
   /** Development runs: tell the pages to speak nothing. */
   silent?: boolean;
+  /** What an answer's words are given as (settings): told to each page, which shows captions for 'text' and 'both'. */
+  captions?: 'voice' | 'text' | 'both';
   /** Development runs: make each window this size (at its display's top-left corner) instead of covering the display, so a recording has the shape asked for. */
   size?: { width: number; height: number };
   /** Development runs: the windows make no sound (a recording has the audio from the voice server's own stream). */
@@ -95,6 +97,7 @@ export function createOverlayManager(options: OverlayOptions) {
     if (options.backdrop) info.backdrop = options.backdrop;
     if (options.silent) info.silent = true;
     if (options.onDetail) info.detail = true;
+    if (options.captions) info.captions = options.captions;
     if (options.voice) info.voice = { firstAudioMs: options.voice.firstAudioMs, cooldownMs: options.voice.cooldownMs };
     return info;
   }

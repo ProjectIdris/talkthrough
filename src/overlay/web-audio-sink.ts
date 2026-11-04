@@ -46,6 +46,7 @@ export function createWebAudioSink(options: WebAudioSinkOptions = {}): AudioSink
       let stopped = false;
       let ended = false;
       let nextTime = 0;
+      let firstAt: number | undefined;
       let open = 0; // pieces scheduled and not yet done
       const sources = new Set<SourceLike>();
       let stopStart: (() => void) | undefined;
@@ -73,6 +74,7 @@ export function createWebAudioSink(options: WebAudioSinkOptions = {}): AudioSink
         const at = Math.max(nextTime, c.currentTime + LEAD_S);
         if (!started) {
           started = true;
+          firstAt = at;
           const heardIn = Math.max(0, (at - c.currentTime + (c.outputLatency ?? 0)) * 1000);
           stopStart = after(heardIn, () => {
             stopStart = undefined;
@@ -99,6 +101,12 @@ export function createWebAudioSink(options: WebAudioSinkOptions = {}): AudioSink
       }
 
       return {
+        heardMs() {
+          if (firstAt === undefined) return 0;
+          const c = ctx();
+          const played = Math.max(0, c.currentTime - firstAt - (c.outputLatency ?? 0));
+          return Math.min(played, nextTime - firstAt) * 1000;
+        },
         push(samples) {
           if (stopped || finished || samples.length === 0) return;
           if (started) {

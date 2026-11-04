@@ -52,6 +52,11 @@
     color: #3a2326; background: rgba(255, 255, 255, 0.97); border: 1.5px solid rgba(226, 84, 90, 0.6); border-radius: 999px; padding: 7px 15px; cursor: pointer;
     box-shadow: 0 3px 12px rgba(30, 20, 24, 0.22); }
   #undo:hover { background: #fff2f2; border-color: rgba(226, 84, 90, 0.95); }
+  /* The captions: the words of the step being said, a dark glass pill that reads on a light page and on a dark one. Words not said yet keep their place but are not shown. */
+  #caption { position: absolute; display: none; box-sizing: border-box; pointer-events: none; max-width: min(64vw, 1000px); padding: 12px 24px 13px; border-radius: 18px;
+    background: rgba(15, 20, 32, 0.9); color: #f6f8fc; font-size: 21px; font-weight: 560; line-height: 1.4; letter-spacing: 0.005em; text-align: center; text-wrap: balance;
+    border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 12px 34px rgba(0, 0, 0, 0.38), 0 2px 8px rgba(0, 0, 0, 0.25); }
+  #caption .off { visibility: hidden; }
   #notice { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); display: none; pointer-events: auto; max-width: 560px;
     padding: 9px 16px; border-radius: 999px; background: rgba(17, 22, 34, 0.92); color: #eef3fb; font-size: 13.5px; font-weight: 500; cursor: pointer;
     border: 1px solid rgba(255, 255, 255, 0.14); }
@@ -69,6 +74,7 @@
 <button id="detail" type="button" title="Ask for a much more detailed version of this model">More detail</button>
 <button id="cut" type="button" title="Cut the model open to see inside">Cut</button>
 <button id="undo" type="button" title="Take back the last circle">Undo</button>
+<div id="caption"></div>
 <div id="notice"></div>
 <script src="./overlay.js"></script>
 </body>

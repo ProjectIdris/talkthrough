@@ -5,6 +5,7 @@
 // An utterance's request goes out the moment speak() is called, even when another is still playing, so what is next is being made
 // while the last is heard. Its audio waits (in memory) for its turn.
 
+import { createSpokenClock } from '../shared/captions.ts';
 import type { VoiceEvent } from './http-voice.ts';
 import type { SpeechEnd, SpeechHandle, SpeechListener, Voice } from './voice.ts';
 
@@ -23,6 +24,8 @@ export interface AudioPlayback {
   finish(): void;
   /** Silences it now and drops what was queued. No callback follows. */
   stop(): void;
+  /** How much of the sound has really been heard so far, in milliseconds (what has played, not what has arrived). Absent: the voice counts from when it started. */
+  heardMs?(): number;
 }
 
 export type AudioSink = {
@@ -35,6 +38,10 @@ export type StreamedVoiceOptions = {
   sink: AudioSink;
   /** A first guess at how fast the voice speaks, in characters a second, until some of its own speech has been measured. */
   charsPerSecond?: number;
+  /** Runs `run` now and then while a step is being heard (for its words as captions); gives back the stop. Default: every 40 ms. */
+  tick?(run: () => void): () => void;
+  /** The time in milliseconds, for a sink that cannot say how much has been heard. Default: performance.now. */
+  now?(): number;
 };
 
 type Utterance = {
@@ -50,6 +57,9 @@ type Utterance = {
   channels: number;
   started: boolean;
   ended: boolean;
+  clock?: ReturnType<typeof createSpokenClock>;
+  /** Stops the caption ticker (words of the step as it is heard). */
+  stopTick?: () => void;
   settle(end: SpeechEnd): void;
 };
 
@@ -60,6 +70,11 @@ export function createStreamedVoice(options: StreamedVoiceOptions): Voice {
   const queue: Utterance[] = []; // in order; the first is the one being heard
   const byId = new Map<number, Utterance>();
   let cancelling = false;
+  const tick = options.tick ?? ((run: () => void) => {
+    const id = setInterval(run, 40);
+    return () => clearInterval(id);
+  });
+  const now = options.now ?? (() => performance.now());
 
   function finish(u: Utterance, result: SpeechEnd): void {
     if (u.ended) return;
@@ -67,6 +82,7 @@ export function createStreamedVoice(options: StreamedVoiceOptions): Voice {
     byId.delete(u.id);
     const at = queue.indexOf(u);
     if (at >= 0) queue.splice(at, 1);
+    u.stopTick?.();
     u.playback?.stop();
     // Settle first so a throwing listener cannot leave `finished` pending.
     u.settle(result);
@@ -83,9 +99,12 @@ export function createStreamedVoice(options: StreamedVoiceOptions): Voice {
         started: () => {
           if (u.started || u.ended) return;
           u.started = true;
-          u.listener.start?.({ estimatedMs: u.estimatedMs ?? Math.round((u.text.length / charsPerSecond) * 1000) });
+          const guess = u.estimatedMs ?? Math.round((u.text.length / charsPerSecond) * 1000);
+          u.listener.start?.({ estimatedMs: guess });
+          if (u.listener.boundary) followWords(u, guess);
         },
         ended: () => {
+          if (u.listener.boundary && u.clock) for (const w of u.clock.rest()) u.listener.boundary({ charIndex: w.charIndex });
           if (u.rate && u.samples > 0) {
             // What this voice really does: remembered, so the next guess is better.
             const seconds = u.samples / u.channels / u.rate;
@@ -103,6 +122,24 @@ export function createStreamedVoice(options: StreamedVoiceOptions): Voice {
     } else {
       finish(u, { reason: 'error', error: e.message, ...(e.retryAfterMs !== undefined ? { retryAfterMs: e.retryAfterMs } : {}) });
     }
+  }
+
+  /**
+   * The words of the step as it is heard, for captions: each is given to the listener when the sound that has really played has come to it
+   * (never from what has merely arrived), measured against the length the voice said or, failing that, the length of the sound so far.
+   */
+  function followWords(u: Utterance, guessMs: number): void {
+    const startedAt = now();
+    const clock = createSpokenClock(u.text, guessMs);
+    u.clock = clock;
+    u.stopTick = tick(() => {
+      if (u.ended) return;
+      const heard = u.playback?.heardMs ? u.playback.heardMs() : now() - startedAt;
+      // The length is at least the sound that has come so far (a guess that was too short must not show words early).
+      const arrived = u.rate ? (u.samples / u.channels / u.rate) * 1000 : 0;
+      clock.retime(Math.max(guessMs, arrived));
+      for (const w of clock.due(heard)) u.listener.boundary?.({ charIndex: w.charIndex });
+    });
   }
 
   /** The utterance's turn has come: what was held for it is let through. */

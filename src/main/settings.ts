@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { DEFAULT_HOTKEY, parseHotkey } from './chord.ts';
 import { cleanSkipList, DEFAULT_SKIP_LIST } from './skip-list.ts';
 import type { SplitMode } from '../shared/settings-form.ts';
+import { DEFAULT_CAPTION_MODE, isCaptionMode } from '../shared/captions.ts';
+import type { CaptionMode } from '../shared/captions.ts';
 
 /**
  * The user's local settings (a JSON file in the app's data folder, or the path given with
@@ -79,6 +81,8 @@ export type Settings = {
    * (adapters/step-by-step.ts). Either costs more calls a question. 'steps' unless the person chooses otherwise (Alex, 5 Nov); 'off' is a choice that is written to the file. The older `twoStepAnswer: true` means 'two' and `false` means 'off'.
    */
   splitAnswer: SplitMode;
+  /** What an answer's words are given as: spoken ('voice'), shown ('text', no sound) or both (the words appear as they are said). Both unless the person chooses otherwise. */
+  captions: CaptionMode;
   /**
    * The detail pass: which route writes a much richer version of the scene on screen when the person asks for more
    * detail (a button beside the model, or "show me in detail"). Unset: there is no detail pass and nothing offers it.
@@ -113,6 +117,7 @@ export const DEFAULT_SETTINGS: Settings = {
   controlSnap: false,
   guideNavigation: false,
   splitAnswer: 'steps',
+  captions: DEFAULT_CAPTION_MODE,
   voiceFirstAudioMs: 2000,
   voiceCooldownMs: 20_000,
   voiceTimeoutMs: 30_000,
@@ -197,6 +202,8 @@ export function settingsFromRaw(raw: Record<string, unknown>, warn: (message: st
   else if (raw.splitAnswer !== undefined) warn('splitAnswer must be off, two or steps; using steps');
   else if (raw.twoStepAnswer === true) settings.splitAnswer = 'two';
   else if (raw.twoStepAnswer === false) settings.splitAnswer = 'off'; // an older explicit "off" stays off
+  if (isCaptionMode(raw.captions)) settings.captions = raw.captions;
+  else if (raw.captions !== undefined) warn('captions must be voice, text or both; using both');
   if (raw.detailRoute === 'codex' || raw.detailRoute === 'claude' || raw.detailRoute === 'openai') settings.detailRoute = raw.detailRoute;
   else if (raw.detailRoute !== undefined) warn('detailRoute must be codex, claude or openai; there is no detail pass');
   const detailModel = str(raw.detailModel);
