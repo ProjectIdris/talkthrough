@@ -66,8 +66,8 @@ While the keys are held the main process sends `pen on` and the window takes the
 
 ```
 npm run build
-npx electron scripts/overlay-frames.cjs samples/scenes/pi-camera.json --out frames \
-    --steps 0:3,4:3 --backdrop samples/pages/product.svg --tier mid
+npx electron scripts/overlay-frames.cjs samples/scenes/pin-tumbler-lock.json --out frames \
+    --steps 0:3,5:3 --backdrop samples/pages/lock-article.svg --tier mid
 ```
 
 Offscreen windows always render at a device scale of 1; add `--hidden --dpr 2` to render in a hidden window at another scale (the PNG is then at physical size).

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<rect width="1920" height="1080" fill="#f3f8f6"/>
+<rect width="1920" height="80" fill="#12463f"/>
+<text x="60" y="52" font-size="28" font-weight="700" fill="#e8f5ef">Fennmark Energy Hub</text>
+<g font-size="19" fill="#b6d9cc"><text x="1300" y="49">Home</text><text x="1390" y="49">Wind</text><text x="1470" y="49">Solar</text><text x="1555" y="49">Storage</text><text x="1660" y="49">Contact</text></g>
+<rect y="80" width="1920" height="4" fill="#3fbf8f"/>
+<text x="100" y="170" font-size="44" font-weight="700" fill="#14302b">Inside a wind turbine</text>
+<rect x="100" y="194" width="140" height="5" rx="2" fill="#3fbf8f"/>
+<g font-size="22" fill="#2b4540">
+<text x="100" y="250">Wind power starts with moving air. A turbine</text>
+<text x="100" y="284">catches some of that motion and turns it into</text>
+<text x="100" y="318">electricity that can feed a home or a town.</text>
+<text x="100" y="386" font-size="29" font-weight="700" fill="#14302b">What you can see</text>
+<text x="100" y="432">From the ground you see a tall tower, three</text>
+<text x="100" y="466">blades and a housing at the top. Most of the</text>
+<text x="100" y="500">machinery is hidden inside that housing.</text>
+<text x="100" y="568" font-size="29" font-weight="700" fill="#14302b">Why they are tall</text>
+<text x="100" y="614">Wind blows faster and steadier higher up,</text>
+<text x="100" y="648">so a taller tower catches more of it.</text>
+</g>
+<rect x="100" y="720" width="520" height="150" rx="12" fill="#e1f0ea" stroke="#c4dfd4"/>
+<text x="124" y="760" font-size="21" font-weight="700" fill="#14302b">Fennmark fact sheet</text>
+<g fill="#b7d5c9"><rect x="124" y="784" width="400" height="9" rx="4"/><rect x="124" y="808" width="340" height="9" rx="4"/><rect x="124" y="832" width="370" height="9" rx="4"/></g>
+<rect x="690" y="100" width="1110" height="850" rx="14" fill="#e6f1ed" stroke="#c9ded5"/>
+<text x="710" y="985" font-size="19" font-style="italic" fill="#5f7a72">Figure 2. The parts of a wind turbine.</text>
+<g fill="#c9ded5"><rect x="710" y="1020" width="480" height="10" rx="5"/><rect x="710" y="1045" width="420" height="10" rx="5"/></g>
+</svg>

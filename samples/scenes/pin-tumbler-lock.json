@@ -1,0 +1,113 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "Here is a cross-section of a pin tumbler lock. The brass part in the middle is the plug, the part that turns. It sits inside a fixed housing.",
+      "actions": [
+        {"op": "panel", "x": 40, "y": 150, "w": 610, "h": 640},
+        {"op": "orbit", "az": -24, "el": 13, "dur": 0},
+        {"op": "zoom", "to": 1.2, "dur": 0},
+        {"op": "add", "shape": "group", "id": "lock"},
+        {"op": "add", "shape": "box", "id": "house-top", "parent": "lock", "pos": [0, 3.0, 0], "size": [6.4, 3.0, 1.8], "color": "#7e8aa0", "opacity": 0.32, "bevel": 0.08},
+        {"op": "add", "shape": "box", "id": "house-bot", "parent": "lock", "pos": [0, -3.0, 0], "size": [6.4, 3.0, 1.8], "color": "#7e8aa0", "opacity": 0.32, "bevel": 0.08, "at": 0.2},
+        {"op": "add", "shape": "group", "id": "plug", "parent": "lock"},
+        {"op": "add", "shape": "box", "id": "plug-body", "parent": "plug", "pos": [0, 0, 0], "size": [6.4, 3.0, 1.8], "material": "metal", "color": "#c9a24d", "opacity": 0.42, "bevel": 0.08, "at": 0.45},
+        {"op": "add", "shape": "box", "id": "keyway", "parent": "plug", "pos": [0, 0, 0], "size": [6.42, 1.0, 1.84], "material": "rubber", "color": "#15181e", "edges": false, "opacity": 0.9, "at": 0.8},
+        {"op": "pin", "id": "p-house", "on": "house-top", "text": "Housing", "at": 1.1},
+        {"op": "pin", "id": "p-plug", "on": "plug-body", "text": "Plug", "at": 1.5},
+        {"op": "pin", "id": "p-way", "on": "keyway", "text": "Keyway", "at": 1.9}
+      ]
+    },
+    {
+      "say": "Above the keyway are five narrow shafts, and each holds two pins stacked one on the other: a lower pin and an upper pin.",
+      "actions": [
+        {"op": "orbit", "az": -20, "el": 16, "dur": 2.4},
+        {"op": "add", "shape": "cylinder", "id": "low1", "parent": "plug", "pos": [-2, 0.275, 0], "size": [0.6, 1.45, 0.6], "color": "#e3b341", "material": "metal", "at": 0.15},
+        {"op": "add", "shape": "cylinder", "id": "low2", "parent": "plug", "pos": [-1, 0.15, 0], "size": [0.6, 1.2, 0.6], "color": "#e3b341", "material": "metal", "at": 0.45},
+        {"op": "add", "shape": "cylinder", "id": "low3", "parent": "plug", "pos": [0, 0.35, 0], "size": [0.6, 1.6, 0.6], "color": "#e3b341", "material": "metal", "at": 0.75},
+        {"op": "add", "shape": "cylinder", "id": "low4", "parent": "plug", "pos": [1, 0.1, 0], "size": [0.6, 1.1, 0.6], "color": "#e3b341", "material": "metal", "at": 1.05},
+        {"op": "add", "shape": "cylinder", "id": "low5", "parent": "plug", "pos": [2, 0.225, 0], "size": [0.6, 1.35, 0.6], "color": "#e3b341", "material": "metal", "at": 1.35},
+        {"op": "add", "shape": "cylinder", "id": "up1", "parent": "lock", "pos": [-2, 1.6, 0], "size": [0.6, 1.2, 0.6], "color": "#4f86e8", "material": "metal", "at": 1.7},
+        {"op": "add", "shape": "cylinder", "id": "up2", "parent": "lock", "pos": [-1, 1.35, 0], "size": [0.6, 1.2, 0.6], "color": "#4f86e8", "material": "metal", "at": 1.95},
+        {"op": "add", "shape": "cylinder", "id": "up3", "parent": "lock", "pos": [0, 1.75, 0], "size": [0.6, 1.2, 0.6], "color": "#4f86e8", "material": "metal", "at": 2.2},
+        {"op": "add", "shape": "cylinder", "id": "up4", "parent": "lock", "pos": [1, 1.25, 0], "size": [0.6, 1.2, 0.6], "color": "#4f86e8", "material": "metal", "at": 2.45},
+        {"op": "add", "shape": "cylinder", "id": "up5", "parent": "lock", "pos": [2, 1.5, 0], "size": [0.6, 1.2, 0.6], "color": "#4f86e8", "material": "metal", "at": 2.7}
+      ]
+    },
+    {
+      "say": "A small spring on top of each stack pushes it down. At rest the lower pins hang into the keyway, and that blocks the plug from turning.",
+      "actions": [
+        {"op": "add", "shape": "group", "id": "sp1", "parent": "lock", "pos": [-2, 4.3, 0], "at": 0.0},
+        {"op": "add", "shape": "tube", "id": "coil1", "parent": "sp1", "pts": [[0.0, -0.0, 0], [0.22, -0.3, 0], [-0.22, -0.6, 0], [0.22, -0.9, 0], [-0.22, -1.2, 0], [0.22, -1.5, 0], [-0.22, -1.8, 0], [0.0, -2.1, 0]], "radius": 0.06, "color": "#d9dde6", "material": "metal", "at": 0.0},
+        {"op": "add", "shape": "group", "id": "sp2", "parent": "lock", "pos": [-1, 4.3, 0], "at": 0.2},
+        {"op": "add", "shape": "tube", "id": "coil2", "parent": "sp2", "pts": [[0.0, -0.0, 0], [0.22, -0.336, 0], [-0.22, -0.671, 0], [0.22, -1.007, 0], [-0.22, -1.343, 0], [0.22, -1.679, 0], [-0.22, -2.014, 0], [0.0, -2.35, 0]], "radius": 0.06, "color": "#d9dde6", "material": "metal", "at": 0.2},
+        {"op": "add", "shape": "group", "id": "sp3", "parent": "lock", "pos": [0, 4.3, 0], "at": 0.4},
+        {"op": "add", "shape": "tube", "id": "coil3", "parent": "sp3", "pts": [[0.0, -0.0, 0], [0.22, -0.279, 0], [-0.22, -0.557, 0], [0.22, -0.836, 0], [-0.22, -1.114, 0], [0.22, -1.393, 0], [-0.22, -1.671, 0], [0.0, -1.95, 0]], "radius": 0.06, "color": "#d9dde6", "material": "metal", "at": 0.4},
+        {"op": "add", "shape": "group", "id": "sp4", "parent": "lock", "pos": [1, 4.3, 0], "at": 0.6},
+        {"op": "add", "shape": "tube", "id": "coil4", "parent": "sp4", "pts": [[0.0, -0.0, 0], [0.22, -0.35, 0], [-0.22, -0.7, 0], [0.22, -1.05, 0], [-0.22, -1.4, 0], [0.22, -1.75, 0], [-0.22, -2.1, 0], [0.0, -2.45, 0]], "radius": 0.06, "color": "#d9dde6", "material": "metal", "at": 0.6},
+        {"op": "add", "shape": "group", "id": "sp5", "parent": "lock", "pos": [2, 4.3, 0], "at": 0.8},
+        {"op": "add", "shape": "tube", "id": "coil5", "parent": "sp5", "pts": [[0.0, -0.0, 0], [0.22, -0.314, 0], [-0.22, -0.629, 0], [0.22, -0.943, 0], [-0.22, -1.257, 0], [0.22, -1.571, 0], [-0.22, -1.886, 0], [0.0, -2.2, 0]], "radius": 0.06, "color": "#d9dde6", "material": "metal", "at": 0.8},
+        {"op": "pin", "id": "p-spring", "on": "coil3", "text": "Spring", "at": 1.4},
+        {"op": "pin", "id": "p-up", "on": "up2", "text": "Upper pin", "at": 1.8},
+        {"op": "pin", "id": "p-low", "on": "low4", "text": "Lower pin", "at": 2.2}
+      ]
+    },
+    {
+      "say": "The line where the plug meets the housing is the shear line. As long as a pin crosses it, the plug cannot turn.",
+      "actions": [
+        {"op": "add", "shape": "line", "id": "shear", "parent": "lock", "pts": [[-3.5, 1.5, 0.95], [3.5, 1.5, 0.95]], "color": "#ff5a3c", "draw": 0},
+        {"op": "reveal", "id": "shear", "to": 1, "dur": 1.2},
+        {"op": "pin", "id": "p-shear", "on": "shear", "text": "Shear line", "at": 1.0},
+        {"op": "highlight", "id": "shear", "color": "red", "at": 1.3, "dur": 1.0}
+      ]
+    },
+    {
+      "say": "Now the key. Each cut along its edge is a different depth, cut to match the pins of this one lock.",
+      "actions": [
+        {"op": "add", "shape": "extrude", "id": "key", "parent": "plug", "pos": [-5.7, 0, 0], "outline": [[-3.4, -0.5], [3.1, -0.5], [3.1, -0.1], [2.45, 0.45], [2.25, 0.15], [1.75, 0.15], [1.55, 0.45], [1.45, 0.45], [1.25, 0.4], [0.75, 0.4], [0.55, 0.45], [0.45, 0.45], [0.25, -0.1], [-0.25, -0.1], [-0.45, 0.45], [-0.55, 0.45], [-0.75, 0.3], [-1.25, 0.3], [-1.45, 0.45], [-1.55, 0.45], [-1.75, 0.05], [-2.25, 0.05], [-2.45, 0.45], [-3.9, 0.45], [-3.9, 1.4], [-5.1, 1.9], [-6.5, 1.6], [-6.9, 0.4], [-6.5, -0.8], [-5.1, -1.3], [-3.9, -0.9], [-3.9, -0.5]], "depth": 1.1, "bevel": 0.05, "material": "metal", "color": "#cfd5df"},
+        {"op": "orbit", "az": -16, "el": 15, "dur": 2.0},
+        {"op": "zoom", "to": 0.68, "dur": 1.4},
+        {"op": "pin", "id": "p-key", "on": "key", "text": "Key", "at": 0.8},
+        {"op": "highlight", "id": "key", "color": "white", "at": 1.0, "dur": 1.0}
+      ]
+    },
+    {
+      "say": "As the key slides in, each cut lifts its pair of pins by a different amount, and the springs squeeze.",
+      "actions": [
+        {"op": "move", "id": "key", "to": [0, 0, 0], "dur": 3.2},
+        {"op": "move", "id": "low1", "to": [-2, 0.775, 0], "at": 0.15, "dur": 0.45},
+        {"op": "move", "id": "up1", "to": [-2, 2.1, 0], "at": 0.15, "dur": 0.45},
+        {"op": "scale", "id": "sp1", "to": [1, 0.762, 1], "at": 0.15, "dur": 0.45},
+        {"op": "move", "id": "low2", "to": [-1, 0.9, 0], "at": 0.66, "dur": 0.45},
+        {"op": "move", "id": "up2", "to": [-1, 2.1, 0], "at": 0.66, "dur": 0.45},
+        {"op": "scale", "id": "sp2", "to": [1, 0.681, 1], "at": 0.66, "dur": 0.45},
+        {"op": "move", "id": "low3", "to": [0, 0.7, 0], "at": 1.16, "dur": 0.45},
+        {"op": "move", "id": "up3", "to": [0, 2.1, 0], "at": 1.16, "dur": 0.45},
+        {"op": "scale", "id": "sp3", "to": [1, 0.821, 1], "at": 1.16, "dur": 0.45},
+        {"op": "move", "id": "low4", "to": [1, 0.95, 0], "at": 1.67, "dur": 0.45},
+        {"op": "move", "id": "up4", "to": [1, 2.1, 0], "at": 1.67, "dur": 0.45},
+        {"op": "scale", "id": "sp4", "to": [1, 0.653, 1], "at": 1.67, "dur": 0.45},
+        {"op": "move", "id": "low5", "to": [2, 0.825, 0], "at": 2.17, "dur": 0.45},
+        {"op": "move", "id": "up5", "to": [2, 2.1, 0], "at": 2.17, "dur": 0.45},
+        {"op": "scale", "id": "sp5", "to": [1, 0.727, 1], "at": 2.17, "dur": 0.45}
+      ]
+    },
+    {
+      "say": "With the right key, every gap between a lower and an upper pin lands exactly on the shear line. Nothing crosses it any more.",
+      "actions": [
+        {"op": "highlight", "id": "shear", "color": "red", "dur": 1.4},
+        {"op": "orbit", "az": -10, "el": 10, "dur": 2.0},
+        {"op": "zoom", "to": 0.9, "dur": 1.8},
+        {"op": "pin", "id": "p-gap", "on": "up3", "point": [0, -0.6, 0], "text": "Gap on the line", "at": 0.6}
+      ]
+    },
+    {
+      "say": "So the plug is free to turn, and the lock opens. The wrong key lifts the pins to the wrong heights, and the plug stays stuck.",
+      "actions": [
+        {"op": "turn", "id": "plug", "to": [-40, 0, 0], "dur": 1.6},
+        {"op": "orbit", "az": -30, "el": 18, "dur": 2.0},
+        {"op": "card", "id": "how", "x": 690, "y": 645, "w": 250, "title": "How it opens", "rows": ["Key slides in", "Cuts lift each pin pair", "Gaps meet at the shear line", "Plug turns"], "at": 1.0}
+      ]
+    }
+  ]
+}

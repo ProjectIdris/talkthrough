@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" font-family="Georgia, 'Times New Roman', serif">
+<rect width="1920" height="1080" fill="#fbf9f4"/>
+<rect width="1920" height="72" fill="#2f3e46"/>
+<text x="60" y="47" font-size="28" font-weight="700" fill="#f4efe3" font-family="Segoe UI, Arial, sans-serif">Hollowell Encyclopaedia</text>
+<g font-family="Segoe UI, Arial, sans-serif" font-size="19" fill="#c9d3d6"><text x="1380" y="45">Browse</text><text x="1480" y="45">Random</text><text x="1590" y="45">Sign in</text></g>
+<rect y="72" width="1920" height="3" fill="#b5651d"/>
+<text x="1330" y="130" font-size="40" font-weight="700" fill="#1f2a30">Pin tumbler lock</text>
+<rect x="1330" y="150" width="440" height="2" fill="#cfc8b8"/>
+<g font-size="22" fill="#2b3338">
+<text x="1330" y="190">A pin tumbler lock is the kind of lock found on</text>
+<text x="1330" y="224">most front doors. It keeps a door shut with a</text>
+<text x="1330" y="258">row of small spring-loaded pins, and it opens</text>
+<text x="1330" y="292">only for a key cut to fit them.</text>
+<text x="1330" y="360" font-size="30" font-weight="700" fill="#1f2a30">Parts</text>
+<text x="1330" y="408">The housing is fixed in the door. The plug</text>
+<text x="1330" y="442">sits inside it and turns when the lock is</text>
+<text x="1330" y="476">opened. Between them runs a narrow gap.</text>
+<text x="1330" y="544" font-size="30" font-weight="700" fill="#1f2a30">History</text>
+<text x="1330" y="592">Locks of this design were described in</text>
+<text x="1330" y="626">the 1840s and refined over the following</text>
+<text x="1330" y="660">century.</text>
+</g>
+<rect x="60" y="150" width="1200" height="700" rx="10" fill="#f0ede4" stroke="#d8d2c2"/>
+<text x="80" y="885" font-size="19" font-style="italic" fill="#6c746f">Figure 1. A pin tumbler lock, cut open along its length.</text>
+<rect x="1290" y="150" width="2" height="700" fill="#e3ddcd"/>
+<g fill="#cfc8b8"><rect x="80" y="940" width="480" height="10" rx="5"/><rect x="80" y="970" width="420" height="10" rx="5"/><rect x="80" y="1000" width="460" height="10" rx="5"/></g>
+</svg>
