@@ -15,7 +15,7 @@ import { HudState } from './hud.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
 import { PageMemory } from './page-memory.ts';
-import { Placer, followDiagram, insideAny, pageGrid, placeAction, reserveMarks } from './placement.ts';
+import { Placer, followDiagram, ownedByDiagram, pageGrid, placeAction, reserveMarks } from './placement.ts';
 import { snapActions } from './snap.ts';
 import type { Snapper } from './snap.ts';
 import type { PageGrid } from './placement.ts';
@@ -618,13 +618,12 @@ function placedScene(scene: Scene): Scene {
   p.reset();
   p.setStage(undefined);
   const aspect = view.width / view.height;
-  // A mark inside the rectangle a flat diagram was asked for belongs to it (it is not snapped to the page or kept clear of), and goes with it.
-  const rects = scene.steps.flatMap((step) => step.actions).flatMap((a) => (a.op === 'diagram' ? [{ x: a.x, y: a.y, w: a.w, h: a.h }] : []));
-  const owned = (a: Action): boolean => rects.length > 0 && insideAny(a, rects, aspect);
-  const snapped = scene.steps.map((step) => ({ ...step, actions: step.actions.map((a) => (owned(a) ? a : (snappedActions([a])[0] as Action))) }));
-  for (const step of snapped) reserveMarks(p, step.actions.filter((a) => !owned(a)), aspect);
+  // A mark written after a flat diagram and inside the rectangle it was asked for belongs to it (it is not snapped to the page or kept clear of), and goes with it.
+  const owned = ownedByDiagram(scene.steps, aspect);
+  const snapped = scene.steps.map((step, i) => ({ ...step, actions: step.actions.map((a, j) => (owned[i]![j] ? a : (snappedActions([a])[0] as Action))) }));
+  snapped.forEach((step, i) => reserveMarks(p, step.actions.filter((_, j) => !owned[i]![j]), aspect));
   const placed = snapped.map((step) => ({ ...step, actions: step.actions.map((a) => placeAction(p, a, view.height)) }));
-  return { ...scene, steps: placed.map((step) => ({ ...step, actions: step.actions.map((a) => (owned(a) ? followDiagram(p, a, aspect) ?? a : a)) })) };
+  return { ...scene, steps: placed.map((step, i) => ({ ...step, actions: step.actions.map((a, j) => (owned[i]![j] ? followDiagram(p, a, aspect) ?? a : a)) })) };
 }
 
 function placedAction(action: Action): Action {
