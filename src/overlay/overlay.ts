@@ -18,6 +18,7 @@ import { drawMarks } from './marks.ts';
 import type { View } from './marks.ts';
 import { TIERS } from './materials.ts';
 import type { Tier } from './materials.ts';
+import { PenLayer, drawPen } from './pen.ts';
 import { Player, createSilentVoice } from './player.ts';
 import { PanelScene } from './scene3d.ts';
 import type { ScreenRect } from './scene3d.ts';
@@ -190,6 +191,7 @@ function draw(frame: Frame): void {
     project: (key, point) => panelScene.project(key, point, view.width, view.height),
     ...(cropSource() ? { source: cropSource()! } : {}),
   });
+  drawPen(marksCtx, pen.view(labelClock()), view);
   if (!modelRect) setInteractive(hudHover);
 
   if (!milestones.mark && (frame.marks.some((m) => m.appear > 0) || frame.objects.some((o) => o.appear > 0))) {
@@ -205,6 +207,7 @@ function cropSource(): { image: CanvasImageSource; width: number; height: number
 }
 
 const board = new LabelBoard();
+const pen = new PenLayer();
 // Frame grabs (seek) step a clock of their own, one thirtieth of a second a grab, so a clip's tags move at the clip's pace.
 let seekClock: number | undefined;
 const labelClock = (): number => seekClock ?? performance.now();
@@ -265,9 +268,10 @@ function loop(): void {
   if (k <= 0 && player.idling) player.stopIdle();
   if (k < 1) frame = fadeFrame(frame, k);
   draw(frame);
+  if (pen.active) sendPen();
   showHud();
   const fading = fader.armed && k < 1 && k > 0;
-  if (player.active || dragging || fading || board.moving) {
+  if (player.active || dragging || fading || board.moving || pen.animating(now) || pen.active) {
     request();
     return;
   }
@@ -292,6 +296,9 @@ function setInteractive(over: boolean): void {
 let hudHover = false;
 const interactiveEls = [offerEl, noticeEl];
 
+/** True for a moment after the pen goes off, so a button released then still ends its stroke. */
+let penEnding = false;
+
 document.addEventListener('mousemove', (e) => {
   hudHover = interactiveEls.some((el) => el.style.display !== 'none' && el.contains(e.target as Node));
   const overModel = inRect(modelRect, e.clientX, e.clientY);
@@ -304,7 +311,22 @@ document.addEventListener('mousemove', (e) => {
   if (!dragging) setInteractive(overModel || hudHover);
 });
 
+const toScale = (e: PointerEvent): [number, number] => [(e.clientX / view.width) * 1000, (e.clientY / view.height) * 1000];
+/** Sends what the pen has drawn since the last send (once per frame while drawing, and at once when the stroke ends). */
+function sendPen(): void {
+  for (const piece of pen.take()) window.talkthrough.stroke(piece);
+}
+// A press on the page must never start the browser's own drag of an image or text: it would cancel the pen's stroke.
+document.addEventListener('dragstart', (e) => e.preventDefault());
 document.addEventListener('pointerdown', (e) => {
+  if (pen.active) {
+    // While the chord is held the mouse draws; it never turns the model or clicks the app's own words.
+    if (e.button !== 0) return;
+    document.documentElement.setPointerCapture(e.pointerId);
+    pen.down(...toScale(e));
+    request();
+    return;
+  }
   if (e.button !== 0 || !inRect(modelRect, e.clientX, e.clientY)) return;
   dragging = true;
   document.body.classList.add('dragging');
@@ -312,12 +334,24 @@ document.addEventListener('pointerdown', (e) => {
   request();
 });
 document.addEventListener('pointermove', (e) => {
+  if (pen.active) {
+    pen.move(...toScale(e));
+    request();
+    return;
+  }
   if (!dragging) return;
   player.dragCamera(-e.movementX * DRAG_DEGREES_PER_PIXEL, e.movementY * DRAG_DEGREES_PER_PIXEL);
   if (fader.armed) fader.touch(performance.now());
   request();
 });
 const endDrag = (e: PointerEvent): void => {
+  if (pen.active || penEnding) {
+    pen.up();
+    sendPen();
+    if (document.documentElement.hasPointerCapture(e.pointerId)) document.documentElement.releasePointerCapture(e.pointerId);
+    request();
+    return;
+  }
   if (!dragging) return;
   dragging = false;
   document.body.classList.remove('dragging');
@@ -363,6 +397,17 @@ function handleScene(message: SceneMessage): void {
       milestones.word = true;
       player.play(message.scene);
       break;
+    case 'pen':
+      if (message.on) {
+        penEnding = false;
+        pen.turnOn();
+      } else {
+        pen.turnOff();
+        sendPen();
+        penEnding = true;
+        setTimeout(() => { penEnding = false; }, 500);
+      }
+      break;
     case 'screenshot':
       shot.onload = () => request();
       shot.src = message.url;
@@ -372,24 +417,31 @@ function handleScene(message: SceneMessage): void {
       player.beginTurn();
       break;
     case 'step':
+      pen.fade(labelClock());
       fader.disarm();
       hud.stopWorking();
       player.pushStep(message.step);
       break;
     case 'end':
+      pen.fade(labelClock());
       hud.stopWorking();
       if (message.escalate !== undefined) pendingOffer = message.escalate;
       player.endTurn();
       break;
     case 'status':
       if (message.status === 'hush') player.hush();
-      else if (message.status === 'idle') hud.setStatus('idle');
+      else if (message.status === 'idle') {
+        hud.setStatus('idle');
+        pen.fade(labelClock());
+      }
       else hud.setStatus(message.status);
       break;
     case 'notice':
+      pen.fade(labelClock());
       hud.showNotice(message.text, message.level, performance.now());
       break;
     case 'clear':
+      pen.fade(labelClock());
       shot.removeAttribute('src');
       player.clear();
       fader.disarm();

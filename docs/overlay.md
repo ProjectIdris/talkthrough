@@ -56,6 +56,10 @@ When a turn has finished, the scene stays at full strength for `FADE_AFTER_MS` (
 
 Dragging the model turns the camera (0.4 degrees a pixel). The drag is folded into the camera's tweens, so a camera action after it starts from where the camera is. The pointer region is the model's own bounding rectangle, so the page around it stays clickable.
 
+## The pen
+
+While the keys are held the main process sends `pen on` and the window takes the mouse. The page (`pen.ts`, plain state tested without a window) draws what is dragged as a red, round stroke with a faint dark outline, about half a percent of the longer side wide, and reports it with `stroke`: points on the 0 to 1000 scale, appended per stroke id, once per frame while drawing and once more when the button comes up (`done`). A click, or a twitch under 3 units, draws and reports nothing. While the pen is on the mouse never turns the model or clicks the app's own words, and the browser's own image drag is switched off (it would cancel the stroke). After `pen off` the stroke stays until the answer's first step (or the end, a notice, a clear or an idle status), then fades over 0.6 s; a new `pen on` removes it at once. It is never part of a scene, and the screenshot kept for image cards is the clean one.
+
 ## Looking at it without the app
 
 `scripts/overlay-frames.cjs` renders a scene with the overlay page in a hidden, software-rendered Electron window and saves PNG frames, either at chosen moments (`--steps 2:1.5,5:3`) or by playing the scene in real time (`--play`):

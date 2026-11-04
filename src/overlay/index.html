@@ -8,7 +8,7 @@
   html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
   body { position: relative; user-select: none; -webkit-user-select: none; font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
   body.dragging { cursor: grabbing; }
-  #backdrop { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: fill; display: none; }
+  #backdrop { -webkit-user-drag: none; position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: fill; display: none; }
   /* The optional box behind the 3D stage; it never takes the pointer. */
   #panel {
     position: absolute; display: none; box-sizing: border-box; pointer-events: none;

@@ -36,9 +36,10 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2));
 const scenePath = args._[0];
-if (!scenePath || !args.out || !(args.steps || args.play || args.schedule)) {
+if (!scenePath || !args.out || !(args.steps || args.play || args.schedule || args.pen)) {
   console.error('usage: electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 [--size WxH] [--dpr N] [--backdrop img] [--after scene.json]');
   console.error('   or: --schedule frames.json renders every frame of a clip plan (see scripts/clip-schedule.ts) as f00001.png, f00002.png, ...');
+  console.error('   or: --pen "x,y;x,y;..." (0..1000) turns the pen on, drags it through the points with real mouse events, saves pen-1.png, then ends the answer and saves pen-2.png after the fade');
   console.error('   or: --play [--every 2] plays the scene in real time (silently) and saves a frame every few seconds until it finishes');
   process.exit(2);
 }
@@ -124,6 +125,30 @@ app.whenReady().then(async () => {
       console.log('wrote', file, 'at', ((Date.now() - started) / 1000).toFixed(1) + 's', over ? '(done)' : '');
     }
     console.log(over ? 'finished after ' + ((Date.now() - started) / 1000).toFixed(1) + 's' : 'did not finish');
+    app.quit();
+    return;
+  }
+  if (args.pen) {
+    const strokes = [];
+    ipcMain.on('tt:stroke', (_e, piece) => strokes.push(piece));
+    const pts = args.pen.split(';').map((p) => p.split(',').map(Number));
+    const px = (p) => ({ x: Math.round((p[0] / 1000) * width), y: Math.round((p[1] / 1000) * height) });
+    win.webContents.send(CHANNEL.scene, { kind: 'pen', on: true });
+    await sleep(300);
+    win.webContents.sendInputEvent({ type: 'mouseDown', ...px(pts[0]), button: 'left', clickCount: 1 });
+    for (const p of pts.slice(1)) {
+      win.webContents.sendInputEvent({ type: 'mouseMove', ...px(p), button: 'left', modifiers: ['leftButtonDown'] });
+      await sleep(40);
+    }
+    win.webContents.sendInputEvent({ type: 'mouseUp', ...px(pts[pts.length - 1]), button: 'left', clickCount: 1 });
+    await sleep(100);
+    win.webContents.send(CHANNEL.scene, { kind: 'pen', on: false });
+    await sleep(300);
+    fs.writeFileSync(path.join(args.out, 'pen-1.png'), (await capture()).toPNG());
+    win.webContents.send(CHANNEL.scene, { kind: 'end' });
+    await sleep(1200);
+    fs.writeFileSync(path.join(args.out, 'pen-2.png'), (await capture()).toPNG());
+    console.log('strokes reported:', JSON.stringify(strokes.map((p) => ({ id: p.id, points: p.points.length, done: p.done }))));
     app.quit();
     return;
   }
