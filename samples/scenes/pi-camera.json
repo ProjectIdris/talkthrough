@@ -68,9 +68,15 @@
       "actions": [
         { "op": "orbit", "az": 24, "el": 24, "dur": 1.4 },
         { "op": "pin", "id": "p-end", "on": "tip", "text": "Cable end", "off": [-60, 170] },
-        { "op": "pin", "id": "p-cam", "on": "lens", "text": "Camera", "off": [-190, -40], "at": 0.5 },
+        { "op": "pin", "id": "p-cam", "on": "lens", "text": "Camera", "off": [190, -20], "at": 0.5 },
         { "op": "pin", "id": "p-soc", "on": "soc", "text": "Processor", "off": [-250, -60], "at": 0.9 },
-        { "op": "pin", "id": "p-gpio", "on": "gpio", "text": "GPIO pins", "off": [120, -170], "at": 1.3 }
+        { "op": "pin", "id": "p-gpio", "on": "gpio", "text": "GPIO pins", "off": [-170, -110], "at": 1.3 }
+      ]
+    },
+    {
+      "say": "So the order is: latch up, cable in, latch down.",
+      "actions": [
+        { "op": "card", "id": "steps", "x": 590, "y": 800, "w": 300, "title": "Fitting the cable", "rows": ["Lift the latch", "Slide the cable in until it stops", "Press the latch down"], "to": [520, 640] }
       ]
     }
   ]
