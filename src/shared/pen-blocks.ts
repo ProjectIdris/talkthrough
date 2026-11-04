@@ -17,11 +17,11 @@ export type InkGrid = { cols: number; rows: number; ink: ArrayLike<number> };
  */
 const SCALES: ReadonlyArray<{ x: number; y: number }> = [{ x: 1, y: 3 }, { x: 2, y: 3 }, { x: 3, y: 3 }, { x: 5, y: 3 }];
 /** A block is at most this many times the area of the stroke's box (a loop round half a figure is under 6; a ring on a detail of a photo is far over). */
-const MAX_GROWTH = 6;
+const MAX_GROWTH = 4;
 /** The block must hold at least this share of the page's ink that is inside the stroke's box: the stroke is mostly on it. */
 const MIN_HELD = 0.5;
 /** A block larger than this share of the screen is the page itself (a column of everything), not a thing someone circled. */
-const MAX_AREA_SHARE = 0.45;
+const MAX_AREA_SHARE = 0.3;
 /** The ink the circle's box must hold, as a share of its cells, for there to be anything under it. */
 const MIN_INK_SHARE = 0.01;
 

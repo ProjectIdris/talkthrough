@@ -8,6 +8,7 @@
 // saying so (it once sent five calls to the wrong model). So this writes the settings with JSON.stringify, reads them back
 // the way the app does, and refuses to start unless they name the claude route, a Haiku model and an executable that exists,
 // with no warning from the loader. The app then runs hidden with a silent voice, a keypress made for it, the screenshot
+// (a pen stroke made without a mouse: --fake-stroke "x,y x,y ... | x,y ..." on the 0..1000 scale, strokes told apart by a bar; the pictures the model gets are written to <out>/pen)
 // (and the same picture as the backdrop) from file, DISABLE_AUTOUPDATER=1 for the executable, and --log-steps so the log
 // holds each answer's raw text (`answer-raw`). Frames every two seconds go to <out>/f, the app's log to <out>/run.log.
 // It prints the report line, what the answer drew and what snapping moved. It runs one app at a time and stops it at the end.
@@ -72,6 +73,7 @@ const run = spawnSync(process.execPath, [
   '--settle-seconds', args.get('settle') ?? '20', '--log-steps', '--max-seconds', args.get('max') ?? '150',
   ...(args.has('gpu') ? ['--gpu'] : []), ...(args.has('detail-after') ? ['--detail-after', args.get('detail-after')] : []),
   '--capture-image', resolve(page), '--backdrop', resolve(page), '--question', question,
+  ...(args.has('fake-stroke') ? ['--fake-stroke', args.get('fake-stroke'), '--save-pen', join(out, 'pen')] : []),
   '--settings', settingsFile, '--user-data-dir', data, '--frames-dir', frames, '--frame-every', '2000',
 ], { cwd: root, env, stdio: ['ignore', logFd, logFd], timeout: 240_000 });
 closeSync(logFd);
