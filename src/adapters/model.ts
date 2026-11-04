@@ -1,6 +1,18 @@
 import type { Step } from '../scene/types.ts';
 import type { Screenshot } from './types.ts';
 
+/** One thing the person marked with the pen: a closer picture of it, where it is, and what kind of mark it was. */
+export type FocusCrop = {
+  crop: Screenshot;
+  box: { x: number; y: number; w: number; h: number };
+  /** Default: a circle. */
+  kind?: 'circle' | 'underline' | 'arrow';
+  /** A circle that was gone round more than once. */
+  loops?: number;
+  /** A circle that was not closed. */
+  open?: boolean;
+};
+
 /** One finished turn of the visual thread, so a follow-up can reach what is already on screen. */
 export type ThreadTurn = {
   question: string;
@@ -18,11 +30,12 @@ export type ModelRequest = {
   /** The JSON Schema the answer must follow (the scene schema); a model that can hold output to a schema should. */
   schema: unknown;
   /**
-   * Set when the person circled something with the pen. `screenshot` already has the stroke drawn on it
-   * (in red); `crop` is a closer, clean picture of the area around the stroke, and `box` is that area
-   * on the 0..1000 scale of the whole screenshot. Marks still use the scale of the whole screenshot.
+   * Set when the person marked something with the pen (up to three things, in the order drawn). `screenshot` already has the strokes
+   * drawn on it (in red, numbered when there is more than one); each `crop` is a closer, clean picture of what that mark is on (the whole
+   * block, figure or words the rough stroke covers, not just the stroke's box), and `box` is that area on the 0..1000 scale of the whole
+   * screenshot. Marks still use the scale of the whole screenshot.
    */
-  focus?: { crop: Screenshot; box: { x: number; y: number; w: number; h: number } };
+  focus?: readonly FocusCrop[];
   /**
    * Set for a detail pass: what is already on screen (the steps drawn so far, the ids in them). The model is asked
    * for a much richer version of the same scene, in the same language and with the same ids, instead of an answer.

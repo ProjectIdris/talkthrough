@@ -1,7 +1,11 @@
 // The hidden page that records the question and grabs one frame of the screen, both away from the
 // main process. Mono 16 kHz floats are what the speech recogniser takes; the frame is scaled here too.
 
-import { cropBox } from '../shared/pen.ts';
+import { grayOf } from '../overlay/page-gray.ts';
+import { Snapper } from '../overlay/snap.ts';
+import type { InkGrid } from '../shared/pen-blocks.ts';
+import { readPen } from '../shared/pen-read.ts';
+import { strokeBounds } from '../shared/pen.ts';
 
 const TARGET_RATE = 16000;
 
@@ -57,30 +61,69 @@ function drawStrokes(canvas: OffscreenCanvas, strokes: Array<Array<[number, numb
   }
 }
 
+/** Numbers beside the strokes of each mark, in the order drawn (only when there are several): a small dark disc with a white digit at the mark's top left. */
+function drawNumbers(canvas: OffscreenCanvas, marks: ReadonlyArray<{ strokes: Array<Array<[number, number]>> }>): void {
+  const context = canvas.getContext('2d');
+  if (!context) return;
+  const radius = Math.max(9, Math.round(Math.max(canvas.width, canvas.height) * 0.011));
+  marks.forEach((mark, i) => {
+    const b = strokeBounds(mark.strokes);
+    if (!b) return;
+    const cx = Math.min(canvas.width - radius, Math.max(radius, (b.x / 1000) * canvas.width - radius * 0.3));
+    const cy = Math.min(canvas.height - radius, Math.max(radius, (b.y / 1000) * canvas.height - radius * 0.3));
+    context.beginPath();
+    context.arc(cx, cy, radius, 0, Math.PI * 2);
+    context.fillStyle = 'rgba(20,20,20,0.92)';
+    context.fill();
+    context.lineWidth = 2;
+    context.strokeStyle = '#ff2a2a';
+    context.stroke();
+    context.fillStyle = '#ffffff';
+    context.font = `bold ${Math.round(radius * 1.35)}px sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(String(i + 1), cx, cy + 1);
+  });
+}
+
 async function compose(request: { id: number; grab: number; maxEdge: number; cropEdge: number; strokes: Array<Array<[number, number]>> }): Promise<void> {
   try {
     const bitmap = frames.get(request.grab);
     if (!bitmap) throw new Error('that frame is no longer held');
-    const box = cropBox(request.strokes);
-    if (!box) throw new Error('no strokes');
+    if (!strokeBounds(request.strokes)) throw new Error('no strokes');
     const full = scaledCanvas(bitmap, request.maxEdge);
+    // The page's own ink (read before the strokes are drawn on it) grows a rough circle to the whole thing it is on.
+    let grid: InkGrid | null = null;
+    try {
+      const g = grayOf(full, full.width, full.height);
+      if (g) grid = new Snapper(g.gray, g.cols, g.rows).blockGrid;
+    } catch {
+      grid = null; // the stroke's own shape alone then
+    }
+    const marks = readPen(request.strokes, grid, bitmap.width / bitmap.height);
+    if (marks.length === 0) throw new Error('no strokes');
     drawStrokes(full, request.strokes);
-    // The crop comes from the full-resolution frame, without the strokes.
-    const sx = Math.round((box.x / 1000) * bitmap.width);
-    const sy = Math.round((box.y / 1000) * bitmap.height);
-    const sw = Math.max(1, Math.round((box.w / 1000) * bitmap.width));
-    const sh = Math.max(1, Math.round((box.h / 1000) * bitmap.height));
-    const scale = Math.min(1, request.cropEdge / Math.max(sw, sh));
-    const crop = new OffscreenCanvas(Math.max(1, Math.round(sw * scale)), Math.max(1, Math.round(sh * scale)));
-    const context = crop.getContext('2d');
-    if (!context) throw new Error('no 2d canvas');
-    context.imageSmoothingQuality = 'high';
-    context.drawImage(bitmap, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
+    if (marks.length > 1) drawNumbers(full, marks);
+    // Each crop comes from the full-resolution frame, without the strokes.
+    const crops = [];
+    for (const mark of marks) {
+      const box = mark.crop;
+      const sx = Math.round((box.x / 1000) * bitmap.width);
+      const sy = Math.round((box.y / 1000) * bitmap.height);
+      const sw = Math.max(1, Math.round((box.w / 1000) * bitmap.width));
+      const sh = Math.max(1, Math.round((box.h / 1000) * bitmap.height));
+      const scale = Math.min(1, request.cropEdge / Math.max(sw, sh));
+      const crop = new OffscreenCanvas(Math.max(1, Math.round(sw * scale)), Math.max(1, Math.round(sh * scale)));
+      const context = crop.getContext('2d');
+      if (!context) throw new Error('no 2d canvas');
+      context.imageSmoothingQuality = 'high';
+      context.drawImage(bitmap, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
+      crops.push({ png: await toPng(crop), width: crop.width, height: crop.height, box, kind: mark.kind, ...(mark.loops !== undefined ? { loops: mark.loops } : {}), ...(mark.open ? { open: true } : {}) });
+    }
     window.talkthroughAudio.composed({
       id: request.id,
       full: { png: await toPng(full), width: full.width, height: full.height },
-      crop: { png: await toPng(crop), width: crop.width, height: crop.height },
-      box,
+      marks: crops,
     });
   } catch (error) {
     window.talkthroughAudio.composeError(request.id, `could not draw the stroke: ${error instanceof Error ? error.message : String(error)}`);

@@ -70,7 +70,7 @@ function turns(pts: V[]): number[] {
     let d = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(b.y - a.y, b.x - a.x);
     while (d > Math.PI) d -= TWO_PI;
     while (d <= -Math.PI) d += TWO_PI;
-    out.push(d);
+    out.push(d / 2); // each step's turning is inside two overlapping chord pairs, so half of each is its share
   }
   return out;
 }
@@ -151,7 +151,7 @@ function circleSubject(strokes: ReadonlyArray<ReadonlyArray<Point>>, aspect: num
       }
     }
   }
-  return { subject, loops: Math.max(1, Math.round(turned / TWO_PI)), open };
+  return { subject, loops: Math.max(1, Math.floor(turned / TWO_PI + 0.35)), open };
 }
 
 /** Where an arrow points: the end of its shaft that the head is at, or the end of the stroke. */

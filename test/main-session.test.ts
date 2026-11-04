@@ -225,7 +225,7 @@ test('a stroke: the model gets the composite screenshot plus the crop; the page 
       capture: async () => ({ screenshot: shotOf('CLEAN'), ms: 5, grabId: 9 }),
       compose: async (grabId, strokes) => {
         composed.push({ grabId, strokes });
-        return { screenshot: shotOf('MARKED'), crop: shotOf('CROP', 40, 40), box: { x: 250, y: 250, w: 250, h: 250 } };
+        return { screenshot: shotOf('MARKED'), focus: [{ crop: shotOf('CROP', 40, 40), box: { x: 250, y: 250, w: 250, h: 250 }, kind: 'circle' }] };
       },
     },
   });
@@ -240,8 +240,8 @@ test('a stroke: the model gets the composite screenshot plus the crop; the page 
   assert.deepEqual(composed[0]?.strokes, [circle]);
   const asked = model.asked[0]!;
   assert.equal(asked.screenshot.base64, 'MARKED');
-  assert.equal(asked.focus?.crop.base64, 'CROP');
-  assert.deepEqual(asked.focus?.box, { x: 250, y: 250, w: 250, h: 250 });
+  assert.equal(asked.focus?.[0]?.crop.base64, 'CROP');
+  assert.deepEqual(asked.focus?.[0]?.box, { x: 250, y: 250, w: 250, h: 250 });
   const page = r.sent.find((m) => m.kind === 'screenshot');
   assert.equal(page?.kind === 'screenshot' && page.url.includes('CLEAN'), true);
 });
@@ -254,7 +254,7 @@ test('no stroke, a tap, a stroke on another display or one made when the pen is 
     stopMic: async () => ({ samples: new Float32Array(16), sampleRate: 16000, durationMs: 1500, startLatencyMs: 100 }),
     abortMic: () => undefined,
     capture: async () => ({ screenshot: shotOf('CLEAN'), ms: 5, grabId: 1 }),
-    compose: async () => (composes++, { screenshot: shotOf('MARKED'), crop: shotOf('CROP'), box: { x: 0, y: 0, w: 1, h: 1 } }),
+    compose: async () => (composes++, { screenshot: shotOf('MARKED'), focus: [{ crop: shotOf('CROP'), box: { x: 0, y: 0, w: 1, h: 1 } }] }),
   });
   const r = rig({ model: model.model, media: media() });
   r.session.stroke(7, { id: 1, points: circle, done: true }); // before any press: ignored
@@ -306,7 +306,7 @@ function penMedia(stopMs: number, log: { composed: unknown[]; released: number[]
     capture: async () => ({ screenshot: shotOf('CLEAN'), ms: 5, grabId: 4 }),
     compose: async (_grab, strokes) => {
       log.composed.push(strokes);
-      return { screenshot: shotOf('MARKED'), crop: shotOf('CROP'), box: { x: 0, y: 0, w: 500, h: 500 } };
+      return { screenshot: shotOf('MARKED'), focus: [{ crop: shotOf('CROP'), box: { x: 0, y: 0, w: 500, h: 500 } }] };
     },
     release: (grabId) => void log.released.push(grabId),
   };

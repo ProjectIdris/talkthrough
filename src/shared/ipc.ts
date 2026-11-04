@@ -154,10 +154,11 @@ export type ComposeResult = {
   id: number;
   /** The screenshot with the strokes drawn on it. */
   full: { png: Uint8Array; width: number; height: number };
-  /** A higher-resolution crop of the strokes' padded bounding box, without the strokes. */
-  crop: { png: Uint8Array; width: number; height: number };
-  /** The crop's box on the 0..1000 scale of the full screenshot. */
-  box: { x: number; y: number; w: number; h: number };
+  /**
+   * One entry for each mark the person made (up to three, in the order drawn): a higher-resolution crop of what the mark is on, without the
+   * strokes, the crop's box on the 0..1000 scale of the full screenshot, and what kind of mark it was.
+   */
+  marks: Array<{ png: Uint8Array; width: number; height: number; box: { x: number; y: number; w: number; h: number }; kind: 'circle' | 'underline' | 'arrow'; loops?: number; open?: boolean }>;
 };
 /** Checks only: decode this PNG as if it had been grabbed from a screen. */
 export type UseImageRequest = { id: number; png: Uint8Array; maxEdge: number };

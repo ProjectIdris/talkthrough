@@ -298,9 +298,9 @@ async function main(): Promise<void> {
         if (options.savePen) {
           mkdirSync(options.savePen, { recursive: true });
           writeFileSync(join(options.savePen, 'pen-full.png'), Buffer.from(c.screenshot.base64, 'base64'));
-          writeFileSync(join(options.savePen, 'pen-crop.png'), Buffer.from(c.crop.base64, 'base64'));
+          c.focus.forEach((f, k) => writeFileSync(join(options.savePen as string, `pen-crop${c.focus.length > 1 ? `-${k + 1}` : ''}.png`), Buffer.from(f.crop.base64, 'base64')));
         }
-        log(`pen: ${strokes.length} stroke(s), full ${c.screenshot.width}x${c.screenshot.height}, crop ${c.crop.width}x${c.crop.height} (box ${Math.round(c.box.x)},${Math.round(c.box.y)} ${Math.round(c.box.w)}x${Math.round(c.box.h)})`);
+        log(`pen: ${strokes.length} stroke(s), full ${c.screenshot.width}x${c.screenshot.height}, ${c.focus.map((f) => `${f.kind} crop ${f.crop.width}x${f.crop.height} (box ${Math.round(f.box.x)},${Math.round(f.box.y)} ${Math.round(f.box.w)}x${Math.round(f.box.h)})`).join('; ')}`);
         return c;
       },
     },
@@ -435,9 +435,9 @@ async function main(): Promise<void> {
           log('chord pressed');
           session?.start();
           if (options.fakeStroke) {
-            const points = options.fakeStroke;
+            const strokes = options.fakeStroke;
             const displayId = displayUnderPointer().id;
-            setTimeout(() => session?.stroke(displayId, { id: 1, points, done: true }), 300);
+            strokes.forEach((points, k) => setTimeout(() => session?.stroke(displayId, { id: k + 1, points, done: true }), 300 + 60 * k));
           }
         },
         stop: () => {

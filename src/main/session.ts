@@ -1,7 +1,7 @@
 import type { Backend } from '../adapters/backend.ts';
 import { ModelError } from '../adapters/model.ts';
 import { NO_KEY_MESSAGE } from '../adapters/openai-model.ts';
-import type { Model, ModelOutput, ModelRequest, ThreadTurn, Usage } from '../adapters/model.ts';
+import type { FocusCrop, Model, ModelOutput, ModelRequest, ThreadTurn, Usage } from '../adapters/model.ts';
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
@@ -32,7 +32,7 @@ export type SessionDeps = {
      * full-resolution frame. Absent when this build cannot (then the plain screenshot is used).
      */
     release?(grabId: number): void;
-    compose?(grabId: number, strokes: Point[][]): Promise<{ screenshot: Screenshot; crop: Screenshot; box: Box }>;
+    compose?(grabId: number, strokes: Point[][]): Promise<{ screenshot: Screenshot; focus: FocusCrop[] }>;
   };
   /**
    * Turns the pen on for one display (its overlay takes the mouse) or, with null, off everywhere and
@@ -823,12 +823,12 @@ export function createSession(deps: SessionDeps) {
       // With a stroke, the model gets the screenshot with the stroke drawn on it plus a closer crop; the
       // page keeps the clean frame, and every mark stays on the scale of the whole screenshot.
       let seen: Screenshot = shot.screenshot;
-      let focus: { crop: Screenshot; box: Box } | undefined;
+      let focus: FocusCrop[] | undefined;
       if (composed) {
         try {
           const c = await composed;
           seen = c.screenshot;
-          focus = { crop: c.crop, box: c.box };
+          focus = c.focus;
           r.circled = true;
         } catch (error) {
           deps.log(`pen: the stroke could not be drawn, using the plain screenshot (${error instanceof Error ? error.message : String(error)})`);

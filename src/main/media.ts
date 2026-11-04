@@ -184,7 +184,10 @@ export function createMedia(options: { preload: string; page: string }) {
         }, 10_000).unref();
       });
       const toShot = (p: { png: Uint8Array; width: number; height: number }) => ({ mime: 'image/png' as const, base64: Buffer.from(p.png).toString('base64'), width: p.width, height: p.height });
-      return { screenshot: toShot(result.full), crop: toShot(result.crop), box: result.box };
+      return {
+        screenshot: toShot(result.full),
+        focus: result.marks.map((m) => ({ crop: toShot(m), box: m.box, kind: m.kind, ...(m.loops !== undefined ? { loops: m.loops } : {}), ...(m.open ? { open: true } : {}) })),
+      };
     },
     dispose(): void {
       window?.destroy();

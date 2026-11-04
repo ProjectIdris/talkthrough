@@ -36,7 +36,7 @@ export type Options = {
   /** Checks only: a pen stroke made without a mouse, as points on the 0..1000 scale ("x,y x,y ..."). */
   /** Checks only: write the picture the model gets with a stroke (and its crop) into this folder. */
   savePen?: string;
-  fakeStroke?: Array<[number, number]>;
+  fakeStroke?: Array<Array<[number, number]>>;
   /** Checks: use this WAV file as the microphone (with --fake-mic). */
   fakeMicFile?: string;
   /** Checks: how long --self-chord holds the keys, in milliseconds. */
@@ -93,9 +93,12 @@ export function parseArgs(argv: readonly string[]): Options {
       case '--settings': options.settings = value(i, a); i++; break;
       case '--save-pen': options.savePen = value(i, a); i++; break;
       case '--fake-stroke': {
-        const points = value(i, a).trim().split(/\s+/).map((pair) => pair.split(',').map(Number) as [number, number]);
-        if (points.length < 2 || points.some((p) => p.length !== 2 || !p.every(Number.isFinite))) throw new Error('--fake-stroke needs points like "300,300 450,300 450,450"');
-        options.fakeStroke = points;
+        // Several strokes are told apart by a bar: "300,300 450,300 450,450 | 600,300 700,300".
+        const strokes = value(i, a).split('|').map((part) => part.trim().split(/\s+/).map((pair) => pair.split(',').map(Number) as [number, number]));
+        for (const points of strokes) {
+          if (points.length < 2 || points.some((p) => p.length !== 2 || !p.every(Number.isFinite))) throw new Error('--fake-stroke needs points like "300,300 450,300 450,450", strokes told apart by a bar');
+        }
+        options.fakeStroke = strokes;
         i++;
         break;
       }
