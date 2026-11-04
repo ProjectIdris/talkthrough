@@ -50,7 +50,7 @@ test('with no point of its colour a point of another colour close to it is used;
 
 test('a title written near an unrelated point of another colour stays where it was written (the short reach for another colour)', () => {
   const p = blank();
-  // A heading label 75 units from a red point (the case Prism found: it was dragged from (400,200) to (460,240)).
+  // A heading label 75 units from a red point (the case found in review: it was dragged from (400,200) to (460,240)).
   settleMark(p, point('r', 450, 262, 'red'));
   const heading = label('h', 400, 200, 'Blood flow', 'green');
   assert.equal(settleMark(p, heading), heading);
