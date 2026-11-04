@@ -4,8 +4,11 @@
 export type GrabStep = { step: number; t: number };
 
 export type Options = {
-  /** Draw this scene file offscreen at the given moments, write PNGs, and quit. */
-  grab?: { scene: string; steps: GrabStep[]; out: string; width: number; height: number; scaleFactor: number };
+  /**
+   * Draw these scene files offscreen at the given moments, write PNGs, and quit. Several files are
+   * played as turns of one thread (a follow-up continues the scene before it), their steps numbered on.
+   */
+  grab?: { scenes: string[]; steps: GrabStep[]; out: string; width: number; height: number; scaleFactor: number };
   /** An image shown behind the drawing (frame grabs only). */
   backdrop?: string;
   /** Quit by itself after this many seconds (for any on-screen run). */
@@ -63,7 +66,7 @@ export function parseArgs(argv: readonly string[]): Options {
   if (grabScene !== undefined) {
     if (grabOut === undefined) throw new Error('--grab needs --out <folder>');
     if (!(scaleFactor > 0)) throw new Error('--scale must be a positive number');
-    options.grab = { scene: grabScene, steps: grabSteps, out: grabOut, ...size, scaleFactor };
+    options.grab = { scenes: grabScene.split(","), steps: grabSteps, out: grabOut, ...size, scaleFactor };
   }
   if (options.maxSeconds !== undefined && !(options.maxSeconds > 0)) throw new Error('--max-seconds must be positive');
   return options;

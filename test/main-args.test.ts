@@ -13,7 +13,12 @@ test('a normal launch has no options set', () => {
 test('grab needs an output folder and reads steps and size', () => {
   assert.throws(() => parseArgs(['--grab', 'a.json']), /--out/);
   const o = parseArgs(['--grab', 'a.json', '--out', 'o', '--steps', '0:0.5,2:3', '--size', '800x600', '--scale', '2']);
-  assert.deepEqual(o.grab, { scene: 'a.json', steps: [{ step: 0, t: 0.5 }, { step: 2, t: 3 }], out: 'o', width: 800, height: 600, scaleFactor: 2 });
+  assert.deepEqual(o.grab, { scenes: ['a.json'], steps: [{ step: 0, t: 0.5 }, { step: 2, t: 3 }], out: 'o', width: 800, height: 600, scaleFactor: 2 });
+});
+
+test('several scene files make one thread', () => {
+  const o = parseArgs(['--grab', 'a.json,b.json', '--out', 'o']);
+  assert.deepEqual(o.grab?.scenes, ['a.json', 'b.json']);
 });
 
 test('bad values are refused with a clear message', () => {

@@ -4,19 +4,25 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CHANNEL } from '../shared/ipc.ts';
 import type { DisplayInfo, SceneMessage } from '../shared/ipc.ts';
-import { createSceneState, validateScene } from '../scene/index.ts';
+import { createSceneState, startTurn, validateScene } from '../scene/index.ts';
+import type { Scene } from '../scene/index.ts';
 import type { Options } from './args.ts';
 
 /**
- * Frame grabs: draws a scene in an offscreen window (nothing appears on any screen), at the
+ * Frame grabs: draws scenes in an offscreen window (nothing appears on any screen), at the
  * requested moments, and writes one PNG per moment. The window is transparent, so a --backdrop
  * image is what shows behind the marks.
  */
 export async function runGrab(grab: NonNullable<Options['grab']>, backdrop: string | undefined, env: { preload: string; page: string }): Promise<string[]> {
-  const raw = JSON.parse(readFileSync(grab.scene, 'utf8'));
-  const result = validateScene(raw, createSceneState());
-  if (!result.ok || !result.scene) throw new Error('the scene was refused by the validator');
-  const scene = result.scene;
+  // One state across the files, as in a real thread, so a follow-up can reach the earlier ids.
+  const state = createSceneState();
+  const scene: Scene = { steps: [] };
+  for (const file of grab.scenes) {
+    startTurn(state);
+    const result = validateScene(JSON.parse(readFileSync(file, 'utf8')), state);
+    if (!result.ok || !result.scene) throw new Error(`${file} was refused by the validator`);
+    scene.steps.push(...result.scene.steps);
+  }
   mkdirSync(grab.out, { recursive: true });
 
   const window = new BrowserWindow({
