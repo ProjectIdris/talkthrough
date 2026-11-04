@@ -197,7 +197,7 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
   const maxBox = { w: Math.max(80, env.px * 11), h: Math.max(36, env.px * (nodes.some((n) => n.def.note) ? 4.6 : 3.4)) };
   ctx.font = fontAt(theme.font, env.px * 0.78);
   const labelW = Math.max(0, ...edges.map((e) => (e.def.text ? ctx.measureText(e.def.text).width + 12 : 0)));
-  const lay = flowLayout(nodes.map((n) => n.id), edges.map((e) => ({ id: e.id, from: e.def.from, to: e.def.to })), area, { maxBox, pad, labelW, labelH: labelW > 0 ? env.px * 1.55 : 0 });
+  const lay = flowLayout(nodes.map((n) => n.id), edges.map((e) => ({ id: e.id, from: e.def.from, to: e.def.to, ...(e.def.text ? { labelW: ctx.measureText(e.def.text).width + 12 } : {}) })), area, { maxBox, pad, labelW, labelH: labelW > 0 ? env.px * 1.55 : 0 });
   const boxes = new Map<string, FlowBox>();
   for (const n of nodes) {
     const t = lay.nodes.get(n.id);

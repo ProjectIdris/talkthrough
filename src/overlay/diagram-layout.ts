@@ -6,7 +6,7 @@ export type Pt = { x: number; y: number };
 
 // ---- Flow ----------------------------------------------------------------------------------------
 
-export type FlowEdge = { id: string; from: string; to: string };
+export type FlowEdge = { id: string; from: string; to: string; /** The width of its label (pixels), when it has one. */ labelW?: number };
 /** A node's box, the layer it is in and, when a long chain is wrapped into rows, its row and whether that row runs right to left. */
 export type FlowBox = Px & { layer: number; row?: number; rev?: boolean };
 
@@ -68,7 +68,39 @@ export type FlowOptions = {
   labelH?: number;
 };
 
+/**
+ * The nodes and edges of a flow inside an area. A loop back swings out past the nodes (to the right of a column that runs down,
+ * under a row that runs right) with its label on the swing; when that would leave the area the nodes are laid out again in the
+ * room that is left, so the curve and its label stay inside the card.
+ */
 export function flowLayout(ids: readonly string[], edges: readonly FlowEdge[], area: Px, options: FlowOptions): FlowLayout {
+  let lay = flowLayoutIn(ids, edges, area, options);
+  let room = area;
+  for (let pass = 0; pass < 2; pass++) {
+    const over = loopOvershoot(lay, edges, area, options);
+    if (over <= 0.5) break;
+    room = lay.dir === 'down' ? { ...room, w: Math.max(40, room.w - over) } : { ...room, h: Math.max(30, room.h - over) };
+    lay = flowLayoutIn(ids, edges, room, options);
+  }
+  return lay;
+}
+
+/** How far the loop-back curves and their labels run past the area (pixels), on the side they swing out to. */
+function loopOvershoot(lay: FlowLayout, edges: readonly FlowEdge[], area: Px, options: FlowOptions): number {
+  const lh = options.labelH ?? 0;
+  const limitX = area.x + area.w - 3, limitY = area.y + area.h - 3;
+  let over = 0;
+  for (const e of edges) {
+    const r = lay.edges.get(e.id), s = r && lay.nodes.get(e.from), u = r && lay.nodes.get(e.to);
+    if (!r || !s || !u || s.layer < u.layer) continue;
+    const lw = e.labelW ?? 0;
+    for (const p of bezierPoints(r.a, r.b, r.c, r.d)) over = Math.max(over, lay.dir === 'down' ? p.x - limitX : p.y - limitY);
+    if (lw > 0) over = Math.max(over, lay.dir === 'down' ? r.mid.x + lw / 2 + 6 - limitX : r.mid.y + lh / 2 - limitY);
+  }
+  return over;
+}
+
+function flowLayoutIn(ids: readonly string[], edges: readonly FlowEdge[], area: Px, options: FlowOptions): FlowLayout {
   const empty: FlowLayout = { dir: 'right', layers: 0, rows: 1, nodes: new Map(), edges: new Map() };
   if (ids.length === 0) return empty;
   const known = new Set(ids);

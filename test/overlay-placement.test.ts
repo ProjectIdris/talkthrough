@@ -90,3 +90,26 @@ test('a bright page under a stage reads as bright and a dark one as dark', () =>
   const dark = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(30), COLS, ROWS), { aspect: 16 / 9 });
   assert.ok(dark.brightness({ x: 0, y: 0, w: 1000, h: 1000 }) < 60);
 });
+
+/** A page of dense text with two equally sparse places: a menu row in the top fifth, and a footer in the bottom right. */
+function menuPage() {
+  const gray = new Uint8Array(COLS * ROWS);
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const body = r > 24 && r < 70 && c > 4 && c < COLS - 4 && r % 4 < 2 && (c * 7 + r * 13) % 11 !== 0;
+      const sparse = ((r >= 3 && r <= 5) || (r >= 80 && r <= 82)) && c % 3 === 0 && (r < 60 || c > 100) && c > 60;
+      gray[r * COLS + c] = body || sparse ? 40 : 238;
+    }
+  }
+  return pageGrid(gray, COLS, ROWS);
+}
+
+test('a card or diagram that was not asked for in the top fifth keeps out of it (an app\'s bar and menus look nearly blank), unless asked to be there', () => {
+  const want = { x: 120, y: 330, w: 420, h: 150 };
+  const away = placer(menuPage()).diagram(want, 'd');
+  assert.ok(away.y >= 200, `placed at ${JSON.stringify(away)}`);
+  assert.ok(placer(menuPage()).card({ ...want, w: 300 }, 'c').y >= 200, 'a card too');
+  // Asked for up there, it stays: the model chose that place.
+  const asked = placer(menuPage()).diagram({ x: 400, y: 30, w: 420, h: 150 }, 'e');
+  assert.ok(asked.y < 200, `asked place kept: ${JSON.stringify(asked)}`);
+});
