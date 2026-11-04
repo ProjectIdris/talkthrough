@@ -212,3 +212,26 @@ test('a leader that ends up across another leader or tag while the parts move is
   }
   assert.equal(bad, 0, 'leaders still cross');
 });
+
+test('a tag keeps off the app\'s own buttons: where a button will be, no tag is put, and a tag the buttons arrive on moves off them', () => {
+  const overlapsRect = (a: Rect, b: Rect, pad = 0) => a.x < b.x + b.w + pad && b.x < a.x + a.w + pad && a.y < b.y + b.h + pad && b.y < a.y + a.h + pad;
+  const anchor = { x: 1000, y: 360 };
+  // Where the tag goes with no buttons.
+  const free = board().place(1, { anchor, ...SIZE }, () => env());
+  // A button (Explode, with Cut under it) over exactly that spot, before anything is placed.
+  const buttons: Rect[] = [{ x: free.rect.x - 10, y: free.rect.y - 4, w: free.rect.w + 20, h: 30 }, { x: free.rect.x + 40, y: free.rect.y + 30, w: 70, h: 30 }];
+  const before = board().place(1, { anchor, ...SIZE }, () => ({ ...env(), keepOut: buttons }));
+  for (const k of buttons) assert.ok(!overlapsRect(before.rect, k, 4), `a new tag keeps off a button: ${JSON.stringify(before.rect)} vs ${JSON.stringify(k)}`);
+  // The tag is placed first, the buttons come after (a finished model shows them): the tag moves off them.
+  const b = board();
+  let last = b.place(1, { anchor, ...SIZE }, () => env());
+  assert.ok(overlapsRect(last.rect, buttons[0]!), 'the test starts with the tag under the button');
+  for (let f = 1; f <= 200; f++) {
+    b.beginFrame({ width: W, height: H, model: MODEL, dragging: false, now: f * 16 });
+    last = b.place(1, { anchor, ...SIZE }, () => ({ ...env(), keepOut: buttons }));
+  }
+  for (const k of buttons) assert.ok(!overlapsRect(last.rect, k, 4), `the tag moved off the button: ${JSON.stringify(last.rect)}`);
+  // Where every place is on a button the tag is still shown (somewhere), never dropped.
+  const all = board().place(1, { anchor, ...SIZE }, () => ({ ...env(), keepOut: [{ x: 0, y: 0, w: W, h: H }] }));
+  assert.ok(all.rect.w > 0 && all.alpha > 0);
+});
