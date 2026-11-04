@@ -21,7 +21,13 @@ const EXAMPLE = {
       actions: [
         { op: 'box', id: 'orders', x: 120, y: 260, w: 700, h: 300, color: 'blue' },
         { op: 'circle', id: 'total', x: 700, y: 260, w: 120, h: 80, color: 'red', at: 1.5 },
-        { op: 'label', id: 'totname', x: 690, y: 210, text: 'Order total', color: 'red', at: 1.8 },
+      ],
+    },
+    {
+      say: 'The total is the last figure of the first row.',
+      actions: [
+        { op: 'point', id: 'tp', x: 760, y: 300, color: 'red' },
+        { op: 'label', id: 'totname', x: 690, y: 210, text: 'Order total', color: 'red', at: 0.6 },
       ],
     },
     {
