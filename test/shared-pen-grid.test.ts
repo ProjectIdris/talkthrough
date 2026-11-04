@@ -84,5 +84,6 @@ test('what the model is told with a grid: the columns and rows, how to name a ce
   assert.match(text, /columns A to F across, rows 1 to 8 down/);
   assert.match(text, /"cell"/);
   assert.match(text, /a top left, b top right, c bottom left, d bottom right/);
-  assert.match(text, /puts the point in the middle of the cell you name/);
+  assert.match(text, /mostly the part itself/);
+  assert.match(text, /puts the point in the middle of that quarter/);
 });
