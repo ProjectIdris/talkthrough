@@ -2646,6 +2646,46 @@
       ],
       "additionalProperties": false
     },
+    "go": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "go"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "tab",
+            "open",
+            "scroll"
+          ]
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "dir": {
+          "enum": [
+            "down",
+            "up",
+            "left",
+            "right",
+            null
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "kind",
+        "x",
+        "y",
+        "dir"
+      ],
+      "additionalProperties": false
+    },
     "clear": {
       "type": "object",
       "properties": {
@@ -2807,6 +2847,9 @@
         },
         {
           "$ref": "#/$defs/wait"
+        },
+        {
+          "$ref": "#/$defs/go"
         },
         {
           "$ref": "#/$defs/clear"

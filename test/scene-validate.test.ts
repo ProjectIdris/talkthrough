@@ -397,3 +397,13 @@ test('a wait for a click keeps its box, or none, and drops a kind of wait it doe
   const wait = actionsOf(outside)[0] as { x: number };
   assert.ok(wait.x <= 1000, 'a box off the screen is pulled back onto it');
 });
+
+test('a go asks the app to open a tab, open a menu or scroll; a kind it does not know (a click, a link) is dropped', () => {
+  const ok = validateScene(scene(box('t'), { op: 'go', kind: 'tab', x: 450, y: 120 }, { op: 'go', kind: 'scroll', x: 500, y: 500, dir: 'down' }));
+  assert.deepEqual(ok.issues, []);
+  assert.deepEqual(actionsOf(ok).slice(1), [{ op: 'go', kind: 'tab', x: 450, y: 120 }, { op: 'go', kind: 'scroll', x: 500, y: 500, dir: 'down' }]);
+  for (const kind of ['click', 'button', 'link', 'invoke', 'type']) {
+    const bad = validateScene(scene(box('t'), { op: 'go', kind, x: 450, y: 120 }));
+    assert.equal(actionsOf(bad).length, 1, `${kind} is not a move the app makes`);
+  }
+});

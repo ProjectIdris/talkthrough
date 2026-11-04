@@ -24,6 +24,8 @@ import { createPrefs } from './prefs.ts';
 import { createSamplePlayer } from './samples.ts';
 import { createSession } from './session.ts';
 import { createSettingsWindow } from './settings-window.ts';
+import { createGuideNavigation } from './guide-nav.ts';
+import { createNavigator } from './nav.ts';
 import { createHelper } from './ps-helper.ts';
 import { createUiaReader, toDisplayBoxes } from './uia.ts';
 import { DETAIL_EFFORT, DETAIL_MODELS, DETAIL_TIMEOUT_MS, loadSettings } from './settings.ts';
@@ -198,10 +200,12 @@ async function main(): Promise<void> {
   const backend = settings.backendUrl ? createHttpBackend({ url: settings.backendUrl, ...(settings.backendTimeoutMs ? { timeoutMs: settings.backendTimeoutMs } : {}) }) : undefined;
   const pins = createPins({ dir: options.pinsDir ?? join(app.getPath('userData'), 'pins') });
   const prefs = createPrefs(join(app.getPath('userData'), 'prefs.json'));
-  // Windows only, and only if the person has turned it on (it is off until they do); elsewhere, with a stand-in picture, or in a
-  // browser window, marks snap to the picture alone. One PowerShell helper serves it, started the first time it is asked.
-  const controlHelper = settings.controlSnap && !captureImage ? createHelper() : undefined;
-  const uia = controlHelper ? createUiaReader({ helper: controlHelper }) : undefined;
+  // Windows only, and only if the person has turned them on (both are off until they do); elsewhere, with a stand-in picture, or in a
+  // browser window, marks snap to the picture alone and the app only points. One PowerShell helper serves both, started the first time
+  // it is asked.
+  const controlHelper = (settings.controlSnap || settings.guideNavigation) && !captureImage ? createHelper({ nav: settings.guideNavigation }) : undefined;
+  const uia = controlHelper && settings.controlSnap ? createUiaReader({ helper: controlHelper }) : undefined;
+  const navigator = controlHelper && settings.guideNavigation ? createNavigator({ helper: controlHelper }) : undefined;
   session = createSession({
     ...(uia
       ? {
@@ -258,8 +262,21 @@ async function main(): Promise<void> {
           const d = screen.getDisplayNearestPoint(dip);
           return { x: ((dip.x - d.bounds.x) / d.bounds.width) * 1000, y: ((dip.y - d.bounds.y) / d.bounds.height) * 1000, displayId: d.id };
         };
-        return watchGuideInput({ down: (p) => listener.down(clickOf(p)), up: (p) => listener.up(clickOf(p)), escape: () => listener.escape() });
+        return watchGuideInput({ down: (p) => listener.down(clickOf(p)), up: (p) => listener.up(clickOf(p)), escape: () => listener.escape(), key: () => listener.key?.() });
       },
+      ...(navigator
+        ? {
+          navigation: createGuideNavigation({
+            navigator,
+            toScreen: (displayId, p) => {
+              const d = screen.getAllDisplays().find((x) => x.id === displayId);
+              return d ? screen.dipToScreenPoint({ x: d.bounds.x + (p.x / 1000) * d.bounds.width, y: d.bounds.y + (p.y / 1000) * d.bounds.height }) : null;
+            },
+            pointer: () => screen.getCursorScreenPoint(),
+            log,
+          }),
+        }
+        : {}),
     },
     setPen: (displayId) => overlays.setPen(displayId),
     speech,

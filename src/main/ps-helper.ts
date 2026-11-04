@@ -14,8 +14,21 @@ import { PS_LOOP, PS_PRELUDE } from './ps-prelude.ts';
 import { UIA_SCRIPT } from './uia-script.ts';
 import { NAV_SCRIPT } from './nav-script.ts';
 
-/** Everything the helper runs, in order: the shared part, the two functions, and the request loop. */
-export const HELPER_SOURCE = [PS_PRELUDE, UIA_SCRIPT, NAV_SCRIPT, PS_LOOP].join('\n');
+/**
+ * What the helper runs, in order: the shared part, the reader, (only when the person has allowed the app to act for them) the
+ * navigation functions, and the request loop. Without navigation the helper holds no verb at all: it is read-only as a whole.
+ * Comment lines and indentation are dropped: the whole text travels on the command line (-EncodedCommand), which Windows limits
+ * to 32,767 characters, and a helper that is too long fails to start without a word.
+ */
+export function helperSource(options: { nav?: boolean } = {}): string {
+  const parts = [PS_PRELUDE, UIA_SCRIPT, ...(options.nav ? [NAV_SCRIPT] : []), PS_LOOP].join('\n');
+  return parts.split('\n').map((l) => l.trim()).filter((l) => l !== '' && !l.startsWith('#')).join('\n');
+}
+
+export const HELPER_SOURCE = helperSource({ nav: true });
+export const HELPER_READ_SOURCE = helperSource();
+/** The longest a helper may be, encoded, with room for the program path and flags under the limit. */
+export const HELPER_ENCODED_MAX = 30_000;
 
 /** The child as the client sees it: tests stand in for the real one with something that answers by itself. */
 export type HelperChild = {
@@ -37,6 +50,8 @@ export type Helper = {
 export type HelperOptions = {
   /** For tests: how a child is started. */
   start?: () => HelperChild;
+  /** Whether the helper carries the navigation verbs (select a tab, expand a menu, scroll). Default no: it only reads. */
+  nav?: boolean;
   /** Extra time the first request after a start may take, for the start itself. */
   startupMs?: number;
 };
@@ -45,8 +60,8 @@ function powershellPath(): string {
   return join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
 }
 
-function startPowerShell(): HelperChild {
-  const encoded = Buffer.from(HELPER_SOURCE, 'utf16le').toString('base64');
+function startPowerShell(nav: boolean): HelperChild {
+  const encoded = Buffer.from(nav ? HELPER_SOURCE : HELPER_READ_SOURCE, 'utf16le').toString('base64');
   const child = spawn(powershellPath(), ['-NoProfile', '-NonInteractive', '-STA', '-EncodedCommand', encoded], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
   child.stdout.setEncoding('utf8');
   child.stdin.on('error', () => undefined); // a child that is gone is noticed by its exit
@@ -61,7 +76,7 @@ function startPowerShell(): HelperChild {
 /** The helper for this system: only Windows has one (or a test's stand-in). */
 export function createHelper(options: HelperOptions = {}): Helper | undefined {
   if (process.platform !== 'win32' && !options.start) return undefined;
-  const startChild = options.start ?? startPowerShell;
+  const startChild = options.start ?? (() => startPowerShell(options.nav === true));
   const startupMs = options.startupMs ?? 5000;
   let child: HelperChild | null = null;
   let fresh = false;

@@ -552,6 +552,7 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       return;
     }
     case 'wait':
+    case 'go':
       return; // guide mode is the app's business, not the page's: nothing to draw
   }
 }

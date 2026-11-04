@@ -11,7 +11,7 @@ import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
 import { isRealStroke } from '../shared/pen.ts';
 import { createGuide, guideQuestion, waitOf } from './guide.ts';
-import type { Frame, GuideListener, GuideOptions } from './guide.ts';
+import type { Frame, GuideListener, GuideNavigation, GuideOptions } from './guide.ts';
 import { parseSpoken } from './phrases.ts';
 import type { Box, Point } from '../shared/pen.ts';
 
@@ -70,6 +70,8 @@ export type SessionDeps = {
     listen(displayId: number, listener: GuideListener): () => void;
     /** Timings of the walk (when to look at the screen after a click, how long to wait); the defaults are in guide.ts. */
     options?: Partial<GuideOptions>;
+    /** The app's own hands (open a tab or menu, scroll), when the person has allowed them (see guide-nav.ts). Absent: it only points. */
+    navigation?: GuideNavigation;
   };
   /**
    * The real controls of the window in front (see uia.ts), on the 0..1000 scale of the display. Started when the key goes
@@ -415,6 +417,7 @@ export function createSession(deps: SessionDeps) {
         },
         log: deps.log,
         ...(deps.guide?.options ? { options: deps.guide.options } : {}),
+        ...(deps.guide?.navigation ? { navigation: deps.guide.navigation } : {}),
       });
       walking = { guide: g, controller: new AbortController() };
       return g;
