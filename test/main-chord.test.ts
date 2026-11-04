@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createChordTracker, KEY_RIGHT_CTRL, KEY_RIGHT_SHIFT } from '../src/main/chord.ts';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { createChordTracker, KEY_RIGHT_CTRL, KEY_RIGHT_SHIFT, pressChord } from '../src/main/chord.ts';
 
 const LEFT_CTRL = 29;
 const LEFT_SHIFT = 42;
@@ -121,4 +123,30 @@ test('with another pair, only that pair makes the chord, and the first key held 
   assert.deepEqual(log, ['arm', 'cancel', 'arm', 'start']);
   tracker.keyUp(keys.second);
   assert.deepEqual(log, ['arm', 'cancel', 'arm', 'start', 'stop']);
+});
+
+test('a chord made for a check goes into the tracker, start then stop, and the release is given back and happens once', () => {
+  const log: string[] = [];
+  const tracker = createChordTracker({ arm: () => log.push('arm'), start: () => log.push('start'), stop: () => log.push('stop') });
+  const waiting: Array<() => void> = [];
+  const release = pressChord(tracker, { lead: KEY_RIGHT_CTRL, second: KEY_RIGHT_SHIFT, label: 'test' }, 1500, (fn) => void waiting.push(fn));
+  assert.deepEqual(log, ['arm', 'start']);
+  assert.equal(tracker.held, true);
+  release();
+  assert.deepEqual(log, ['arm', 'start', 'stop']);
+  waiting[0]?.(); // the timer firing afterwards does nothing more
+  assert.deepEqual(log, ['arm', 'start', 'stop']);
+});
+
+test('nothing in the app sends key or mouse input to the system (only to its own windows): no keyToggle, keyTap, SendInput or the like in src or scripts', () => {
+  const found: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (/\.(ts|mjs|cjs|js)$/.test(entry.name) && /\b(keyToggle|keyTap|SendInput|SendKeys|keybd_event|mouse_event)\b/.test(readFileSync(path, 'utf8'))) found.push(path);
+    }
+  };
+  for (const dir of ['../src', '../scripts']) walk(new URL(dir, import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+  assert.deepEqual(found, []);
 });

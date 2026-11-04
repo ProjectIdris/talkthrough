@@ -13,6 +13,8 @@ export function startHotkey(events: ChordEvents, keys?: ChordKeys) {
   uIOhook.on('keyup', (event) => tracker.keyUp(event.keycode));
   uIOhook.start();
   return {
+    /** What the hook feeds with the person's keys; development checks feed it too (see pressChord), so they send nothing to the system. */
+    tracker,
     stop(): void {
       tracker.reset();
       uIOhook.removeAllListeners();
