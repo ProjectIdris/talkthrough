@@ -33,6 +33,8 @@ export type SessionDeps = {
      */
     release?(grabId: number): void;
     compose?(grabId: number, strokes: Point[][]): Promise<{ screenshot: Screenshot; focus: FocusCrop[] }>;
+    /** A part of the frame (a 0..1000 box) at full resolution, nothing drawn on it; null when the frame is gone. */
+    crop?(grabId: number, box: Box): Promise<Screenshot | null>;
   };
   /**
    * Turns the pen on for one display (its overlay takes the mouse) or, with null, off everywhere and
@@ -864,13 +866,16 @@ export function createSession(deps: SessionDeps) {
         });
       }
 
+      // The step after an enlargement is shown a sharp picture of what was enlarged, from the frame this press grabbed.
+      const grabId = shot.grabId;
+      const cropOf = grabId !== undefined && deps.media.crop ? (box: Box) => deps.media.crop!(grabId, box) : undefined;
       const hold = walkHold(a.displayId, asking, 0);
       const source: Source = toBackend
         ? backendSource(a.displayId, 'spoken', asking, seen, undefined, controller.signal)
         : {
           kind: 'model',
           label: model.id,
-          stream: () => model.ask({ question, screenshot: seen, ...(focus ? { focus } : {}), thread, schema: sceneSchemaLean, pieces: true, ...rawLog(), afterStep: hold.afterStep, signal: controller.signal }),
+          stream: () => model.ask({ question, screenshot: seen, ...(focus ? { focus } : {}), ...(cropOf ? { cropOf } : {}), thread, schema: sceneSchemaLean, pieces: true, ...rawLog(), afterStep: hold.afterStep, signal: controller.signal }),
           superseded: hold.superseded,
         };
       asked = !toBackend;

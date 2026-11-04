@@ -149,16 +149,24 @@ export type MicResult = { samples: Float32Array; sampleRate: 16000; durationMs: 
 
 /** What the hidden media page grabs of a screen: one frame, scaled, as PNG bytes. */
 /** Compose request: draw strokes onto the frame grabbed under id `grab`, and crop around them from the full-resolution frame. */
-export type ComposeRequest = { id: number; grab: number; maxEdge: number; cropEdge: number; strokes: Array<Array<[number, number]>> };
+export type ComposeRequest = {
+  id: number;
+  grab: number;
+  maxEdge: number;
+  cropEdge: number;
+  strokes: Array<Array<[number, number]>>;
+  /** Instead of strokes: just these parts of the frame (0..1000 boxes), cropped at full resolution, with nothing drawn (see ComposeResult.marks, kind 'picture'). */
+  boxes?: Array<{ x: number; y: number; w: number; h: number }>;
+};
 export type ComposeResult = {
   id: number;
-  /** The screenshot with the strokes drawn on it. */
-  full: { png: Uint8Array; width: number; height: number };
+  /** The screenshot with the strokes drawn on it (absent when only boxes were cropped). */
+  full?: { png: Uint8Array; width: number; height: number };
   /**
    * One entry for each mark the person made (up to three, in the order drawn): a higher-resolution crop of what the mark is on, without the
    * strokes, the crop's box on the 0..1000 scale of the full screenshot, and what kind of mark it was.
    */
-  marks: Array<{ png: Uint8Array; width: number; height: number; box: { x: number; y: number; w: number; h: number }; kind: 'circle' | 'underline' | 'arrow'; loops?: number; open?: boolean }>;
+  marks: Array<{ png: Uint8Array; width: number; height: number; box: { x: number; y: number; w: number; h: number }; kind: 'circle' | 'underline' | 'arrow' | 'picture'; loops?: number; open?: boolean }>;
 };
 /** Checks only: decode this PNG as if it had been grabbed from a screen. */
 export type UseImageRequest = { id: number; png: Uint8Array; maxEdge: number };

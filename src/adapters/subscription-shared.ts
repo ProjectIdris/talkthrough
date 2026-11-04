@@ -162,7 +162,17 @@ const KIND_WORDS = {
   circle: 'circled',
   underline: 'underlined',
   arrow: 'pointed with an arrow at',
+  picture: 'enlarged',
 } as const;
+
+/**
+ * What the model is told about the closer picture of what the step before it enlarged (cut from the full-resolution screen), so that points
+ * for the parts of that picture are put on the parts themselves: read off the closer picture, then given on the whole screenshot's scale.
+ */
+export function pictureText(box: { x: number; y: number; w: number; h: number }, crop: { width: number; height: number }): string {
+  const r = (n: number) => Math.round(n * 10) / 10;
+  return `The picture you enlarged in the step before is also given at full resolution (the last picture of the images, ${crop.width}x${crop.height} pixels): it is the part of the screen from x ${r(box.x)} to ${r(box.x + box.w)}, y ${r(box.y)} to ${r(box.y + box.h)} on the 0 to 1000 scale of the whole screenshot, so ${r(box.w)} wide and ${r(box.h)} tall on that scale. Use it to place points on the parts of that picture: find the part on the closer picture, note how far across (u, 0 to 1) and down (v, 0 to 1) it is, and give the point on the whole screenshot's scale as x = ${r(box.x)} + u * ${r(box.w)}, y = ${r(box.y)} + v * ${r(box.h)}. Put each point on the part itself, not beside it.`;
+}
 
 /** What the model is told about the pen marks on the screenshot and the closer pictures that follow it. */
 export function penText(focus: NonNullable<ModelRequest['focus']>): string {
@@ -197,7 +207,10 @@ export function questionText(request: ModelRequest): string {
     parts.push(`Earlier in this conversation (what you drew stays on screen until cleared, and its ids can be used again):\n${history}`);
   }
   parts.push(`The screenshot is ${request.screenshot.width}x${request.screenshot.height} pixels, but your marks do NOT use pixels: x and y run from 0 to 1000 across the whole screenshot (500 is the middle of each axis, 1000 the right and bottom edges), whatever its pixel size. Convert before you answer.`);
-  if (request.focus && request.focus.length > 0) parts.push(penText(request.focus));
+  const pen = (request.focus ?? []).filter((f) => f.kind !== 'picture');
+  const picture = (request.focus ?? []).find((f) => f.kind === 'picture');
+  if (pen.length > 0) parts.push(penText(pen));
+  if (picture) parts.push(pictureText(picture.box, picture.crop));
   parts.push(`The user's question, transcribed from speech (it may contain recognition errors): ${JSON.stringify(request.question)}`);
   if (request.detail) parts.push(detailText(request.detail.steps));
   if (request.stage) parts.push(stageText(request.stage));

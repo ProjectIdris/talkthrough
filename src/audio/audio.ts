@@ -4,6 +4,7 @@
 import { grayOf } from '../overlay/page-gray.ts';
 import { Snapper } from '../overlay/snap.ts';
 import type { InkGrid } from '../shared/pen-blocks.ts';
+import type { ComposeRequest } from '../shared/ipc.ts';
 import { readPen } from '../shared/pen-read.ts';
 import { strokeBounds } from '../shared/pen.ts';
 
@@ -61,6 +62,28 @@ function drawStrokes(canvas: OffscreenCanvas, strokes: Array<Array<[number, numb
   }
 }
 
+type Cut = { box: { x: number; y: number; w: number; h: number }; kind: 'circle' | 'underline' | 'arrow' | 'picture'; loops?: number; open?: boolean };
+
+/** Each box (0..1000) cut from the full-resolution frame and scaled to at most `cropEdge` on its longer side, as PNGs. */
+async function cropsOf(bitmap: ImageBitmap, cuts: Cut[], cropEdge: number) {
+  const out = [];
+  for (const cut of cuts) {
+    const box = cut.box;
+    const sx = Math.max(0, Math.min(bitmap.width - 1, Math.round((box.x / 1000) * bitmap.width)));
+    const sy = Math.max(0, Math.min(bitmap.height - 1, Math.round((box.y / 1000) * bitmap.height)));
+    const sw = Math.max(1, Math.min(bitmap.width - sx, Math.round((box.w / 1000) * bitmap.width)));
+    const sh = Math.max(1, Math.min(bitmap.height - sy, Math.round((box.h / 1000) * bitmap.height)));
+    const scale = Math.min(1, cropEdge / Math.max(sw, sh));
+    const crop = new OffscreenCanvas(Math.max(1, Math.round(sw * scale)), Math.max(1, Math.round(sh * scale)));
+    const context = crop.getContext('2d');
+    if (!context) throw new Error('no 2d canvas');
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(bitmap, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
+    out.push({ png: await toPng(crop), width: crop.width, height: crop.height, box, kind: cut.kind, ...(cut.loops !== undefined ? { loops: cut.loops } : {}), ...(cut.open ? { open: true } : {}) });
+  }
+  return out;
+}
+
 /** Numbers beside the strokes of each mark, in the order drawn (only when there are several): a small dark disc with a white digit at the mark's top left. */
 function drawNumbers(canvas: OffscreenCanvas, marks: ReadonlyArray<{ strokes: Array<Array<[number, number]>> }>): void {
   const context = canvas.getContext('2d');
@@ -86,10 +109,15 @@ function drawNumbers(canvas: OffscreenCanvas, marks: ReadonlyArray<{ strokes: Ar
   });
 }
 
-async function compose(request: { id: number; grab: number; maxEdge: number; cropEdge: number; strokes: Array<Array<[number, number]>> }): Promise<void> {
+async function compose(request: ComposeRequest): Promise<void> {
   try {
     const bitmap = frames.get(request.grab);
     if (!bitmap) throw new Error('that frame is no longer held');
+    if (request.boxes) {
+      // Only parts of the frame, at full resolution (the closer picture of what an answer enlarged): nothing is drawn, nothing is read.
+      window.talkthroughAudio.composed({ id: request.id, marks: await cropsOf(bitmap, request.boxes.map((box) => ({ box, kind: 'picture' as const })), request.cropEdge) });
+      return;
+    }
     if (!strokeBounds(request.strokes)) throw new Error('no strokes');
     const full = scaledCanvas(bitmap, request.maxEdge);
     // The page's own ink (read before the strokes are drawn on it) grows a rough circle to the whole thing it is on.
@@ -105,21 +133,7 @@ async function compose(request: { id: number; grab: number; maxEdge: number; cro
     drawStrokes(full, request.strokes);
     if (marks.length > 1) drawNumbers(full, marks);
     // Each crop comes from the full-resolution frame, without the strokes.
-    const crops = [];
-    for (const mark of marks) {
-      const box = mark.crop;
-      const sx = Math.round((box.x / 1000) * bitmap.width);
-      const sy = Math.round((box.y / 1000) * bitmap.height);
-      const sw = Math.max(1, Math.round((box.w / 1000) * bitmap.width));
-      const sh = Math.max(1, Math.round((box.h / 1000) * bitmap.height));
-      const scale = Math.min(1, request.cropEdge / Math.max(sw, sh));
-      const crop = new OffscreenCanvas(Math.max(1, Math.round(sw * scale)), Math.max(1, Math.round(sh * scale)));
-      const context = crop.getContext('2d');
-      if (!context) throw new Error('no 2d canvas');
-      context.imageSmoothingQuality = 'high';
-      context.drawImage(bitmap, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
-      crops.push({ png: await toPng(crop), width: crop.width, height: crop.height, box, kind: mark.kind, ...(mark.loops !== undefined ? { loops: mark.loops } : {}), ...(mark.open ? { open: true } : {}) });
-    }
+    const crops = await cropsOf(bitmap, marks.map((m) => ({ box: m.crop, kind: m.kind, ...(m.loops !== undefined ? { loops: m.loops } : {}), ...(m.open ? { open: true } : {}) })), request.cropEdge);
     window.talkthroughAudio.composed({
       id: request.id,
       full: { png: await toPng(full), width: full.width, height: full.height },

@@ -11,7 +11,7 @@
 // fails the question. Whatever a call writes after its one step is dropped. Ending the question aborts the call in progress.
 
 import { sumUsage } from './two-step.ts';
-import type { Model, ModelOutput, ModelRequest, Usage } from './model.ts';
+import type { FocusCrop, Model, ModelOutput, ModelRequest, Usage } from './model.ts';
 
 export type StepByStepOptions = {
   log?: (message: string) => void;
@@ -23,6 +23,20 @@ export type StepByStepOptions = {
 function endsOnWait(step: unknown): boolean {
   const actions = (step as { actions?: unknown }).actions;
   return Array.isArray(actions) && actions.some((a) => typeof a === 'object' && a !== null && (a as { op?: unknown }).op === 'wait');
+}
+
+/** The part of the screenshot a step enlarges (an `image` action's source box, 0..1000), or null. */
+function enlargedBox(step: unknown): { x: number; y: number; w: number; h: number } | null {
+  const actions = (step as { actions?: unknown }).actions;
+  if (!Array.isArray(actions)) return null;
+  for (const a of actions) {
+    const m = a as { op?: unknown; sx?: unknown; sy?: unknown; sw?: unknown; sh?: unknown };
+    if (m.op === 'image' && [m.sx, m.sy, m.sw, m.sh].every((v) => typeof v === 'number' && Number.isFinite(v)) && (m.sw as number) > 0 && (m.sh as number) > 0) {
+      const x = Math.max(0, Math.min(1000, m.sx as number)), y = Math.max(0, Math.min(1000, m.sy as number));
+      return { x, y, w: Math.min(1000 - x, m.sw as number), h: Math.min(1000 - y, m.sh as number) };
+    }
+  }
+  return null;
 }
 
 /** The end of the first JSON object in the text (the index after its closing brace), or -1. */
@@ -96,7 +110,9 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
       let waits = 0;
       // The first call wrote neither a plan nor done: the next call is asked once whether the answer goes on, and for a plan.
       let asking = false;
-      const { focus, ...plain } = req;
+      const { focus: _pen, ...plain } = req;
+      // What the step just written enlarged, being cut from the full-resolution frame while that step is spoken: the next call gets it as a sharp picture to place points on.
+      let zoom: { box: { x: number; y: number; w: number; h: number }; crop: Promise<Awaited<ReturnType<NonNullable<ModelRequest['cropOf']>>>> } | undefined;
       try {
         for (let n = 1; n <= maxSteps; n++) {
           const began = Date.now();
@@ -105,9 +121,17 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
           let sawStep = false;
           let escalated = false;
           let waited = false;
+          const closer: FocusCrop[] = [];
+          if (zoom) {
+            const crop = await zoom.crop;
+            if (crop && !link.signal.aborted) closer.push({ crop, box: zoom.box, kind: 'picture' });
+            log(`step ${n}: ${crop ? 'given a full-resolution picture of what step ' + (n - 1) + ' enlarged' : 'the enlarged part could not be cut (the frame is gone)'}`);
+            zoom = undefined;
+          }
+          const focusNow = [...(fresh ? [] : req.focus ?? []), ...closer];
           const stage: NonNullable<ModelRequest['stage']> = n === 1 ? { part: 'first', plan: true } : { part: 'next', n, shown: [...shown], plan, ...(asking ? { unplanned: true as const } : {}), ...(fresh ? { fresh: true as const } : {}) };
           try {
-            for await (const out of inner.ask({ ...(fresh ? plain : req), screenshot, stage, signal: link.signal, onRaw: (text: string) => void (raw = text) })) {
+            for await (const out of inner.ask({ ...plain, ...(focusNow.length > 0 ? { focus: focusNow } : {}), screenshot, stage, signal: link.signal, onRaw: (text: string) => void (raw = text) })) {
               if (out.type === 'usage') {
                 usages.push(out.usage);
                 continue;
@@ -117,6 +141,8 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
               if (out.type === 'step') {
                 sawStep = true;
                 shown.push(out.step);
+                const enlarged = !fresh && req.cropOf ? enlargedBox(out.step) : null;
+                if (enlarged) zoom = { box: enlarged, crop: req.cropOf!(enlarged).catch(() => null) };
                 waited = endsOnWait(out.step);
                 if (waited) waits++;
               }

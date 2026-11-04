@@ -6,7 +6,7 @@ export type FocusCrop = {
   crop: Screenshot;
   box: { x: number; y: number; w: number; h: number };
   /** Default: a circle. */
-  kind?: 'circle' | 'underline' | 'arrow';
+  kind?: 'circle' | 'underline' | 'arrow' | 'picture';
   /** A circle that was gone round more than once. */
   loops?: number;
   /** A circle that was not closed. */
@@ -36,6 +36,11 @@ export type ModelRequest = {
    * screenshot. Marks still use the scale of the whole screenshot.
    */
   focus?: readonly FocusCrop[];
+  /**
+   * The part of the screenshot (a 0..1000 box) cut from the full-resolution frame, as a closer picture; null when the frame is gone. Absent when
+   * this build cannot. The step-by-step model uses it to give the step after an enlargement a sharp picture of what was enlarged.
+   */
+  cropOf?(box: { x: number; y: number; w: number; h: number }): Promise<Screenshot | null>;
   /**
    * Set for a detail pass: what is already on screen (the steps drawn so far, the ids in them). The model is asked
    * for a much richer version of the same scene, in the same language and with the same ids, instead of an answer.
