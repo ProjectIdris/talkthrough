@@ -92,6 +92,26 @@ All take `parent`? (the id of a group, or of a part or shape, to attach to; they
 
 `explode` is `[x,y,z]`, where the part goes when its group is exploded all the way (spread 1), in the units of the group it is in (capped at 100 either way). Without it a part moves outward from the group's origin. The same offset is where the part goes when the person opens the finished model with the Explode control (see the overlay notes); a part with none moves away from the middle of the parts around it instead. Give it where the real assembly comes apart (pins up, a shaft out the back); leave it off when outward is fine. The lean schema (`scene.schema.lean.json`, what the live models are asked for) leaves `explode` out, because every optional field there costs the model an explicit `null` on every part; the validator and the full schema accept it.
 
+### The mechanism kit
+
+Mechanism parts are ready-made `part`s for engines, gearboxes and pumps. Each is built from the same plain shapes a model could write, with good proportions, its own metal and finish (the object's `color` tints the main body), and named **anchors**: a `pin` with `anchor` lands on one by name (an unknown name falls back to the middle of the part). `size` is the box the part fits, centred on `pos`. Cylindrical parts have their axis along y (the crank, cam, gear and bearing along z), so a vertical engine's parts line up with no rotation.
+
+| part | `size` and `n` | anchors |
+|---|---|---|
+| `cylinder-block` | `[x, y, z]`; the bore is round in x,z, 72% of the smaller side. Variant `cutaway` leaves the front half open so the bore and what moves in it show; `finned` adds `n` cooling fins | `bore-top`, `bore-bottom`, `front` |
+| `piston` | `[diameter, height, diameter]`; crown, three rings, wrist pin | `crown`, `pin` |
+| `connecting-rod` | `[width of the big end, length, thickness]`; small end up, big end down; centres of the two eyes are `big-end` (width/2 up from the bottom) and `small-end` (30% of the width down from the top) | `big-end`, `small-end` |
+| `crankshaft` | `[x, y, z]`, axis z, `n` throws along it (default 1, spaced 360/n degrees apart); the throw radius is 30% of the smaller of x and y, so a crank-slider uses `radius` = 0.3 × min(x, y); at angle 0 the pin is at +y | `pin` (`pin1`, `pin2`... for several), `throw`, `axis-front`, `axis-rear` |
+| `valve` | `[head diameter, length, head diameter]`; head down | `head`, `tip` |
+| `camshaft` | `[lobe diameter, lobe diameter, length]`, axis z, `n` lobes (default 4), each with its nose at +y at angle 0 | `axis-front`, `axis-rear` |
+| `spark-plug` | `[hex width, length, hex width]`; tip down | `tip`, `terminal` |
+| `gear` | `[diameter, diameter, thickness]`, axis z, `n` teeth (default 16, 6 to 120) | `axis` |
+| `spring` | `[diameter, length, diameter]`, `n` coils (default 8) | `top`, `bottom` |
+| `bearing` | `[diameter, diameter, width]`, axis z, `n` balls (default 9) | `axis` |
+| `pipe` | `[diameter, length, diameter]`, flanged ends | `top`, `bottom` |
+| `elbow` | `[x, y, z]`: a 90 degree bend whose pipe diameter is z; one end opens downwards at the bottom right, the other to the left at the top | `a`, `b` |
+| `housing` | `[x, y, z]`; variant `cutaway` leaves the front open to show the inside; bolts at the corners | `front`, `back` |
+
 ### Changing objects
 
 All take `id` and optionally `at` and `dur`. These apply to 3D objects (`move`, `along`, `turn`, `scale`, `explode`, `reveal`) or to any object or mark (`style`, `highlight`). `style` and `highlight` on a group reach everything inside it.

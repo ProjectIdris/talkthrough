@@ -7,6 +7,7 @@
 // including across follow-up questions.
 
 import { PALETTE_RGB } from '../scene/colors.ts';
+import { mechanismColor } from './part-colors.ts';
 import type { Rgb } from '../scene/colors.ts';
 import type { Action, AddAction, Mark, Step, Vec3 } from '../scene/types.ts';
 
@@ -41,6 +42,7 @@ export function defaultColor(def: AddAction): Rgb {
       case 'button': return [214, 64, 64];
       case 'fan': return [88, 94, 108];
       case 'wheel': return [128, 134, 146];
+      default: return mechanismColor(def.part) ?? [190, 196, 206];
     }
   }
   const material = 'material' in def ? def.material : undefined;

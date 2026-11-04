@@ -92,8 +92,11 @@ const EDGES: Field = { k: 'bool', opt: true, doc: 'dark edge lines (default true
 const DRAW: Field = { k: 'num', min: 0, max: 1, opt: true, doc: 'how much is drawn at first, 0 to 1 (default 1); grow it with reveal' };
 
 export const SOLID_SHAPES = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'] as const;
-export const PARTS = ['chip', 'header', 'port', 'lens', 'screen', 'button', 'fan', 'wheel'] as const;
-export const PART_VARIANTS = ['black', 'metal', 'usb', 'usb3', 'ethernet', 'hdmi', 'usbc', 'gold'] as const;
+export const PARTS = [
+  'chip', 'header', 'port', 'lens', 'screen', 'button', 'fan', 'wheel',
+  'cylinder-block', 'piston', 'connecting-rod', 'crankshaft', 'valve', 'camshaft', 'spark-plug', 'gear', 'spring', 'bearing', 'pipe', 'elbow', 'housing',
+] as const;
+export const PART_VARIANTS = ['black', 'metal', 'usb', 'usb3', 'ethernet', 'hdmi', 'usbc', 'gold', 'cutaway', 'finned'] as const;
 
 export const VARIANTS: readonly Variant[] = [
   {
@@ -202,7 +205,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addPart', op: 'add', shapes: ['part'], creates: 'group',
-    doc: 'A ready-made part fitted to the box size [x,y,z]: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z).',
+    doc: 'A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Each has good proportions and named anchors for pins.',
     fields: {
       shape: { k: 'enum', values: ['part'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
       part: { k: 'enum', values: PARTS }, variant: { k: 'enum', values: PART_VARIANTS, opt: true },
@@ -235,7 +238,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'pin', op: 'pin', creates: 'pin', attach: 'on',
     doc: 'A label pinned to a 3D object: a dot at point (in the object\'s own space, default its middle), a line and a tag that follow it as it moves. off is where the tag sits from the dot in screen units (default [0,-90]).',
     fields: {
-      id: { k: 'newId' }, on: { k: 'ref', of: 'object3d' }, point: POS, text: { k: 'str', min: 1, max: 40 },
+      id: { k: 'newId' }, on: { k: 'ref', of: 'object3d' }, point: POS, anchor: { k: 'str', min: 1, max: 24, opt: true, doc: 'a named point of a ready-made part, instead of point' }, text: { k: 'str', min: 1, max: 40 },
       off: { k: 'vec2', min: -500, max: 500, opt: true }, color: COLOR_OPT, at: AT,
     },
   },

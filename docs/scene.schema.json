@@ -1172,7 +1172,20 @@
             "screen",
             "button",
             "fan",
-            "wheel"
+            "wheel",
+            "cylinder-block",
+            "piston",
+            "connecting-rod",
+            "crankshaft",
+            "valve",
+            "camshaft",
+            "spark-plug",
+            "gear",
+            "spring",
+            "bearing",
+            "pipe",
+            "elbow",
+            "housing"
           ]
         },
         "variant": {
@@ -1185,6 +1198,8 @@
             "hdmi",
             "usbc",
             "gold",
+            "cutaway",
+            "finned",
             null
           ]
         },
@@ -1241,7 +1256,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A ready-made part fitted to the box size [x,y,z]: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z)."
+      "description": "A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Each has good proportions and named anchors for pins."
     },
     "addArray": {
       "type": "object",
@@ -1483,6 +1498,13 @@
           },
           "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
         },
+        "anchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a named point of a ready-made part, instead of point; up to 24 characters"
+        },
         "text": {
           "type": "string",
           "description": "up to 40 characters"
@@ -1517,6 +1539,7 @@
         "id",
         "on",
         "point",
+        "anchor",
         "text",
         "off",
         "color",

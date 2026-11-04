@@ -34,7 +34,7 @@ export type ImageMark = {
   caption?: string; color?: Color;
 } & At;
 /** A label pinned to a 3D object; `on` is that object's id. */
-export type PinMark = { op: 'pin'; id: string; on: string; point?: Vec3; text: string; off?: Vec2; color?: Color } & At;
+export type PinMark = { op: 'pin'; id: string; on: string; point?: Vec3; anchor?: string; text: string; off?: Vec2; color?: Color } & At;
 
 export type Mark = BoxMark | CircleMark | UnderlineMark | ArrowMark | LabelMark | CardMark | ImageMark | PinMark;
 
@@ -60,8 +60,10 @@ export type AddTube = {
 export type AddPath = {
   op: 'add'; shape: 'line' | 'arrow'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; color?: Color; draw?: number; opacity?: number;
 } & At;
-export type PartKind = 'chip' | 'header' | 'port' | 'lens' | 'screen' | 'button' | 'fan' | 'wheel';
-export type PartVariant = 'black' | 'metal' | 'usb' | 'usb3' | 'ethernet' | 'hdmi' | 'usbc' | 'gold';
+export type PartKind =
+  | 'chip' | 'header' | 'port' | 'lens' | 'screen' | 'button' | 'fan' | 'wheel'
+  | 'cylinder-block' | 'piston' | 'connecting-rod' | 'crankshaft' | 'valve' | 'camshaft' | 'spark-plug' | 'gear' | 'spring' | 'bearing' | 'pipe' | 'elbow' | 'housing';
+export type PartVariant = 'black' | 'metal' | 'usb' | 'usb3' | 'ethernet' | 'hdmi' | 'usbc' | 'gold' | 'cutaway' | 'finned';
 export type AddPart = {
   op: 'add'; shape: 'part'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; part: PartKind; variant?: PartVariant;
   size: Vec3; n?: number; color?: Color; opacity?: number;

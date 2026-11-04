@@ -193,7 +193,7 @@ function draw(frame: Frame): void {
   drawMarks(marksCtx, frame.marks, view, {
     view,
     place: (key, request) => board.place(key, request, labelEnvironment),
-    project: (key, point) => panelScene.project(key, point, view.width, view.height),
+    project: (key, point, anchor) => panelScene.project(key, point, view.width, view.height, anchor),
     ...(cropSource() ? { source: cropSource()! } : {}),
   });
   drawPen(marksCtx, pen.view(labelClock()), view);

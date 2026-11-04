@@ -66,6 +66,8 @@ type Node = {
   texture?: CanvasTexture;
   /** The size the object is built at (text sprites are sized, everything else is 1). */
   baseScale: Vector3;
+  /** Named points of a ready-made part, in its own space. */
+  anchors?: Record<string, Vec3>;
   /** For tubes, lines and arrows: what is needed to draw them part way. */
   path?: { geo: BufferGeometry; sampled: Vec3[]; head: Mesh | undefined };
 };
@@ -167,6 +169,7 @@ export class PanelScene {
       case 'part': {
         const built = buildPart(def, this.detail);
         node.obj = built.root;
+        node.anchors = built.anchors;
         for (const p of built.pieces) this.adoptPiece(node, p);
         break;
       }
@@ -476,11 +479,13 @@ export class PanelScene {
   }
 
   /** Where a point on an object falls in the window, in CSS pixels; `visible` is false behind the camera. */
-  project(key: number, point: Vec3 | undefined, width: number, height: number): { x: number; y: number; visible: boolean } | undefined {
+  project(key: number, point: Vec3 | undefined, width: number, height: number, anchor?: string): { x: number; y: number; visible: boolean } | undefined {
     const node = this.nodes.get(key);
     if (!node) return undefined;
     const world = new Vector3();
-    if (point) world.set(point[0], point[1], point[2]).applyMatrix4(node.obj.matrixWorld);
+    const named = anchor !== undefined && node.anchors && Object.hasOwn(node.anchors, anchor) ? node.anchors[anchor] : undefined;
+    if (named) world.set(named[0], named[1], named[2]).applyMatrix4(node.obj.matrixWorld);
+    else if (point) world.set(point[0], point[1], point[2]).applyMatrix4(node.obj.matrixWorld);
     else new Box3().setFromObject(node.obj).getCenter(world);
     const ndc = world.clone().project(this.camera);
     return { x: ((ndc.x + 1) / 2) * width, y: ((1 - ndc.y) / 2) * height, visible: ndc.z > -1 && ndc.z < 1 };

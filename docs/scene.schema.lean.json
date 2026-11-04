@@ -990,7 +990,20 @@
             "screen",
             "button",
             "fan",
-            "wheel"
+            "wheel",
+            "cylinder-block",
+            "piston",
+            "connecting-rod",
+            "crankshaft",
+            "valve",
+            "camshaft",
+            "spark-plug",
+            "gear",
+            "spring",
+            "bearing",
+            "pipe",
+            "elbow",
+            "housing"
           ]
         },
         "variant": {
@@ -1003,6 +1016,8 @@
             "hdmi",
             "usbc",
             "gold",
+            "cutaway",
+            "finned",
             null
           ]
         },
@@ -1254,6 +1269,12 @@
             "type": "number"
           }
         },
+        "anchor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "text": {
           "type": "string"
         },
@@ -1284,6 +1305,7 @@
         "id",
         "on",
         "point",
+        "anchor",
         "text",
         "off",
         "color",
