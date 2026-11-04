@@ -1,10 +1,13 @@
 // The push-to-talk chord: two modifier keys held together (Right Ctrl + Right Shift unless the settings name another pair).
-// This keeps two booleans and nothing else: every other key is ignored on arrival, never stored
-// or logged, and no key text is ever formed.
+// This keeps a few booleans and nothing else: every other key is ignored on arrival, never stored or logged, and no key text is ever
+// formed. The one other key looked at is Z, and only while the chord is held (it takes back the last circle of the pen): it is told
+// once per press, and nothing about it is kept.
 
 /** Scan codes as the global hook reports them (libuiohook). */
 export const KEY_RIGHT_CTRL = 3613;
 export const KEY_RIGHT_SHIFT = 54;
+/** The Z key: while the chord is held it takes back the last circle drawn with the pen. */
+export const KEY_Z = 44;
 
 /**
  * The keys a chord may be made of: modifiers only, so holding one types nothing. The first key of the pair is the one that, held
@@ -22,6 +25,17 @@ export type ChordKeyName = keyof typeof CHORD_KEYS;
 export const DEFAULT_HOTKEY = 'right-ctrl+right-shift';
 
 export type ChordKeys = { lead: number; second: number; label: string };
+
+const MODIFIER_OF: Record<number, string> = { 3613: 'Control', 29: 'Control', 54: 'Shift', 42: 'Shift', 3640: 'Alt', 56: 'Alt' };
+
+/**
+ * The system key that Z makes with the chord's two modifiers ("Control+Shift+Z" for the default), which is held while the pen is on so the
+ * app underneath never gets the undo (or redo) the person's keys would otherwise mean to it. Nothing for a pair of the same modifier.
+ */
+export function undoAccelerator(keys: ChordKeys): string | undefined {
+  const a = MODIFIER_OF[keys.lead], b = MODIFIER_OF[keys.second];
+  return a && b && a !== b ? `${a}+${b}+Z` : undefined;
+}
 
 /** "right-ctrl+right-shift" -> the two scan codes and the words for it; null for anything else (an unknown key, the same key twice). */
 export function parseHotkey(text: unknown): ChordKeys | null {
@@ -46,6 +60,8 @@ export type ChordEvents = {
   start(): void;
   /** One of the two keys went up while the chord was held. */
   stop(): void;
+  /** Z went down while the chord was held (once for each press of Z, not for each repeat). */
+  undo?(): void;
 };
 
 export type ChordTracker = {
@@ -62,6 +78,7 @@ export function createChordTracker(events: ChordEvents, keys: ChordKeys = parseH
   let secondDown = false;
   let held = false;
   let armed = false;
+  let zDown = false;
 
   function update(): void {
     const both = leadDown && secondDown;
@@ -80,6 +97,11 @@ export function createChordTracker(events: ChordEvents, keys: ChordKeys = parseH
 
   return {
     keyDown(keycode) {
+      if (keycode === KEY_Z) {
+        if (held && !zDown) events.undo?.();
+        zDown = true;
+        return;
+      }
       if (keycode === keys.lead) {
         const first = !leadDown && !secondDown;
         leadDown = true;
@@ -92,6 +114,10 @@ export function createChordTracker(events: ChordEvents, keys: ChordKeys = parseH
       update();
     },
     keyUp(keycode) {
+      if (keycode === KEY_Z) {
+        zDown = false;
+        return;
+      }
       if (keycode === keys.lead) leadDown = false;
       else if (keycode === keys.second) secondDown = false;
       else return;
@@ -103,6 +129,7 @@ export function createChordTracker(events: ChordEvents, keys: ChordKeys = parseH
     reset() {
       leadDown = false;
       secondDown = false;
+      zDown = false;
       update();
       if (armed) {
         armed = false;

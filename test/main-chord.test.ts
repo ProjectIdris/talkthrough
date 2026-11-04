@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createChordTracker, KEY_RIGHT_CTRL, KEY_RIGHT_SHIFT } from '../src/main/chord.ts';
+import { createChordTracker, KEY_RIGHT_CTRL, KEY_RIGHT_SHIFT, KEY_Z, undoAccelerator } from '../src/main/chord.ts';
 
 const LEFT_CTRL = 29;
 const LEFT_SHIFT = 42;
@@ -121,4 +121,42 @@ test('with another pair, only that pair makes the chord, and the first key held 
   assert.deepEqual(log, ['arm', 'cancel', 'arm', 'start']);
   tracker.keyUp(keys.second);
   assert.deepEqual(log, ['arm', 'cancel', 'arm', 'start', 'stop']);
+});
+
+test('Z while the chord is held is an undo, once for each press of Z; Z at any other time is nothing', () => {
+  const log: string[] = [];
+  const tracker = createChordTracker({ start: () => log.push('start'), stop: () => log.push('stop'), undo: () => log.push('undo') });
+  tracker.keyDown(KEY_Z); // before the chord
+  tracker.keyUp(KEY_Z);
+  tracker.keyDown(KEY_RIGHT_CTRL);
+  tracker.keyDown(KEY_Z); // the chord is not complete yet
+  tracker.keyUp(KEY_Z);
+  tracker.keyDown(KEY_RIGHT_SHIFT);
+  tracker.keyDown(KEY_Z);
+  tracker.keyDown(KEY_Z); // auto-repeat
+  tracker.keyDown(KEY_Z);
+  tracker.keyUp(KEY_Z);
+  tracker.keyDown(KEY_Z); // a second press
+  tracker.keyUp(KEY_Z);
+  tracker.keyUp(KEY_RIGHT_SHIFT);
+  tracker.keyDown(KEY_Z); // after the chord
+  assert.deepEqual(log, ['start', 'undo', 'undo', 'stop']);
+});
+
+test('Z held down before the chord is made does not undo when the chord completes, and the chord is unchanged by Z', () => {
+  const log: string[] = [];
+  const tracker = createChordTracker({ start: () => log.push('start'), stop: () => log.push('stop'), undo: () => log.push('undo') });
+  tracker.keyDown(KEY_Z);
+  tracker.keyDown(KEY_RIGHT_CTRL);
+  tracker.keyDown(KEY_RIGHT_SHIFT);
+  tracker.keyDown(KEY_Z); // the repeat of a Z that was already down
+  assert.deepEqual(log, ['start']);
+  assert.equal(tracker.held, true);
+});
+
+test('the system key that holds the undo from the app beneath is the chord\'s modifiers and Z, and nothing for a pair that makes no such key', () => {
+  assert.equal(undoAccelerator(parseHotkey('right-ctrl+right-shift')!), 'Control+Shift+Z');
+  assert.equal(undoAccelerator(parseHotkey('right-ctrl+right-alt')!), 'Control+Alt+Z');
+  assert.equal(undoAccelerator(parseHotkey('left-shift+right-alt')!), 'Shift+Alt+Z');
+  assert.equal(undoAccelerator(parseHotkey('left-ctrl+right-ctrl')!), undefined);
 });

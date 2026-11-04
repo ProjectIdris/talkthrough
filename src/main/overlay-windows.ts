@@ -28,6 +28,10 @@ export type OverlayOptions = {
   onDone?: (displayId: number) => void;
   /** Called with each piece of a pen stroke the page reports. */
   onStroke?: (displayId: number, stroke: Stroke) => void;
+  /** Called when the person right-clicks while the pen is on (`released` false), and again when the button comes up. */
+  onCancel?: (displayId: number, released: boolean) => void;
+  /** The system key of the pen's undo (the chord's modifiers and Z): held while the pen is on, so the app underneath never gets it. */
+  undoAccelerator?: string;
   /** Called when the page reports the first mark or word of a live turn. */
   onMilestone?: (milestone: Milestone) => void;
   /** Called when the user clicks the escalation offer. */
@@ -73,7 +77,32 @@ export function createOverlayManager(options: OverlayOptions) {
   });
   const stateOf = (overlay: Overlay) => ({ engaged: overlay.engaged, held: overlay.guard.held, penOn: overlay.pen, alive: !overlay.window.isDestroyed() });
   /** Everything that decides whether E is ours goes through here after it changes. */
-  const refreshKey = (): void => keys.want(keyWanted([...overlays.values()].map(stateOf)));
+  // The undo key (the chord's modifiers and Z) is taken from the system while the pen is on, so the app underneath never receives it; the
+  // key hook sees it either way and tells the session, so a taken key does nothing here.
+  const undoKeys = options.undoAccelerator
+    ? createKeyHold({
+      accelerator: options.undoAccelerator,
+      register: (accelerator, onKey) => {
+        try {
+          return globalShortcut.register(accelerator, onKey);
+        } catch {
+          return false;
+        }
+      },
+      unregister: (accelerator) => {
+        try {
+          globalShortcut.unregister(accelerator);
+        } catch {
+          // already gone
+        }
+      },
+      onKey: () => undefined,
+    })
+    : undefined;
+  const refreshKey = (): void => {
+    keys.want(keyWanted([...overlays.values()].map(stateOf)));
+    undoKeys?.want([...overlays.values()].some((overlay) => overlay.pen && !overlay.window.isDestroyed()));
+  };
 
   function infoFor(display: Display): DisplayInfo {
     const info: DisplayInfo = { id: display.id, bounds: { ...display.bounds }, scaleFactor: display.scaleFactor };
@@ -206,7 +235,12 @@ export function createOverlayManager(options: OverlayOptions) {
     for (const p of t.points.slice(0, 2000)) {
       if (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) points.push([Math.min(1000, Math.max(0, Number(p[0]))), Math.min(1000, Math.max(0, Number(p[1])))]);
     }
-    options.onStroke?.(overlay.display.id, { id: t.id, points, done: t.done === true });
+    options.onStroke?.(overlay.display.id, { id: t.id, points, done: t.done === true, ...(t.removed === true ? { removed: true as const } : {}) });
+  });
+  ipcMain.on(CHANNEL.cancel, (event, released: unknown) => {
+    const overlay = find(event);
+    if (!overlay || !(overlay.pen || Date.now() - overlay.penOffAt < PEN_GRACE_MS)) return;
+    options.onCancel?.(overlay.display.id, released === true);
   });
   ipcMain.on(CHANNEL.done, (event) => {
     const overlay = find(event);

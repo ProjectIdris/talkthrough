@@ -103,7 +103,7 @@ Talkthrough starts the tool you already have and gives it no tools of its own: i
 ```
 
 1. **Hotkey.** Hold Right Ctrl + Right Shift (or two other modifier keys you choose in Settings); holding records your question, letting go sends it. If the window in front is on your list of windows to skip (a password manager, by default), nothing is recorded or captured.
-2. **Capture.** The screen under the pointer is captured and kept in memory only. While you hold the keys you can also drag the mouse to circle something: your stroke is drawn on the screenshot and a closer crop around it goes along, so "what is this?" means what you circled.
+2. **Capture.** The screen under the pointer is captured and kept in memory only. While you hold the keys you can also drag the mouse to circle something: your stroke is drawn on the screenshot and a closer crop around it goes along, so "what is this?" means what you circled. The stroke settles to a faint trace as you go; an *Undo* button (or **Z**) takes back the last circle, and a right click cancels the question.
 3. **Model.** A vision model gets the screenshot, your question and the earlier turns of the thread, and answers in the **scene language**: timed steps, each with something to say and things to draw. The model can also say a question is beyond it.
 4. **Scene language.** A small JSON format (boxes, ovals, arrows, labels, and 3D shapes with tweens and camera moves). It is data, validated before anything is drawn; no code is ever run. See [docs/scene-language.md](docs/scene-language.md).
 5. **Renderer.** A transparent, click-through overlay draws marks over your screen and 3D models over the page with [three.js](https://threejs.org). A framed 3D panel is optional.

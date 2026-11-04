@@ -36,10 +36,11 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2));
 const scenePath = args._[0];
-if (!scenePath || !args.out || !(args.steps || args.play || args.schedule || args.pen)) {
+if (!scenePath || !args.out || !(args.steps || args.play || args.schedule || args.pen || args['pen-clip'])) {
   console.error('usage: electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 [--size WxH] [--dpr N] [--backdrop img] [--after scene.json]');
   console.error('   or: --schedule frames.json renders every frame of a clip plan (see scripts/clip-schedule.ts) as f00001.png, f00002.png, ...');
   console.error('   or: --pen "x,y;x,y;..." (0..1000) turns the pen on, drags it through the points with real mouse events, saves pen-1.png (with --keys-first yes the keys come up before the button, then a second short stroke is drawn), then ends the answer and saves pen-2.png after the fade');
+  console.error('   or: --pen-clip events.json draws pen strokes frame by frame on the 30 fps seek clock (events.json: {"frames": [[ ["on"] | ["down",x,y] | ["move",x,y] | ["up"] | ["rdown"] | ["rup"] | ["clickundo"] | ["undo"] | ["notice","text"] | ["off"] | ["end"] ... ] per frame]}, x and y on 0..1000), saves f00001.png...; --reduce-motion yes emulates the reduced-motion setting');
   console.error('   or: --play [--every 2] plays the scene in real time (silently) and saves a frame every few seconds until it finishes');
   process.exit(2);
 }
@@ -176,6 +177,61 @@ app.whenReady().then(async () => {
     await sleep(1200);
     fs.writeFileSync(path.join(args.out, 'pen-2.png'), (await capture()).toPNG());
     console.log('strokes reported:', JSON.stringify(strokes.map((p) => ({ id: p.id, points: p.points.length, done: p.done }))));
+    app.quit();
+    return;
+  }
+  if (args['pen-clip']) {
+    // Deterministic pen frames: each frame applies its pen events, then seeks (which steps the page's clock one thirtieth of a second) and saves the paint.
+    const plan = JSON.parse(fs.readFileSync(args['pen-clip'], 'utf8'));
+    if (args['reduce-motion'] === 'yes') {
+      win.webContents.debugger.attach('1.3');
+      await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+    }
+    const px = (x, y) => ({ x: Math.round((x / 1000) * width), y: Math.round((y / 1000) * height) });
+    const strokes = [];
+    ipcMain.on('tt:stroke', (_e, piece) => strokes.push(piece));
+    const cancels = [];
+    ipcMain.on('tt:cancel', (_e, released) => cancels.push(released));
+    let at = { x: 0, y: 0 };
+    for (let i = 0; i < plan.frames.length; i++) {
+      let input = false;
+      for (const [kind, x, y] of plan.frames[i]) {
+        if (kind === 'clickundo') {
+          // A real click in the middle of the Undo button, wherever the page put it.
+          const r = await win.webContents.executeJavaScript("(() => { const b = document.getElementById('undo'); const r = b.getBoundingClientRect(); return b.style.display === 'none' ? null : { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()");
+          console.log('undo button at', JSON.stringify(r));
+          if (r) {
+            win.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(r.x), y: Math.round(r.y), button: 'left', clickCount: 1 });
+            await sleep(40);
+            win.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(r.x), y: Math.round(r.y), button: 'left', clickCount: 1 });
+            input = true;
+          }
+          continue;
+        }
+        if (kind === 'notice') { win.webContents.send(CHANNEL.scene, { kind: 'notice', text: x, level: 'info' }); continue; }
+        if (kind === 'undo') { win.webContents.send(CHANNEL.scene, { kind: 'penUndo' }); continue; }
+        if (kind === 'on' || kind === 'off' || kind === 'end') { win.webContents.send(CHANNEL.scene, { kind: kind === 'end' ? 'end' : 'pen', on: kind === 'on' }); continue; }
+        if (kind === 'down' || kind === 'move') at = px(x, y);
+        if (kind === 'rdown' || kind === 'rup') {
+          win.webContents.sendInputEvent({ type: kind === 'rdown' ? 'mouseDown' : 'mouseUp', ...at, button: 'right', clickCount: 1 });
+          input = true;
+          continue;
+        }
+        win.webContents.sendInputEvent(kind === 'up'
+          ? { type: 'mouseUp', ...at, button: 'left', clickCount: 1 }
+          : { type: kind === 'down' ? 'mouseDown' : 'mouseMove', ...at, button: 'left', clickCount: kind === 'down' ? 1 : 0, ...(kind === 'move' ? { modifiers: ['leftButtonDown'] } : {}) });
+        input = true;
+      }
+      if (input) await sleep(25);
+      const mine = ++token;
+      const done = new Promise((r) => pending.set(mine, r));
+      win.webContents.send(CHANNEL.scene, { kind: 'seek', scene, step: 0, t: 0, token: mine });
+      await Promise.race([done, sleep(10000).then(() => { throw new Error('no frame painted for ' + i); })]);
+      const image = await freshPaint();
+      fs.writeFileSync(path.join(args.out, 'f' + String(i + 1).padStart(5, '0') + '.png'), image.toPNG());
+      if (i % 30 === 29) console.log('frame', i + 1, 'of', plan.frames.length);
+    }
+    console.log('wrote', plan.frames.length, 'frames; strokes reported:', JSON.stringify(strokes.map((p) => ({ id: p.id, points: p.points.length, done: p.done, ...(p.removed ? { removed: true } : {}) }))), 'cancels:', JSON.stringify(cancels));
     app.quit();
     return;
   }
