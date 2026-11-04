@@ -66,6 +66,8 @@ export type FlowOptions = {
   /** The widest and the tallest edge label (pixels), so the gaps between nodes leave room for them. */
   labelW?: number;
   labelH?: number;
+  /** Some node has a note under its text: in a column the boxes then take more of their cell (less gap), so the note has room. */
+  notes?: boolean;
 };
 
 /**
@@ -138,7 +140,7 @@ function flowLayoutIn(ids: readonly string[], edges: readonly FlowEdge[], area: 
   const boxFor = (dir: 'right' | 'down', cell: number, slot: number): { w: number; h: number } =>
     dir === 'right'
       ? { w: Math.min(options.maxBox.w, lw > 0 ? cell - Math.max(lw + 18, cell * 0.3) : cell * 0.66), h: Math.min(options.maxBox.h, slot * 0.7) }
-      : { w: Math.min(options.maxBox.w, slot * 0.9), h: Math.min(options.maxBox.h, lh > 0 ? cell - Math.max(lh + 12, cell * 0.3) : cell * 0.6) };
+      : { w: Math.min(options.maxBox.w, slot * 0.9), h: Math.min(options.maxBox.h, lh > 0 ? cell - Math.max(lh + 12, cell * 0.3) : cell * (options.notes ? 0.78 : 0.6)) };
   // Which way to run: the one that leaves the nodes larger (a node is about 2.4 times as wide as tall). A chain of single nodes
   // may also be wrapped into two or three rows (each running back the way the last came, so the arrow between rows is short);
   // that is chosen only when it makes the nodes clearly larger, so a long chain in a small card does not shrink its text to nothing.

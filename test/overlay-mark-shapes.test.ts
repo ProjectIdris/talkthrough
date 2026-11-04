@@ -116,3 +116,16 @@ test('the model is told about the new marks', () => {
   const first = sceneGuide.split('\n').find((l) => l.startsWith('- Step 1'))!;
   for (const word of ['poly', 'point', 'trace']) assert.ok(first.includes(word), `the first rule names ${word}`);
 });
+
+test('a second set of marks drawn over the diagrams (append) leaves what is on the canvas; the first set clears it', () => {
+  const result = validateScene(scene({ op: 'circle', id: 'c', x: 100, y: 100, w: 100, h: 100, color: 'red' }));
+  const scn = result.scene as Scene;
+  const frame = frameAt(scn.steps, 0, 999);
+  const first = recordingContext();
+  drawMarks(first.ctx, frame.marks, VIEW);
+  assert.ok(first.calls.some((c) => c.startsWith('clearRect(')), 'a normal draw starts from a clear canvas');
+  const second = recordingContext();
+  drawMarks(second.ctx, frame.marks, VIEW, undefined, { append: true });
+  assert.ok(!second.calls.some((c) => c.startsWith('clearRect(')), 'an appended draw must not wipe the diagrams under it');
+  assert.ok(second.calls.some((c) => c.startsWith('stroke(')), 'and it still draws');
+});

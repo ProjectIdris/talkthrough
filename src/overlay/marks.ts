@@ -50,7 +50,7 @@ function strokeWithHalo(ctx: Ctx, color: Rgb, alpha: number, lw: number, pulse: 
 }
 
 /** Options the page gives: with reduceMotion the marks appear and go in one step, with no stroke drawn along. */
-export type MarkOptions = { reduceMotion?: boolean };
+export type MarkOptions = { reduceMotion?: boolean; /** Draw over what the canvas holds (a second set of marks over the diagrams) instead of clearing it first. */ append?: boolean };
 
 const FEATHER_BANDS = 7;
 
@@ -358,7 +358,7 @@ function drawLabel(ctx: Ctx, m: MarkFrame, v: View, alpha: number): void {
 export function drawMarks(ctx: Ctx, marks: readonly MarkFrame[], view: View, annotator?: Annotator, options: MarkOptions = {}): void {
   const reduce = options.reduceMotion === true;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-  ctx.clearRect(0, 0, view.width, view.height);
+  if (!options.append) ctx.clearRect(0, 0, view.width, view.height);
   const lw = lineWidth(view);
   let order = 0;
   for (const m of marks) {
