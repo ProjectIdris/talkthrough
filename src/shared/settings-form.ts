@@ -25,11 +25,12 @@ export type SettingsForm = {
   captureBlocklist: string[];
   guideNavigation: boolean;
   controlSnap: boolean;
+  twoStepAnswer: boolean;
 };
 
 export const FORM_KEYS: ReadonlyArray<keyof SettingsForm> = [
   'model', 'codexModel', 'claudeModel', 'openaiModel', 'codexFast', 'detailRoute', 'detailModel',
-  'voiceServerUrl', 'voiceServerVoice', 'speechServerUrl', 'hotkey', 'captureBlocklist', 'guideNavigation', 'controlSnap',
+  'voiceServerUrl', 'voiceServerVoice', 'speechServerUrl', 'hotkey', 'captureBlocklist', 'guideNavigation', 'controlSnap', 'twoStepAnswer',
 ];
 
 /** What main answers a save with. */
@@ -54,4 +55,5 @@ export function savedMessage(changed: ReadonlyArray<keyof SettingsForm>): { text
 export const SWITCH_WARNINGS = {
   guideNavigation: 'When a guide asks for it, Talkthrough may open a tab, open a menu or scroll for you in desktop apps (never in a browser). It asks first and you can stop it at any time.',
   controlSnap: 'Reads the buttons and tabs of the window in front (only where they are, never their text) to place marks exactly. Never in a browser.',
+  twoStepAnswer: 'On the Claude route, the first words come sooner: the answer is written in two calls, the first step alone, then the rest while you hear it. Each question then uses two calls of your Claude allowance.',
 } as const;

@@ -178,7 +178,19 @@ export function questionText(request: ModelRequest): string {
   }
   parts.push(`The user's question, transcribed from speech (it may contain recognition errors): ${JSON.stringify(request.question)}`);
   if (request.detail) parts.push(detailText(request.detail.steps));
+  if (request.stage) parts.push(stageText(request.stage));
   return parts.join('\n\n');
+}
+
+/** What each half of a two-call answer is told. The walk's checklist is drawn in step 2 (the guide's rule puts it in step 1 for a whole answer). */
+export function stageText(stage: NonNullable<ModelRequest['stage']>): string {
+  if (stage.part === 'first') {
+    return 'Write only step 1 now, as the rules describe it, and nothing after it: the later steps are written separately. If this is a how-do-I walk, step 1 is the first move (its mark and wait) without the checklist, which is drawn in step 2.';
+  }
+  return [
+    `Step 1 of this answer is already drawn and spoken: ${JSON.stringify(stage.first)}`,
+    'Write the rest of the answer, from step 2 onward, in the same JSON. Do not write step 1 again, do not repeat its marks (its ids stay valid and can be used again) and do not say again what it said: carry on from it. The rule that step 1 is short is for step 1 only, so the steps you write may build the model or diagram the rules describe. If step 1 asks for a click, this is a how-do-I walk: the first step you write draws the checklist, after its own mark and wait, as the walk rule describes. Set "escalate" to null.',
+  ].join('\n\n');
 }
 
 /** The most of the scene on screen a detail pass is shown; a longer one is cut at a step, with a note. */

@@ -71,6 +71,11 @@ export type Settings = {
    */
   guideNavigation: boolean;
   /**
+   * Write the quick answer in two calls (Claude route only): step 1 alone first, so the first word comes sooner, then the steps after
+   * it while step 1 is spoken (see adapters/two-step.ts). Costs a second call per question. Off until the person turns it on.
+   */
+  twoStepAnswer: boolean;
+  /**
    * The detail pass: which route writes a much richer version of the scene on screen when the person asks for more
    * detail (a button beside the model, or "show me in detail"). Unset: there is no detail pass and nothing offers it.
    * It is never started by itself.
@@ -103,6 +108,7 @@ export const DEFAULT_SETTINGS: Settings = {
   effort: 'low',
   controlSnap: false,
   guideNavigation: false,
+  twoStepAnswer: false,
   voiceFirstAudioMs: 2000,
   voiceCooldownMs: 20_000,
   voiceTimeoutMs: 30_000,
@@ -181,6 +187,7 @@ export function settingsFromRaw(raw: Record<string, unknown>, warn: (message: st
   settings.effort = str(raw.effort) ?? settings.effort;
   if (typeof raw.controlSnap === 'boolean') settings.controlSnap = raw.controlSnap;
   if (typeof raw.guideNavigation === 'boolean') settings.guideNavigation = raw.guideNavigation;
+  if (typeof raw.twoStepAnswer === 'boolean') settings.twoStepAnswer = raw.twoStepAnswer;
   if (raw.detailRoute === 'codex' || raw.detailRoute === 'claude' || raw.detailRoute === 'openai') settings.detailRoute = raw.detailRoute;
   else if (raw.detailRoute !== undefined) warn('detailRoute must be codex, claude or openai; there is no detail pass');
   const detailModel = str(raw.detailModel);

@@ -28,6 +28,11 @@ export type ModelRequest = {
    * for a much richer version of the same scene, in the same language and with the same ids, instead of an answer.
    */
   detail?: { steps: readonly unknown[] };
+  /**
+   * One half of a quick answer written in two calls (see two-step.ts). `first`: write step 1 and nothing after it. `rest`: step 1 is
+   * already drawn and spoken (given raw); write the steps after it. Absent: the whole answer. Not used with `detail`.
+   */
+  stage?: { part: 'first' } | { part: 'rest'; first: unknown };
   /** Also yield each step's say text and each of its actions as they are written, before the step (see ModelOutput). Default off. */
   pieces?: boolean;
   /** Called once with the model's whole raw text when its answer ends or turns out not to be a scene (a check run's log). Default off. */
