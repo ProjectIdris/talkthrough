@@ -49,6 +49,10 @@ const offerEl = byId<HTMLDivElement>('offer');
 const offerText = byId<HTMLSpanElement>('offer-text');
 const offerButton = byId<HTMLButtonElement>('offer-button');
 const noticeEl = byId<HTMLDivElement>('notice');
+const consentEl = byId<HTMLDivElement>('consent');
+const consentText = byId<HTMLSpanElement>('consent-text');
+const consentYes = byId<HTMLButtonElement>('consent-yes');
+const consentNo = byId<HTMLButtonElement>('consent-no');
 const explodeEl = byId<HTMLButtonElement>('explode');
 const detailEl = byId<HTMLButtonElement>('detail');
 const cutEl = byId<HTMLButtonElement>('cut');
@@ -468,7 +472,7 @@ function request(): void {
   if (!raf) raf = requestAnimationFrame(loop);
 }
 
-const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl, cutEl, detailEl];
+const interactiveEls: HTMLElement[] = [offerEl, noticeEl, consentEl, explodeEl, cutEl, detailEl];
 
 /** True for a moment after the pen goes off, so a button released then still ends its stroke. */
 let penEnding = false;
@@ -599,6 +603,20 @@ setInterval(() => {
   hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY)));
   hold.beat();
 }, 3000);
+
+/** The app asks whether it may act for the person (guide mode); Yes or No goes to main and the card goes. */
+function showConsent(text: string | null): void {
+  consentEl.style.display = text === null ? 'none' : 'flex';
+  if (text !== null) consentText.textContent = text;
+  request();
+}
+for (const [button, yes] of [[consentYes, true], [consentNo, false]] as const) {
+  button.addEventListener('click', () => {
+    showConsent(null);
+    window.talkthrough.consent(yes);
+    hold.release();
+  });
+}
 
 offerButton.addEventListener('click', () => {
   hud.dismissOffer();
@@ -779,6 +797,9 @@ function applyScene(message: SceneMessage): void {
         }
       }
       break;
+    case 'consent':
+      showConsent(message.text);
+      break;
     case 'notice':
       if (detailState === 'asked' || detailState === 'running') {
         detailState = 'none'; // it failed: the person may ask again, and the model fades as usual
@@ -793,6 +814,7 @@ function applyScene(message: SceneMessage): void {
       player.clear();
       fader.disarm();
       hud.reset();
+      showConsent(null);
       pendingOffer = undefined;
       detailState = 'none';
       guiding = false;

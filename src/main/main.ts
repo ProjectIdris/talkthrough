@@ -25,6 +25,7 @@ import { createSamplePlayer } from './samples.ts';
 import { createSession } from './session.ts';
 import { createSettingsWindow } from './settings-window.ts';
 import { createGuideNavigation } from './guide-nav.ts';
+import { createNavConsent } from './nav-consent.ts';
 import { createNavigator } from './nav.ts';
 import { createHelper } from './ps-helper.ts';
 import { createUiaReader, toDisplayBoxes } from './uia.ts';
@@ -123,6 +124,8 @@ async function main(): Promise<void> {
   log(`settings file: ${settingsPath}`);
   const samples = createSamplePlayer(join(app.getAppPath(), 'samples', 'scenes'));
   let session: ReturnType<typeof createSession> | null = null;
+  // The person's say-so before the app acts for them (a yes first, a pause any time); only where it has hands at all.
+  const navConsent = settings.guideNavigation && !options.captureImage ? createNavConsent() : undefined;
   const overlays = createOverlayManager({
     preload,
     page: overlayPage,
@@ -138,6 +141,7 @@ async function main(): Promise<void> {
     },
     onStroke: (displayId, stroke) => session?.stroke(displayId, stroke),
     onOffer: (displayId) => void session?.offer(displayId),
+    onConsent: (yes) => void navConsent?.answer(yes),
     ...(settings.detailRoute ? { onDetail: (displayId: number) => void session?.detail(displayId) } : {}),
     onMilestone: (m) => session?.milestone(m),
   });
@@ -205,7 +209,7 @@ async function main(): Promise<void> {
   // it is asked.
   const controlHelper = (settings.controlSnap || settings.guideNavigation) && !captureImage ? createHelper({ nav: settings.guideNavigation }) : undefined;
   const uia = controlHelper && settings.controlSnap ? createUiaReader({ helper: controlHelper }) : undefined;
-  const navigator = controlHelper && settings.guideNavigation ? createNavigator({ helper: controlHelper }) : undefined;
+  const navigator = controlHelper && settings.guideNavigation && navConsent ? createNavigator({ helper: controlHelper }) : undefined;
   session = createSession({
     ...(uia
       ? {
@@ -264,10 +268,11 @@ async function main(): Promise<void> {
         };
         return watchGuideInput({ down: (p) => listener.down(clickOf(p)), up: (p) => listener.up(clickOf(p)), escape: () => listener.escape(), key: () => listener.key?.() });
       },
-      ...(navigator
+      ...(navigator && navConsent
         ? {
           navigation: createGuideNavigation({
             navigator,
+            consent: navConsent,
             toScreen: (displayId, p) => {
               const d = screen.getAllDisplays().find((x) => x.id === displayId);
               return d ? screen.dipToScreenPoint({ x: d.bounds.x + (p.x / 1000) * d.bounds.width, y: d.bounds.y + (p.y / 1000) * d.bounds.height }) : null;
@@ -344,7 +349,18 @@ async function main(): Promise<void> {
     },
     pinScreenshot: () => prefs.get().pinScreenshot,
     onPinScreenshot: (on) => prefs.set({ pinScreenshot: on }),
+    ...(navConsent
+      ? {
+        guideActions: {
+          paused: () => navConsent.paused(),
+          setPaused: (on: boolean) => navConsent.setPaused(on),
+          asking: () => navConsent.pending(),
+          answer: (yes: boolean) => void navConsent.answer(yes),
+        },
+      }
+      : {}),
   });
+  navConsent?.onChange(() => tray.refresh());
 
   let hotkey: ReturnType<typeof startHotkey> | null = null;
   if (!options.noHotkey) {

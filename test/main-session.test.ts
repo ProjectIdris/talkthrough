@@ -605,6 +605,7 @@ test('the question report says how well the answer built in order', async () => 
 
 import { GRID_COLS, GRID_ROWS } from '../src/shared/screen-diff.ts';
 import type { Frame, GuideListener, GuideNavigation } from '../src/main/guide.ts';
+import { createNavConsent } from '../src/main/nav-consent.ts';
 
 const flat = (v: number): Frame => ({ screenshot: { mime: 'image/png', base64: `f${v}`, width: 10, height: 10 }, grid: { cols: GRID_COLS, rows: GRID_ROWS, luma: new Uint8Array(GRID_COLS * GRID_ROWS).fill(v) } });
 const TARGET = { x: 400, y: 100, w: 100, h: 40 };
@@ -614,7 +615,8 @@ const guided = (id: string, say: string, withWait = true) => ({
 });
 
 /** A session whose screen is `screen` (set it to change what a look at the display shows) and whose clicks the test makes. */
-function walkRig(plans: unknown[][], navigation?: GuideNavigation) {
+function walkRig(plans: unknown[][], navigation?: GuideNavigation, heard?: string[]) {
+  let said = 0;
   let screen = flat(235);
   let listener: GuideListener | undefined;
   let stopped = 0;
@@ -622,6 +624,7 @@ function walkRig(plans: unknown[][], navigation?: GuideNavigation) {
   const requests: ModelRequest[] = [];
   const r = rig({
     // The session asks for its model more than once a question: the plan is picked when a question is asked of it.
+    ...(heard ? { speech: { id: 'fake', transcribe: async () => ({ text: heard[said++] ?? '' }) } } : {}),
     model: () => ({ ...createScriptedModel([]), ask: (req: ModelRequest) => { requests.push(req); return createScriptedModel(plans[asks++] ?? []).ask(req); } }),
     guide: {
       options: { onTargetChecks: [30, 60], elsewhereChecks: [30, 60], settleMs: 5, navBeatMs: 10, navMsPerChar: 0, navFirstExtraMs: 0, navPollMs: 5 },
@@ -815,4 +818,38 @@ test('guide mode: a step with a go is done by the app when the session has hands
   await question(w2);
   await wait(200);
   assert.deepEqual(w2.sent.filter((m) => m.kind === 'step').map((m) => (m.step as { say: string }).say), [], 'no hands: no announcement and no next step until the person clicks');
+});
+
+test('guide mode: while the app waits for a yes, a spoken yes is the answer and not a question; any other question ends the walk and is asked as usual', async () => {
+  const goStep = { say: 'Open the tab.', actions: [{ op: 'box', id: 'g1', x: 400, y: 100, w: 100, h: 40, color: 'red' }, { op: 'go', kind: 'tab', x: 450, y: 120 }, { op: 'wait', for: 'click', ...TARGET }] };
+  for (const reply of ['Yes.', 'what is a tab']) {
+    const consent = createNavConsent({ after: () => () => undefined });
+    const acted: string[] = [];
+    let w!: ReturnType<typeof walkRig>;
+    const navigation: GuideNavigation = {
+      plan: async () => ({ verdict: 'do', announce: "I'll open that tab for you.", handle: 1 }),
+      act: async () => {
+        acted.push('act');
+        w.look(flat(90));
+        return true;
+      },
+      consent,
+    };
+    w = walkRig([[goStep, guided('t2', 'Now click Save.', false)], [guided('u1', 'A tab is a page.', false)]], navigation, ['how do I open it', reply]);
+    await question(w);
+    await wait(100);
+    assert.equal(consent.pending(), true, 'the app is waiting for a yes');
+    assert.deepEqual(acted, []);
+    await question(w);
+    await wait(500);
+    if (reply === 'Yes.') {
+      assert.equal(w.requests.length, 1, 'the yes was not sent to the model');
+      assert.deepEqual(acted, ['act'], 'and the move was made');
+      assert.equal(consent.given(), true);
+    } else {
+      assert.equal(w.requests.length, 2, 'another question is a question');
+      assert.deepEqual(acted, [], 'and nothing was done');
+      assert.equal(consent.pending(), false, 'the question to the person is closed');
+    }
+  }
 });

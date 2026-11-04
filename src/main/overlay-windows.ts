@@ -28,6 +28,8 @@ export type OverlayOptions = {
   onMilestone?: (milestone: Milestone) => void;
   /** Called when the user clicks the escalation offer. */
   onOffer?: (displayId: number) => void;
+  /** Called when the user answers the question whether the app may act for them. */
+  onConsent?: (yes: boolean) => void;
   /** A detail model is set up (the page then offers "More detail"), and what to do when the user asks for it. */
   onDetail?: (displayId: number) => void;
 };
@@ -201,6 +203,9 @@ export function createOverlayManager(options: OverlayOptions) {
   ipcMain.on(CHANNEL.offer, (event) => {
     const overlay = find(event);
     if (overlay) options.onOffer?.(overlay.display.id);
+  });
+  ipcMain.on(CHANNEL.consent, (event, yes: unknown) => {
+    if (find(event) && typeof yes === 'boolean') options.onConsent?.(yes);
   });
   ipcMain.on(CHANNEL.detail, (event) => {
     const overlay = find(event);

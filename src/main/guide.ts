@@ -15,6 +15,7 @@ import type { Screenshot } from '../adapters/types.ts';
 import { VARIANTS } from '../scene/spec.ts';
 import type { Action, Step } from '../scene/index.ts';
 import type { NavDir, NavKind } from '../shared/nav-guard.ts';
+import type { NavConsent } from './nav-consent.ts';
 import type { SceneMessage } from '../shared/ipc.ts';
 import { inTarget, screenChanged } from '../shared/screen-diff.ts';
 import type { Box, Grid } from '../shared/screen-diff.ts';
@@ -52,6 +53,11 @@ export type GuideNavigation = {
   act(plan: NavPlan): Promise<boolean>;
   /** Where the pointer is now (screen pixels), so that moving it stops the move. */
   pointer?(): { x: number; y: number } | null;
+  /**
+   * The person's say-so: the first move in a session waits for a yes (spoken, or a click on Yes), and a pause stops every move.
+   * Absent (tests): no question and no pause.
+   */
+  consent?: NavConsent;
 };
 
 export type GuideEnd = 'finished' | 'escape' | 'superseded' | 'idle' | 'failed';
@@ -106,6 +112,7 @@ export type GuideOptions = {
   navPointerPx: number;
   /** At most this many moves for the person in one walk. */
   navMax: number;
+  navAskClickMs: number;
 };
 
 export const GUIDE_OPTIONS: GuideOptions = {
@@ -120,6 +127,8 @@ export const GUIDE_OPTIONS: GuideOptions = {
   navPollMs: 50,
   navPointerPx: 60,
   navMax: 8,
+  /** How long after a press, while the app waits for a yes, with no answer, the press counts as the person doing it themselves. */
+  navAskClickMs: 400,
 };
 
 /**
@@ -205,6 +214,9 @@ export function createGuide(deps: GuideDeps) {
   let navCount = 0;
   let navStop: string | null = null;
   let pendingUp: Click | null = null;
+  // The app has asked for a yes and waits for it; and the timer that reads a press elsewhere as "I'll do it myself".
+  let asking = false;
+  let cancelAskClick: (() => void) | null = null;
   // The checklist (a steps diagram the model drew) and the marks of the steps shown so far: each step takes away the
   // last one's marks by id and leaves the checklist, which gets a tick as each step is followed.
   let live: string[] = [];
@@ -279,6 +291,13 @@ export function createGuide(deps: GuideDeps) {
     baseline = null;
     history = [];
     shown.length = 0;
+    if (asking) {
+      asking = false;
+      deps.navigation?.consent?.cancel();
+      deps.send({ kind: 'consent', text: null });
+    }
+    cancelAskClick?.();
+    cancelAskClick = null;
     deps.log(`guide ended (${why})`);
     if (why === 'finished') {
       // The last step followed has no step after it to carry its tick: it goes alone.
@@ -335,16 +354,33 @@ export function createGuide(deps: GuideDeps) {
     up: (click) => onUp(click),
     // Escape while the app is about to act stops that move only; the walk goes on, waiting for the person. Escape again ends it.
     escape: () => {
-      if (phase === 'navigating') navStop = 'escape';
-      else end('escape');
+      if (phase === 'navigating') {
+        navStop = 'escape';
+        if (asking) deps.navigation?.consent?.cancel();
+      } else end('escape');
     },
-    // Typing, or any other key, while the app is about to act stops it.
+    // Typing, or any other key, while the app is about to act stops it (not while it waits for a yes: the keys are how they say it).
     key: () => {
-      if (phase === 'navigating') navStop = 'key';
+      if (phase === 'navigating' && !asking) navStop = 'key';
     },
   };
 
   function onDown(click: Click): void {
+    if (phase === 'navigating' && asking) {
+      // While the app waits for a yes, a press is mostly the Yes button, the tray, or a window: it is ignored. A press on the very
+      // spot the step points at is the person doing it themselves; unless a yes comes at once (the Yes card may sit over that spot),
+      // the app steps back and takes their click as any click.
+      if (click.displayId === deps.displayId && current?.target && inTarget(click, current.target)) {
+        baseline = safeCapture();
+        cancelAskClick?.();
+        cancelAskClick = after(o.navAskClickMs, () => {
+          cancelAskClick = null;
+          navStop = 'click';
+          deps.navigation?.consent?.cancel();
+        });
+      }
+      return;
+    }
     if (phase === 'navigating') {
       // The person clicked for themselves: the app steps back, and their click is taken as any click would be.
       navStop = 'click';
@@ -356,7 +392,7 @@ export function createGuide(deps: GuideDeps) {
   }
 
   function onUp(click: Click): void {
-    if (phase === 'navigating' && navStop === 'click') {
+    if (phase === 'navigating' && (navStop === 'click' || cancelAskClick !== null)) {
       pendingUp = click;
       return;
     }
@@ -457,6 +493,12 @@ export function createGuide(deps: GuideDeps) {
     }
   }
 
+  /** The question asked before the first move of a session. */
+  function askWords(go: GoRequest): string {
+    const what = go.kind === 'tab' ? 'open that tab' : go.kind === 'open' ? 'open that menu' : `scroll ${go.dir ?? 'down'}`;
+    return `I can ${what} for you. Say yes, or click Yes. After that I will do these moves without asking again.`;
+  }
+
   /** The app steps back: the step goes on as a plain guide step, waiting for the person's own click (or, with no wait, carrying on). */
   function stepBack(why: string): void {
     const c = current;
@@ -501,6 +543,28 @@ export function createGuide(deps: GuideDeps) {
     if (phase !== 'navigating') return;
     if (navStop) return stepBack(`stopped (${navStop})`);
     if (plan.verdict !== 'do') return stepBack(plan.why);
+    const consent = nav.consent;
+    if (consent?.paused()) return stepBack('paused');
+    if (consent && !consent.given()) {
+      // The first move in a session: ask, and wait for a yes. The step has been shown; this is said and drawn as a question.
+      asking = true;
+      deps.send({ kind: 'step', step: { say: askWords(go), actions: [] } });
+      deps.send({ kind: 'consent', text: askWords(go) });
+      deps.send({ kind: 'status', status: 'waiting' });
+      const answer = await consent.ask();
+      asking = false;
+      cancelAskClick?.();
+      cancelAskClick = null;
+      deps.send({ kind: 'consent', text: null });
+      if (phase !== 'navigating') return;
+      if (answer === 'yes') pendingUp = null; // that press was the Yes button's
+      if (navStop) return stepBack(`stopped (${navStop})`);
+      if (answer !== 'yes') {
+        if (answer === 'no' || answer === 'timeout') deps.send({ kind: 'notice', text: "All right, I'll only point.", level: 'info' });
+        return stepBack(`no yes (${answer})`);
+      }
+      deps.send({ kind: 'status', status: 'waiting' });
+    }
     // Say it, and give them time to hear the step's words and this, and to stop it.
     deps.send({ kind: 'step', step: { say: plan.announce, actions: [] } });
     const first = navCount === 0;
@@ -510,6 +574,7 @@ export function createGuide(deps: GuideDeps) {
       await sleep(o.navPollMs);
       if (phase !== 'navigating') return;
       if (navStop) return stepBack(`stopped (${navStop})`);
+      if (consent?.paused()) return stepBack('paused');
       const at = nav.pointer?.() ?? null;
       if (from && at && Math.hypot(at.x - from.x, at.y - from.y) > o.navPointerPx) {
         navStop = 'pointer';
@@ -522,6 +587,7 @@ export function createGuide(deps: GuideDeps) {
     if (phase !== 'navigating') return;
     if (navStop) return stepBack(`stopped (${navStop})`);
     if (start && before && screenChanged(start.grid, before.grid, null).changed) return stepBack('the screen changed meanwhile');
+    if (consent?.paused()) return stepBack('paused');
     navCount++;
     let did = false;
     try {

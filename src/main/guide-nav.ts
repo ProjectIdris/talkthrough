@@ -6,10 +6,13 @@
 import { announcement, decideNav } from '../shared/nav-guard.ts';
 import type { NavIntent } from '../shared/nav-guard.ts';
 import type { GuideNavigation, GoRequest, NavPlan } from './guide.ts';
+import type { NavConsent } from './nav-consent.ts';
 import type { Navigator } from './nav.ts';
 
 export type GuideNavigationDeps = {
   navigator: Navigator;
+  /** The person's say-so: the first move waits for a yes, and a pause stops them all. Required: without it the app would act unasked. */
+  consent: NavConsent;
   /** A point on the 0..1000 scale of a display, as a screen pixel; null when that display is not known. */
   toScreen(displayId: number, point: { x: number; y: number }): { x: number; y: number } | null;
   /** Where the pointer is, in screen pixels. */
@@ -39,6 +42,7 @@ export function createGuideNavigation(d: GuideNavigationDeps): GuideNavigation {
       d.log(`guide: navigation ${h.intent.kind}: ${r.acted ? 'done' : `did not act (${r.why ?? 'unknown'})`}, took ${r.ms} ms`);
       return r.acted;
     },
+    consent: d.consent,
     ...(d.pointer ? { pointer: d.pointer } : {}),
   };
 }

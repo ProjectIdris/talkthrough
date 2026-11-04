@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createGuide, goOf, guideQuestion } from '../src/main/guide.ts';
+import { createNavConsent } from '../src/main/nav-consent.ts';
+import type { NavConsent } from '../src/main/nav-consent.ts';
 import type { Click, Frame, GuideEnd, GuideEvent, GuideListener, GuideNavigation, GoRequest, NavPlan } from '../src/main/guide.ts';
 import type { Step } from '../src/scene/index.ts';
 import type { SceneMessage } from '../src/shared/ipc.ts';
@@ -54,7 +56,7 @@ function fakeNav(options: { plan?: NavPlan; acts?: boolean; pointer?: () => { x:
   return { nav, planned, acted, onAct };
 }
 
-function rig(first: Frame, navigation: GuideNavigation | undefined, extra: { sleep?: (ms: number) => Promise<void>; replan?: Parameters<typeof createGuide>[0]['replan']; screenRef?: { screen: Frame } } = {}) {
+function rig(first: Frame, navigation: GuideNavigation | undefined, extra: { after?: (ms: number, run: () => void) => () => void; sleep?: (ms: number) => Promise<void>; replan?: Parameters<typeof createGuide>[0]['replan']; screenRef?: { screen: Frame } } = {}) {
   const sent: SceneMessage[] = [];
   let listener: GuideListener | undefined;
   const ends: GuideEnd[] = [];
@@ -69,7 +71,7 @@ function rig(first: Frame, navigation: GuideNavigation | undefined, extra: { sle
     onEnd: (why) => void ends.push(why),
     log: () => undefined,
     sleep: extra.sleep ?? (async () => undefined),
-    after: () => () => undefined,
+    after: extra.after ?? (() => () => undefined),
     ...(navigation ? { navigation } : {}),
   });
   const says = () => sent.filter((m): m is Extract<SceneMessage, { kind: 'step' }> => m.kind === 'step').map((m) => m.step.say);
@@ -248,4 +250,147 @@ test('the first move has a longer beat than the later ones', async () => {
   await new Promise((res) => setTimeout(res, 50));
   assert.equal(beats.length, 2);
   assert.ok(beats[0]! > beats[1]!, `the first beat (${beats[0]} polls) is longer than the second (${beats[1]})`);
+});
+
+// ---- the person's say-so: a yes before the first move, a pause any time ----------------------------------------------
+
+function consented(options: { given?: boolean } = {}) {
+  const consent = createNavConsent({ after: () => () => undefined });
+  if (options.given) { void consent.ask(); consent.answer(true); }
+  const f = fakeNav();
+  f.nav.consent = consent;
+  return { consent, ...f };
+}
+const consentTexts = (r: ReturnType<typeof rig>) => r.sent.filter((m): m is Extract<SceneMessage, { kind: 'consent' }> => m.kind === 'consent').map((m) => m.text);
+const flipOnAct = (c: ReturnType<typeof consented>, r: ReturnType<typeof rig>) => {
+  c.nav.act = async (plan) => {
+    c.acted.push(plan);
+    r.screenRef.screen = r.screenRef.screen === TURNED ? SAME : TURNED;
+    return true;
+  };
+};
+
+test('the first move in a session is asked about and waits for a yes; a yes lets it announce and act, and the next move is not asked about', async () => {
+  const c = consented();
+  const r = rig(SAME, c.nav);
+  flipOnAct(c, r);
+  r.g.push(goStep('first'));
+  r.g.push(goStep('second'));
+  await r.settle();
+  assert.equal(c.acted.length, 0, 'nothing is done before the yes');
+  assert.equal(c.consent.pending(), true);
+  assert.match(r.says().at(-1)!, /Say yes, or click Yes/);
+  assert.equal(consentTexts(r).length, 1, 'the overlay is asked to show a Yes');
+  assert.match(consentTexts(r)[0]!, /open that tab/);
+  c.consent.answer(true);
+  await r.settle();
+  await new Promise((res) => setTimeout(res, 60));
+  assert.equal(c.acted.length, 2, 'both moves were done once the yes was given');
+  assert.equal(consentTexts(r).filter((t) => t !== null).length, 1, 'asked once only');
+  assert.equal(consentTexts(r)[1], null, 'the card went away with the answer');
+  assert.ok(r.says().includes("I'll open that tab for you."), 'and the announcement was still made');
+});
+
+test('a no, a timeout, Escape, or nobody answering: no move, a plain wait, and the card goes away', async () => {
+  for (const how of ['no', 'timeout', 'escape'] as const) {
+    const c = consented();
+    const r = rig(SAME, c.nav);
+    r.g.push(goStep('open the tab'));
+    await r.settle();
+    if (how === 'no') c.consent.answer(false);
+    else if (how === 'escape') r.listener.escape();
+    else c.consent.cancel(); // what the 30 s timeout does is tested with the consent itself
+    await r.settle();
+    assert.equal(c.acted.length, 0, how);
+    assert.equal(r.g.active, true, `${how}: the walk goes on`);
+    assert.equal(consentTexts(r).at(-1), null, `${how}: the card is gone`);
+    assert.equal((r.sent.at(-1) as { status: string }).status, 'waiting', how);
+    assert.equal(c.consent.given(), false, `${how}: and no yes is remembered`);
+  }
+});
+
+test('keys during the question do not stop it (the keys are how they say yes), a press on the pointed spot does, a press elsewhere does not', async () => {
+  const c = consented();
+  const r = rig(SAME, c.nav, { after: (ms, run) => { if (ms === 400) setTimeout(run, 5); return () => undefined; } });
+  r.g.push(goStep('open the tab'));
+  await r.settle();
+  r.listener.key?.();
+  r.listener.down({ x: 800, y: 800, displayId: 7 });
+  r.listener.up({ x: 800, y: 800, displayId: 7 });
+  await r.settle();
+  assert.equal(c.consent.pending(), true, 'still asking');
+  // the person clicks the tab themselves
+  r.listener.down(on);
+  r.screenRef.screen = TURNED;
+  r.listener.up(on);
+  await r.settle();
+  await new Promise((res) => setTimeout(res, 30));
+  assert.equal(c.consent.pending(), false);
+  assert.equal(c.acted.length, 0, 'the app did not act');
+  assert.equal(r.g.active, true);
+});
+
+test('the Yes card sitting over the pointed spot: a yes that comes at once beats the click reading', async () => {
+  const c = consented();
+  let fire: (() => void) | undefined;
+  const r = rig(SAME, c.nav, { after: (ms, run) => { if (ms !== 400) return () => undefined; fire = run; return () => { fire = undefined; }; } });
+  flipOnAct(c, r);
+  r.g.push(goStep('open the tab'));
+  await r.settle();
+  r.listener.down(on);
+  r.listener.up(on);
+  c.consent.answer(true); // the card's button
+  await r.settle();
+  fire?.(); // the timer would have fired later: it was cancelled by the answer
+  await r.settle();
+  assert.equal(c.acted.length, 1);
+});
+
+test('a pause stops the move: no question, no act; a pause during the question is a no; a pause during the beat drops the move', async () => {
+  const p = consented({ given: true });
+  p.consent.setPaused(true);
+  const r1 = rig(SAME, p.nav);
+  r1.g.push(goStep('open the tab'));
+  await r1.settle();
+  assert.equal(p.acted.length, 0, 'paused: nothing');
+  assert.equal(consentTexts(r1).length, 0, 'and no question');
+  // paused while it waits for the yes
+  const c = consented();
+  const r2 = rig(SAME, c.nav);
+  r2.g.push(goStep('open the tab'));
+  await r2.settle();
+  c.consent.setPaused(true);
+  await r2.settle();
+  assert.equal(c.acted.length, 0);
+  assert.equal(c.consent.pending(), false);
+  // paused during the beat
+  const b = consented({ given: true });
+  let ticks = 0;
+  const r3 = rig(SAME, b.nav, { sleep: async () => void (++ticks === 3 && b.consent.setPaused(true)) });
+  r3.g.push(goStep('open the tab'));
+  await r3.settle();
+  assert.equal(b.acted.length, 0, 'paused during the beat');
+  assert.equal(r3.g.active, true);
+});
+
+test('the walk ending while the question is open closes it', async () => {
+  const c = consented();
+  const r = rig(SAME, c.nav);
+  r.g.push(goStep('open the tab'));
+  await r.settle();
+  r.g.end('superseded');
+  assert.equal(c.consent.pending(), false);
+  assert.equal(consentTexts(r).at(-1), null);
+});
+
+test('a yes is remembered for the session, a pause is not a no, and without a yes the guard is never reached by an act', async () => {
+  const c = consented();
+  const r = rig(SAME, c.nav);
+  r.g.push(goStep('open the tab'));
+  await r.settle();
+  assert.equal(c.acted.length, 0);
+  const consent: NavConsent = c.consent;
+  consent.setPaused(true);
+  consent.setPaused(false);
+  assert.equal(consent.given(), false);
 });

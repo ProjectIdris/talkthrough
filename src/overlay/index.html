@@ -40,6 +40,13 @@
     border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
   #offer button { flex: none; font: inherit; font-weight: 650; color: #0d1320; background: #7cc4ff; border: 0; border-radius: 9px; padding: 7px 14px; cursor: pointer; }
   #offer button:hover { background: #a3d6ff; }
+  #consent { position: absolute; right: 22px; bottom: 140px; display: none; align-items: center; gap: 12px; max-width: 520px; pointer-events: auto;
+    padding: 12px 14px 12px 16px; border-radius: 14px; background: rgba(17, 22, 34, 0.96); color: #eef3fb; font-size: 14px; line-height: 1.35;
+    border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
+  #consent button { flex: none; font: inherit; font-weight: 650; color: #0d1320; background: #7cc4ff; border: 0; border-radius: 9px; padding: 7px 14px; cursor: pointer; }
+  #consent button:hover { background: #a3d6ff; }
+  #consent button.no { color: #eef3fb; background: rgba(255, 255, 255, 0.14); }
+  #consent button.no:hover { background: rgba(255, 255, 255, 0.24); }
   /* The Explode / Assemble control that sits at the corner of a finished 3D model. */
   #explode, #cut { position: absolute; display: none; pointer-events: auto; font: inherit; font-size: 12.5px; font-weight: 650; letter-spacing: 0.01em;
     color: #e8eef9; background: rgba(17, 22, 34, 0.9); border: 1px solid rgba(255, 255, 255, 0.24); border-radius: 999px; padding: 5px 13px; cursor: pointer; }
@@ -60,6 +67,7 @@
 <canvas id="marks"></canvas>
 <div id="status"></div>
 <div id="offer"><span id="offer-text"></span><button id="offer-button" type="button">Ask</button></div>
+<div id="consent"><span id="consent-text"></span><button id="consent-yes" type="button">Yes</button><button id="consent-no" class="no" type="button">No</button></div>
 <button id="explode" type="button" title="Spread the parts apart (E)">Explode</button>
 <button id="detail" type="button" title="Ask for a much more detailed version of this model">More detail</button>
 <button id="cut" type="button" title="Cut the model open to see inside">Cut</button>
