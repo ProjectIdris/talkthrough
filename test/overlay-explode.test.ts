@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEPTH_GAIN, EXPLODE_SECONDS, ExplodeValue, SOFT_REACH, USER_SPREAD, depthOf, spreadPosition, userOffsets } from '../src/overlay/explode.ts';
 import type { Part } from '../src/overlay/explode.ts';
-import { HOVER_MARGIN, explodeButtonBox, overModel, wheelFactor } from '../src/overlay/orbit.ts';
+import { HOVER_MARGIN, createHold, explodeButtonBox, overModel, wheelFactor } from '../src/overlay/orbit.ts';
 import { Player, createSilentVoice } from '../src/overlay/player.ts';
 import type { Clock } from '../src/overlay/player.ts';
 import { ZOOM_MAX, ZOOM_MIN } from '../src/overlay/timeline.ts';
@@ -236,4 +236,87 @@ test('a frame grab can show a turned, zoomed, opened view', () => {
   assert.equal(f.userExplode, 1);
   player.seek(modelScene(), 0, 5);
   assert.equal(player.update().userExplode, undefined);
+});
+
+// ---- the window is solid only while something is under the pointer -----------------------------------------
+
+function holdRig() {
+  const sent: boolean[] = [];
+  return { hold: createHold((over) => sent.push(over)), sent };
+}
+const MODEL = { x: 100, y: 100, w: 200, h: 100 };
+
+test('the window goes solid when the pointer reaches the model and lets go when it leaves, saying each only once', () => {
+  const { hold, sent } = holdRig();
+  hold.model(MODEL);
+  hold.pointer(10, 10, false);
+  assert.deepEqual(sent, []);
+  hold.pointer(150, 150, false);
+  hold.pointer(160, 150, false);
+  assert.deepEqual(sent, [true]);
+  hold.pointer(600, 400, false);
+  assert.deepEqual(sent, [true, false]);
+});
+
+test('a model that fades or is cleared under a resting pointer lets the window go at once, and a later beat does not take it back', () => {
+  const { hold, sent } = holdRig();
+  hold.model(MODEL);
+  hold.pointer(150, 150, false);
+  assert.deepEqual(sent, [true]);
+  hold.model(undefined); // the scene faded: draw() reports no model
+  assert.deepEqual(sent, [true, false]);
+  hold.beat();
+  hold.beat();
+  assert.deepEqual(sent, [true, false], 'the beat renews nothing that is no longer true');
+});
+
+test('the beat renews the claim while the pointer is still on the model, and notices when the model has gone even if nothing else said so', () => {
+  const { hold, sent } = holdRig();
+  hold.model(MODEL);
+  hold.pointer(150, 150, false);
+  hold.beat();
+  hold.beat();
+  assert.deepEqual(sent, [true, true, true]);
+  // The model's rectangle moves away from under the pointer (the model was cleared and a smaller one drawn elsewhere).
+  hold.model({ x: 500, y: 300, w: 50, h: 50 });
+  hold.beat();
+  assert.deepEqual(sent.slice(3), [false]);
+});
+
+test("one of the app's own buttons holds the window too, and lets go when it goes away under a resting pointer", () => {
+  const { hold, sent } = holdRig();
+  hold.pointer(900, 500, true);
+  assert.deepEqual(sent, [true]);
+  hold.onHud(false); // the notice faded
+  assert.deepEqual(sent, [true, false]);
+  hold.pointer(900, 500, true);
+  hold.release(); // the button was used and went away
+  assert.deepEqual(sent, [true, false, true, false]);
+});
+
+test('a drag keeps the window solid wherever the pointer goes, and lets go when it ends outside the model', () => {
+  const { hold, sent } = holdRig();
+  hold.model(MODEL);
+  hold.pointer(150, 150, false);
+  hold.drag(true);
+  hold.pointer(900, 600, false);
+  hold.beat();
+  assert.equal(hold.over, true);
+  assert.ok(!sent.includes(false));
+  hold.drag(false);
+  assert.deepEqual(sent.at(-1), false);
+});
+
+test("the first wheel step does not move a scene's own zoom to the person's limits", () => {
+  const { clock, advance } = fakeClock();
+  const player = new Player({ voice: createSilentVoice(), clock });
+  const far = modelScene();
+  (far.steps[0] as { actions: unknown[] }).actions.push({ op: 'zoom', to: 5 }, { op: 'zoom', to: 0.2, at: 0.5, dur: 0.1 });
+  player.play(far);
+  for (let i = 0; i < 80; i++) { advance(100); player.update(); }
+  player.stopIdle();
+  const before = player.update().camera.zoom;
+  assert.ok(Math.abs(before - 0.2) < 1e-6, `${before}`);
+  player.zoomCamera(1.0001);
+  assert.ok(Math.abs(player.update().camera.zoom - before * 1.0001) < 1e-6, 'a scene zoom of 0.2 is left alone');
 });

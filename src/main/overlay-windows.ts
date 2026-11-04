@@ -172,7 +172,15 @@ export function createOverlayManager(options: OverlayOptions) {
 
   /** Back to never taking the keyboard (the overlay is not focusable unless the user is pressing on the model). */
   function releaseKeyboard(overlay: Overlay): void {
-    if (!overlay.window.isDestroyed() && overlay.window.isFocusable()) overlay.window.setFocusable(false);
+    const w = overlay.window;
+    if (w.isDestroyed() || !w.isFocusable()) return;
+    // Windows does not give focus back by itself when a window stops being focusable: step aside first, so whatever was
+    // beneath takes the keyboard again, then make the window unfocusable.
+    try {
+      if (w.isFocused()) w.blur();
+    } finally {
+      w.setFocusable(false);
+    }
   }
 
   function applyMouse(overlay: Overlay): void {

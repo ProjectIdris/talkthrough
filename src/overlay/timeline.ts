@@ -568,9 +568,9 @@ export function settle(plan: StepPlan): Frame {
   return evaluate(plan, Infinity);
 }
 
-/** How far in and out the person may zoom the 3D panel. */
-export const ZOOM_MIN = 0.4;
-export const ZOOM_MAX = 4;
+/** How far in and out the person may zoom the 3D panel: the scene language's own limits, so a wheel step never moves a scene's own zoom. */
+export const ZOOM_MIN = 0.2;
+export const ZOOM_MAX = 5;
 
 /** The camera after a user change: az and el moved by degrees, zoom multiplied, el and zoom kept in range. */
 export function movedCamera(camera: { az: number; el: number; zoom: number }, dAz: number, dEl: number, zoomBy = 1): { az: number; el: number; zoom: number } {

@@ -29,3 +29,63 @@ export function explodeButtonBox(model: Rect, view: { width: number; height: num
   const y = model.y + 6;
   return { x: Math.max(6, Math.min(view.width - size.w - 6, x)), y: Math.max(6, Math.min(view.height - size.h - 6, y)) };
 }
+
+/**
+ * Whether the overlay window should be solid right now, and the page's repeated saying so. The window is solid
+ * while the pointer is on the model (or on one of the app's own buttons), or while the model is being dragged.
+ * It is worked out again every time any of those change, and on every heartbeat, from where the pointer really is
+ * and whether the model is still there; so a model that fades or is cleared under a resting pointer lets go at the
+ * next beat at the latest, and a beat never renews a claim that is no longer true.
+ */
+export function createHold(send: (over: boolean) => void) {
+  let over = false;
+  let x = -1, y = -1;
+  let model: Rect | undefined;
+  let hud = false;
+  let dragging = false;
+  const set = (next: boolean): void => {
+    if (next === over) return;
+    over = next;
+    send(next);
+  };
+  const evaluate = (): void => set(dragging || hud || overModel(model, x, y));
+  return {
+    /** The pointer moved; `onHud` is whether it is over one of the app's own buttons. */
+    pointer(nx: number, ny: number, onHud: boolean): void {
+      x = nx;
+      y = ny;
+      hud = onHud;
+      evaluate();
+    },
+    /** Where the model is now (undefined: there is none, or it is too faint to take the pointer). */
+    model(rect: Rect | undefined): void {
+      model = rect;
+      evaluate();
+    },
+    /** Whether the pointer is over one of the app's own buttons (they come and go under a resting pointer). */
+    onHud(on: boolean): void {
+      hud = on;
+      evaluate();
+    },
+    /** A drag holds the window solid wherever the pointer goes, until it ends. */
+    drag(on: boolean): void {
+      dragging = on;
+      evaluate();
+    },
+    /** The heartbeat: re-check, and renew the claim only if it still holds. */
+    beat(): void {
+      evaluate();
+      if (over) send(true);
+    },
+    /** The app's own button was used and went away: nothing is under the pointer until it moves again. */
+    release(): void {
+      hud = false;
+      x = -1;
+      y = -1;
+      evaluate();
+    },
+    get over(): boolean {
+      return over;
+    },
+  };
+}

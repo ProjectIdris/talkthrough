@@ -14,7 +14,7 @@ import { HudState } from './hud.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import type { Busy } from './labels.ts';
 import { panelRect } from './layout.ts';
-import { explodeButtonBox, overModel, wheelFactor } from './orbit.ts';
+import { createHold, explodeButtonBox, overModel, wheelFactor } from './orbit.ts';
 import { drawMarks } from './marks.ts';
 import type { View } from './marks.ts';
 import { TIERS } from './materials.ts';
@@ -124,7 +124,9 @@ let display: DisplayInfo | undefined;
 let view: View = { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 };
 /** Where the model is on screen (for the pointer), and the stage's frame when it has one. */
 let modelRect: ScreenRect | undefined;
-let interactive = false;
+// Whether the window is solid for the pointer (orbit.ts): worked out from where the pointer is and where the model is.
+const hold = createHold((over) => window.talkthrough.setInteractive(over));
+let pointerX = -1, pointerY = -1;
 let dragging = false;
 let raf = 0;
 let wake: ReturnType<typeof setTimeout> | undefined;
@@ -195,7 +197,8 @@ function draw(frame: Frame): void {
     ...(cropSource() ? { source: cropSource()! } : {}),
   });
   drawPen(marksCtx, pen.view(labelClock()), view);
-  if (!modelRect) setInteractive(hudHover);
+  if (pointerX >= 0) hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY))); // a button can fade under a resting pointer
+  hold.model(modelRect);
 
   if (!milestones.mark && (frame.marks.some((m) => m.appear > 0) || frame.objects.some((o) => o.appear > 0))) {
     milestones.mark = true;
@@ -310,13 +313,6 @@ function request(): void {
   if (!raf) raf = requestAnimationFrame(loop);
 }
 
-function setInteractive(over: boolean): void {
-  if (over === interactive) return;
-  interactive = over;
-  window.talkthrough.setInteractive(over);
-}
-
-let hudHover = false;
 const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl];
 
 /** True for a moment after the pen goes off, so a button released then still ends its stroke. */
@@ -333,16 +329,18 @@ function endPenStroke(): void {
   request();
 }
 
+const overHud = (target: EventTarget | null): boolean => interactiveEls.some((el) => el.style.display !== 'none' && target instanceof Node && el.contains(target));
 document.addEventListener('mousemove', (e) => {
-  hudHover = interactiveEls.some((el) => el.style.display !== 'none' && el.contains(e.target as Node));
-  const onModel = overModel(modelRect, e.clientX, e.clientY);
-  if (onModel || hudHover) {
+  pointerX = e.clientX;
+  pointerY = e.clientY;
+  const hudHover = overHud(e.target);
+  if (overModel(modelRect, e.clientX, e.clientY) || hudHover) {
     if (fader.armed) {
       fader.touch(performance.now());
       request();
     }
   }
-  if (!dragging) setInteractive(onModel || hudHover);
+  hold.pointer(e.clientX, e.clientY, hudHover);
 });
 
 const toScale = (e: PointerEvent): [number, number] => [(e.clientX / view.width) * 1000, (e.clientY / view.height) * 1000];
@@ -364,6 +362,7 @@ document.addEventListener('pointerdown', (e) => {
   }
   if (e.button !== 0 || !overModel(modelRect, e.clientX, e.clientY)) return;
   dragging = true;
+  hold.drag(true);
   player.stopIdle(); // the slow turn stops while the model is held
   window.talkthrough.engage(true);
   document.body.classList.add('dragging');
@@ -393,7 +392,8 @@ const endDrag = (e: PointerEvent): void => {
   } finally {
     dragging = false;
     document.body.classList.remove('dragging');
-    setInteractive(overModel(modelRect, e.clientX, e.clientY) || hudHover);
+    hold.pointer(e.clientX, e.clientY, overHud(document.elementFromPoint(e.clientX, e.clientY)));
+    hold.drag(false);
     request();
   }
 };
@@ -427,26 +427,26 @@ explodeEl.addEventListener('pointerdown', () => window.talkthrough.engage(true))
 explodeEl.addEventListener('click', toggleExplode);
 document.addEventListener('keydown', (e) => {
   if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || (e.key !== 'e' && e.key !== 'E')) return;
-  if (pen.active || !interactive || !modelRect || !player.settled) return;
+  if (pen.active || !hold.over || !modelRect || !player.settled) return;
   e.preventDefault();
   toggleExplode();
 });
 // While the pointer is on the model the page keeps saying so; if the page goes quiet, main lets clicks through again.
+// The buttons come and go under a resting pointer, and the model can fade or be cleared there, so each beat looks again.
 setInterval(() => {
-  if (interactive) window.talkthrough.setInteractive(true);
+  hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY)));
+  hold.beat();
 }, 3000);
 
 offerButton.addEventListener('click', () => {
   hud.dismissOffer();
   window.talkthrough.offer();
-  hudHover = false;
-  setInteractive(false);
+  hold.release();
   request();
 });
 noticeEl.addEventListener('click', () => {
   hud.dismissNotice();
-  hudHover = false;
-  setInteractive(false);
+  hold.release();
   request();
 });
 
