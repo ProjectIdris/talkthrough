@@ -1,0 +1,527 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "Here is one cylinder of a four-stroke engine: the block, the crankshaft and rod, the piston, two valves and a spark plug.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 650,
+          "y": 205,
+          "w": 296,
+          "h": 565
+        },
+        {
+          "op": "orbit",
+          "az": -16,
+          "el": 10,
+          "dur": 0
+        },
+        {
+          "op": "zoom",
+          "to": 1,
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "engine",
+          "pos": [
+            0,
+            -3.6,
+            0
+          ]
+        },
+        {
+          "op": "add",
+          "parent": "engine",
+          "shape": "part",
+          "id": "block",
+          "part": "cylinder-block",
+          "size": [
+            3.6,
+            5,
+            3.2
+          ],
+          "pos": [
+            0,
+            2.9,
+            0
+          ],
+          "variant": "cutaway",
+          "at": 0.1
+        },
+        {
+          "op": "add",
+          "parent": "engine",
+          "shape": "part",
+          "id": "crank",
+          "part": "crankshaft",
+          "size": [
+            3,
+            3,
+            2
+          ],
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "at": 0.7
+        },
+        {
+          "op": "add",
+          "parent": "engine",
+          "shape": "part",
+          "id": "rod",
+          "part": "connecting-rod",
+          "size": [
+            0.7,
+            3.2,
+            0.5
+          ],
+          "pos": [
+            0,
+            1.9,
+            0
+          ],
+          "at": 1.2
+        },
+        {
+          "op": "add",
+          "parent": "engine",
+          "shape": "part",
+          "id": "piston",
+          "part": "piston",
+          "size": [
+            2.2,
+            2,
+            2.2
+          ],
+          "pos": [
+            0,
+            3.34,
+            0
+          ],
+          "at": 1.7
+        },
+        {
+          "op": "add",
+          "parent": "engine",
+          "shape": "part",
+          "id": "valve-in",
+          "part": "valve",
+          "size": [
+            0.7,
+            2.6,
+            0.7
+          ],
+          "pos": [
+            -0.75,
+            6,
+            0
+          ],
+          "at": 2.2
+        },
+        {
+          "op": "add",
+          "parent": "engine",
+          "shape": "part",
+          "id": "valve-ex",
+          "part": "valve",
+          "size": [
+            0.7,
+            2.6,
+            0.7
+          ],
+          "pos": [
+            0.75,
+            6,
+            0
+          ],
+          "at": 2.5
+        },
+        {
+          "op": "add",
+          "parent": "engine",
+          "shape": "part",
+          "id": "cam-in",
+          "part": "camshaft",
+          "size": [
+            1.3,
+            1.3,
+            0.8
+          ],
+          "pos": [
+            -0.75,
+            7.59,
+            0
+          ],
+          "n": 1,
+          "rot": [
+            0,
+            0,
+            135
+          ],
+          "at": 2.9
+        },
+        {
+          "op": "add",
+          "parent": "engine",
+          "shape": "part",
+          "id": "cam-ex",
+          "part": "camshaft",
+          "size": [
+            1.3,
+            1.3,
+            0.8
+          ],
+          "pos": [
+            0.75,
+            7.59,
+            0
+          ],
+          "n": 1,
+          "rot": [
+            0,
+            0,
+            -135
+          ],
+          "at": 3.1
+        }
+      ]
+    },
+    {
+      "say": "A spark plug sits at the top, and two glowing shapes stand ready: the spark, and the burning gas.",
+      "actions": [
+        {
+          "op": "add",
+          "parent": "engine",
+          "shape": "part",
+          "id": "plug",
+          "part": "spark-plug",
+          "size": [
+            0.5,
+            1.8,
+            0.5
+          ],
+          "pos": [
+            0,
+            5.9,
+            0
+          ],
+          "at": 0.1
+        },
+        {
+          "op": "add",
+          "parent": "engine",
+          "shape": "sphere",
+          "id": "burn",
+          "size": [
+            1.9,
+            1.9,
+            1.9
+          ],
+          "pos": [
+            0,
+            4.3,
+            0
+          ],
+          "color": "orange",
+          "material": "glow",
+          "opacity": 0.75,
+          "edges": false
+        },
+        {
+          "op": "add",
+          "parent": "engine",
+          "shape": "sphere",
+          "id": "spark",
+          "size": [
+            0.55,
+            0.55,
+            0.55
+          ],
+          "pos": [
+            0,
+            5.05,
+            0
+          ],
+          "color": "white",
+          "material": "glow",
+          "opacity": 1,
+          "edges": false
+        },
+        {
+          "op": "crank",
+          "id": "piston",
+          "shaft": "crank",
+          "rod": "rod"
+        },
+        {
+          "op": "spin",
+          "id": "cam-in",
+          "by": "crank",
+          "ratio": 0.5
+        },
+        {
+          "op": "spin",
+          "id": "cam-ex",
+          "by": "crank",
+          "ratio": 0.5
+        },
+        {
+          "op": "cam",
+          "id": "valve-in",
+          "by": "cam-in",
+          "lift": 0.26,
+          "open": 110
+        },
+        {
+          "op": "cam",
+          "id": "valve-ex",
+          "by": "cam-ex",
+          "lift": 0.26,
+          "open": 110
+        },
+        {
+          "op": "flash",
+          "id": "burn",
+          "by": "crank",
+          "angle": 360,
+          "span": 170
+        },
+        {
+          "op": "flash",
+          "id": "spark",
+          "by": "crank",
+          "angle": 345,
+          "span": 28
+        },
+        {
+          "op": "pin",
+          "id": "p-piston",
+          "on": "piston",
+          "anchor": "crown",
+          "text": "Piston",
+          "off": [
+            -120,
+            -30
+          ],
+          "at": 1.2
+        },
+        {
+          "op": "pin",
+          "id": "p-crank",
+          "on": "crank",
+          "anchor": "throw",
+          "text": "Crankshaft",
+          "off": [
+            -120,
+            60
+          ],
+          "at": 1.5
+        },
+        {
+          "op": "pin",
+          "id": "p-plug",
+          "on": "plug",
+          "anchor": "terminal",
+          "text": "Spark plug",
+          "off": [
+            110,
+            -10
+          ],
+          "at": 1.8
+        }
+      ]
+    },
+    {
+      "say": "Intake: the piston drops, and the open valve draws in fuel.",
+      "actions": [
+        {
+          "op": "spin",
+          "id": "crank",
+          "rpm": 6,
+          "dur": 0
+        },
+        {
+          "op": "card",
+          "id": "card1",
+          "x": 656,
+          "y": 152,
+          "w": 285,
+          "title": "1  Intake",
+          "color": "blue",
+          "at": 0.1
+        },
+        {
+          "op": "add",
+          "shape": "arrow",
+          "id": "flow-in",
+          "pts": [
+            [
+              -3.2,
+              9,
+              0
+            ],
+            [
+              -0.75,
+              6.6,
+              0
+            ]
+          ],
+          "color": "blue",
+          "parent": "engine",
+          "at": 0.2
+        },
+        {
+          "op": "highlight",
+          "id": "piston",
+          "at": 4.4,
+          "dur": 0.6
+        }
+      ]
+    },
+    {
+      "say": "Compression: both valves close and the rising piston squeezes the mixture.",
+      "actions": [
+        {
+          "op": "clear",
+          "target": "card1",
+          "at": 0
+        },
+        {
+          "op": "card",
+          "id": "card2",
+          "x": 656,
+          "y": 152,
+          "w": 285,
+          "title": "2  Compression",
+          "color": "blue",
+          "at": 0.1
+        },
+        {
+          "op": "clear",
+          "target": "flow-in",
+          "at": 0
+        },
+        {
+          "op": "highlight",
+          "id": "piston",
+          "at": 4.4,
+          "dur": 0.6
+        }
+      ]
+    },
+    {
+      "say": "Power: the spark fires, the mixture burns and drives the piston down.",
+      "actions": [
+        {
+          "op": "clear",
+          "target": "card2",
+          "at": 0
+        },
+        {
+          "op": "card",
+          "id": "card3",
+          "x": 656,
+          "y": 152,
+          "w": 285,
+          "title": "3  Power",
+          "color": "blue",
+          "at": 0.1
+        },
+        {
+          "op": "highlight",
+          "id": "piston",
+          "at": 4.4,
+          "dur": 0.6
+        }
+      ]
+    },
+    {
+      "say": "Exhaust: the piston rises and pushes the burnt gas out.",
+      "actions": [
+        {
+          "op": "clear",
+          "target": "card3",
+          "at": 0
+        },
+        {
+          "op": "card",
+          "id": "card4",
+          "x": 656,
+          "y": 152,
+          "w": 285,
+          "title": "4  Exhaust",
+          "color": "blue",
+          "at": 0.1
+        },
+        {
+          "op": "add",
+          "shape": "arrow",
+          "id": "flow-out",
+          "pts": [
+            [
+              0.75,
+              6.6,
+              0
+            ],
+            [
+              3.2,
+              9,
+              0
+            ]
+          ],
+          "color": "gray",
+          "parent": "engine",
+          "at": 0.2
+        },
+        {
+          "op": "highlight",
+          "id": "piston",
+          "at": 4.4,
+          "dur": 0.6
+        }
+      ]
+    },
+    {
+      "say": "That is one cycle, two turns of the crankshaft. Now it idles; drag it round, or pull it apart to look closer.",
+      "actions": [
+        {
+          "op": "clear",
+          "target": "card4",
+          "at": 0
+        },
+        {
+          "op": "clear",
+          "target": "flow-out",
+          "at": 0
+        },
+        {
+          "op": "spin",
+          "id": "crank",
+          "rpm": 15,
+          "dur": 1.5
+        },
+        {
+          "op": "card",
+          "id": "card5",
+          "x": 656,
+          "y": 152,
+          "w": 285,
+          "title": "Two turns, four strokes",
+          "color": "blue",
+          "at": 0.1
+        },
+        {
+          "op": "orbit",
+          "az": 12,
+          "el": 14,
+          "dur": 5
+        }
+      ]
+    }
+  ]
+}

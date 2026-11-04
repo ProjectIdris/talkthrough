@@ -145,6 +145,53 @@ test('every mark of every sample draws, hidden and fully faded ones draw nothing
   assert.ok(!faded.calls.some((c) => c.startsWith('stroke') || c.startsWith('fill')));
 });
 
+/** Records each stroke with the colour (so its alpha) and dash it was made with. */
+function strokeRecorder() {
+  const strokes: Array<{ style: string; dash: number[]; offset: number }> = [];
+  let style = '';
+  let dash: number[] = [];
+  let offset = 0;
+  const target: Record<string, unknown> = {
+    canvas: {}, measureText: () => ({ width: 100 }),
+    setLineDash: (d: number[]) => { dash = d; },
+    stroke: () => { strokes.push({ style, dash, offset }); },
+  };
+  const ctx = new Proxy(target, {
+    get(t, key: string) { return key in t ? t[key] : () => {}; },
+    set(t, key: string, value: unknown) {
+      if (key === 'strokeStyle') style = String(value);
+      if (key === 'lineDashOffset') offset = Number(value);
+      t[key] = value;
+      return true;
+    },
+  });
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, strokes };
+}
+const alphaOf = (style: string): number => Number(/,\s*([\d.]+)\)$/.exec(style)?.[1] ?? 'NaN');
+
+test('a stroke mark is drawn along like a pen: the end of it feathers, a finished one is one plain stroke, and reduced motion skips the drawing', () => {
+  const under = { op: 'underline', id: 'u', x: 100, y: 500, w: 600, color: 'red' };
+  const frame = (t: number) => frameAt([{ say: '', actions: [under] }], 0, t);
+  const view = { width: 1920, height: 1080, dpr: 1 };
+  const done = strokeRecorder();
+  drawMarks(done.ctx, frame(5).marks, view);
+  assert.equal(done.strokes.length, 2, 'a halo and the line, whole');
+  const part = strokeRecorder();
+  const partial = frame(0.4).marks;
+  assert.ok((partial[0]?.appear ?? 1) < 1);
+  drawMarks(part.ctx, partial, view);
+  const main = part.strokes.filter((s) => alphaOf(s.style) > 0 && !s.style.startsWith('rgba(0,0,0'));
+  assert.ok(main.length >= 6, `the drawn part is a body and feathered bands, got ${main.length}`);
+  const alphas = main.map((s) => alphaOf(s.style));
+  assert.ok(alphas[0] === 1 && alphas[alphas.length - 1]! < 0.3 && alphas.every((a, i) => i === 0 || a <= alphas[i - 1]! + 1e-9), alphas.join(' '));
+  // the bands run on from each other along the line
+  const ends = main.map((s) => -s.offset + (s.dash[0] ?? 0));
+  assert.ok(Math.max(...ends) < 600 && Math.max(...ends) > 100, ends.join(' '));
+  const still = strokeRecorder();
+  drawMarks(still.ctx, partial, view, undefined, { reduceMotion: true });
+  assert.equal(still.strokes.length, 2, 'with reduced motion the line is whole from the start');
+});
+
 test('a box is drawn where the scene says, across the whole display', () => {
   const frame = frameAt([{ say: '', actions: [{ op: 'box', id: 'b', x: 500, y: 250, w: 100, h: 500, color: 'red' }] }], 0, 5);
   const { ctx, calls } = recordingContext();

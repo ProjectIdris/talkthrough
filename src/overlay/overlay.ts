@@ -153,6 +153,10 @@ const clampRect = (r: ScreenRect, pad: number): ScreenRect => {
   return { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0) };
 };
 
+/** The system's "reduce motion" setting: marks then appear in one step instead of being drawn along like a pen stroke. */
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+reduceMotion.addEventListener('change', () => request());
+
 function draw(frame: Frame): void {
   renderer.setScissorTest(false);
   renderer.clear();
@@ -195,7 +199,7 @@ function draw(frame: Frame): void {
     place: (key, request) => board.place(key, request, labelEnvironment),
     project: (key, point, anchor) => panelScene.project(key, point, view.width, view.height, anchor),
     ...(cropSource() ? { source: cropSource()! } : {}),
-  });
+  }, { reduceMotion: reduceMotion.matches });
   drawPen(marksCtx, pen.view(labelClock()), view);
   if (pointerX >= 0) hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY))); // a button can fade under a resting pointer
   hold.model(modelRect);

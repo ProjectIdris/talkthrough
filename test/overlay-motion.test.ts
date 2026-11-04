@@ -79,9 +79,9 @@ test('a crank holds the piston on its stroke and the rod joins the crank pin to 
     const f = evaluate(plan, deg / 60); // 10 rpm is 60 degrees a second
     near(rotZ(f, 'crank'), deg);
     const a = (deg * Math.PI) / 180;
-    const pin = [-Math.sin(a) * r, -2 + Math.cos(a) * r];
+    const pin = [-Math.sin(a) * r, -2 + Math.cos(a) * r] as [number, number];
     const p = posOf(f, 'piston');
-    const wrist = [p[0], p[1] + drop];
+    const wrist = [p[0], p[1] + drop] as [number, number];
     const rp = posOf(f, 'rod');
     const tilt = ((obj(f, 'rod')?.pose?.rot?.[2] ?? 0) * Math.PI) / 180;
     // the rod's big end sits on the crank pin and its small end on the wrist pin

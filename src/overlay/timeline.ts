@@ -194,7 +194,8 @@ function focusAt(tr: FocusTrack, t: number): FocusFrame {
 
 // ---- Instances ------------------------------------------------------------------------------
 
-type Life = { bornAt: number; diedAt: number | undefined };
+/** `grow` and `wipe` are the seconds a mark takes to be drawn on and to be wiped off, when they are not the usual ones (strokes are drawn like a pen). */
+type Life = { bornAt: number; diedAt: number | undefined; grow?: number; wipe?: number };
 
 type MarkInst = Life & { key: number; id: string; mark: Mark; color: Track; opacity: Track; tinted: boolean; onKey?: number };
 type ObjInst = Life & {
@@ -226,15 +227,29 @@ function aliveAt(l: Life, t: number): boolean {
 }
 
 function appearOf(l: Life, t: number): number {
-  return ease(progress(t, l.bornAt, APPEAR_SECONDS));
+  return ease(progress(t, l.bornAt, l.grow ?? APPEAR_SECONDS));
 }
 
 function fadeOf(l: Life, t: number): number {
-  return l.diedAt === undefined ? 1 : 1 - progress(t, l.diedAt, FADE_OUT_SECONDS);
+  return l.diedAt === undefined ? 1 : 1 - progress(t, l.diedAt, l.wipe ?? FADE_OUT_SECONDS);
 }
 
 function visibleAt(l: Life, t: number): boolean {
-  return l.bornAt <= t && (l.diedAt === undefined || t < l.diedAt + FADE_OUT_SECONDS);
+  return l.bornAt <= t && (l.diedAt === undefined || t < l.diedAt + (l.wipe ?? FADE_OUT_SECONDS));
+}
+
+/** A box, circle, underline or arrow is drawn on like a stroke of a pen: a longer line takes longer, 0.8 to 1.2 seconds. */
+export const STROKE_WIPE_SECONDS = 0.5;
+export function strokeSeconds(mark: Mark): number | undefined {
+  let length: number;
+  switch (mark.op) {
+    case 'box': length = 2 * (mark.w + mark.h); break;
+    case 'circle': length = Math.PI * (mark.w + mark.h) * 0.75; break;
+    case 'underline': length = mark.w; break;
+    case 'arrow': length = Math.hypot(mark.x2 - mark.x1, mark.y2 - mark.y1); break;
+    default: return undefined;
+  }
+  return Math.max(0.8, Math.min(1.2, 0.7 + length / 3000));
 }
 
 // ---- Planning -------------------------------------------------------------------------------
@@ -251,6 +266,7 @@ export function planStep(base: Frame, step: Step): StepPlan {
   for (const m of base.marks) {
     plan.marks.push({
       key: m.key, id: m.id, mark: m.mark, bornAt: NEVER, diedAt: undefined,
+      ...(strokeSeconds(m.mark) !== undefined ? { grow: strokeSeconds(m.mark), wipe: STROKE_WIPE_SECONDS } : {}),
       color: track(m.color), opacity: track([m.opacity]), tinted: m.tinted, ...(m.onKey !== undefined ? { onKey: m.onKey } : {}),
     });
   }
@@ -297,7 +313,7 @@ function ensurePanel(plan: StepPlan, at: number): void {
 
 function kill(plan: StepPlan, l: Life, at: number): void {
   if (l.diedAt === undefined || l.diedAt > at) l.diedAt = at;
-  plan.duration = Math.max(plan.duration, at + FADE_OUT_SECONDS);
+  plan.duration = Math.max(plan.duration, at + (l.wipe ?? FADE_OUT_SECONDS));
 }
 
 function descendants(plan: StepPlan, rootKey: number, at: number): ObjInst[] {
@@ -330,12 +346,14 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
         if (!host) return;
         onKey = host.key;
       }
+      const grow = strokeSeconds(a);
       plan.marks.push({
         key: plan.nextKey++, id: a.id, mark: a, bornAt: at, diedAt: undefined,
         color: track(parseColor(color)), opacity: track([1]), tinted: color !== undefined,
         ...(onKey !== undefined ? { onKey } : {}),
+        ...(grow !== undefined ? { grow, wipe: STROKE_WIPE_SECONDS } : {}),
       });
-      end(APPEAR_SECONDS);
+      end(grow ?? APPEAR_SECONDS);
       return;
     }
     case 'panel': {
