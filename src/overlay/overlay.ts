@@ -292,7 +292,15 @@ function cropSource(): { image: CanvasImageSource; width: number; height: number
 const board = new LabelBoard();
 /** The ids of the marks that belong to a flat diagram (placement.ts): drawn over its card, where the rest stay under it. */
 const ownedMarks = new Set<string>();
-const diagramPainter = new DiagramPainter();
+const diagramPainter = new DiagramPainter({
+  // A flow card that had to grow is placed again for its new size, off the page's text and figures (placement.ts).
+  regrow: (id, want) => {
+    const p = placer();
+    if (!p) return want;
+    const placed = p.regrow(id, { x: (want.x / view.width) * 1000, y: (want.y / view.height) * 1000, w: (want.w / view.width) * 1000, h: (want.h / view.height) * 1000 });
+    return placed ? { x: (placed.x / 1000) * view.width, y: (placed.y / 1000) * view.height, w: (placed.w / 1000) * view.width, h: (placed.h / 1000) * view.height } : undefined;
+  },
+});
 let diagramsMoving = false;
 const pen = new PenLayer();
 // Frame grabs (seek) step a clock of their own, one thirtieth of a second a grab, so a clip's tags move at the clip's pace.

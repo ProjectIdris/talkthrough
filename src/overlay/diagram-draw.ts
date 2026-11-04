@@ -82,6 +82,14 @@ type Env = { ctx: Ctx; view: View; alpha: number; accent: Rgb; px: number; paint
 /** Draws diagrams, remembering where each piece was last put so a re-layout glides. One per canvas. */
 export class DiagramPainter {
   private cur = new Map<string, Px>();
+  /** The place a grown flow card was given (and the size asked for), so the page is not searched again every frame. */
+  private grown = new Map<string, { asked: string; got: Px | undefined }>();
+  private grownLive = new Set<string>();
+  /** Where a flow card that has to grow goes: the page finds a free place for its new size (pixels in, pixels out; undefined: stay as it was). */
+  private readonly options: { regrow?: (id: string, want: Px) => Px | undefined };
+  constructor(options: { regrow?: (id: string, want: Px) => Px | undefined } = {}) {
+    this.options = options;
+  }
   private last: number | undefined;
   moving = false;
 
@@ -110,6 +118,7 @@ export class DiagramPainter {
     const dt = this.last === undefined ? 0 : Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     this.moving = false;
+    this.grownLive.clear();
     const seen = new Set<string>();
     for (const d of diagrams) {
       const alpha = Math.max(0, Math.min(1, d.opacity * d.fade));
@@ -123,6 +132,7 @@ export class DiagramPainter {
       }
     }
     for (const key of [...this.cur.keys()]) if (!seen.has(key)) this.cur.delete(key);
+    for (const key of [...this.grown.keys()]) if (!this.grownLive.has(key)) this.grown.delete(key);
     return this.moving;
   }
 
@@ -144,7 +154,19 @@ export class DiagramPainter {
       return flowReadable(flowLayout(inputs.ids, inputs.edges, area, { ...inputs.options, pad }), { w: base * FLOW_NODE_LEAST.w, h: base * FLOW_NODE_LEAST.h });
     };
     const f = flowGrowth(readable, limit);
-    return f === undefined ? r0 : at(f);
+    if (f === undefined) return r0;
+    const want = at(f);
+    const regrow = this.options.regrow;
+    if (!regrow || f === 1) return want;
+    // The grown card goes where the page has room for it, not just around where it was.
+    const asked = `${Math.round(want.x)},${Math.round(want.y)},${Math.round(want.w)},${Math.round(want.h)}`;
+    this.grownLive.add(String(d.key));
+    let memo = this.grown.get(String(d.key));
+    if (!memo || memo.asked !== asked) {
+      memo = { asked, got: regrow(d.def.id, want) };
+      this.grown.set(String(d.key), memo);
+    }
+    return memo.got ?? r0;
   }
 
   private one(ctx: Ctx, d: DiagramFrame, view: View, alpha: number, dt: number, seen: Set<string>): void {
