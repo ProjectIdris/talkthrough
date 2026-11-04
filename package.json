@@ -13,7 +13,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.mjs",
-    "start": "npm run build && electron .",
+    "start": "node scripts/start.mjs",
     "test": "node --test \"test/*.test.ts\""
   },
   "dependencies": {

@@ -33,7 +33,11 @@ export type DisplayInfo = {
  * display that was captured, so the renderer needs no other mapping.
  */
 export type SceneMessage =
-  /** Play a validated scene in real time, speaking each step. A new play replaces the old one. */
+  /**
+   * Play a validated scene in real time, speaking each step. Turn 1 starts a fresh scene (anything
+   * drawn before is removed first); a later turn continues the same scene, so ids from earlier turns
+   * stay reachable and what is on screen stays.
+   */
   | { kind: 'play'; scene: Scene; turn: number }
   /** Remove everything drawn and stop speaking. */
   | { kind: 'clear' }
@@ -42,6 +46,24 @@ export type SceneMessage =
    * (earlier steps complete), with no speech. Once painted, answer with `rendered(token)`.
    */
   | { kind: 'seek'; scene: Scene; step: number; t: number; token: number };
+
+
+/** What the hidden audio page records while the chord is held: mono, 16 kHz, floats in -1..1. */
+export type MicResult = { samples: Float32Array; sampleRate: 16000; durationMs: number; startLatencyMs: number };
+
+export const AUDIO_CHANNEL = {
+  start: 'tt:mic-start',
+  stop: 'tt:mic-stop',
+  result: 'tt:mic-result',
+  error: 'tt:mic-error',
+} as const;
+
+export interface TalkthroughAudioApi {
+  onStart(listener: () => void): void;
+  onStop(listener: () => void): void;
+  result(result: MicResult): void;
+  error(message: string): void;
+}
 
 export interface TalkthroughApi {
   /** Tell main the page is ready; main answers with onDisplay. */
@@ -57,5 +79,6 @@ export interface TalkthroughApi {
 declare global {
   interface Window {
     talkthrough: TalkthroughApi;
+    talkthroughAudio: TalkthroughAudioApi;
   }
 }
