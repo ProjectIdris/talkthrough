@@ -107,3 +107,51 @@ test('an answer that puts a part under what used to hold it cannot make a loop o
     for (let p = n?.parent; p; p = p.parent) assert.ok(++depth < 20, 'the three.js graph has a loop');
   }
 });
+
+const rotor = (extra: object = {}, blades = 3) => [
+  { op: 'panel', x: 100, y: 100, w: 400, h: 400 },
+  { op: 'add', shape: 'group', id: 'rotor', ...extra },
+  { op: 'add', shape: 'box', id: 'blade', parent: 'rotor', size: [1, 3, 0.2], pos: [0, 1.5, 0] },
+  { op: 'add', shape: 'array', id: 'blades', of: 'blade', count: blades, turn: [0, 0, 360 / blades] },
+];
+
+test('an array written again does not double its copies: the old group and copies go, the new one is built', () => {
+  const base = settle(planStep(emptyFrame(), step(...rotor())), 2);
+  const aliveIds = (f: Frame) => f.objects.map((o) => o.id);
+  assert.equal(aliveIds(base).filter((id) => id.startsWith('blades#')).length, 2 + 2, '3 blades: two pivots and two copies');
+  const plan = planStep(base, step(
+    { op: 'add', shape: 'group', id: 'rotor' },
+    { op: 'add', shape: 'box', id: 'blade', parent: 'rotor', size: [1, 3, 0.3], pos: [0, 1.5, 0] },
+    { op: 'add', shape: 'array', id: 'blades', of: 'blade', count: 4, turn: [0, 0, 90] },
+  ));
+  const done = evaluate(plan, REPLACE_SECONDS + 0.1);
+  const ids = aliveIds(done);
+  assert.equal(new Set(ids).size, ids.length, `no id twice: ${ids.join(' ')}`);
+  assert.equal(ids.filter((id) => id === 'blades').length, 1);
+  assert.equal(ids.filter((id) => /^blades#\d+$/.test(id)).length, 3, 'four blades: three pivots');
+  const group = done.objects.find((o) => o.id === 'blades')!;
+  const blade = done.objects.find((o) => o.id === 'blade')!;
+  assert.equal(blade.parentKey, group.key, 'the written-again blade is the first of the new array');
+  assert.equal(group.parentKey, done.objects.find((o) => o.id === 'rotor')!.key, 'and the array sits in the rotor, not in the array it replaced');
+});
+
+test('a replacement starts where the old object had got to unless it says otherwise', () => {
+  const base = settle(planStep(emptyFrame(), step(...rotor(), { op: 'move', id: 'rotor', to: [3, 0, 0], dur: 0 }, { op: 'turn', id: 'rotor', to: [0, 40, 0], dur: 0 }, { op: 'scale', id: 'rotor', to: [2, 2, 2], dur: 0 })), 2);
+  const at0 = (extra: object) => evaluate(planStep(base, step({ op: 'add', shape: 'group', id: 'rotor', ...extra })), 0.01).objects.find((o) => o.id === 'rotor' && o.appear < 1)!;
+  const kept = at0({});
+  assert.deepEqual(kept.pos, [3, 0, 0]);
+  assert.deepEqual(kept.rot, [0, 40, 0]);
+  assert.deepEqual(kept.scale, [2, 2, 2]);
+  assert.deepEqual(at0({ pos: [1, 1, 1] }).pos, [1, 1, 1], 'an explicit position wins');
+});
+
+test('a tag or mark added again keeps its key, so the label board keeps its place and shows one', () => {
+  const base = settle(planStep(emptyFrame(), step({ op: 'add', shape: 'box', id: 'b', size: [1, 1, 1] }, { op: 'pin', id: 'p', on: 'b', text: 'old' })), 2);
+  const key = base.marks.find((m) => m.id === 'p')!.key;
+  const plan = planStep(base, step({ op: 'pin', id: 'p', on: 'b', text: 'new' }));
+  for (const t of [0.1, 0.3, 1]) {
+    const pins = evaluate(plan, t).marks.filter((m) => m.id === 'p');
+    assert.equal(pins.length, 1);
+    assert.equal(pins[0]!.key, key);
+  }
+});

@@ -347,13 +347,11 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
         onKey = host.key;
       }
       const grow = strokeSeconds(a);
+      // A mark or tag added again under its id takes the old one's place (and key, so a tag keeps its spot on the board).
       const was = lookup(plan.marks, a.id, at);
-      if (was) {
-        was.diedAt = at;
-        was.wipe = was.wipe ?? REPLACE_SECONDS;
-      }
+      if (was) plan.marks.splice(plan.marks.indexOf(was), 1);
       plan.marks.push({
-        key: plan.nextKey++, id: a.id, mark: a, bornAt: at, diedAt: undefined,
+        key: was ? was.key : plan.nextKey++, id: a.id, mark: a, bornAt: at, diedAt: undefined,
         color: track(parseColor(color)), opacity: track([1]), tinted: color !== undefined,
         ...(onKey !== undefined ? { onKey } : {}),
         ...(grow !== undefined ? { grow, wipe: STROKE_WIPE_SECONDS } : {}),
@@ -534,6 +532,11 @@ function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number)
   old.wipe = REPLACE_SECONDS;
   fresh.grow = REPLACE_SECONDS;
   fresh.spread = track(valueAt(old.spread, at));
+  // It starts where the old one had got to (moved, turned, scaled), unless the new one says where it goes.
+  const given = fresh.def as { pos?: Vec3; rot?: Vec3 };
+  if (!given.pos) fresh.pos = track(valueAt(old.pos, at));
+  if (!given.rot) fresh.rot = track(valueAt(old.rot, at));
+  fresh.scale = track(valueAt(old.scale, at));
   // What hung from the old one hangs from the new, except what the new one itself hangs from (an answer can add a part and then
   // its former holder under it): that would make a loop, so it takes the old one's place in the old one's holder.
   const above = new Set<number>();
@@ -562,11 +565,26 @@ function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number)
 function addArray(plan: StepPlan, a: Extract<AddAction, { shape: 'array' }>, at: number): void {
   const of = lookup(plan.objs, a.of, at);
   if (!of) return;
+  // An array written again: the old group and its generated copies go (fading out), while the original, however it came
+  // to be written again, joins the new group; the rest of what is below the old group, which the answer does not write again, goes too.
+  const before = lookup(plan.objs, a.id, at);
+  let holder = of.parentKey;
+  if (before) {
+    const keep = new Set([of.key, ...descendants(plan, of.key, at).map((d) => d.key)]);
+    for (const d of [before, ...descendants(plan, before.key, at)]) {
+      if (keep.has(d.key)) continue;
+      d.diedAt = at;
+      d.wipe = REPLACE_SECONDS;
+    }
+    if (holder === before.key) holder = before.parentKey;
+    plan.duration = Math.max(plan.duration, at + REPLACE_SECONDS);
+  }
   const group: ObjInst = {
-    key: plan.nextKey++, id: a.id, parentKey: of.parentKey, def: { op: 'add', shape: 'group', id: a.id } as AddAction,
+    key: plan.nextKey++, id: a.id, parentKey: holder, def: { op: 'add', shape: 'group', id: a.id } as AddAction,
     bornAt: of.bornAt, diedAt: undefined,
     pos: track([0, 0, 0]), rot: track([0, 0, 0]), scale: track([1, 1, 1]), color: track([255, 255, 255]), opacity: track([1]),
     draw: track([1]), spread: track([0]),
+    ...(before ? { grow: REPLACE_SECONDS } : {}),
   };
   plan.objs.push(group);
   const subtree = [of, ...descendants(plan, of.key, at)];
