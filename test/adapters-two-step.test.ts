@@ -30,14 +30,15 @@ function onFake(env: Record<string, string>, log: (m: string) => void = () => un
   return { model: createTwoStepModel(inner, { log }), done: async () => { for (const k of Object.keys(env)) delete process.env[k]; await inner.close?.(); } };
 }
 
-test('what each half is told: the first asks for step 1 alone (the walk checklist moves to step 2), the second is given step 1 and asks for the rest', () => {
+test('what each half is told: the first asks for step 1 alone (about 25 words), the second is given step 1 and asks for the rest', () => {
   const first = questionText({ ...request, stage: { part: 'first' } });
   assert.match(first, /Write only step 1 now/);
-  assert.match(first, /checklist, which is drawn in step 2/);
+  assert.match(first, /about 25 words/);
   const rest = questionText({ ...request, stage: { part: 'rest', first: { say: 'Hello.', actions: [] } } });
   assert.match(rest, /Step 1 of this answer is already drawn and spoken: \{"say":"Hello\.","actions":\[\]\}/);
   assert.match(rest, /from step 2 onward/);
-  assert.match(rest, /draws the checklist/);
+  assert.match(rest, /only to point at something your own step names/);
+  assert.match(rest, /never over its text or its settings and controls/);
   assert.ok(!/Write only step 1/.test(rest) && !/Step 1 of this answer/.test(questionText(request)), 'a plain question carries neither');
 });
 
