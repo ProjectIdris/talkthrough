@@ -2,6 +2,7 @@
 // It reads data and builds fresh objects from known fields. It never evaluates, imports,
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
+import { nearestPaletteColor } from './colors.ts';
 import { ID_PATTERN, LIMITS, PALETTE, RESERVED_IDS, VARIANTS } from './spec.ts';
 import type { Field, ObjectKind, Variant } from './spec.ts';
 import type { Action, Issue, IssueKind, Scene, Step } from './types.ts';
@@ -115,6 +116,14 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       return typeof v === 'string' ? cleanText(v, f.min, f.max, path, notes) : bad('expected text');
     case 'color':
       if (typeof v === 'string' && ((PALETTE as readonly string[]).includes(v) || HEX.test(v))) return good(v);
+      if (typeof v === 'string') {
+        // A colour name the palette lacks ("gold", "navy") is read as the nearest palette colour.
+        const near = nearestPaletteColor(v.slice(0, 40));
+        if (near) {
+          note(notes, 'trimmed', path, `colour "${v.slice(0, 40)}" read as ${near}`);
+          return good(near);
+        }
+      }
       return bad('unknown colour');
     case 'enum':
       return typeof v === 'string' && f.values.includes(v) ? good(v) : bad(`expected one of ${f.values.join(', ')}`);

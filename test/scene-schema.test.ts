@@ -76,3 +76,12 @@ test('the schema files in docs are what this code builds', () => {
     assert.deepEqual(onDisk, JSON.parse(JSON.stringify(built)), `run: node scripts/build-schema.ts (${file})`);
   }
 });
+
+test('the guide asks for a short first step and its example keeps to it', () => {
+  // The first step is what the person waits for: a long one (a whole 3D model) held the first mark back for 17 s.
+  assert.ok(sceneGuide.includes('Step 1 is short'));
+  const steps = (sceneGuideExample as { steps: { say: string; actions: unknown[] }[] }).steps;
+  assert.ok((steps[0]?.actions.length ?? 99) <= 2, 'the first step of the example has one or two marks');
+  assert.ok((steps[0]?.say.length ?? 999) <= 90, 'and one short sentence');
+  assert.ok(JSON.stringify(sceneGuideExample).length < 1200, 'the example stays lean');
+});

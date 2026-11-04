@@ -6,9 +6,11 @@
 // previous step settled in (evaluate at Infinity), so ids, positions and the camera carry over,
 // including across follow-up questions.
 
+import { PALETTE_RGB } from '../scene/colors.ts';
+import type { Rgb } from '../scene/colors.ts';
 import type { Action, AddAction, Mark, Step, Vec3 } from '../scene/types.ts';
 
-export type Rgb = [number, number, number];
+export type { Rgb };
 export type Rect = { x: number; y: number; w: number; h: number };
 
 export const APPEAR_SECONDS = 0.4;
@@ -19,11 +21,6 @@ export const DEFAULT_CAMERA = { az: 0, el: 15, zoom: 1 } as const;
 /** How fast the samples' speech is assumed to run, for timing without a voice. */
 export const WORDS_PER_SECOND = 2.5;
 
-const PALETTE_RGB: Record<string, Rgb> = {
-  red: [255, 59, 71], orange: [255, 159, 26], yellow: [255, 214, 10], green: [46, 213, 115],
-  teal: [25, 199, 184], blue: [59, 130, 246], purple: [168, 85, 247], pink: [255, 107, 181],
-  white: [255, 255, 255], gray: [154, 164, 178], black: [17, 21, 28],
-};
 
 /** The colour a 3D object has when the scene does not give one, by its surface. */
 export const MATERIAL_COLOR: Record<string, Rgb> = {

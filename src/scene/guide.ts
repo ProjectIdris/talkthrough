@@ -17,23 +17,22 @@ function fieldList(v: Variant): string {
 const EXAMPLE = {
   steps: [
     {
-      say: 'This table lists your orders. The total is in the last column.',
+      say: 'This table lists your orders; the total is in the last column.',
       actions: [
         { op: 'box', id: 'orders', x: 120, y: 260, w: 700, h: 300, color: 'blue' },
         { op: 'circle', id: 'total', x: 700, y: 260, w: 120, h: 80, color: 'red', at: 1.5 },
       ],
     },
     {
-      say: 'Here is the board a camera plugs into, with its chip and its pins.',
+      say: 'Here is a spring pushing a pin down into a slot, which is how a simple door bolt works.',
       actions: [
         { op: 'panel', x: 560, y: 200, w: 420, h: 460 },
-        { op: 'add', shape: 'group', id: 'board' },
-        { op: 'add', shape: 'box', id: 'pcb', parent: 'board', size: [10, 0.2, 6], material: 'pcb', color: '#17803f' },
-        { op: 'add', shape: 'part', id: 'chip', parent: 'board', part: 'chip', variant: 'metal', size: [2, 0.3, 2], pos: [0, 0.25, 0], at: 0.3 },
-        { op: 'add', shape: 'part', id: 'pins', parent: 'board', part: 'header', size: [6, 1, 0.6], n: 20, pos: [0, 0.6, -2.5], at: 0.4 },
-        { op: 'explode', id: 'board', to: 0.6, dur: 0 },
-        { op: 'explode', id: 'board', to: 0, at: 0.8, dur: 1.5 },
-        { op: 'pin', id: 'chiptag', on: 'chip', text: 'Processor', at: 2.4 },
+        { op: 'add', shape: 'group', id: 'bolt' },
+        { op: 'add', shape: 'box', id: 'block', parent: 'bolt', size: [6, 3, 3], material: 'metal', color: '#9aa4b4', bevel: 0.2, opacity: 0.5 },
+        { op: 'add', shape: 'cylinder', id: 'pin', parent: 'bolt', pos: [0, 0.2, 0], size: [0.8, 2.4, 0.8], material: 'metal', color: '#e3b341', at: 0.3 },
+        { op: 'add', shape: 'tube', id: 'spring', parent: 'bolt', pts: [[0, 1.4, 0], [0.3, 1.8, 0], [-0.3, 2.2, 0], [0.3, 2.6, 0], [0, 3, 0]], radius: 0.08, color: '#d9dde6', at: 0.4 },
+        { op: 'move', id: 'pin', to: [0, 0.8, 0], at: 1, dur: 1 },
+        { op: 'pin', id: 'pintag', on: 'pin', text: 'Pin', at: 2.2 },
       ],
     },
   ],
@@ -42,10 +41,10 @@ const EXAMPLE = {
 const lines: string[] = [
   'Answer with JSON only: {"steps":[{"say":"words to speak","actions":[...]}],"escalate":null}. Each step is drawn and spoken as soon as it is written.',
   'Rules:',
-  '- Keep step 1 short and put its marks first, so something appears at once; add detail in later steps.',
+  '- Step 1 is short, so something appears within a second or two: one sentence and one or two marks (a box or circle on what the question is about, or a panel), and nothing else. Build a 3D model from step 2 on, a few parts at a time, and add detail in later steps. Never put a whole model in step 1.',
   `- Screen coordinates run 0 to 1000 across the screenshot (x right, y down). Each size is along its own axis, so a round shape on a 16:9 screen has w about 9/16 of h.`,
   '- 3D: units x right, y up, z toward the viewer, a solid centred on its pos. The panel is only the rectangle the model is fitted to; the model floats over the page with a shadow and may reach past it. At zoom 1, 12 units fit across the shorter side, so draw things about 6 to 12 units big and use zoom 1 to 1.5. Angles are degrees. Never zoom past about 1.6 on one part if the rest should stay legible.',
-  '- Build models from parts, not primitives alone: box with a bevel for housings, material (plastic metal rubber pcb glass glow paper) for the surface, part (chip header port lens screen button fan wheel) for ready-made bits, array for repeats (one blade, count 9, turn 40), extrude for wings and plates, lathe for round bodies, tube for cables. Group the model, add its parts at small staggered at times, then explode to 0.5 at dur 0 and back to 0 to assemble it in view.',
+  '- Build models from parts, not primitives alone: box with a bevel for housings, material (plastic metal rubber pcb glass glow paper) for the surface, part (chip header port lens screen button fan wheel) for ready-made bits, array for repeats (one blade, count 9, turn 40; add the object an array copies before the array), extrude for wings and plates, lathe for round bodies, tube for cables. Group the model, add its parts at small staggered at times, then explode to 0.5 at dur 0 and back to 0 to assemble it in view.',
   '- Label parts with pin (on the object id, text; leave off out, the tag is placed for you clear of the model and of page text), not with floating text: it follows the part when the model turns. Use card for a short list or timeline, and image to crop part of the screenshot.',
   `- Every mark and object has a unique id (a letter, then up to 31 letters, digits, - or _; not ${RESERVED_IDS.join(', ')}). Use the id later to change or clear it. Ids from earlier answers stay valid until cleared.`,
   '- at = seconds after the step starts, dur = seconds a change takes. Time the actions to the words.',
