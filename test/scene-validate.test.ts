@@ -144,9 +144,9 @@ test('numbers are clamped; things that are not finite numbers drop the action', 
   assert.deepEqual(actionsOf(dropped), []);
 });
 
-test('hex colours and palette names pass; anything else is dropped', () => {
+test('hex colours and palette names pass; a bad hex is dropped', () => {
   const r = validateScene(scene(box('a', { color: '#fa0' }), box('b', { color: '#FFAA00' }), box('c', { color: 'Red' }), box('d', { color: '#ggg' })));
-  assert.deepEqual(actionsOf(r).map((a) => (a as { id: string }).id), ['a', 'b']);
+  assert.deepEqual(actionsOf(r).map((a) => (a as { id: string }).id), ['a', 'b', 'c']);
 });
 
 test('step, action and object counts are capped', () => {
@@ -298,4 +298,15 @@ test('a ten-megabyte string and a very deep value are handled without trouble', 
   assert.ok(Date.now() - start < 1000);
   assert.equal((r.scene as Scene).steps[0]?.say.length, LIMITS.maxSay);
   assert.deepEqual(actionsOf(r).map((a) => (a as { id: string }).id), ['e']);
+});
+
+test('a colour name outside the palette is read as the nearest palette colour, not dropped', () => {
+  const r = validateScene(scene(box('a', { color: 'gold' }), box('b', { color: 'Royal Blue' }), box('c', { color: 'light-green' }), box('d', { color: 'not a colour' })));
+  const colours = actionsOf(r).map((a) => (a as { color?: string }).color);
+  assert.deepEqual(colours, ['yellow', 'blue', 'green']);
+  assert.equal(r.issues.filter((i) => i.kind === 'trimmed' && i.message.includes('read as')).length, 3);
+  assert.equal(r.issues.filter((i) => i.kind === 'dropped').length, 1);
+  // A colour the palette has is left alone, and a hex colour stays exact.
+  const same = validateScene(scene(box('e', { color: 'teal' }), box('f', { color: '#e3b341' })));
+  assert.deepEqual(same.issues, []);
 });
