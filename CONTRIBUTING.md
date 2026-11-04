@@ -58,7 +58,7 @@ Each is a short interface with a fake in the tests. Adding another implementatio
 
 | To add | Implement | Look at |
 |---|---|---|
-| Another vision model (hosted or local) | `Model` in `src/adapters/model.ts`: `ask(request)` yields scene steps as they are complete, raw. The validator checks them. | `claude-model.ts`, `openai-model.ts`, `codex-model.ts`, `scripted-model.ts` |
+| Another vision model (hosted or local) | `Model` in `src/adapters/model.ts`: `ask(request)` yields scene steps as they are complete, raw. When the request has `pieces: true` it may also yield each step's words (`say`) and each of its actions (`action`) as they are written, before the step, so parts can be drawn as they arrive (`createStepStream` in `src/scene/stream.ts` does the splitting); a model that ignores `pieces` works unchanged. The validator checks all of it. | `claude-model.ts`, `openai-model.ts`, `codex-model.ts`, `scripted-model.ts` |
 | Another way to hear the user | `SpeechToText` in `src/adapters/speech-to-text.ts` | `local-speech-server.ts` |
 | Another voice | `Voice` in `src/adapters/voice.ts` | `speech-synthesis-voice.ts` |
 | A deeper helper for hard questions | an HTTP service speaking [docs/backend.md](docs/backend.md); no code change needed | `src/adapters/backend.ts` |

@@ -43,5 +43,5 @@ body:
     id: log
     attributes:
       label: Log lines
-      description: The app writes a log to the console when started with `npm start`. Paste only the lines that matter; remove anything private.
+      description: From source, `npm start` prints the log in the terminal. An installed copy has no console; see "A log from an installed copy" in docs/setup.md for how to save one to a file. Paste only the lines that matter and remove anything private.
       render: text
