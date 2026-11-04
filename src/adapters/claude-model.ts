@@ -268,7 +268,7 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
         finished = true;
         proc.stdin.end();
         proc.kill();
-        if (!closed) ready = launch(); // the next question's process starts while this one is being spoken
+        if (!closed) ready ??= launch(); // the next question's process starts while this one is being spoken (one is enough when two calls end close together)
       }
     },
   };

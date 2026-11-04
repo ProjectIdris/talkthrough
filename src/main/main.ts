@@ -8,6 +8,7 @@ import { createClaudeModel } from '../adapters/claude-model.ts';
 import { createCodexModel } from '../adapters/codex-model.ts';
 import { createLocalSpeechServerRecogniser } from '../adapters/local-speech-server.ts';
 import { createOpenAIModel } from '../adapters/openai-model.ts';
+import { createTwoStepModel } from '../adapters/two-step.ts';
 import type { Model } from '../adapters/model.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
@@ -223,7 +224,9 @@ async function main(): Promise<void> {
         ...(settings.openaiBaseUrl ? { baseUrl: settings.openaiBaseUrl } : {}),
       })
       : createCodexModel({ model: name, keepThread: quick, fast: quick && settings.codexFast, effort, log, ...(quick ? {} : { timeoutMs: DETAIL_TIMEOUT_MS }), ...(settings.codexCommand ? { command: settings.codexCommand } : {}) });
-  const model: Model = makeModel(settings.model, settings.model === 'claude' ? settings.claudeModel : settings.model === 'openai' ? settings.openaiModel : settings.codexModel, settings.effort, true);
+  const quickModel = makeModel(settings.model, settings.model === 'claude' ? settings.claudeModel : settings.model === 'openai' ? settings.openaiModel : settings.codexModel, settings.effort, true);
+  // The Claude route can write its quick answer in two calls (step 1 first); the other routes answer fast enough on their own.
+  const model: Model = settings.twoStepAnswer && settings.model === 'claude' ? createTwoStepModel(quickModel, { log }) : quickModel;
   // The detail model starts only when the person first asks for more detail (nothing is launched for it before that).
   let detailModel: Model | undefined;
   const detailRoute = settings.detailRoute;

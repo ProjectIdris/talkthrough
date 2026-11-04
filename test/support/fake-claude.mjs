@@ -2,19 +2,38 @@
 // FAKE_MODE: ok (default) | tools (init lists a shell tool) | tooluse (the model calls a tool) | retry (the whole answer
 // streams and its call ends, then, as the real tool does when the schema is not met to the letter, it asks again and
 // streams the answer twice more, ending only after that, with the figures of all three calls)
+// FAKE_SPLIT=1: a question that asks for step 1 only is answered with one step, one that gives step 1 and asks for the rest with two more
+// steps (FAKE_REST=fail: that second call ends in an error; FAKE_REST=slow: it takes 600 ms to start; FAKE_REST=die: its process exits).
 import { createInterface } from 'node:readline';
 
 const mode = process.env.FAKE_MODE ?? 'ok';
 const send = (m) => process.stdout.write(JSON.stringify(m) + '\n');
-const answer = JSON.stringify({
-  steps: [
-    { say: 'First.', actions: [{ op: 'box', id: 'a', x: 1, y: 2, w: 3, h: 4, color: 'red' }] },
-    { say: 'Second.', actions: [] },
-  ],
-  escalate: process.env.FAKE_ESCALATE ?? null,
+const whole = [
+  { say: 'First.', actions: [{ op: 'box', id: 'a', x: 1, y: 2, w: 3, h: 4, color: 'red' }] },
+  { say: 'Second.', actions: [] },
+];
+let answer = JSON.stringify({ steps: whole, escalate: process.env.FAKE_ESCALATE ?? null });
+
+createInterface({ input: process.stdin }).once('line', (line) => {
+  const asked = line.includes('Write only step 1 now') ? 'first' : line.includes('Step 1 of this answer is already drawn') ? 'rest' : 'whole';
+  if (process.env.FAKE_SPLIT && asked === 'first') answer = JSON.stringify({ steps: [whole[0]], escalate: null });
+  if (process.env.FAKE_SPLIT && asked === 'rest') {
+    answer = JSON.stringify({ steps: [{ say: 'Third.', actions: [] }, { say: 'Fourth.', actions: [] }], escalate: null });
+    if (process.env.FAKE_REST === 'die') process.exit(3);
+    if (process.env.FAKE_REST === 'fail') {
+      send({ type: 'system', subtype: 'init', tools: ['StructuredOutput'], mcp_servers: [], slash_commands: [] });
+      send({ type: 'result', subtype: 'error_during_execution', is_error: true, result: 'the second call broke' });
+      return;
+    }
+  }
+  begin(asked === 'rest' && process.env.FAKE_REST === 'slow' ? 600 : 0);
 });
 
-createInterface({ input: process.stdin }).once('line', () => {
+function begin(delay) {
+  setTimeout(go, delay);
+}
+
+function go() {
   send({ type: 'system', subtype: 'init', tools: mode === 'tools' ? ['StructuredOutput', 'Bash'] : ['StructuredOutput'], mcp_servers: [], slash_commands: [] });
   if (mode === 'tools') return;
   if (mode === 'tooluse') {
@@ -42,4 +61,4 @@ createInterface({ input: process.stdin }).once('line', () => {
     send({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: answer.slice(i, i + chunk) } } });
     i += chunk;
   }, 5);
-});
+}

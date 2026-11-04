@@ -63,6 +63,9 @@ test('snapping to the real controls of a window is off until the settings turn i
   assert.equal(settingsFrom(null).settings.controlSnap, false);
   assert.equal(settingsFrom(JSON.stringify({ controlSnap: true })).settings.controlSnap, true);
   assert.equal(settingsFrom(JSON.stringify({ controlSnap: 'yes' })).settings.controlSnap, false, 'anything but a boolean is ignored');
+  assert.equal(settingsFrom(null).settings.twoStepAnswer, false);
+  assert.equal(settingsFrom(JSON.stringify({ twoStepAnswer: true })).settings.twoStepAnswer, true);
+  assert.equal(settingsFrom(JSON.stringify({ twoStepAnswer: 1 })).settings.twoStepAnswer, false, 'anything but a boolean is ignored');
 });
 
 test('the app acting for the person (guide navigation) is off until the settings turn it on', () => {

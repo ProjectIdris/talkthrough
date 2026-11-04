@@ -26,6 +26,7 @@ export function formFromSettings(s: Settings): SettingsForm {
     captureBlocklist: [...s.captureBlocklist],
     guideNavigation: s.guideNavigation,
     controlSnap: s.controlSnap,
+    twoStepAnswer: s.twoStepAnswer,
   };
 }
 
@@ -42,7 +43,7 @@ function readForm(input: unknown, complain: (message: string) => void): Settings
   let ok = true;
   for (const key of FORM_KEYS) {
     const v = raw[key];
-    const want = key === 'codexFast' || key === 'guideNavigation' || key === 'controlSnap' ? 'boolean' : key === 'captureBlocklist' ? 'list' : 'string';
+    const want = key === 'codexFast' || key === 'guideNavigation' || key === 'controlSnap' || key === 'twoStepAnswer' ? 'boolean' : key === 'captureBlocklist' ? 'list' : 'string';
     const right = want === 'list' ? Array.isArray(v) && v.every((x) => typeof x === 'string') : typeof v === want;
     if (!right) {
       complain(`Nothing was saved: "${key}" was missing or of the wrong kind.`);
@@ -155,5 +156,6 @@ function formToRaw(form: SettingsForm): Record<string, unknown> {
   put('captureBlocklist', form.captureBlocklist, d.captureBlocklist);
   put('guideNavigation', form.guideNavigation, d.guideNavigation);
   put('controlSnap', form.controlSnap, d.controlSnap);
+  put('twoStepAnswer', form.twoStepAnswer, d.twoStepAnswer);
   return out;
 }

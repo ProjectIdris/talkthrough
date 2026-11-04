@@ -178,7 +178,19 @@ export function questionText(request: ModelRequest): string {
   }
   parts.push(`The user's question, transcribed from speech (it may contain recognition errors): ${JSON.stringify(request.question)}`);
   if (request.detail) parts.push(detailText(request.detail.steps));
+  if (request.stage) parts.push(stageText(request.stage));
   return parts.join('\n\n');
+}
+
+/** What each half of a two-call answer is told. The walk's checklist is drawn in step 2 (the guide's rule puts it in step 1 for a whole answer). */
+export function stageText(stage: NonNullable<ModelRequest['stage']>): string {
+  if (stage.part === 'first') {
+    return 'Write only step 1 now, as the rules describe it, and nothing after it: the later steps are written separately. Its sentence is about 25 words long (it is spoken while the rest is written): what the page is and what the question is about, not a label. In a how-do-I walk, step 1 is the first move (its mark and wait) and nothing else, with a short sentence: the checklist is drawn in step 2.';
+  }
+  return [
+    `Step 1 of this answer is already drawn and spoken: ${JSON.stringify(stage.first)}`,
+    'Write the rest of the answer, from step 2 onward, in the same JSON. Do not write step 1 again, do not repeat its marks (its ids stay valid and can be used again) and do not say again what it said: carry on from it. The rule that step 1 is short is for step 1 only, so the steps you write may build the model or diagram the rules describe. Put a mark on the page only when your step needs it to point at one particular thing it names; when in doubt draw none. Never repeat or decorate step 1\'s marks, and never put an underline, arrow or box that is not exactly on what it points at. Put a diagram in free space, best the right margin or beside the page\'s own figure, never over its text or its settings and controls, and make it wide enough to read (at least 340 on the 0 to 1000 scale for a flow or a timeline), with a few words in each node and no notes under them. If step 1 asks for a click, this is a how-do-I walk: your first step draws the checklist (a steps diagram, as the walk rule describes) and then the second move with its mark and wait; later steps are one move each, with their mark and wait, ending with a step that says they are done. Set "escalate" to null.',
+  ].join('\n\n');
 }
 
 /** The most of the scene on screen a detail pass is shown; a longer one is cut at a step, with a note. */
