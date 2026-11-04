@@ -5,7 +5,7 @@ import type { Model, ThreadTurn } from '../adapters/model.ts';
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
-import { createSceneState, sceneSchema, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
+import { createSceneState, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
 import type { SceneState, Step } from '../scene/index.ts';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage } from '../shared/ipc.ts';
@@ -219,7 +219,7 @@ export function createSession(deps: SessionDeps) {
       let escalate: string | undefined;
       let failure: unknown;
       try {
-        for await (const out of model.ask({ question, screenshot: shot.screenshot, thread, schema: sceneSchema, signal: controller.signal })) {
+        for await (const out of model.ask({ question, screenshot: shot.screenshot, thread, schema: sceneSchemaLean, signal: controller.signal })) {
           r.firstPieceMs ??= since();
           if (controller.signal.aborted) break;
           if (out.type === 'step') {

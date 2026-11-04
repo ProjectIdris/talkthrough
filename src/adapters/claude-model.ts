@@ -1,9 +1,9 @@
 import { spawn } from 'node:child_process';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { sceneSchema } from '../scene/schema.ts';
+import { sceneSchemaLean } from '../scene/schema.ts';
 import { createStepStream } from '../scene/stream.ts';
 import { ModelError } from './model.ts';
 import type { Model, ModelOutput, ModelRequest } from './model.ts';
@@ -28,7 +28,10 @@ export type ClaudeModelOptions = {
   command?: string;
   /** Arguments put before the flags (for tests). */
   prefixArgs?: string[];
-  /** The schema the answer is held to. Default: the scene schema. */
+  /**
+   * The schema the answer is held to. Default: the lean scene schema (the guide in the prompt carries the
+   * descriptions). It goes on the command line, which Windows limits to about 32,000 characters in all.
+   */
   schema?: unknown;
   /** Give up on one answer after this long. Default 60000. */
   timeoutMs?: number;
@@ -36,7 +39,7 @@ export type ClaudeModelOptions = {
 
 type Json = Record<string, unknown>;
 
-export function claudeArgs(model: string, effort: string, schema: unknown): string[] {
+export function claudeArgs(model: string, effort: string, schema: unknown, promptFile: string): string[] {
   return [
     '-p',
     '--input-format', 'stream-json',
@@ -52,7 +55,8 @@ export function claudeArgs(model: string, effort: string, schema: unknown): stri
     '--setting-sources', '',
     '--permission-mode', 'dontAsk',
     '--no-session-persistence',
-    '--system-prompt', systemPrompt(),
+    // In a file, not on the command line: the scene guide is long and the command line is not.
+    '--system-prompt-file', promptFile,
     '--json-schema', JSON.stringify(schema),
   ];
 }
@@ -72,7 +76,7 @@ type Ready = { proc: ChildProcessWithoutNullStreams; key: string };
 export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
   const modelName = options.model ?? 'claude-haiku-5-5';
   const effort = options.effort ?? 'low';
-  const schema = options.schema ?? sceneSchema;
+  const schema = options.schema ?? sceneSchemaLean;
   const schemaKey = JSON.stringify(schema);
   const timeoutMs = options.timeoutMs ?? 60_000;
   let workDir: string | null = null;
@@ -81,7 +85,9 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
 
   function launch(): Ready {
     workDir ??= mkdtempSync(join(tmpdir(), 'talkthrough-model-'));
-    const proc = spawn(resolveCommand('claude', options.command), [...(options.prefixArgs ?? []), ...claudeArgs(modelName, effort, schema)], {
+    const promptFile = join(workDir, 'instructions.txt');
+    writeFileSync(promptFile, systemPrompt());
+    const proc = spawn(resolveCommand('claude', options.command), [...(options.prefixArgs ?? []), ...claudeArgs(modelName, effort, schema, promptFile)], {
       cwd: workDir,
       env: childEnv(),
       stdio: ['pipe', 'pipe', 'pipe'],
