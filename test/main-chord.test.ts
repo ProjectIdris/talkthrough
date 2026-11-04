@@ -55,3 +55,38 @@ test('reset ends a held chord and forgets the keys', () => {
   tracker.keyDown(KEY_RIGHT_SHIFT);
   assert.deepEqual(log, ['start', 'stop']);
 });
+
+function armed() {
+  const log: string[] = [];
+  const tracker = createChordTracker({ arm: () => log.push('arm'), cancel: () => log.push('cancel'), start: () => log.push('start'), stop: () => log.push('stop') });
+  return { log, tracker };
+}
+
+test('Right Ctrl first arms the chord; Right Shift then starts it without arming again', () => {
+  const { log, tracker } = armed();
+  tracker.keyDown(KEY_RIGHT_CTRL);
+  tracker.keyDown(KEY_RIGHT_CTRL); // key repeat
+  tracker.keyDown(KEY_RIGHT_SHIFT);
+  tracker.keyUp(KEY_RIGHT_SHIFT);
+  tracker.keyUp(KEY_RIGHT_CTRL);
+  assert.deepEqual(log, ['arm', 'start', 'stop']);
+});
+
+test('Right Ctrl released alone cancels; Right Shift first never arms', () => {
+  const { log, tracker } = armed();
+  tracker.keyDown(KEY_RIGHT_CTRL);
+  tracker.keyUp(KEY_RIGHT_CTRL);
+  assert.deepEqual(log, ['arm', 'cancel']);
+  log.length = 0;
+  tracker.keyDown(KEY_RIGHT_SHIFT);
+  tracker.keyDown(KEY_RIGHT_CTRL);
+  tracker.keyUp(KEY_RIGHT_CTRL);
+  assert.deepEqual(log, ['start', 'stop']);
+});
+
+test('reset while armed cancels', () => {
+  const { log, tracker } = armed();
+  tracker.keyDown(KEY_RIGHT_CTRL);
+  tracker.reset();
+  assert.deepEqual(log, ['arm', 'cancel']);
+});

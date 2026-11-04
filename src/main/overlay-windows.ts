@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import type { Display, IpcMainEvent } from 'electron';
 import { CHANNEL } from '../shared/ipc.ts';
-import type { DisplayInfo, SceneMessage } from '../shared/ipc.ts';
+import type { DisplayInfo, Milestone, SceneMessage } from '../shared/ipc.ts';
 
 export type OverlayOptions = {
   preload: string;
@@ -10,10 +10,18 @@ export type OverlayOptions = {
   backdrop?: string;
   /** Hide the overlay from screen capture and recordings (on unless asked otherwise). */
   hideFromCapture: boolean;
+  /** Development runs: never show the windows (they still render, and can be snapshotted). */
+  hidden?: boolean;
+  /** Development runs: tell the pages to speak nothing. */
+  silent?: boolean;
   /** Called when an overlay page reports ready, with a one-line description of its window. */
   onReady?: (description: string) => void;
   /** Called when the renderer reports the end of a played scene. */
   onDone?: (displayId: number) => void;
+  /** Called when the page reports the first mark or word of a live turn. */
+  onMilestone?: (milestone: Milestone) => void;
+  /** Called when the user clicks the escalation offer. */
+  onOffer?: (displayId: number) => void;
 };
 
 type Overlay = { window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[] };
@@ -29,6 +37,7 @@ export function createOverlayManager(options: OverlayOptions) {
   function infoFor(display: Display): DisplayInfo {
     const info: DisplayInfo = { id: display.id, bounds: { ...display.bounds }, scaleFactor: display.scaleFactor };
     if (options.backdrop) info.backdrop = options.backdrop;
+    if (options.silent) info.silent = true;
     return info;
   }
 
@@ -68,6 +77,7 @@ export function createOverlayManager(options: OverlayOptions) {
     });
     window.on('page-title-updated', (event) => event.preventDefault()); // keep our own title
     window.once('ready-to-show', () => {
+      if (options.hidden) return;
       window.showInactive();
       // Windows places a window by the DPI of the display it started on; set the bounds again once shown.
       window.setBounds(display.bounds);
@@ -105,6 +115,16 @@ export function createOverlayManager(options: OverlayOptions) {
     if (overlay) options.onDone?.(overlay.display.id);
   });
 
+  ipcMain.on(CHANNEL.milestone, (event, milestone: unknown) => {
+    const overlay = find(event);
+    const m = milestone as { what?: unknown; at?: unknown } | null;
+    if (overlay && m && (m.what === 'first-mark' || m.what === 'first-word') && typeof m.at === 'number') options.onMilestone?.({ what: m.what, at: m.at });
+  });
+  ipcMain.on(CHANNEL.offer, (event) => {
+    const overlay = find(event);
+    if (overlay) options.onOffer?.(overlay.display.id);
+  });
+
   function sync(): void {
     const current = screen.getAllDisplays();
     for (const display of current) {
@@ -135,7 +155,7 @@ export function createOverlayManager(options: OverlayOptions) {
       };
       for (const [id, overlay] of overlays) {
         if (id === displayId) deliver(overlay, message);
-        else if (message.kind === 'play' && message.turn === 1) deliver(overlay, { kind: 'clear' });
+        else if ((message.kind === 'play' || message.kind === 'begin') && message.turn === 1) deliver(overlay, { kind: 'clear' });
       }
     },
     clearAll(): void {
@@ -143,6 +163,12 @@ export function createOverlayManager(options: OverlayOptions) {
         if (overlay.ready) overlay.window.webContents.send(CHANNEL.scene, { kind: 'clear' } satisfies SceneMessage);
         overlay.queue.length = 0;
       }
+    },
+    /** A picture of what one overlay is showing now (development checks). */
+    async snapshot(displayId: number): Promise<Buffer | null> {
+      const overlay = overlays.get(displayId);
+      if (!overlay || !overlay.ready) return null;
+      return (await overlay.window.webContents.capturePage()).toPNG();
     },
     displayIds(): number[] {
       return [...overlays.keys()];

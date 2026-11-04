@@ -10,6 +10,8 @@ const api: TalkthroughApi = {
   setInteractive: (over) => ipcRenderer.send(CHANNEL.interactive, over === true),
   rendered: (token) => ipcRenderer.send(CHANNEL.rendered, token),
   done: () => ipcRenderer.send(CHANNEL.done),
+  offer: () => ipcRenderer.send(CHANNEL.offer),
+  milestone: (milestone) => ipcRenderer.send(CHANNEL.milestone, milestone),
 };
 
 contextBridge.exposeInMainWorld('talkthrough', api);

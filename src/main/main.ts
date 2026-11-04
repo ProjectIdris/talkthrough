@@ -1,15 +1,21 @@
-import { app, screen } from 'electron';
-import { existsSync } from 'node:fs';
+import { app, nativeImage, screen } from 'electron';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { uIOhook, UiohookKey } from 'uiohook-napi';
 import { parseArgs } from './args.ts';
-import { captureDisplay, displayUnderPointer } from './capture.ts';
-import type { Capture } from './capture.ts';
+import { createClaudeModel } from '../adapters/claude-model.ts';
+import { createCodexModel } from '../adapters/codex-model.ts';
+import { createLocalSpeechServerRecogniser } from '../adapters/local-speech-server.ts';
+import type { Model } from '../adapters/model.ts';
+import type { Screenshot } from '../adapters/types.ts';
+import { displayUnderPointer } from './capture.ts';
 import { runGrab } from './grab.ts';
 import { startHotkey } from './hotkey.ts';
-import { createMic } from './mic.ts';
+import { createMedia } from './media.ts';
 import { createOverlayManager } from './overlay-windows.ts';
 import { createSamplePlayer } from './samples.ts';
+import { createSession } from './session.ts';
+import { loadSettings } from './settings.ts';
 import { createTray } from './tray.ts';
 
 const options = parseArgs(process.argv.slice(1));
@@ -21,6 +27,7 @@ if (options.grab && options.grab.scaleFactor !== 1) app.commandLine.appendSwitch
 if (options.fakeMic) {
   app.commandLine.appendSwitch('use-fake-device-for-media-stream');
   app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+  if (options.fakeMicFile) app.commandLine.appendSwitch('use-file-for-fake-audio-capture', options.fakeMicFile);
 }
 
 const startedAt = performance.now();
@@ -40,6 +47,41 @@ app.on('window-all-closed', () => {
   // Stay alive in the tray when every window is closed.
 });
 
+/** A stand-in screenshot for checks: an image file used instead of grabbing the screen. */
+function loadCaptureImage(path: string): Screenshot {
+  const bytes = readFileSync(path);
+  const size = nativeImage.createFromBuffer(bytes).getSize();
+  return { mime: 'image/png', base64: bytes.toString('base64'), width: size.width, height: size.height };
+}
+
+/** Checks: after a chord release, writes a picture of the overlay every so often. */
+function createFrameRecorder(dir: string, everyMs: number, overlays: ReturnType<typeof createOverlayManager>, say: (line: string) => void) {
+  mkdirSync(dir, { recursive: true });
+  let timer: NodeJS.Timeout | null = null;
+  let from = 0;
+  let count = 0;
+  const take = async () => {
+    for (const id of overlays.displayIds()) {
+      const png = await overlays.snapshot(id);
+      if (png && count < 200) {
+        writeFileSync(join(dir, `frame-${String(Date.now() - from).padStart(6, '0')}.png`), png);
+        count++;
+      }
+    }
+  };
+  return {
+    start() {
+      if (timer) return;
+      from = Date.now();
+      timer = setInterval(() => void take().catch((e: unknown) => say(`frame: ${String(e)}`)), everyMs);
+    },
+    stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+    },
+  };
+}
+
 async function main(): Promise<void> {
   if (!firstInstance) return;
   app.setName('Talkthrough');
@@ -58,17 +100,70 @@ async function main(): Promise<void> {
     return;
   }
 
+  const settings = loadSettings(options.settings ?? join(app.getPath('userData'), 'settings.json'), (m) => log(`settings: ${m}`));
   const samples = createSamplePlayer(join(app.getAppPath(), 'samples', 'scenes'));
+  let session: ReturnType<typeof createSession> | null = null;
   const overlays = createOverlayManager({
     preload,
     page: overlayPage,
     ...(options.backdrop ? { backdrop: options.backdrop } : {}),
     hideFromCapture: !options.visibleToCapture,
+    hidden: options.hidden,
+    silent: options.silentVoice,
     onReady: log,
+    onDone: () => session?.done(),
+    onOffer: (displayId) => void session?.offer(displayId),
+    onMilestone: (m) => session?.milestone(m),
   });
   overlays.start();
-  const mic = createMic({ preload: audioPreload, page: audioPage });
-  void mic.warm();
+  const media = createMedia({ preload: audioPreload, page: audioPage });
+  void media.warm();
+
+  const speech = settings.speechServerUrl ? createLocalSpeechServerRecogniser({ url: settings.speechServerUrl }) : null;
+  if (speech) {
+    // Only ever asks whether the server is up; the app never starts it.
+    speech.warm?.().then(() => log('speech server reachable'), (error: unknown) => log(`speech server: ${error instanceof Error ? error.message : String(error)}`));
+  } else log('no speech server in the settings: questions cannot be heard yet');
+
+  const model: Model = settings.model === 'claude'
+    ? createClaudeModel({ model: settings.claudeModel, effort: settings.effort, ...(settings.claudeCommand ? { command: settings.claudeCommand } : {}) })
+    : createCodexModel({ model: settings.codexModel, fast: settings.codexFast, effort: settings.effort, log, ...(settings.codexCommand ? { command: settings.codexCommand } : {}) });
+  model.warm?.().catch((error: unknown) => log(`model: ${error instanceof Error ? error.message : String(error)}`));
+  log(`model ${model.id}`);
+
+  const captureImage = options.captureImage ? loadCaptureImage(options.captureImage) : null;
+  let chordsDone = 0;
+  const frames = options.framesDir ? createFrameRecorder(options.framesDir, options.frameEveryMs, overlays, log) : null;
+
+  session = createSession({
+    pointerDisplayId: () => displayUnderPointer().id,
+    media: {
+      startMic: () => media.startMic(),
+      stopMic: () => media.stopMic(),
+      abortMic: () => media.abortMic(),
+      capture: async (displayId) => {
+        if (captureImage) return { screenshot: captureImage, ms: 0 };
+        const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
+        const c = await media.capture(display, settings.screenshotEdge);
+        log(`screenshot ${c.screenshot.width}x${c.screenshot.height} (display ${c.nativeWidth}x${c.nativeHeight}) grabbed in ${c.ms} ms`);
+        return c;
+      },
+    },
+    speech,
+    model: () => model,
+    send: (displayId, message) => overlays.send(displayId, message),
+    log,
+    micWindowMs: settings.micWindowMs,
+    onReport: (report) => {
+      if (!options.exitAfterChord) return;
+      if (report.endMs === undefined && !report.error) return;
+      if (reported.has(report)) return;
+      reported.add(report);
+      if (++chordsDone >= options.exitAfterChord) setTimeout(quit, (report.error ? 3 : options.settleSeconds) * 1000);
+    },
+  });
+  media.onStarted = () => session?.micStarted();
+  const reported = new WeakSet<object>();
 
   const playSample = (displayId: number) => {
     const sample = samples.next();
@@ -79,57 +174,38 @@ async function main(): Promise<void> {
 
   const quit = () => {
     hotkey?.stop();
+    frames?.stop();
+    session?.dispose();
     overlays.dispose();
-    mic.dispose();
+    media.dispose();
+    void model.close?.();
     tray.destroy();
     app.exit(0);
   };
-  const tray = createTray({ onQuit: quit, onClear: () => overlays.clearAll(), onPlaySample: () => playSample(screen.getPrimaryDisplay().id) });
-
-  // The chord: capture the screen and record the question while held; on release, play a sample.
-  let recording: { capture: Promise<Capture>; displayId: number; timer: NodeJS.Timeout; pressedAt: number } | null = null;
-  const holdLimitMs = 60_000;
-  let chordsDone = 0;
-
-  const onChordStart = () => {
-    if (recording) return;
-    log('chord pressed');
-    overlays.clearAll();
-    const display = displayUnderPointer();
-    const capture = captureDisplay(display);
-    capture.catch(() => undefined); // reported when the chord is released
-    const timer = setTimeout(onChordStop, holdLimitMs);
-    recording = { capture, displayId: display.id, timer, pressedAt: performance.now() };
-    mic.start().catch((error: unknown) => log(`microphone: ${error instanceof Error ? error.message : String(error)}`));
-  };
-
-  const onChordStop = () => {
-    const active = recording;
-    if (!active) return;
-    log('chord released');
-    recording = null;
-    clearTimeout(active.timer);
-    void (async () => {
-      const [clip, shot] = await Promise.allSettled([mic.stop(), active.capture]);
-      if (clip.status === 'fulfilled') {
-        let sum = 0;
-        for (const s of clip.value.samples) sum += s * s;
-        const rms = Math.sqrt(sum / Math.max(1, clip.value.samples.length));
-        log(`chord held ${((performance.now() - active.pressedAt) / 1000).toFixed(2)} s; question audio: ${(clip.value.durationMs / 1000).toFixed(2)} s at ${clip.value.sampleRate} Hz, rms ${rms.toFixed(3)}, recorder started ${clip.value.startLatencyMs} ms after the press`);
-      } else log(`question audio failed: ${clip.reason instanceof Error ? clip.reason.message : String(clip.reason)}`);
-      if (shot.status === 'fulfilled') {
-        const c = shot.value;
-        log(`screenshot: ${c.screenshot.width}x${c.screenshot.height} (display ${c.nativeWidth}x${c.nativeHeight}) captured in ${c.ms} ms, ${(c.screenshot.base64.length * 0.75 / 1024).toFixed(0)} KB, kept in memory only`);
-      } else log(`capture failed: ${shot.reason instanceof Error ? shot.reason.message : String(shot.reason)}`);
-      playSample(active.displayId);
-      if (options.exitAfterChord && ++chordsDone >= options.exitAfterChord) setTimeout(quit, 2500);
-    })();
-  };
+  const tray = createTray({
+    onQuit: quit,
+    onClear: () => {
+      overlays.clearAll();
+      session?.reset();
+    },
+    onPlaySample: () => playSample(screen.getPrimaryDisplay().id),
+  });
 
   let hotkey: ReturnType<typeof startHotkey> | null = null;
   if (!options.noHotkey) {
     try {
-      hotkey = startHotkey({ start: onChordStart, stop: onChordStop });
+      hotkey = startHotkey({
+        arm: () => session?.arm(),
+        cancel: () => session?.cancel(),
+        start: () => {
+          log('chord pressed');
+          session?.start();
+        },
+        stop: () => {
+          frames?.start();
+          session?.stop();
+        },
+      });
     } catch (error) {
       log(`the key hook could not start: ${error instanceof Error ? error.message : String(error)}`);
     }

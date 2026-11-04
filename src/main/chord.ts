@@ -7,6 +7,13 @@ export const KEY_RIGHT_CTRL = 3613;
 export const KEY_RIGHT_SHIFT = 54;
 
 export type ChordEvents = {
+  /**
+   * Right Ctrl went down while Right Shift was not: the chord may be about to be made. Lets the
+   * microphone and the screen grab start early. Followed by either start() or cancel().
+   */
+  arm?(): void;
+  /** Right Ctrl came up before the chord was made. */
+  cancel?(): void;
   /** Both keys are down (called once per press of the chord). */
   start(): void;
   /** One of the two keys went up while the chord was held. */
@@ -26,22 +33,33 @@ export function createChordTracker(events: ChordEvents): ChordTracker {
   let ctrl = false;
   let shift = false;
   let held = false;
+  let armed = false;
 
   function update(): void {
     const both = ctrl && shift;
     if (both && !held) {
       held = true;
+      armed = false;
       events.start();
     } else if (!both && held) {
       held = false;
       events.stop();
+    } else if (armed && !ctrl) {
+      armed = false;
+      events.cancel?.();
     }
   }
 
   return {
     keyDown(keycode) {
-      if (keycode === KEY_RIGHT_CTRL) ctrl = true;
-      else if (keycode === KEY_RIGHT_SHIFT) shift = true;
+      if (keycode === KEY_RIGHT_CTRL) {
+        const first = !ctrl && !shift;
+        ctrl = true;
+        if (first) {
+          armed = true;
+          events.arm?.();
+        }
+      } else if (keycode === KEY_RIGHT_SHIFT) shift = true;
       else return;
       update();
     },
@@ -58,6 +76,10 @@ export function createChordTracker(events: ChordEvents): ChordTracker {
       ctrl = false;
       shift = false;
       update();
+      if (armed) {
+        armed = false;
+        events.cancel?.();
+      }
     },
   };
 }

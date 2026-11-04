@@ -27,11 +27,27 @@ export type Options = {
   selfChord: boolean;
   /** Quit after this many chord presses have been fully processed (checks). */
   exitAfterChord: number;
+  /** Settings file to read instead of the one in the app's data folder. */
+  settings?: string;
+  /** Checks: use this image as the screenshot instead of grabbing the screen. */
+  captureImage?: string;
+  /** Checks: use this WAV file as the microphone (with --fake-mic). */
+  fakeMicFile?: string;
+  /** Checks: never show the overlay windows; they still render. */
+  hidden: boolean;
+  /** Checks: speak nothing. */
+  silentVoice: boolean;
+  /** Checks: write a picture of the overlay to this folder every --frame-every ms after a chord release. */
+  framesDir?: string;
+  frameEveryMs: number;
+  /** Checks: seconds to keep running after a question has been answered, so the scene can play out. */
+  settleSeconds: number;
 };
 
 export function parseArgs(argv: readonly string[]): Options {
   const options: Options = {
     playSample: false, noHotkey: false, fakeMic: false, visibleToCapture: false, gpu: false, exitAfterChord: 0, selfChord: false,
+    hidden: false, silentVoice: false, frameEveryMs: 700, settleSeconds: 9,
   };
   const value = (i: number, name: string): string => {
     const v = argv[i + 1];
@@ -58,6 +74,14 @@ export function parseArgs(argv: readonly string[]): Options {
       case '--fake-mic': options.fakeMic = true; break;
       case '--visible-to-capture': options.visibleToCapture = true; break;
       case '--gpu': options.gpu = true; break;
+      case '--settings': options.settings = value(i, a); i++; break;
+      case '--capture-image': options.captureImage = value(i, a); i++; break;
+      case '--fake-mic-file': options.fakeMicFile = value(i, a); options.fakeMic = true; i++; break;
+      case '--hidden': options.hidden = true; break;
+      case '--silent-voice': options.silentVoice = true; break;
+      case '--frames-dir': options.framesDir = value(i, a); i++; break;
+      case '--settle-seconds': options.settleSeconds = Number(value(i, a)); i++; break;
+      case '--frame-every': options.frameEveryMs = Number(value(i, a)); i++; break;
       case '--self-chord': options.selfChord = true; break;
       case '--exit-after-chord': options.exitAfterChord = Number(value(i, a)); i++; break;
       default: break; // Electron and the OS pass their own arguments
