@@ -24,6 +24,8 @@ import { createPrefs } from './prefs.ts';
 import { createSamplePlayer } from './samples.ts';
 import { createSession } from './session.ts';
 import { createSettingsWindow } from './settings-window.ts';
+import { createHelper } from './ps-helper.ts';
+import { createUiaReader, toDisplayBoxes } from './uia.ts';
 import { DETAIL_EFFORT, DETAIL_MODELS, DETAIL_TIMEOUT_MS, loadSettings } from './settings.ts';
 import { createTray } from './tray.ts';
 
@@ -196,7 +198,22 @@ async function main(): Promise<void> {
   const backend = settings.backendUrl ? createHttpBackend({ url: settings.backendUrl, ...(settings.backendTimeoutMs ? { timeoutMs: settings.backendTimeoutMs } : {}) }) : undefined;
   const pins = createPins({ dir: options.pinsDir ?? join(app.getPath('userData'), 'pins') });
   const prefs = createPrefs(join(app.getPath('userData'), 'prefs.json'));
+  // Windows only, and only if the person has turned it on (it is off until they do); elsewhere, with a stand-in picture, or in a
+  // browser window, marks snap to the picture alone. One PowerShell helper serves it, started the first time it is asked.
+  const controlHelper = settings.controlSnap && !captureImage ? createHelper() : undefined;
+  const uia = controlHelper ? createUiaReader({ helper: controlHelper }) : undefined;
   session = createSession({
+    ...(uia
+      ? {
+        controls: {
+          read: async (displayId: number, signal?: AbortSignal) => {
+            const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
+            const read = await uia.read(signal);
+            return { boxes: toDisplayBoxes(read.controls, (p) => screen.screenToDipPoint(p), display.bounds), ms: read.ms, ...(read.why ? { why: read.why } : {}) };
+          },
+        },
+      }
+      : {}),
     pin: (input) => pins.save(input),
     pinScreenshot: () => prefs.get().pinScreenshot,
     ...(backend ? { backend } : {}),
@@ -285,6 +302,7 @@ async function main(): Promise<void> {
     hotkey?.stop();
     frames?.stop();
     session?.dispose();
+    controlHelper?.stop();
     overlays.setPen(null);
     overlays.dispose();
     media.dispose();

@@ -58,3 +58,9 @@ test('the detail pass is off unless a route is named; a model and an effort may 
   assert.equal(bad.settings.detailRoute, undefined);
   assert.ok(bad.warnings.some((w) => w.includes('detailRoute')));
 });
+
+test('snapping to the real controls of a window is off until the settings turn it on', () => {
+  assert.equal(settingsFrom(null).settings.controlSnap, false);
+  assert.equal(settingsFrom(JSON.stringify({ controlSnap: true })).settings.controlSnap, true);
+  assert.equal(settingsFrom(JSON.stringify({ controlSnap: 'yes' })).settings.controlSnap, false, 'anything but a boolean is ignored');
+});
