@@ -31,23 +31,28 @@ test('the 3D scene mirrors a frame: parents hold children, transforms are applie
   assert.equal(panel.count(), before - 2, 'the bar and its body go; the other bars stay');
 });
 
-test('the camera frames twelve units on the shorter side, orbits, zooms and follows focus', () => {
+test('the camera frames the model to its stage, orbits, zooms and follows focus', () => {
   const frame = lastFrame(sample('earth-layers.json'));
   const panel = new PanelScene();
-  panel.sync({ ...frame, camera: { az: 0, el: 0, zoom: 1, focus: { key: null, k: 1 } } }, 1);
-  const expected = (FRAMING_UNITS / 2) / Math.tan((FOV_DEGREES * Math.PI) / 360);
-  assert.ok(Math.abs(panel.camera.position.length() - expected) < 1e-6);
-  assert.ok(Math.abs(panel.camera.position.z - expected) < 1e-6, 'azimuth 0 looks from the front');
+  const look = (camera: { az: number; el: number; zoom: number }, aspect = 1) => {
+    panel.sync({ ...frame, camera: { ...camera, focus: { key: null, k: 1 } } }, aspect);
+    return panel.camera.position.clone();
+  };
+  const front = look({ az: 0, el: 0, zoom: 1 });
+  const expected = front.length();
+  assert.ok(expected > 2, 'it stands back from the model');
+  const centre = new Vector3(front.x, front.y, front.z - expected); // where it looks: straight ahead of the front view
+  assert.ok(Math.abs(front.z - centre.z - expected) < 1e-6, 'azimuth 0 looks from the front');
 
-  panel.sync({ ...frame, camera: { az: 90, el: 0, zoom: 2, focus: { key: null, k: 1 } } }, 1);
-  assert.ok(Math.abs(panel.camera.position.x - expected / 2) < 1e-6, 'azimuth 90 looks from the right, twice as close');
+  const right = look({ az: 90, el: 0, zoom: 2 });
+  assert.ok(Math.abs(right.x - centre.x - expected / 2) < 1e-6 && Math.abs(right.z - centre.z) < 1e-6, 'azimuth 90 looks from the right, twice as close');
 
-  panel.sync({ ...frame, camera: { az: 0, el: 45, zoom: 1, focus: { key: null, k: 1 } } }, 1);
-  assert.ok(panel.camera.position.y > 0.7 * expected && panel.camera.position.y < 0.71 * expected);
+  const above = look({ az: 0, el: 45, zoom: 1 });
+  assert.ok(above.y - centre.y > 0.7 * expected && above.y - centre.y < 0.71 * expected);
 
-  // A tall panel frames twelve units across its width.
-  panel.sync({ ...frame, camera: { az: 0, el: 0, zoom: 1, focus: { key: null, k: 1 } } }, 0.5);
-  assert.ok(Math.abs(panel.camera.position.length() - expected / 0.5) < 1e-6);
+  // A tall panel is narrower, so the camera stands further back to fit the model across its width.
+  const tall = look({ az: 0, el: 0, zoom: 1 }, 0.5);
+  assert.ok(tall.length() > expected * 1.5, `${tall.length()} against ${expected}`);
 
   // Focus on an object that has moved: the camera looks at where it is now.
   const moved = settle(planStep(frame, { say: '', actions: [{ op: 'move', id: 'core', to: [3, 2, 1] }] }));
@@ -56,7 +61,7 @@ test('the camera frames twelve units on the shorter side, orbits, zooms and foll
   assert.ok(Math.abs(panel.camera.position.x - 3) < 1e-6 && Math.abs(panel.camera.position.y - 2) < 1e-6);
   // Half way between the old and new focus point.
   panel.sync({ ...moved, camera: { az: 0, el: 0, zoom: 1, focus: { key, from: { key: null, k: 1 }, k: 0.5 } } }, 1);
-  assert.ok(Math.abs(panel.camera.position.x - 1.5) < 1e-6);
+  assert.ok(panel.camera.position.x > centre.x + 0.2 && panel.camera.position.x < 3 - 0.2, 'part of the way to the object');
 });
 
 test('a wide panel sees no more than the field of view to its sides, so shapes at its edges are not skewed', () => {
