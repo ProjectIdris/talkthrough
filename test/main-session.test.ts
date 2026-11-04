@@ -590,7 +590,7 @@ test('the question report says how well the answer built in order', async () => 
   const r = rig({ model: () => createScriptedModel([bad]), onReport: (x) => void reports.push(x) });
   await question(r);
   const done = reports.at(-1);
-  assert.deepEqual(done?.order, { score: 0, refs: 1, early: 1, missing: 0 });
+  assert.deepEqual(done?.order, { score: 0, refs: 1, early: 1, missing: 0, wrong: 0 });
 
   const good = { say: 'Forwards.', actions: [
     { op: 'add', shape: 'cylinder', id: 'part', size: [1, 2, 1] },
@@ -598,5 +598,5 @@ test('the question report says how well the answer built in order', async () => 
   ] };
   const g = rig({ model: () => createScriptedModel([good]), onReport: (x) => void reports.push(x) });
   await question(g);
-  assert.deepEqual(reports.at(-1)?.order, { score: 1, refs: 1, early: 0, missing: 0 });
+  assert.deepEqual(reports.at(-1)?.order, { score: 1, refs: 1, early: 0, missing: 0, wrong: 0 });
 });

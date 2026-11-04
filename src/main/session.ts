@@ -77,7 +77,7 @@ export type QuestionReport = {
   /** The person circled something with the pen and the model was shown it. */
   circled?: boolean;
   /** How well the answer built in order (1: everything came after what it refers to); see orderScore. */
-  order?: { score: number; refs: number; early: number; missing: number };
+  order?: { score: number; refs: number; early: number; missing: number; wrong: number };
   escalate?: string;
   error?: string;
 };
@@ -372,7 +372,7 @@ export function createSession(deps: SessionDeps) {
     r.steps = shown.length;
     if (written.length > 0) {
       const o = orderScore(written, known);
-      r.order = { score: Math.round(o.score * 100) / 100, refs: o.refs, early: o.early, missing: o.missing };
+      r.order = { score: Math.round(o.score * 100) / 100, refs: o.refs, early: o.early, missing: o.missing, wrong: o.wrong };
       if (o.examples.length > 0) deps.log(`order: ${o.examples.join('; ')}`);
     }
     if (escalate) r.escalate = escalate;
