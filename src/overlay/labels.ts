@@ -138,13 +138,15 @@ export type PinRequest = { anchor: Pt; w: number; h: number; /** The author's wi
 /** `alpha` is below 1 while a tag that would have to cross another fades out and in at its new place. */
 export type Placement = { rect: Rect; attach: Pt; alpha: number };
 
-type Entry = { target: Rect; shown: Rect; request: PinRequest; seen: number; fade?: { phase: 'out' | 'in'; alpha: number } };
+type Entry = { target: Rect; shown: Rect; request: PinRequest; seen: number; tangled?: number; fade?: { phase: 'out' | 'in'; alpha: number } };
 
 const FADE_OUT_SECONDS = 0.12;
 const FADE_IN_SECONDS = 0.2;
 
 const MARGIN = 8;
 const GAP = 8;
+/** Frames a tag may sit with a leader across another leader or tag before it is placed again. */
+const TANGLE_FRAMES = 8;
 
 /** The point of a rectangle's outline a leader from `from` should end on. */
 export function attachPoint(rect: Rect, from: Pt): Pt {
@@ -169,7 +171,7 @@ export function segmentsCross(a: Pt, b: Pt, c: Pt, d: Pt): boolean {
   return d1 * d2 < 0 && d3 * d4 < 0;
 }
 
-function segmentHitsRect(a: Pt, b: Pt, r: Rect): boolean {
+export function segmentHitsRect(a: Pt, b: Pt, r: Rect): boolean {
   const inside = (p: Pt) => p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.h;
   if (inside(a) || inside(b)) return true;
   const tl = { x: r.x, y: r.y }, tr = { x: r.x + r.w, y: r.y }, bl = { x: r.x, y: r.y + r.h }, br = { x: r.x + r.w, y: r.y + r.h };
@@ -260,6 +262,7 @@ export class LabelBoard {
     entry.request = request;
     entry.seen = this.tick;
     if (!this.dragging) this.untangle(entry);
+    if (!this.dragging) this.mend(entry, env);
     // Glide towards the target (a fresh placement starts there). A tag whose way would take it through
     // another tag fades out where it is and in at its place instead.
     const dt = Math.max(0, Math.min(0.25, ((this.now ?? 0) - this.lastNow) / 1000));
@@ -324,6 +327,33 @@ export class LabelBoard {
     }
   }
 
+  /**
+   * The parts move (a key slides in, a plug turns) and a leader that was clear can end up across another
+   * leader or through another tag. When that lasts a few frames the tag is placed again, with the other
+   * tags where they are, and glides (or fades) to its new place.
+   */
+  private mend(entry: Entry, env: () => Env): void {
+    if (Number.isNaN(entry.target.x)) return;
+    const mine: [Pt, Pt] = [entry.request.anchor, attachPoint(entry.target, entry.request.anchor)];
+    const others: Entry[] = [];
+    let bad = false;
+    for (const other of this.entries.values()) {
+      if (other === entry || Number.isNaN(other.target.x)) continue;
+      others.push(other);
+      const theirs: [Pt, Pt] = [other.request.anchor, attachPoint(other.target, other.request.anchor)];
+      if (segmentsCross(mine[0], mine[1], theirs[0], theirs[1]) || segmentHitsRect(mine[0], mine[1], other.target) || segmentHitsRect(theirs[0], theirs[1], entry.target)) bad = true;
+    }
+    if (!bad) {
+      entry.tangled = 0;
+      return;
+    }
+    entry.tangled = (entry.tangled ?? 0) + 1;
+    if (entry.tangled < TANGLE_FRAMES) return;
+    entry.tangled = 0;
+    const rect = this.search(entry.request, env(), others.map((o) => o.target), others.map((o): [Pt, Pt] => [o.request.anchor, attachPoint(o.target, o.request.anchor)]));
+    entry.target = rect;
+  }
+
   /** Whether any tag is still gliding (the page should keep drawing). */
   get moving(): boolean {
     for (const e of this.entries.values()) if (e.fade || !sameSpot(e.shown, e.target)) return true;
@@ -345,7 +375,7 @@ export class LabelBoard {
         if (rect.x < MARGIN || rect.y < MARGIN || rect.x + w > this.width - MARGIN || rect.y + h > this.height - MARGIN) continue;
         if (placed.some((p) => overlaps(rect, p, GAP))) continue;
         const attach = attachPoint(rect, a);
-        let cost = dist * 0.9 + env.occ.fraction({ x: rect.x - 6, y: rect.y - 6, w: w + 12, h: h + 12 }) * 3000;
+        let cost = dist * 0.9 + env.occ.fraction({ x: rect.x - 6, y: rect.y - 6, w: w + 12, h: h + 12 }) * 6000;
         if (env.busy) cost += Math.min(1, env.busy.mean(rect) * 2.5) * 1500;
         cost += env.occ.along(a, attach, 26 * s) * 24;
         if (hintAngle !== undefined) {

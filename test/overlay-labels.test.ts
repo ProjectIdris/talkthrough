@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { LabelBoard, Occupancy, attachPoint, busyFromGray, convexHull, segmentsCross } from '../src/overlay/labels.ts';
+import { LabelBoard, Occupancy, attachPoint, busyFromGray, convexHull, segmentHitsRect, segmentsCross } from '../src/overlay/labels.ts';
 import type { Pt, Rect } from '../src/overlay/labels.ts';
 
 const W = 1920, H = 1080;
@@ -178,4 +178,37 @@ test('two tags that would have to pass through each other fade out and in instea
   assert.ok(faded, 'the tags faded');
   assert.equal(worst, 0, 'two visible tags overlapped on the way');
   assert.equal(b.moving, false);
+});
+
+test('a leader that ends up across another leader or tag while the parts move is put right', () => {
+  // Five pins whose anchors drift to new places (seeded, so the same every run). Without the mending
+  // step several of these runs end with a leader across another leader or tag.
+  const occ = new Occupancy(W, H);
+  occ.fillConvex([{ x: 760, y: 300 }, { x: 1320, y: 300 }, { x: 1320, y: 680 }, { x: 760, y: 680 }]);
+  let bad = 0;
+  for (const seedStart of [4, 5, 25, 29, 30]) {
+    let seed = seedStart;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+    const sizes = Array.from({ length: 5 }, () => ({ w: 80 + Math.round(rnd() * 120), h: 36 }));
+    const pt = (): Pt => ({ x: 780 + rnd() * 520, y: 320 + rnd() * 340 });
+    const start = Array.from({ length: 5 }, pt), end = Array.from({ length: 5 }, pt);
+    const b = new LabelBoard();
+    b.beginFrame({ width: W, height: H, model: MODEL, dragging: false, now: 0 });
+    start.forEach((a, i) => b.place(i, { anchor: a, ...(sizes[i] as { w: number; h: number }) }, () => ({ occ })));
+    let last: Array<{ rect: Rect; attach: Pt }> = [];
+    for (let f = 1; f < 200; f++) {
+      b.beginFrame({ width: W, height: H, model: MODEL, dragging: false, now: f * 16 });
+      const k = Math.min(1, f / 50);
+      last = start.map((a, i) => b.place(i, { anchor: { x: a.x + ((end[i] as Pt).x - a.x) * k, y: a.y + ((end[i] as Pt).y - a.y) * k }, ...(sizes[i] as { w: number; h: number }) }, () => ({ occ })));
+    }
+    for (let i = 0; i < 5; i++) {
+      for (let j = 0; j < 5; j++) {
+        if (i === j) continue;
+        const li = last[i] as { rect: Rect; attach: Pt }, lj = last[j] as { rect: Rect; attach: Pt };
+        if (j > i && segmentsCross(end[i] as Pt, li.attach, end[j] as Pt, lj.attach)) bad++;
+        if (segmentHitsRect(end[i] as Pt, li.attach, lj.rect)) bad++;
+      }
+    }
+  }
+  assert.equal(bad, 0, 'leaders still cross');
 });
