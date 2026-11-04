@@ -1,13 +1,15 @@
 // Development tool: one live question to the Claude (Haiku) route on a saved screenshot, with the route checked first.
 //
 //   node scripts/live-check.mjs --claude-command <path to the claude executable> --page <screenshot.png> --question "Explain this" [--out <dir>] [--settle 20] [--max 150] [--gpu yes] [--detail-after <seconds>]
+//   node scripts/live-check.mjs --claude-command <path> --claude-model claude-sonnet-5-5 [--later-model claude-sonnet-5-5] ...   (another Claude model; --later-model writes the steps after step 1)
+//   node scripts/live-check.mjs --route codex [--codex-fast] --page ... --question ...        (the Codex route, model gpt-6-luna; --codex-fast is its priority tier)
 //   node scripts/live-check.mjs --settings <settings file> --page ... --question ...      (a settings file you wrote yourself)
 //   node scripts/live-check.mjs --claude-command <path> --route-only                      (the check alone: no app, no call)
 //
 // A live call costs money, and a settings file that does not parse makes the app fall back to its default route without
 // saying so (it once sent five calls to the wrong model). So this writes the settings with JSON.stringify, reads them back
-// the way the app does, and refuses to start unless they name the claude route, a Haiku model and an executable that exists,
-// with no warning from the loader. The app then runs hidden with a silent voice, a keypress made for it, the screenshot
+// the way the app does, and refuses to start unless they name the route and the model(s) asked for (Haiku by default; Sonnet or
+// gpt-6-luna when named) and, for the claude route, an executable that exists, with no warning from the loader. The app then runs hidden with a silent voice, a keypress made for it, the screenshot
 // (a pen stroke made without a mouse: --fake-stroke "x,y x,y ... | x,y ..." on the 0..1000 scale, strokes told apart by a bar; the pictures the model gets are written to <out>/pen)
 // (and the same picture as the backdrop) from file, DISABLE_AUTOUPDATER=1 for the executable, and --log-steps so the log
 // holds each answer's raw text (`answer-raw`). Frames every two seconds go to <out>/f, the app's log to <out>/run.log.
@@ -36,10 +38,14 @@ mkdirSync(out, { recursive: true });
 // 1. The settings: written properly, or the one given.
 let settingsFile = args.get('settings');
 if (!settingsFile) {
+  const codex = args.get('route') === 'codex';
   const command = args.get('claude-command');
-  if (!command) fail('give --claude-command <path to the claude executable> (or --settings <file>)');
+  if (!codex && !command) fail('give --claude-command <path to the claude executable> (or --route codex, or --settings <file>)');
   settingsFile = join(out, 'route-prefs.json');
-  writeFileSync(settingsFile, JSON.stringify({ model: 'claude', claudeModel: 'claude-haiku-5-5', claudeCommand: command.split('\\').join('/') }, null, 2));
+  const prefs = codex
+    ? { model: 'codex', codexModel: 'gpt-6-luna', ...(args.has('codex-fast') ? { codexFast: true } : {}) }
+    : { model: 'claude', claudeModel: args.get('claude-model') ?? 'claude-haiku-5-5', ...(args.has('later-model') ? { claudeLaterModel: args.get('later-model') } : {}), claudeCommand: command.split('\\').join('/') };
+  writeFileSync(settingsFile, JSON.stringify(prefs, null, 2));
 }
 settingsFile = resolve(settingsFile);
 
@@ -48,10 +54,11 @@ const { loadSettings } = await import(pathToFileURL(join(root, 'src/main/setting
 const warnings = [];
 const settings = loadSettings(settingsFile, (m) => warnings.push(m));
 const command = settings.claudeCommand;
-const route = { model: settings.model, claudeModel: settings.claudeModel, command: typeof command === 'string' && command ? (existsSync(command) ? 'present' : 'MISSING') : 'unset', warnings };
-route.ok = settings.model === 'claude' && /haiku/.test(String(settings.claudeModel)) && route.command === 'present' && warnings.length === 0;
+const route = { model: settings.model, ...(settings.model === 'codex' ? { codexModel: settings.codexModel, codexFast: settings.codexFast } : { claudeModel: settings.claudeModel, ...(settings.claudeLaterModel ? { claudeLaterModel: settings.claudeLaterModel } : {}), command: typeof command === 'string' && command ? (existsSync(command) ? 'present' : 'MISSING') : 'unset' }), warnings };
+const claudeOk = (m) => /^claude-(haiku|sonnet)-5-5$/.test(String(m));
+route.ok = warnings.length === 0 && (settings.model === 'codex' ? settings.codexModel === 'gpt-6-luna' : claudeOk(settings.claudeModel) && (!settings.claudeLaterModel || claudeOk(settings.claudeLaterModel)) && route.command === 'present');
 console.log(`route: ${JSON.stringify(route)}`);
-if (!route.ok) fail('REFUSED: the settings do not give the claude route with a Haiku model and an executable that exists; nothing was started.');
+if (!route.ok) fail('REFUSED: the settings do not give the route and models asked for (Haiku or Sonnet on claude with an executable that exists, or gpt-6-luna on codex); nothing was started.');
 if (args.has('route-only')) process.exit(0);
 
 // 3. The run.

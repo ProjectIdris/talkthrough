@@ -18,6 +18,8 @@ export type Settings = {
   /** Fast mode for the Codex process this app starts (not the user's own Codex settings). */
   codexFast: boolean;
   claudeModel: string;
+  /** Claude route, one answer a step at a time: the model that writes the steps after step 1 (step 1 stays with `claudeModel`). Off when unset or the same. */
+  claudeLaterModel?: string;
   /** The API-key route: model name, an optional service tier (costs more), and an optional base address (https or loopback only). */
   openaiModel: string;
   openaiServiceTier?: string;
@@ -147,6 +149,8 @@ export function settingsFromRaw(raw: Record<string, unknown>, warn: (message: st
   settings.codexModel = str(raw.codexModel) ?? settings.codexModel;
   if (typeof raw.codexFast === 'boolean') settings.codexFast = raw.codexFast;
   settings.claudeModel = str(raw.claudeModel) ?? settings.claudeModel;
+  const later = str(raw.claudeLaterModel);
+  if (later && later !== settings.claudeModel) settings.claudeLaterModel = later;
   settings.openaiModel = str(raw.openaiModel) ?? settings.openaiModel;
   const tier = str(raw.openaiServiceTier);
   if (tier) settings.openaiServiceTier = tier;
