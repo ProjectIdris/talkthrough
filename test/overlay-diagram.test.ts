@@ -6,7 +6,7 @@ import { chartLayout, chartRanges, flowLayers, flowLayout, niceTicks, stepsLayou
 import type { Px } from '../src/overlay/diagram-layout.ts';
 import { DiagramPainter } from '../src/overlay/diagram-draw.ts';
 import { fadeFrame } from '../src/overlay/fade.ts';
-import { Placer, pageGrid, placeAction } from '../src/overlay/placement.ts';
+import { Placer, followDiagram, insideAny, pageGrid, placeAction } from '../src/overlay/placement.ts';
 import { emptyFrame, evaluate, planStep, settle } from '../src/overlay/timeline.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
 
@@ -282,4 +282,101 @@ test('every kind of diagram draws its text, an unborn piece is not drawn, and a 
   for (let t = 48; t < 3000 && !settled; t += 16) settled = !p2.draw(sink, after, view, t);
   assert.ok(settled, 'it gets there');
   assert.equal(p2.draw(sink, [], view, 5000), false);
+});
+
+test('a long chain in a small card wraps into rows (each runs back the way the last came) so its boxes stay large; short or branching flows are left in one row', () => {
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+  const chain = ids.slice(1).map((to, i) => ({ id: `e${i}`, from: ids[i]!, to }));
+  const card: Px = { x: 0, y: 0, w: 540, h: 260 };
+  const lay = flowLayout(ids, chain, card, opts);
+  assert.equal(lay.dir, 'right');
+  assert.ok(lay.rows >= 2, `rows ${lay.rows}`);
+  const boxes = [...lay.nodes.values()];
+  for (const b of boxes) assert.ok(b.x >= card.x && b.y >= card.y && b.x + b.w <= card.x + card.w && b.y + b.h <= card.y + card.h, JSON.stringify(b));
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) assert.ok(!overlap(boxes[i]!, boxes[j]!), `${i} ${j}`);
+  const flat = flowLayout(ids, chain, { x: 0, y: 0, w: 5000, h: 260 }, opts);
+  assert.equal(flat.rows, 1, 'a wide card keeps one row');
+  const minWide = Math.min(...boxes.map((b) => b.w));
+  assert.ok(minWide >= 70, `wrapped boxes are at least 70 wide, got ${minWide}`);
+  // The second row runs the other way, and the arrow between rows is a short drop.
+  const perRow = Math.ceil(ids.length / lay.rows);
+  const last = lay.nodes.get(ids[perRow - 1]!)!, first = lay.nodes.get(ids[perRow]!)!;
+  assert.equal(last.row, 0);
+  assert.equal(first.row, 1);
+  assert.ok(Math.abs((last.x + last.w / 2) - (first.x + first.w / 2)) < 1, 'the row turns round under its last box');
+  const drop = lay.edges.get(`e${perRow - 1}`)!;
+  assert.ok(drop.d.y > drop.a.y && Math.abs(drop.d.x - drop.a.x) < 1, 'straight down');
+  const back = lay.edges.get(`e${perRow}`)!;
+  assert.ok(back.d.x < back.a.x, 'along the second row the arrow runs leftwards');
+  assert.ok(lay.nodes.get(ids[perRow]!)!.x > lay.nodes.get(ids[perRow + 1]!)!.x, 'the second row is written right to left');
+  // Not wrapped: three nodes, or a graph that branches.
+  assert.equal(flowLayout(['a', 'b', 'c'], chain.slice(0, 2), card, opts).rows, 1);
+  const fork = [{ id: '1', from: 'a', to: 'b' }, { id: '2', from: 'a', to: 'c' }, { id: '3', from: 'b', to: 'd' }, { id: '4', from: 'c', to: 'd' }, { id: '5', from: 'd', to: 'e' }, { id: '6', from: 'e', to: 'f' }, { id: '7', from: 'f', to: 'g' }];
+  assert.equal(flowLayout(ids, fork, card, opts).rows, 1);
+});
+
+test('a mark written inside the rectangle a diagram was asked for goes with the diagram to where it was placed; a mark on the page does not', () => {
+  const COLS = 192, ROWS = 108;
+  const gray = new Uint8Array(COLS * ROWS);
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) gray[r * COLS + c] = c > 4 && c < COLS * 0.6 && r > 8 && r % 4 < 2 && (c * 7 + r * 13) % 11 !== 0 ? 40 : 238;
+  const placer = new Placer(pageGrid(gray, COLS, ROWS), { aspect: 16 / 9 });
+  const asked = { x: 100, y: 200, w: 300, h: 400 };
+  const diagram = placeAction(placer, { op: 'diagram', id: 'f', kind: 'chart', ...asked } as Action, 1080) as { x: number; y: number; w: number; h: number };
+  assert.ok(diagram.x >= 590, 'the diagram left the text');
+  const ring = { op: 'circle', id: 'eq', x: 200, y: 300, w: 50, h: 60, color: 'green' } as Action;
+  const moved = followDiagram(placer, ring, 16 / 9) as { x: number; y: number; w: number; h: number };
+  assert.ok(moved, 'the ring is inside the asked-for rectangle');
+  const sx = diagram.w / asked.w, sy = diagram.h / asked.h;
+  near(moved.x, diagram.x + (200 - asked.x) * sx);
+  near(moved.y, diagram.y + (300 - asked.y) * sy);
+  near(moved.w, 50 * sx);
+  assert.ok(moved.x >= diagram.x && moved.x + moved.w <= diagram.x + diagram.w && moved.y >= diagram.y && moved.y + moved.h <= diagram.y + diagram.h, 'it sits inside the placed diagram');
+  const arrow = followDiagram(placer, { op: 'arrow', id: 'a', x1: 150, y1: 250, x2: 250, y2: 350, color: 'red' } as Action, 16 / 9) as { x1: number; x2: number };
+  assert.ok(arrow.x1 >= diagram.x && arrow.x2 <= diagram.x + diagram.w);
+  // Marks on the page, a card, and a mark with no diagram behind it are left alone.
+  assert.equal(followDiagram(placer, { op: 'box', id: 'p', x: 600, y: 600, w: 50, h: 50, color: 'red' } as Action, 16 / 9), undefined);
+  assert.equal(followDiagram(placer, { op: 'card', id: 'c', x: 200, y: 300, w: 100, color: 'blue', rows: ['x'] } as unknown as Action, 16 / 9), undefined);
+  assert.equal(followDiagram(new Placer(pageGrid(gray, COLS, ROWS), { aspect: 16 / 9 }), ring, 16 / 9), undefined);
+  assert.ok(insideAny(ring, [asked], 16 / 9) && !insideAny(ring, [{ x: 700, y: 700, w: 100, h: 100 }], 16 / 9));
+  // Cleared with the diagram, the mark is the page's again.
+  placeAction(placer, { op: 'clear', target: 'f' } as Action, 1080);
+  assert.equal(followDiagram(placer, ring, 16 / 9), undefined);
+});
+
+test('with no blank place the size asked for, a diagram becomes taller and narrower to sit in a margin rather than over the text', () => {
+  const COLS = 192, ROWS = 108;
+  const gray = new Uint8Array(COLS * ROWS);
+  // Text fills the middle of the page (columns 25% to 75%); the margins either side are blank.
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) gray[r * COLS + c] = c > COLS * 0.25 && c < COLS * 0.75 && r > 6 && r % 4 < 2 && (c * 7 + r * 13) % 11 !== 0 ? 40 : 238;
+  const placer = new Placer(pageGrid(gray, COLS, ROWS), { aspect: 16 / 9 });
+  const placed = placeAction(placer, { op: 'diagram', id: 'p', kind: 'steps', x: 300, y: 500, w: 420, h: 300 } as Action, 1080) as { x: number; y: number; w: number; h: number };
+  const text = { x: 250, y: 60, w: 500, h: 940 };
+  assert.ok(!overlap(placed, text), `off the text: ${JSON.stringify(placed)}`);
+  assert.ok(placed.w < 420 && placed.w >= 150, `narrower: ${placed.w}`);
+  assert.ok(placed.h > 300, `and taller: ${placed.h}`);
+  assert.ok(placed.w * placed.h >= 420 * 300 * 0.7, 'with most of the area it asked for');
+  // A blank place the size asked for is still taken as asked.
+  const roomy = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(238), COLS, ROWS), { aspect: 16 / 9 });
+  const asked = placeAction(roomy, { op: 'diagram', id: 'q', kind: 'steps', x: 300, y: 500, w: 420, h: 300 } as Action, 1080);
+  assert.equal((asked as { w: number }).w, 420);
+});
+
+test('a list of steps asked for more width than it can use is placed at the width it can, so it fits a margin; a mark inside what was asked still goes with it', () => {
+  const COLS = 192, ROWS = 108;
+  const roomy = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(238), COLS, ROWS), { aspect: 16 / 9 });
+  const placed = placeAction(roomy, { op: 'diagram', id: 's', kind: 'steps', x: 100, y: 600, w: 800, h: 320 } as Action, 1080) as { w: number; h: number };
+  assert.equal(placed.w, 440);
+  assert.equal(placed.h, 320);
+  const ring = followDiagram(roomy, { op: 'circle', id: 'r', x: 700, y: 700, w: 40, h: 40, color: 'red' } as Action, 16 / 9);
+  assert.ok(ring, 'a mark in the rectangle that was asked for (800 wide) belongs to it');
+});
+
+test('a chain with a loop back to its start is not wrapped into rows (the loop runs round the outside of one row)', () => {
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+  const chain = ids.slice(1).map((to, i) => ({ id: `e${i}`, from: ids[i]!, to }));
+  const card: Px = { x: 0, y: 0, w: 540, h: 260 };
+  assert.ok(flowLayout(ids, chain, card, opts).rows >= 2, 'the same chain without the loop wraps');
+  const looped = flowLayout(ids, [...chain, { id: 'back', from: 'g', to: 'a' }], card, opts);
+  assert.equal(looped.rows, 1);
+  assert.ok([...looped.nodes.values()].every((b) => b.row === undefined));
 });

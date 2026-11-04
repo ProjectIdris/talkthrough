@@ -37,6 +37,8 @@ export const LIMITS = {
   /** Flat diagrams alive at once, and what one may hold. */
   maxDiagrams: 3,
   maxNodes: 12,
+  /** Characters of a node's text: room for a short sentence (a step of a checklist). */
+  maxNodeText: 56,
   maxEdges: 24,
   maxSeries: 4,
   maxDots: 16,
@@ -197,7 +199,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'diagram', op: 'diagram', creates: 'diagram',
-    doc: 'A flat diagram in the rectangle x,y,w,h (moved off the page\'s text if it sits on it), filled by node, edge, series and dot pieces that name it with of. kind flow: nodes joined by edges, laid out for you. timeline: nodes along an axis. steps: numbered nodes, ticked off with tick. chart: series (lines or curves through points) and dots on labelled axes; xrange and yrange [min,max] fix the axes, else they fit the data. Sent again under the same id it replaces the diagram.',
+    doc: 'A flat diagram in the rectangle x,y,w,h (moved off the page\'s text if it sits on it), filled by pieces that name it with of. xrange and yrange [min,max] fix the axes of a chart, else they fit the data. Sent again under the same id it replaces the diagram.',
     fields: {
       id: { k: 'newId' }, kind: { k: 'enum', values: DIAGRAM_KINDS },
       x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN }, w: { k: 'num', min: 80, max: 1000 }, h: { k: 'num', min: 60, max: 1000 },
@@ -209,7 +211,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'node', op: 'node', creates: 'node', attach: 'of',
     doc: 'A piece of a flow, timeline or steps diagram: a box in a flow; an event on a timeline (when is its date, pos where it falls on the axis as a number, else events are spread in the order written); a numbered step in steps (in the order written). note is a short line under the text. A piece with no at appears with the words, one after another.',
     fields: {
-      id: { k: 'newId' }, of: { k: 'ref', of: 'diagram' }, text: { k: 'str', min: 1, max: 40 }, note: { k: 'str', min: 1, max: 60, opt: true },
+      id: { k: 'newId' }, of: { k: 'ref', of: 'diagram' }, text: { k: 'str', min: 1, max: LIMITS.maxNodeText }, note: { k: 'str', min: 1, max: 60, opt: true },
       when: { k: 'str', min: 1, max: 24, opt: true }, pos: { k: 'num', ...AXIS, opt: true }, color: COLOR_OPT, at: AT,
     },
   },

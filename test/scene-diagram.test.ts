@@ -152,3 +152,21 @@ test('a piece held for its diagram is drawn once the diagram arrives in the same
   assert.deepEqual(seen.map((a) => a.op), ['diagram', 'node']);
   assert.deepEqual(live.finish().issues, []);
 });
+
+test('text over its limit is cut at the end of a whole word, and a step of 43 characters is kept whole', () => {
+  const step = 'The gap in the middle is a square of side c';
+  assert.equal(step.length, 43);
+  const r = validateScene(scene(flow(), { op: 'node', id: 'n', of: 'f', text: step }, { op: 'node', id: 'm', of: 'f', text: 'one two three four five six seven eight nine ten eleven twelve thirteen' }));
+  const [, n, m] = actionsOf(r) as Array<{ text: string }>;
+  assert.equal(n!.text, step, 'the node text limit is room for a whole short sentence');
+  assert.equal(m!.text, 'one two three four five six seven eight nine ten eleven', 'a cut that lands just after a word keeps it; "twelve" is not left as "twel"');
+  assert.ok(m!.text.length <= LIMITS.maxNodeText);
+  const long = validateScene(scene(flow(), { op: 'node', id: 'x', of: 'f', text: 'x'.repeat(100) }));
+  assert.equal(((actionsOf(long)[1]) as { text: string }).text.length, LIMITS.maxNodeText, 'one long word is still cut hard');
+});
+
+test('a cut inside a word goes back to the word before it', () => {
+  const r = validateScene(scene(flow(), { op: 'node', id: 'a', of: 'f', text: 'abcd efgh ijkl mnop qrst uvwx yzab cdef ghij klmn opqr stuv wxyz' }));
+  const text = (actionsOf(r)[1] as { text: string }).text;
+  assert.equal(text, 'abcd efgh ijkl mnop qrst uvwx yzab cdef ghij klmn opqr', 'the 56th character is a space or a whole word end, never "stu"');
+});
