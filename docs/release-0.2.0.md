@@ -16,7 +16,7 @@ Right-click the tray icon and choose **Settings…**. One window holds what used
 
 **Speak sooner** (Claude Code route, off by default). The answer is written in two calls: the first step alone, then the rest while you hear it.
 
-![The lower half of the settings window: the two keys, the windows to skip, and the three switches, all off.](media/frame-settings-skip.png)
+![The lower half of the settings window: the two keys, the windows to skip (the list as it starts, password managers first) and the three switches, all off.](media/frame-settings-skip.png)
 
 ## What an answer can draw
 
