@@ -1,6 +1,6 @@
 // Development tool: one live question to the Claude (Haiku) route on a saved screenshot, with the route checked first.
 //
-//   node scripts/live-check.mjs --claude-command <path to the claude executable> --page <screenshot.png> --question "Explain this" [--out <dir>] [--settle 20] [--max 150]
+//   node scripts/live-check.mjs --claude-command <path to the claude executable> --page <screenshot.png> --question "Explain this" [--out <dir>] [--settle 20] [--max 150] [--gpu yes] [--detail-after <seconds>]
 //   node scripts/live-check.mjs --settings <settings file> --page ... --question ...      (a settings file you wrote yourself)
 //   node scripts/live-check.mjs --claude-command <path> --route-only                      (the check alone: no app, no call)
 //
@@ -70,6 +70,7 @@ const logFd = openSync(logFile, 'w');
 const run = spawnSync(process.execPath, [
   'scripts/start.mjs', '--hidden', '--silent-voice', '--self-chord', '--exit-after-chord', '1',
   '--settle-seconds', args.get('settle') ?? '20', '--log-steps', '--max-seconds', args.get('max') ?? '150',
+  ...(args.has('gpu') ? ['--gpu'] : []), ...(args.has('detail-after') ? ['--detail-after', args.get('detail-after')] : []),
   '--capture-image', resolve(page), '--backdrop', resolve(page), '--question', question,
   '--settings', settingsFile, '--user-data-dir', data, '--frames-dir', frames, '--frame-every', '2000',
 ], { cwd: root, env, stdio: ['ignore', logFd, logFd], timeout: 240_000 });

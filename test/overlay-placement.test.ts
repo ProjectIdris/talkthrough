@@ -227,6 +227,18 @@ test('body text in a narrow column still reads as prose (an ultrawide screen, a 
   assert.ok(weightOf(menu, 90, 106, 10, 70) < 0.2, `an evenly spaced menu of labels of all lengths is not text: ${weightOf(menu, 90, 106, 10, 70)}`);
 });
 
+test('a stack of equal-width controls is not prose: it is as regular as text but has no word spacing (sidebar buttons, a form of fields)', () => {
+  // Eight solid buttons of one width at a steady pitch, with a short label inside each (lighter cells in the middle).
+  const buttons = inkPage((c, r) => { const k = Math.floor((r - 10) / 8); return r >= 10 && r < 74 && (r - 10) % 8 < 3 && c >= 12 && c < 36 && !(c >= 22 && c < 27 && (r - 10) % 8 === 1); });
+  assert.ok(weightOf(buttons, 12, 36, 10, 74) < 0.2, `a sidebar of equal buttons is not text: ${weightOf(buttons, 12, 36, 10, 74)}`);
+  // A form of six outlined fields of one width, a pitch of 12: the interior is the page's own colour.
+  const fields = inkPage((c, r) => { const k = Math.floor((r - 8) / 12); const at = (r - 8) % 12; return r >= 8 && r < 80 && c >= 90 && c < 118 && (at === 0 || at === 3 || ((at === 1 || at === 2) && (c === 90 || c === 117))); });
+  assert.ok(weightOf(fields, 90, 118, 8, 80) < 0.2, `a form of equal fields is not text: ${weightOf(fields, 90, 118, 8, 80)}`);
+  // The same stack with word spacing in each line is text again.
+  const lines = inkPage((c, r) => r >= 10 && r < 74 && (r - 10) % 8 < 3 && c >= 12 && c < 36 && c % 5 !== 0);
+  assert.ok(weightOf(lines, 12, 36, 10, 74) > 0.9, `eight lines of equal length with gaps are text: ${weightOf(lines, 12, 36, 10, 74)}`);
+});
+
 test('a diagram goes smaller, to what it can be read at, before it covers a page\'s figure or controls, and keeps readable bounds', () => {
   const p = new Placer(articlePage(), { aspect: 16 / 9 });
   // Asked wide over the prose (150..950); the only free place is the right margin under the figure, narrower than the least the old shapes allowed (a third of the asked width).

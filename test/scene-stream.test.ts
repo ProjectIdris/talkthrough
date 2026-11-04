@@ -155,3 +155,20 @@ test('pieces: a step that repeats its say or actions key streams the first of ea
   stream.push(text);
   assert.deepEqual(log, ['say', 'action', 'step']);
 });
+
+test('a stray `]` where the closing brace belongs, once every step is closed, ends the scene; the steps all come out and nothing throws', () => {
+  const text = '{"steps":[{"say":"a","actions":[]},{"say":"b","actions":[{"op":"box","id":"x"}]}]]';
+  for (const size of [1, 7, 1000]) {
+    const s = createStepStream();
+    const got: unknown[] = [];
+    for (let i = 0; i < text.length; i += size) got.push(...s.push(text.slice(i, i + size)));
+    s.end();
+    assert.equal(got.length, 2, `chunks of ${size}`);
+    assert.equal(s.complete, true);
+  }
+  // With the closing brace after it, or more stray text, as before.
+  assert.equal(run(text + '}', 5).length, 2);
+  assert.equal(run('{"steps":[{"say":"a","actions":[]}]}}', 5).length, 1);
+  // A bracket that does not match inside a step is still an error.
+  assert.throws(() => run('{"steps":[{"say":"x","actions":[}]}]}', 100), /mismatched/);
+});

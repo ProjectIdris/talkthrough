@@ -124,6 +124,8 @@ export type QuestionReport = {
   escalate?: string;
   /** This was a detail pass (a richer version of the scene on screen), not a question. */
   detail?: boolean;
+  /** The answer broke after some steps had been shown (what the page had stays; see answer): what broke it. Not an error. */
+  cutShort?: string;
   error?: string;
 };
 
@@ -549,6 +551,13 @@ export function createSession(deps: SessionDeps) {
         live = null;
         if (!held) deps.send(displayId, { kind: 'step-close' });
       } else closeLive();
+    }
+    if (failure && shown.length > 0) {
+      // Steps have already played: they stay, and the answer ends where it broke, with a line in the log, not a wiped page and an error.
+      const code = failure instanceof ModelError ? failure.code : 'failed';
+      r.cutShort = `${source.kind}: ${code}: ${failure instanceof Error ? failure.message : String(failure)}`;
+      deps.log(`answer cut short after ${shown.length} step${shown.length === 1 ? '' : 's'} (${r.cutShort}); what was shown stays`);
+      failure = undefined;
     }
     if (failure) {
       const code = failure instanceof ModelError ? failure.code : 'failed';

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Action, Step } from '../src/scene/index.ts';
 import { DIAGRAM_APPEAR_SECONDS, TICK_SECONDS, diagramTimes } from '../src/overlay/diagram-plan.ts';
-import { bezierPoints, chartLayout, chartRanges, flowLayers, flowLayout, niceTicks, stepsLayout, timelineFractions, timelineLayout } from '../src/overlay/diagram-layout.ts';
+import { bezierPoints, chartLayout, chartRanges, flowGrowth, flowLayers, flowLayout, flowReadable, niceTicks, stepsLayout, timelineFractions, timelineLayout } from '../src/overlay/diagram-layout.ts';
 import type { Px } from '../src/overlay/diagram-layout.ts';
 import { DiagramPainter } from '../src/overlay/diagram-draw.ts';
 import { fadeFrame } from '../src/overlay/fade.ts';
@@ -472,4 +472,40 @@ test('a chart that is moved keeps a sensible shape: never squeezed into a strip,
   // A list of steps may still be a strip.
   const strip = placeAction(new Placer(pageGrid(gray, COLS, ROWS), { aspect }), { op: 'diagram', id: 's', kind: 'steps', x: 100, y: 200, w: 340, h: 380 } as Action, 1080) as typeof want & { w: number; h: number };
   assert.ok((strip.w / strip.h) * aspect < 1, `a steps list is allowed to be narrow: ${JSON.stringify(strip)}`);
+});
+
+test('a flow refuses nodes below a readable size: its card grows to the least size at which they read, and is left alone when they already do or never would', () => {
+  const ids = ['a', 'b', 'c', 'd'];
+  const edges = [{ id: '1', from: 'a', to: 'b', labelW: 70 }, { id: '2', from: 'b', to: 'c', labelW: 70 }, { id: '3', from: 'c', to: 'd' }];
+  const least = { w: 100, h: 44 };
+  const options = { maxBox: { w: 165, h: 51 }, pad: 12, labelW: 70, labelH: 20 };
+  const at = (f: number) => flowLayout(ids, edges, { x: 0, y: 0, w: 360 * f, h: 130 * f }, options);
+  const readable = (f: number) => flowReadable(at(f), least);
+  assert.ok(!readable(1), 'a small card gives nodes below the least');
+  const f = flowGrowth(readable, 2.2);
+  assert.ok(f !== undefined && f > 1 && f <= 2.2 && readable(f), `it grows until they read: ${f}`);
+  assert.ok(!readable(f / 1.05), 'and no more than it needs');
+  assert.equal(flowGrowth(() => true, 2.2), 1, 'a card whose nodes already read does not grow');
+  assert.equal(flowGrowth(() => false, 2.2), undefined, 'a flow that would still not read at the largest card is left as it was, not blown up over the page');
+  assert.equal(flowGrowth((k) => k >= 2.2, 2.2), 2.2, 'the largest card is used when it is just enough');
+});
+
+test('one long edge label widens only its own gap: a seven-node chain with a single labelled edge reads in a small card, and keeps no node on another', () => {
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+  const chain = (label: (i: number) => number) => ids.slice(1).map((_, i) => ({ id: `e${i}`, from: ids[i]!, to: ids[i + 1]!, labelW: label(i) }));
+  const options = { maxBox: { w: 165, h: 51 }, pad: 12, labelW: 130, labelH: 20 };
+  const area: Px = { x: 0, y: 0, w: 633, h: 209 };
+  const least = { w: 100, h: 38 };
+  const one = flowLayout(ids, chain((i) => (i === 1 ? 130 : 0)), area, options);
+  const all = flowLayout(ids, chain(() => 130), area, options);
+  assert.ok(flowReadable(one, least), 'with one label the nodes are readable');
+  assert.ok(!flowReadable(all, least), 'with a label on every edge the same card is too small: the room for labels is spent only where there are labels');
+  const boxes = [...one.nodes.values()];
+  assert.equal(boxes.length, 7);
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) assert.ok(!overlap(boxes[i]!, boxes[j]!), `${i} ${j}`);
+  for (const b of boxes) assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= area.w + 0.5 && b.y + b.h <= area.h + 0.5, JSON.stringify(b));
+  // The gap that holds the label is as wide as the label; the others are not.
+  const sameRow = (p: string, q: string): boolean => one.nodes.get(p)!.row === one.nodes.get(q)!.row;
+  const gap = (p: string, q: string): number => { const m = one.nodes.get(p)!, n = one.nodes.get(q)!; return Math.max(n.x - (m.x + m.w), m.x - (n.x + n.w)); };
+  if (sameRow('b', 'c') && sameRow('c', 'd')) assert.ok(gap('b', 'c') >= 130 && gap('c', 'd') < 130, 'only the labelled gap is wide');
 });

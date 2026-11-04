@@ -3,7 +3,7 @@
 // go comes from diagram-layout.ts; a piece that is moved by a later arrival eases to its new place instead of jumping.
 
 import type { DiagramFrame, DiagramItemFrame } from './diagram-plan.ts';
-import { bezierPoints, chartLayout, flowLayout, formatTick, smoothPoints, stepsLayout, timelineLayout, routeEdge } from './diagram-layout.ts';
+import { bezierPoints, chartLayout, flowGrowth, flowLayout, flowReadable, formatTick, smoothPoints, stepsLayout, timelineLayout, routeEdge } from './diagram-layout.ts';
 import type { FlowBox, Pt, Px } from './diagram-layout.ts';
 import type { View } from './marks.ts';
 import { THEME, fontAt } from './theme.ts';
@@ -126,16 +126,34 @@ export class DiagramPainter {
     return this.moving;
   }
 
+  /** The card a flow is drawn on: the rectangle it was placed at, made larger (to the screen's limits) until every node is at least the least readable size. */
+  private grownFlow(ctx: Ctx, d: DiagramFrame, r0: Px, view: View): Px {
+    if (!d.items.some((i) => i.def.op === 'node')) return r0;
+    const limit = Math.min(FLOW_GROWTH_MAX, (FLOW_GROWTH_SHARE * view.width) / r0.w, (view.height - 8) / r0.h);
+    if (!(limit > 1)) return r0;
+    const at = (f: number): Px => {
+      const w = Math.min(view.width - 8, r0.w * f), h = Math.min(view.height - 8, r0.h * f);
+      const cx = r0.x + r0.w / 2, cy = r0.y + r0.h / 2;
+      return { x: Math.max(4, Math.min(view.width - w - 4, cx - w / 2)), y: Math.max(4, Math.min(view.height - h - 4, cy - h / 2)), w, h };
+    };
+    const readable = (f: number): boolean => {
+      const r = at(f);
+      const { base, pad } = textSizes(r, view);
+      const { area } = titleAndArea(ctx, d, r, base, pad);
+      const inputs = flowInputs(ctx, d, base);
+      return flowReadable(flowLayout(inputs.ids, inputs.edges, area, { ...inputs.options, pad }), { w: base * FLOW_NODE_LEAST.w, h: base * FLOW_NODE_LEAST.h });
+    };
+    const f = flowGrowth(readable, limit);
+    return f === undefined ? r0 : at(f);
+  }
+
   private one(ctx: Ctx, d: DiagramFrame, view: View, alpha: number, dt: number, seen: Set<string>): void {
     const theme = THEME;
-    const r: Px = { x: (d.def.x / 1000) * view.width, y: (d.def.y / 1000) * view.height, w: Math.min((d.def.w / 1000) * view.width, view.width - 8), h: Math.min((d.def.h / 1000) * view.height, view.height - 8) };
-    r.x = Math.max(4, Math.min(view.width - r.w - 4, r.x));
-    r.y = Math.max(4, Math.min(view.height - r.h - 4, r.y));
+    const asked = rectOf(d, view);
+    // A flow does not go below a readable node size: its card grows (eased, so a late node does not make it jump) until the nodes read.
+    const r = d.def.kind === 'flow' ? this.ease(`${d.key}:card`, this.grownFlow(ctx, d, asked, view), dt, seen) : asked;
     const accent = accentOf(d.color, 0);
-    // One size for the text of the whole diagram, from how much room it has.
-    const scale = Math.max(0.72, Math.min(1.25, Math.min(r.w / 440, r.h / 300)));
-    const base = Math.max(12, Math.min(view.height * 0.0215, view.height * 0.0185 * scale));
-    const pad = Math.max(10, base * 0.9);
+    const { base, pad } = textSizes(r, view);
     const slide = (1 - d.appear) * 10;
     ctx.globalAlpha = alpha * Math.min(1, d.appear * 1.5);
     ctx.translate(0, slide);
@@ -153,16 +171,11 @@ export class DiagramPainter {
     ctx.fillStyle = rgbCss(accent, 1);
     roundRect(ctx, r.x, r.y + 10, 4, Math.min(r.h - 20, base * 2.2), 2);
     ctx.fill();
-    let top = r.y;
-    if (d.def.title) {
-      ctx.font = fontAt(theme.titleFont, base * 1.12);
-      ctx.fillStyle = theme.ink;
-      ctx.textBaseline = 'alphabetic';
-      const lines = wrapLines((s) => ctx.measureText(s).width, d.def.title, r.w - pad * 2, 2);
-      lines.forEach((l, i) => ctx.fillText(l, r.x + pad, r.y + pad + base * 1.12 * (1 + i * 1.1)));
-      top = r.y + pad + base * 1.12 * (1.1 * lines.length) + base * 0.5;
-    }
-    const area: Px = { x: r.x, y: top, w: r.w, h: Math.max(20, r.y + r.h - top) };
+    const { lines: titleLines, area } = titleAndArea(ctx, d, r, base, pad);
+    ctx.font = fontAt(theme.titleFont, base * 1.12);
+    ctx.fillStyle = theme.ink;
+    ctx.textBaseline = 'alphabetic';
+    titleLines.forEach((l, i) => ctx.fillText(l, r.x + pad, r.y + pad + base * 1.12 * (1 + i * 1.1)));
     const env: Env = { ctx, view, alpha: 1, accent, px: base, painter: this, dt };
     ctx.save();
     roundRect(ctx, r.x + 1, r.y + 1, r.w - 2, r.h - 2, theme.radius + 2);
@@ -175,6 +188,53 @@ export class DiagramPainter {
     }
     ctx.restore();
   }
+}
+
+/** A diagram's rectangle in pixels, as it was placed and kept on the screen. */
+function rectOf(d: DiagramFrame, view: View): Px {
+  const r: Px = { x: (d.def.x / 1000) * view.width, y: (d.def.y / 1000) * view.height, w: Math.min((d.def.w / 1000) * view.width, view.width - 8), h: Math.min((d.def.h / 1000) * view.height, view.height - 8) };
+  r.x = Math.max(4, Math.min(view.width - r.w - 4, r.x));
+  r.y = Math.max(4, Math.min(view.height - r.h - 4, r.y));
+  return r;
+}
+
+/** One size for the text of the whole diagram, from how much room it has. */
+function textSizes(r: Px, view: View): { base: number; pad: number } {
+  const scale = Math.max(0.72, Math.min(1.25, Math.min(r.w / 440, r.h / 300)));
+  const base = Math.max(12, Math.min(view.height * 0.0215, view.height * 0.0185 * scale));
+  return { base, pad: Math.max(10, base * 0.9) };
+}
+
+/** The title's lines, and the area under them where the pieces go. */
+function titleAndArea(ctx: Ctx, d: DiagramFrame, r: Px, base: number, pad: number): { lines: string[]; area: Px } {
+  let top = r.y;
+  let lines: string[] = [];
+  if (d.def.title) {
+    ctx.font = fontAt(THEME.titleFont, base * 1.12);
+    lines = wrapLines((s) => ctx.measureText(s).width, d.def.title, r.w - pad * 2, 2);
+    top = r.y + pad + base * 1.12 * (1.1 * lines.length) + base * 0.5;
+  }
+  return { lines, area: { x: r.x, y: top, w: r.w, h: Math.max(20, r.y + r.h - top) } };
+}
+
+/** The least a flow's node may be (times the text size) before its card grows, and how far a card may grow (times its size, and as a share of the screen's width). */
+const FLOW_NODE_LEAST = { w: 7, h: 3.2 };
+const FLOW_GROWTH_MAX = 2.2;
+const FLOW_GROWTH_SHARE = 0.5;
+
+/** What flowLayout is given for a diagram's nodes and edges at a text size. */
+function flowInputs(ctx: Ctx, d: DiagramFrame, base: number): { ids: string[]; edges: Array<{ id: string; from: string; to: string; labelW?: number }>; options: { maxBox: { w: number; h: number }; pad: number; labelW: number; labelH: number; notes: boolean } } {
+  const nodes = d.items.filter((i): i is DiagramItemFrame & { def: NodeAction } => i.def.op === 'node');
+  const edges = d.items.filter((i): i is DiagramItemFrame & { def: EdgeAction } => i.def.op === 'edge');
+  const notes = nodes.some((n) => n.def.note);
+  const maxBox = { w: Math.max(80, base * 11), h: Math.max(36, base * (notes ? 4.6 : 3.4)) };
+  ctx.font = fontAt(THEME.font, base * 0.78);
+  const labelW = Math.max(0, ...edges.map((e) => (e.def.text ? ctx.measureText(e.def.text).width + 12 : 0)));
+  return {
+    ids: nodes.map((n) => n.id),
+    edges: edges.map((e) => ({ id: e.id, from: e.def.from, to: e.def.to, ...(e.def.text ? { labelW: ctx.measureText(e.def.text).width + 12 } : {}) })),
+    options: { maxBox, pad: Math.max(10, base * 0.9), labelW, labelH: labelW > 0 ? base * 1.55 : 0, notes },
+  };
 }
 
 /** The alpha of one piece: it comes in with its own `appear`, and goes with its fade and opacity. */
@@ -194,10 +254,8 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
   const theme = THEME;
   const nodes = d.items.filter((i): i is DiagramItemFrame & { def: NodeAction } => i.def.op === 'node');
   const edges = d.items.filter((i): i is DiagramItemFrame & { def: EdgeAction } => i.def.op === 'edge');
-  const maxBox = { w: Math.max(80, env.px * 11), h: Math.max(36, env.px * (nodes.some((n) => n.def.note) ? 4.6 : 3.4)) };
-  ctx.font = fontAt(theme.font, env.px * 0.78);
-  const labelW = Math.max(0, ...edges.map((e) => (e.def.text ? ctx.measureText(e.def.text).width + 12 : 0)));
-  const lay = flowLayout(nodes.map((n) => n.id), edges.map((e) => ({ id: e.id, from: e.def.from, to: e.def.to, ...(e.def.text ? { labelW: ctx.measureText(e.def.text).width + 12 } : {}) })), area, { maxBox, pad, labelW, labelH: labelW > 0 ? env.px * 1.55 : 0, notes: nodes.some((n) => n.def.note) });
+  const inputs = flowInputs(ctx, d, env.px);
+  const lay = flowLayout(inputs.ids, inputs.edges, area, { ...inputs.options, pad });
   const boxes = new Map<string, FlowBox>();
   for (const n of nodes) {
     const t = lay.nodes.get(n.id);
