@@ -623,15 +623,18 @@ export function createSession(deps: SessionDeps) {
 
   /**
    * For an answer written one step to a call: after a step that waits for the person's click, the next step is asked for only once they
-   * have followed it and the screen has changed, from the screen as it is then. `base` is how many waiting steps the walk had followed
-   * before this answer began (a new plan starts counting afresh). If the walk ends or its plan is replaced first, the answer stops.
+   * have followed it and the screen has changed, from the screen as it is then. Whether the step kept its wait is the guide's to say, not the
+   * model's text: a wait the validator dropped makes a plain step, and the chain goes straight on. `taken` is how many waits the guide had taken
+   * up when this answer began. If the walk ends or its plan is replaced first, the answer stops.
    */
-  function walkHold(displayId: number, question: string, base: () => number): { afterStep: NonNullable<ModelRequest['afterStep']>; superseded(): boolean } {
+  function walkHold(displayId: number, question: string, taken: number): { afterStep: NonNullable<ModelRequest['afterStep']>; superseded(): boolean } {
     let replaced = false;
-    const afterStep: NonNullable<ModelRequest['afterStep']> = async ({ waits, signal }) => {
+    const afterStep: NonNullable<ModelRequest['afterStep']> = async ({ signal }) => {
       const g = walking?.guide;
       if (!g || !deps.guide) return 'go';
-      const frame = await g.whenFollowed(base() + waits, signal);
+      if (g.waitsTaken === taken) return 'go'; // this step has no wait the guide kept
+      taken = g.waitsTaken;
+      const frame = await g.whenFollowed(taken, signal);
       if (!frame) {
         if (g.active && !signal.aborted) replaced = true;
         return 'stop';
@@ -659,8 +662,7 @@ export function createSession(deps: SessionDeps) {
     const picture = info.frame.screenshot;
     lookAgain(displayId, question, picture, controller.signal, 'new plan');
     const before = thread.length;
-    const base = g.followed;
-    const hold = walkHold(displayId, question, () => base);
+    const hold = walkHold(displayId, question, g.waitsTaken);
     const source: Source = {
       kind: 'model',
       label: model.id,
@@ -839,7 +841,7 @@ export function createSession(deps: SessionDeps) {
         });
       }
 
-      const hold = walkHold(a.displayId, asking, () => 0);
+      const hold = walkHold(a.displayId, asking, 0);
       const source: Source = toBackend
         ? backendSource(a.displayId, 'spoken', asking, seen, undefined, controller.signal)
         : {

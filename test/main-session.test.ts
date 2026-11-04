@@ -6,7 +6,8 @@ import type { SpeechToText } from '../src/adapters/speech-to-text.ts';
 import { createSession, STROKE_TAIL_MS, STROKE_TAIL_STEP_MS } from '../src/main/session.ts';
 import type { SessionDeps } from '../src/main/session.ts';
 import type { SceneMessage } from '../src/shared/ipc.ts';
-import type { ModelOutput, ModelRequest } from '../src/adapters/model.ts';
+import type { Model, ModelOutput, ModelRequest } from '../src/adapters/model.ts';
+import { createStepByStepModel } from '../src/adapters/step-by-step.ts';
 import { ModelError } from '../src/adapters/model.ts';
 import type { Backend, BackendReply, BackendRequest } from '../src/adapters/backend.ts';
 
@@ -992,9 +993,9 @@ test('guide mode, one step to a call: a click elsewhere replaces the plan; the h
       return;
     }
     await pause(100); // the model takes its time: the walk is between plans meanwhile
-    yield { type: 'step', step: guided('u1', 'Click Open.') }; // the new plan waits too
-    await wait(50);
-    yield { type: 'step', step: guided('u2', 'Then Save.', false) };
+    yield { type: 'step', step: guided('u1', 'Click Open.') }; // the new plan waits too, and holds its own next call: the wait given up with the old plan is not counted
+    const after = await req.afterStep!({ waits: 1, signal: req.signal! });
+    if (typeof after === 'object') yield { type: 'step', step: guided('u2', 'Then Save.', false) };
   });
   await question(w);
   await w.click(800, 800, flat(90)); // elsewhere, and the screen changed
@@ -1016,4 +1017,26 @@ test('guide mode, one step to a call: Escape while the next call is held lets it
   w.escape();
   await wait(20);
   assert.equal(got, 'stop');
+});
+
+test('guide mode, one step to a call: a wait the validator drops makes a plain step, and the chain goes on at once instead of holding for a click that cannot come', async () => {
+  const inner: Model = {
+    id: 'stub',
+    async *ask(req) {
+      const n = req.stage?.part === 'next' ? req.stage.n : 1;
+      const step = n === 1 ? guided('t1', 'Click File.')
+        : n === 2 ? { say: 'Then this.', actions: [{ op: 'box', id: 't2', x: 100, y: 300, w: 100, h: 40, color: 'red' }, { op: 'wait', for: 'tap' }] } // not a click: the validator drops the wait
+          : { say: 'That is all.', actions: [] };
+      yield { type: 'step', step };
+      req.onRaw?.(JSON.stringify({ steps: [], plan: n === 1 ? ['B', 'C'] : null, done: n >= 3 }));
+    },
+  };
+  const w = walkRig([], undefined, undefined, undefined, async function* (req) { yield* createStepByStepModel(inner).ask(req); });
+  await question(w);
+  assert.ok(!w.sent.some((m) => m.kind === 'step' && (m.step as { say: string }).say === 'Then this.'), 'step 2 is not asked for before the first click');
+  await w.click(450, 120, flat(90));
+  const says = w.sent.filter((m): m is Extract<typeof m, { kind: 'step' }> => m.kind === 'step').map((m) => m.step.say);
+  assert.ok(says.includes('Then this.'), 'step 2 is shown after the first click');
+  assert.ok(says.includes('That is all.'), `step 3 follows at once, with no second click: ${says.join(' | ')}`);
+  assert.equal(w.sent.filter((m) => m.kind === 'end').length, 1, 'and the walk ends');
 });

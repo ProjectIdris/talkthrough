@@ -238,6 +238,9 @@ export function createGuide(deps: GuideDeps) {
   let pendingClears: string[] = [];
   // How many waiting steps the person has followed, and who is waiting for the next one (an answer written one step to a call asks for its
   // next step only after the click). Each is let go with null when the walk ends or its plan is replaced.
+  // Both count steps that kept a wait after validation (a wait the validator dropped is a plain step): the waits the guide has taken up, and the
+  // ones the person has followed. They stay in step, so "followed the nth wait" means the same to the guide and to whoever asks.
+  let taken = 0;
   let follows = 0;
   let lastSeen: Frame | null = null;
   let followers: Array<{ count: number; resolve: (frame: Frame | null) => void }> = [];
@@ -366,6 +369,7 @@ export function createGuide(deps: GuideDeps) {
 
   /** A step has been drawn and spoken and asks for a click: wait for it. */
   function startWaiting(step: Step, target: Box | null): void {
+    taken++;
     current = { step, target, start: safeCapture() };
     phase = 'waiting';
     deps.send({ kind: 'status', status: 'waiting' });
@@ -475,9 +479,11 @@ export function createGuide(deps: GuideDeps) {
     if (onTarget) {
       remember({ ...event, outcome: via ? 'navigated' : 'followed' });
       tickFollowed();
-      follows++;
-      lastSeen = seen;
-      letGo(seen, follows);
+      if (waitOf(now.step)) {
+        follows++;
+        lastSeen = seen;
+        letGo(seen, follows);
+      }
       current = null;
       baseline = null;
       phase = 'idle';
@@ -496,6 +502,7 @@ export function createGuide(deps: GuideDeps) {
     queue.length = 0;
     streamDone = false;
     phase = 'idle';
+    taken = follows; // the wait that was not followed is given up with its plan
     letGo(null); // whoever waited for the next step of the old plan will not get it
     deps.send({ kind: 'status', status: 'working' });
     try {
@@ -564,6 +571,7 @@ export function createGuide(deps: GuideDeps) {
     const nav = deps.navigation;
     if (!nav) return;
     phase = 'navigating';
+    if (waitOf(step)) taken++;
     navStop = null;
     pendingUp = null;
     baseline = null;
@@ -654,6 +662,10 @@ export function createGuide(deps: GuideDeps) {
     /** True from the first step until the guide ends. */
     get active(): boolean {
       return phase !== 'ended';
+    },
+    /** How many waits (steps that kept a wait after validation) the guide has taken up so far in this walk. */
+    get waitsTaken(): number {
+      return taken;
     },
     /** How many waiting steps the person has followed so far in this walk. */
     get followed(): number {
