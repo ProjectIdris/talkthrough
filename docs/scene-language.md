@@ -74,7 +74,7 @@ When the thing to explain is a process, a sequence of events, a how-to or a tren
 | op | fields | |
 |---|---|---|
 | `diagram` | `id kind x y w h title? xlabel? ylabel? xrange? yrange? color?` | `kind` is `flow`, `timeline`, `steps` or `chart`. `title` is up to 60 characters. `xlabel` and `ylabel` name a chart's axes (24 characters); `xrange` and `yrange` are `[min,max]` and fix the axes, else they fit the data. Sent again under the same id it replaces the diagram and keeps its pieces |
-| `node` | `id of text note? when? pos? color?` | in a `flow` a box; in a `timeline` an event; in `steps` a numbered step (numbered in the order written). `text` is up to 40 characters, `note` a short line under it (60). `when` is the date or time a timeline event is shown with (24), `pos` where it falls on the axis as a number (a day, a year): when every event has one they are spaced to scale, otherwise evenly in the order written |
+| `node` | `id of text note? when? pos? color?` | in a `flow` a box; in a `timeline` an event; in `steps` a numbered step (numbered in the order written). `text` is up to 56 characters, `note` a short line under it (60). `when` is the date or time a timeline event is shown with (24), `pos` where it falls on the axis as a number (a day, a year): when every event has one they are spaced to scale, otherwise evenly in the order written |
 | `edge` | `id from to text? color?` | an arrow between two nodes of a flow, drawn on from `from` to `to`; `text` is a label on it (24). Flows are laid out in layers from what nothing points at, the way the arrows run; an arrow back to an earlier node goes round |
 | `series` | `id of pts label? curve? color?` | a line through 2 to 40 points `[x,y]` in chart units, or a smooth curve with `curve` true, drawn along from its first point; `label` names it at its end |
 | `dot` | `id of x y text? color?` | a labelled point of a chart |
@@ -239,7 +239,7 @@ The validator enforces these; the numbers are in `LIMITS` in `spec.ts`.
 - An action with an unknown `op` or shape, a missing or wrongly typed field, a bad colour, an unknown or wrong-kind id, or a duplicate id is dropped; the rest of its step stays.
 - A number outside its range is clamped. A value that is not a finite number drops the action.
 - Fields the language does not define are removed. `null` means the same as leaving an optional field out (strict structured-output modes require that).
-- Text loses control, zero-width and direction-override characters and line breaks, and is cut to its limit. Markup is not interpreted or removed: `<b>` is just the characters `<b>`.
+- Text loses control, zero-width and direction-override characters and line breaks, and is cut to its limit (at the end of a whole word when that keeps most of the text, so a step never ends in half a word). Markup is not interpreted or removed: `<b>` is just the characters `<b>`.
 - Steps, actions and objects past the limits are dropped.
 - A step with nothing to say and nothing left to show is dropped.
 

@@ -96,7 +96,12 @@ function cleanText(v: string, min: number, max: number, path: string, notes: Not
     let cut = s.slice(0, max);
     const last = cut.charCodeAt(cut.length - 1);
     if (last >= 0xd800 && last <= 0xdbff) cut = cut.slice(0, -1);
-    s = cut.trimEnd();
+    // A cut that falls inside a word goes back to the end of the last whole word, when that keeps most of the text.
+    if (max >= 12 && s.charAt(max) !== ' ') {
+      const space = cut.lastIndexOf(' ');
+      if (space >= max * 0.5) cut = cut.slice(0, space);
+    }
+    s = cut.replace(/[\s,;:(/&–—-]+$/, '');
     note(notes, 'trimmed', path, `text cut to ${max} characters`);
   }
   return s.length < min ? bad('text is empty') : good(s);

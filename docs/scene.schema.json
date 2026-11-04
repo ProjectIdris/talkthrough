@@ -727,7 +727,7 @@
         },
         "text": {
           "type": "string",
-          "description": "up to 40 characters"
+          "description": "up to 56 characters"
         },
         "note": {
           "type": [

@@ -37,6 +37,8 @@ export const LIMITS = {
   /** Flat diagrams alive at once, and what one may hold. */
   maxDiagrams: 3,
   maxNodes: 12,
+  /** Characters of a node's text: room for a short sentence (a step of a checklist). */
+  maxNodeText: 56,
   maxEdges: 24,
   maxSeries: 4,
   maxDots: 16,
@@ -209,7 +211,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'node', op: 'node', creates: 'node', attach: 'of',
     doc: 'A piece of a flow, timeline or steps diagram: a box in a flow; an event on a timeline (when is its date, pos where it falls on the axis as a number, else events are spread in the order written); a numbered step in steps (in the order written). note is a short line under the text. A piece with no at appears with the words, one after another.',
     fields: {
-      id: { k: 'newId' }, of: { k: 'ref', of: 'diagram' }, text: { k: 'str', min: 1, max: 40 }, note: { k: 'str', min: 1, max: 60, opt: true },
+      id: { k: 'newId' }, of: { k: 'ref', of: 'diagram' }, text: { k: 'str', min: 1, max: LIMITS.maxNodeText }, note: { k: 'str', min: 1, max: 60, opt: true },
       when: { k: 'str', min: 1, max: 24, opt: true }, pos: { k: 'num', ...AXIS, opt: true }, color: COLOR_OPT, at: AT,
     },
   },
