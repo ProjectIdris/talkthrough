@@ -30,11 +30,13 @@ const n = Number(one('n', '3'));
 const maxCalls = Number(one('max-calls', '0'));
 const question = one('question', 'What is this?') as string;
 const schema = one('schema', 'lean') === 'full' ? sceneSchema : sceneSchemaLean;
-if (!image || !(maxCalls >= n) || !(n >= 1)) {
-  console.error('usage: node scripts/measure-prompt.ts --image <png> --model codex:<name>|claude:<name> --n 3 --max-calls <at least n> [--codex-config key=json ...] [--follow-up] [--out file]');
+// a primed question is two calls: the primer and the question
+const calls = flag('prime') ? 2 * n : n;
+if (!image || !(maxCalls >= calls) || !(n >= 1)) {
+  console.error('usage: node scripts/measure-prompt.ts --image <png> --model codex:<name>|claude:<name> --n 3 --max-calls <at least n, or 2n with --prime> [--codex-config key=json ...] [--follow-up] [--out file]');
   process.exit(2);
 }
-console.log(`${n} live call(s) on ${modelSpec}`);
+console.log(`${calls} live call(s) on ${modelSpec}${flag('prime') ? ` (${n} questions, each with a primer)` : ''}`);
 
 const [kind, name] = modelSpec.split(':') as [string, string];
 const threadConfig: Record<string, unknown> = {};

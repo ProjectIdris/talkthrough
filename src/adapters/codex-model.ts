@@ -507,7 +507,6 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
             { type: 'image', url: `data:${req.screenshot.mime};base64,${req.screenshot.base64}` },
             ...(req.focus ? [{ type: 'image', url: `data:${req.focus.crop.mime};base64,${req.focus.crop.base64}` }] : []),
             // a continued thread already holds the earlier turns
-            // a continued thread already holds the earlier turns
             { type: 'text', text: questionText(reuse ? { ...req, thread: [] } : req) },
           ],
           outputSchema: req.schema,
@@ -525,6 +524,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
         finishedWell = true;
         if (finishedWell && options.keepThread) {
           kept = { threadId, turns: req.thread.length + 1, proc };
+          clearTimeout(keptTimer);
           keptTimer = setTimeout(letGo, options.keepThreadMs ?? 20_000);
           keptTimer.unref();
         }
