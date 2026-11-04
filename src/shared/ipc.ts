@@ -112,9 +112,10 @@ export type SceneMessage =
    * hush: the chord was made, stop any speech still going now (marks stay; no cue);
    * listening: recording has really started (show the cue);
    * working: released, waiting for the first step; detail: a richer version of the scene is being written
-   * (shown quietly; nothing is hidden); idle: hide the cue and the indicator.
+   * (shown quietly; nothing is hidden); idle: hide the cue and the indicator;
+   * waiting: a guide step is shown and the app waits for the person's click; checking: the click came and the screen is being looked at.
    */
-  | { kind: 'status'; status: 'hush' | 'listening' | 'working' | 'backend' | 'detail' | 'idle' }
+  | { kind: 'status'; status: 'hush' | 'listening' | 'working' | 'backend' | 'detail' | 'waiting' | 'checking' | 'idle' }
   /** A short line that fades by itself. */
   | { kind: 'notice'; text: string; level: 'info' | 'error' };
 

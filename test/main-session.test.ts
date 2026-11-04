@@ -600,3 +600,130 @@ test('the question report says how well the answer built in order', async () => 
   await question(g);
   assert.deepEqual(reports.at(-1)?.order, { score: 1, refs: 1, early: 0, missing: 0, wrong: 0 });
 });
+
+// ---- Guide mode: an answer whose steps ask for the person's click is a walk ---------------------------------------------
+
+import { GRID_COLS, GRID_ROWS } from '../src/shared/screen-diff.ts';
+import type { Frame, GuideListener } from '../src/main/guide.ts';
+
+const flat = (v: number): Frame => ({ screenshot: { mime: 'image/png', base64: `f${v}`, width: 10, height: 10 }, grid: { cols: GRID_COLS, rows: GRID_ROWS, luma: new Uint8Array(GRID_COLS * GRID_ROWS).fill(v) } });
+const TARGET = { x: 400, y: 100, w: 100, h: 40 };
+const guided = (id: string, say: string, withWait = true) => ({
+  say,
+  actions: [{ op: 'box', id, x: 400, y: 100, w: 100, h: 40, color: 'red' }, ...(withWait ? [{ op: 'wait', for: 'click', ...TARGET }] : [])],
+});
+
+/** A session whose screen is `screen` (set it to change what a look at the display shows) and whose clicks the test makes. */
+function walkRig(plans: unknown[][]) {
+  let screen = flat(235);
+  let listener: GuideListener | undefined;
+  let stopped = 0;
+  let asks = 0;
+  const requests: ModelRequest[] = [];
+  const r = rig({
+    // The session asks for its model more than once a question: the plan is picked when a question is asked of it.
+    model: () => ({ ...createScriptedModel([]), ask: (req: ModelRequest) => { requests.push(req); return createScriptedModel(plans[asks++] ?? []).ask(req); } }),
+    guide: {
+      options: { onTargetChecks: [30, 60], elsewhereChecks: [30, 60], settleMs: 5 },
+      capture: async () => screen,
+      listen: (_id, l) => {
+        listener = l;
+        return () => void stopped++;
+      },
+    },
+  });
+  return {
+    ...r,
+    requests,
+    look: (f: Frame) => { screen = f; },
+    click: async (x: number, y: number, then: Frame) => {
+      listener!.down({ x, y, displayId: 7 });
+      screen = then;
+      listener!.up({ x, y, displayId: 7 });
+      await wait(400);
+    },
+    escape: () => listener!.escape(),
+    stopped: () => stopped,
+    listening: () => listener !== undefined,
+  };
+}
+
+test('guide mode: a step that asks for a click holds the steps after it back until the screen has changed, then shows them and ends', async () => {
+  const w = walkRig([[guided('t1', 'Click File.'), guided('t2', 'Now click Save.', false)]]);
+  await question(w);
+  assert.ok(w.kinds().includes('status:waiting'), w.kinds().join());
+  assert.ok(!w.kinds().includes('end'), 'the answer is not over while it waits');
+  assert.equal(w.sent.filter((m) => m.kind === 'step-open').length, 1, 'the second step is held, not drawn');
+  await w.click(450, 120, flat(90));
+  assert.ok(w.sent.some((m) => m.kind === 'step' && (m.step as { say: string }).say === 'Now click Save.'), 'the next step is shown after the click');
+  assert.equal(w.sent.at(-2)?.kind, 'end');
+  assert.deepEqual(w.sent.at(-1), { kind: 'status', status: 'idle' });
+  assert.ok(w.stopped() >= 1, 'the click watch is taken off when the walk ends');
+});
+
+test('guide mode: a click on the target that changes nothing is waited out, not taken as done', async () => {
+  const w = walkRig([[guided('t1', 'Click File.'), guided('t2', 'Now click Save.', false)]]);
+  await question(w);
+  await w.click(450, 120, flat(235)); // the same screen
+  assert.ok(!w.sent.some((m) => m.kind === 'step' && (m.step as { say: string }).say === 'Now click Save.'));
+  assert.equal(w.kinds().at(-1), 'notice:info');
+});
+
+test('guide mode: a click elsewhere that changes the screen asks the model again from the new screen, told what happened', async () => {
+  const w = walkRig([[guided('t1', 'Click File.')], [guided('u1', 'Click Open.', false)]]);
+  await question(w);
+  await w.click(800, 800, flat(90));
+  assert.equal(w.requests.length, 2, 'the model is asked a second time');
+  const second = w.requests[1]!;
+  assert.match(second.question, /partway through/);
+  assert.match(second.question, /Click File\./);
+  assert.equal(second.screenshot.base64, 'f90', 'it is shown the screen as it is now');
+  assert.ok(w.sent.some((m) => m.kind === 'step' && (m.step as { say: string }).say === 'Click Open.'), 'its step is shown');
+});
+
+const withPlan = (id: string, say: string, withWait = true) => ({
+  say,
+  actions: [
+    ...guided(id, say, withWait).actions,
+    { op: 'diagram', id: 'plan', kind: 'steps', x: 700, y: 100, w: 280, h: 260, title: 'Plan' },
+    { op: 'node', id: 'n1', of: 'plan', text: 'First' },
+    { op: 'node', id: 'n2', of: 'plan', text: 'Second' },
+  ],
+});
+
+test('guide mode: a new plan after a click elsewhere may use the same ids for its marks and its checklist again', async () => {
+  const w = walkRig([[withPlan('t1', 'Click File.')], [withPlan('t1', 'Click Open.', false)]]);
+  await question(w);
+  await w.click(800, 800, flat(90));
+  const again = w.sent.filter((m): m is Extract<typeof m, { kind: 'step' }> => m.kind === 'step').find((m) => m.step.say === 'Click Open.');
+  assert.ok(again, 'the new plan is shown, not dropped for ids in use');
+  const ops = again.step.actions.map((a) => a.op);
+  assert.ok(ops.includes('diagram') && ops.filter((o) => o === 'node').length === 2 && ops.includes('box'), `all of it kept: ${ops.join()}`);
+  assert.ok(w.sent.some((m) => m.kind === 'status' && m.status === 'idle') || w.kinds().at(-1) !== 'notice:error', 'the walk was not ended by a failed plan');
+});
+
+test('guide mode: Escape ends the walk and clears the page, and the next question starts a new thread', async () => {
+  const w = walkRig([[guided('t1', 'Click File.')]]);
+  await question(w);
+  w.escape();
+  assert.deepEqual(w.sent.slice(-2), [{ kind: 'status', status: 'idle' }, { kind: 'clear' }]);
+  assert.ok(w.stopped() >= 1);
+  await question(w);
+  assert.deepEqual(w.sent.filter((m) => m.kind === 'begin').at(-1), { kind: 'begin', turn: 1 });
+});
+
+test('guide mode: a new question ends the walk without clearing the page', async () => {
+  const w = walkRig([[guided('t1', 'Click File.')], [step('Fresh.')]]);
+  await question(w);
+  const before = w.sent.length;
+  await question(w);
+  assert.ok(w.stopped() >= 1, 'the old walk is over');
+  assert.ok(!w.sent.slice(before).some((m) => m.kind === 'clear'), 'the page was not cleared');
+});
+
+test('guide mode is only for a session that can watch clicks: without it a wait is ignored and every step plays', async () => {
+  const r = rig({ model: () => createScriptedModel([guided('t1', 'Click File.'), guided('t2', 'Then Save.', false)]) });
+  await question(r);
+  assert.equal(r.kinds().at(-1), 'end');
+  assert.equal(r.sent.filter((m) => m.kind === 'step-open').length, 2);
+});

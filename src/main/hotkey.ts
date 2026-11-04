@@ -1,11 +1,11 @@
-import { uIOhook } from 'uiohook-napi';
+import { uIOhook, UiohookKey } from 'uiohook-napi';
 import { createChordTracker } from './chord.ts';
 import type { ChordEvents } from './chord.ts';
 
 /**
  * Installs the global key hook for the push-to-talk chord only. Key events go straight into the
  * chord tracker, which looks at the scan code, keeps two booleans and drops the rest; nothing is
- * logged or buffered. Mouse events are not requested at all.
+ * logged or buffered. Mouse events are not read here; guide mode reads them only while a step waits (watchGuideInput).
  */
 export function startHotkey(events: ChordEvents) {
   const tracker = createChordTracker(events);
@@ -18,5 +18,25 @@ export function startHotkey(events: ChordEvents) {
       uIOhook.removeAllListeners();
       uIOhook.stop();
     },
+  };
+}
+
+/**
+ * While guide mode waits for the person's click: their mouse button going down and up, as screen points, and Escape.
+ * Nothing is kept or logged; the listeners are taken off as soon as the returned function is called.
+ */
+export function watchGuideInput(handlers: { down(point: { x: number; y: number }): void; up(point: { x: number; y: number }): void; escape(): void }): () => void {
+  const down = (event: { x: number; y: number }): void => handlers.down({ x: event.x, y: event.y });
+  const up = (event: { x: number; y: number }): void => handlers.up({ x: event.x, y: event.y });
+  const key = (event: { keycode: number }): void => {
+    if (event.keycode === UiohookKey.Escape) handlers.escape();
+  };
+  uIOhook.on('mousedown', down);
+  uIOhook.on('mouseup', up);
+  uIOhook.on('keydown', key);
+  return () => {
+    uIOhook.off('mousedown', down);
+    uIOhook.off('mouseup', up);
+    uIOhook.off('keydown', key);
   };
 }

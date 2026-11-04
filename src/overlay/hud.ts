@@ -2,7 +2,7 @@
 // listening, that it is working, a short notice, and an offer to ask a deeper helper. This is the
 // state only; overlay.ts shows it. Times are given by the caller.
 
-export type Status = 'listening' | 'working' | 'backend' | 'detail' | 'idle';
+export type Status = 'listening' | 'working' | 'backend' | 'detail' | 'waiting' | 'checking' | 'idle';
 export type NoticeLevel = 'info' | 'error';
 
 /** How long a notice stays before it fades, and how long the fade takes. */

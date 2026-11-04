@@ -383,3 +383,17 @@ test('a detail pass may swap any 3D object for another kind of 3D object, but a 
   assert.equal(detail.ids.get('pipe'), 'path');
   assert.equal(detail.ids.get('words'), 'text');
 });
+
+test('a wait for a click keeps its box, or none, and drops a kind of wait it does not know', () => {
+  const ok = validateScene(scene(box('t'), { op: 'wait', for: 'click', x: 400, y: 100, w: 100, h: 40 }));
+  assert.deepEqual(ok.issues, []);
+  assert.deepEqual(actionsOf(ok)[1], { op: 'wait', for: 'click', x: 400, y: 100, w: 100, h: 40 });
+  const anywhere = validateScene(scene({ op: 'wait', for: 'click' }));
+  assert.deepEqual(anywhere.issues, []);
+  assert.deepEqual(actionsOf(anywhere), [{ op: 'wait', for: 'click' }]);
+  const unknown = validateScene(scene(box('t'), { op: 'wait', for: 'key' }));
+  assert.equal(actionsOf(unknown).length, 1, 'a wait for something else is dropped');
+  const outside = validateScene(scene({ op: 'wait', for: 'click', x: 5000, y: 0, w: 10, h: 10 }));
+  const wait = actionsOf(outside)[0] as { x: number };
+  assert.ok(wait.x <= 1000, 'a box off the screen is pulled back onto it');
+});

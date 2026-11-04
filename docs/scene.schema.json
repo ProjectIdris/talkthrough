@@ -2829,6 +2829,59 @@
       "additionalProperties": false,
       "description": "Aim the camera at a 3D object; without id, back at the middle of the stage."
     },
+    "wait": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "wait"
+          ]
+        },
+        "for": {
+          "enum": [
+            "click"
+          ]
+        },
+        "x": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1000"
+        },
+        "y": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1000"
+        },
+        "w": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 1000"
+        },
+        "h": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 1000"
+        }
+      },
+      "required": [
+        "op",
+        "for",
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "additionalProperties": false,
+      "description": "Guide mode: once this step has been drawn and spoken, wait for the person to click, and go on to the next step only when the screen has really changed. x,y,w,h is the box (top-left corner and size, on the screenshot) the click should land in; leave it out when it could be anywhere. Draw the target with a mark as well, and give each guide step its own ids."
+    },
     "clear": {
       "type": "object",
       "properties": {
@@ -2987,6 +3040,9 @@
         },
         {
           "$ref": "#/$defs/focus"
+        },
+        {
+          "$ref": "#/$defs/wait"
         },
         {
           "$ref": "#/$defs/clear"

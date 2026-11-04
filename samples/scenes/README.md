@@ -14,6 +14,7 @@ Hand-written scenes in the scene language (`docs/scene-language.md`) for playing
 | `diagram-timeline.json` | a page with free space along the bottom | a timeline of four dated events in autumn 1066, spaced to scale |
 | `diagram-steps.json` | any page with a free right-hand side | numbered steps, one ticked off in the second step |
 | `diagram-chart.json` | any page with a free right-hand side | a chart with a demand curve, a supply curve and a labelled dot where they meet |
+| `export-guide.json` | an app with a File menu top-left (20,30 to 90,80) and the menu's Export item below it (20,190 to 200,240) | a guide: each step marks its target and ends with a `wait` for the person's click, and the first draws a checklist the app ticks off as steps are followed; played without the app, it just shows the three steps one after another |
 | `escalate.json` | a settings menu top-left (20,40 to 180,100) | a brief partial answer with a mark, plus an `escalate` reason: the app offers a deeper backend |
 
 

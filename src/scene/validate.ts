@@ -251,7 +251,8 @@ function removeWithDescendants(state: SceneState, id: string): void {
   }
 }
 
-function applyClear(state: SceneState, target: string): void {
+/** Takes a cleared id (or "all", "marks", "panel") out of what the scene holds; the guide clears the page by id between steps and tells the scene here. */
+export function applyClear(state: SceneState, target: string): void {
   if (target === 'all') {
     state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.copies = 0;
   } else if (target === 'marks' || target === 'panel') {

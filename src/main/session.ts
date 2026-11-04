@@ -5,11 +5,13 @@ import type { Model, ModelOutput, ThreadTurn, Usage } from '../adapters/model.ts
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
-import { beginLiveStep, createDetailState, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
+import { applyClear, beginLiveStep, createDetailState, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
 import type { LiveStep, SceneState, Step } from '../scene/index.ts';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
 import { isRealStroke } from '../shared/pen.ts';
+import { createGuide, guideQuestion, waitOf } from './guide.ts';
+import type { Frame, GuideListener, GuideOptions } from './guide.ts';
 import { parseSpoken } from './phrases.ts';
 import type { Box, Point } from '../shared/pen.ts';
 
@@ -59,6 +61,16 @@ export type SessionDeps = {
   pin?(input: { question: string; thread: readonly ThreadTurn[]; steps: readonly unknown[]; screenshot?: Screenshot }): { file: string };
   /** Whether the person has chosen to keep a picture of the screen with pins. */
   pinScreenshot?(): boolean;
+  /**
+   * Guide mode (see guide.ts): a fresh look at a display, and the person's clicks and Escape while a step waits for them.
+   * Absent: a `wait` in an answer is ignored and the steps all play at once.
+   */
+  guide?: {
+    capture(displayId: number): Promise<Frame>;
+    listen(displayId: number, listener: GuideListener): () => void;
+    /** Timings of the walk (when to look at the screen after a click, how long to wait); the defaults are in guide.ts. */
+    options?: Partial<GuideOptions>;
+  };
   /** Called with the figures of a question when it ends, and again as the page reports its milestones. */
   onReport?(report: QuestionReport): void;
 };
@@ -114,6 +126,8 @@ type Attempt = {
 };
 
 /** Where an answer's steps come from: the model, or the backend. */
+type Guide = ReturnType<typeof createGuide>;
+
 type Source = { kind: 'model' | 'backend'; label: string; stream(): AsyncIterable<ModelOutput>; /** A line to show instead, when the source answered with text only. */ message?(): string | undefined };
 
 export function createSession(deps: SessionDeps) {
@@ -131,6 +145,8 @@ export function createSession(deps: SessionDeps) {
   let lastActivity = 0;
   let lastAsk: { question: string; screenshot: Screenshot; /** The picture as grabbed, without a pen stroke. */ clean: Screenshot; reason?: string } | null = null;
   let report: QuestionReport | null = null;
+  /** The guide walk in progress, if any, and the controller of the model call making its latest plan. */
+  let walking: { guide: Guide; controller: AbortController } | null = null;
   let releasedAt = 0;
   /** The press whose pen strokes still count: the one held now, and for a moment after release. */
   let penFor: Attempt | null = null;
@@ -293,7 +309,7 @@ export function createSession(deps: SessionDeps) {
   }
 
   /** The question is on its way to its answer: the thread, the validator, begin/step/end and every way it can end. */
-  async function answer(displayId: number, controller: AbortController, r: QuestionReport, since: () => number, question: string, source: Source, keepThread = false, detail = false): Promise<void> {
+  async function answer(displayId: number, controller: AbortController, r: QuestionReport, since: () => number, question: string, source: Source, keepThread = false, detail = false, walkIn?: Guide): Promise<void> {
     const continuing = thread.length > 0 && (keepThread || now() - lastActivity < THREAD_WINDOW_MS);
     if (!continuing) {
       thread = [];
@@ -309,7 +325,10 @@ export function createSession(deps: SessionDeps) {
     deps.log(`question heard (turn ${turn}, ${source.label}${deps.logText ? `): ${JSON.stringify(question)}` : ')'}`);
 
     const shown: Step[] = [];
-    let begun = false;
+    // A guide walk (an answer with `wait` steps) holds its later steps back: they are given to it, not drawn.
+    let walk: Guide | undefined = walkIn;
+    let held = false;
+    let begun = walkIn !== undefined;
     const open = () => {
       if (begun) return;
       begun = true;
@@ -324,21 +343,67 @@ export function createSession(deps: SessionDeps) {
     // The answer as the model wrote it, to score the order it built in.
     const written: Array<{ actions: unknown[] }> = [];
     let writing: unknown[] | null = null;
-    const newLive = (): LiveStep => beginLiveStep(checking, {
-      open: (say) => {
-        open();
-        r.firstStepMs ??= since();
-        deps.send(displayId, { kind: 'step-open', say });
-      },
-      action: (action) => deps.send(displayId, { kind: 'action', action }),
-    });
+    const newLive = (): LiveStep => {
+      held = walk !== undefined;
+      return beginLiveStep(checking, {
+        open: (say) => {
+          if (held) return;
+          open();
+          r.firstStepMs ??= since();
+          deps.send(displayId, { kind: 'step-open', say });
+        },
+        action: (action) => {
+          if (!held) deps.send(displayId, { kind: 'action', action });
+        },
+      });
+    };
+    /** A step that asks for the person's click starts a walk; the steps after it are the walk's to show. */
+    const startWalk = (): Guide => {
+      const g: Guide = createGuide({
+        displayId,
+        send: (message) => {
+          // The guide clears the page by id between steps: the scene the answers are checked against forgets those ids too.
+          if (message.kind === 'step') for (const a of message.step.actions) if (a.op === 'clear') applyClear(checking, a.target);
+          deps.send(displayId, message);
+        },
+        capture: () => deps.guide!.capture(displayId),
+        listen: (listener) => deps.guide!.listen(displayId, listener),
+        replan: (info) => replanWalk(displayId, g, question, info),
+        finish: () => deps.send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) }),
+        onEnd: (why) => {
+          if (walking?.guide === g) {
+            walking.controller.abort();
+            walking = null;
+          }
+          // Escape, a long silence or a failure leave a cleared page: the next question starts afresh.
+          if (why === 'escape' || why === 'idle' || why === 'failed') {
+            thread = [];
+            state = createSceneState();
+          }
+        },
+        log: deps.log,
+        ...(deps.guide?.options ? { options: deps.guide.options } : {}),
+      });
+      walking = { guide: g, controller: new AbortController() };
+      return g;
+    };
+    const handOver = (step: Step, wasHeld: boolean): void => {
+      if (wasHeld && walk) walk.push(step);
+      else if (!walk && !detail && deps.guide && waitOf(step)) {
+        walk = startWalk();
+        walk.adopt(step); // already on the page: the guide waits for its click
+      }
+    };
     const closeLive = (): void => {
       if (!live) return;
       const done = live.finish();
       live = null;
       if (done.issues.length > 0) deps.log(`validator: ${done.issues.length} notes on step ${shown.length + 1}`);
-      deps.send(displayId, { kind: 'step-close' });
-      if (done.step) shown.push(done.step);
+      if (!held) deps.send(displayId, { kind: 'step-close' });
+      if (done.step) {
+        shown.push(done.step);
+        handOver(done.step, held);
+      }
     };
     try {
       for await (const out of source.stream()) {
@@ -363,10 +428,12 @@ export function createSession(deps: SessionDeps) {
           const checked = validateStep(out.step, checking);
           if (checked.issues.length > 0) deps.log(`validator: ${checked.issues.length} notes on step ${shown.length + 1}`);
           if (!checked.step) continue;
-          open();
+          const wasHeld = walk !== undefined;
+          if (!wasHeld) open();
           shown.push(checked.step);
           r.firstStepMs ??= since();
-          deps.send(displayId, { kind: 'step', step: checked.step });
+          if (!wasHeld) deps.send(displayId, { kind: 'step', step: checked.step });
+          handOver(checked.step, wasHeld);
         } else if (out.type === 'usage') {
           r.tokens = out.usage;
         } else if (out.type === 'escalate') {
@@ -381,13 +448,14 @@ export function createSession(deps: SessionDeps) {
       // The stream ended or broke in the middle of a step: close it on the page so nothing hangs half drawn.
       if (failure) {
         live = null;
-        deps.send(displayId, { kind: 'step-close' });
+        if (!held) deps.send(displayId, { kind: 'step-close' });
       } else closeLive();
     }
     if (failure) {
       const code = failure instanceof ModelError ? failure.code : 'failed';
       r.error = `${source.kind}: ${code}: ${failure instanceof Error ? failure.message : String(failure)}`;
-      if (begun) deps.send(displayId, { kind: 'end' });
+      if (walk) walk.streamEnded();
+      else if (begun) deps.send(displayId, { kind: 'end' });
       return notice(displayId, failure instanceof ModelError && code === 'auth' && failure.message === NO_KEY_MESSAGE ? 'No API key is set. Open the tray menu and choose API key.' : source.kind === 'backend' ? backendMessage(code) : modelMessage(code), 'error');
     }
     r.steps = shown.length;
@@ -404,8 +472,11 @@ export function createSession(deps: SessionDeps) {
       r.error = `the ${source.kind} gave nothing to show`;
       return notice(displayId, detail ? "I couldn't add more detail this time." : "I couldn't work out an answer to that. Try asking another way?");
     }
-    open();
-    deps.send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) });
+    if (walk) walk.streamEnded(); // the walk sends the end when its last step has been shown
+    else {
+      open();
+      deps.send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) });
+    }
     const kept: ThreadTurn = { question, steps: shown, ...(detail ? { detail: true as const } : {}) };
     if (picture) pictures.set(kept, picture);
     if (detail) {
@@ -417,6 +488,35 @@ export function createSession(deps: SessionDeps) {
     thread.push(kept);
     lastActivity = now();
     if (lastAsk) lastAsk.reason = detail ? undefined : escalate;
+  }
+
+  /**
+   * The person clicked away from where a guide step pointed and the screen changed: the plan was made for a screen that is
+   * gone. The model is asked again from the screen as it is now, told what has happened so far; its steps go to the walk.
+   */
+  async function replanWalk(displayId: number, g: Guide, question: string, info: Parameters<Parameters<typeof createGuide>[0]['replan']>[0]): Promise<void> {
+    const w = walking;
+    if (!w || w.guide !== g) return;
+    // The old marks and checklist are about to go from the page; the new plan may write the same ids again.
+    for (const id of info.clears) applyClear(state, id);
+    const controller = new AbortController();
+    w.controller = controller;
+    const model = deps.model();
+    const r: QuestionReport = { model: model.id, question: '', steps: 0 };
+    const started = now();
+    const picture = info.frame.screenshot;
+    lastAsk = { question, screenshot: picture, clean: picture };
+    deps.send(displayId, { kind: 'screenshot', url: `data:${picture.mime};base64,${picture.base64}` });
+    const before = thread.length;
+    const source: Source = {
+      kind: 'model',
+      label: model.id,
+      stream: () => model.ask({ question: guideQuestion(question, info), screenshot: picture, thread, schema: sceneSchemaLean, pieces: true, signal: controller.signal }),
+    };
+    await answer(displayId, controller, r, () => now() - started, question, source, true, false, g);
+    deps.log(`guide: new plan ${JSON.stringify(deps.logText ? r : { ...r, question: '(not logged)' })}`);
+    if (controller.signal.aborted) return;
+    if (thread.length === before) throw new Error('the model gave no steps');
   }
 
   /**
@@ -450,6 +550,7 @@ export function createSession(deps: SessionDeps) {
 
   async function ask(a: Attempt): Promise<void> {
     const controller = new AbortController();
+    walking?.guide.end('superseded'); // a new question ends the walk
     asking?.abort();
     asking = controller;
     const model = deps.model();
@@ -633,7 +734,7 @@ export function createSession(deps: SessionDeps) {
     },
     /** The user clicked "More detail" beside the model. Ignored while an answer is being written or heard. */
     async detail(displayId: number): Promise<void> {
-      if (asking !== null || attempt !== null) return;
+      if (asking !== null || attempt !== null || walking !== null) return;
       const controller = new AbortController();
       asking = controller;
       releasedAt = now();
@@ -654,11 +755,13 @@ export function createSession(deps: SessionDeps) {
     },
     /** The overlay was cleared by hand: the next question starts a new thread. */
     reset(): void {
+      walking?.guide.end('superseded');
       asking?.abort();
       thread = [];
       state = createSceneState();
     },
     dispose(): void {
+      walking?.guide.end('superseded');
       asking?.abort();
       if (attempt?.timer) clearTimeout(attempt.timer);
       if (attempt?.chord) penOff(attempt.displayId);

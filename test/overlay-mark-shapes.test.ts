@@ -112,4 +112,7 @@ test('what a mark covers is kept clear of cards: a tilted box by its turned outl
 test('the model is told about the new marks', () => {
   for (const word of ['poly', 'point', 'trace', 'rot']) assert.ok(sceneGuide.includes(word), word);
   assert.ok(sceneGuide.includes('a tilted square is a poly'), 'the tilted square rule is in the guide');
+  // Live, the shapes were chosen only once the instruction stood in the first rule (as for diagrams), not in a later description.
+  const first = sceneGuide.split('\n').find((l) => l.startsWith('- Step 1'))!;
+  for (const word of ['poly', 'point', 'trace']) assert.ok(first.includes(word), `the first rule names ${word}`);
 });
