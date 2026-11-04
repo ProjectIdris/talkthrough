@@ -6,7 +6,7 @@
 //   node scripts/measure-first-word.ts --command <claude executable> --mode idle [--idle 6]       (no call: only starts the process)
 //   node scripts/measure-first-word.ts --command <claude executable> --mode call --image page.png --question "Explain this" [--idle 5]
 //        [--debug-file out.log] [--effort low] [--thinking disabled|adaptive] [--thinking-env] [--settings-json '{...}'] [--mime image/jpeg]
-//        [--full] [--answer-file out.txt] [--max-calls 1] [--tail 1500]
+//        [--full] [--extra "a line added to the question"] [--answer-file out.txt] [--max-calls 1] [--tail 1500]
 //
 // The three thinking switches are there to be tried: on Haiku 5.5 none of them stops it thinking (see the First Word note).
 // `call` is one live model call. The command is started through the same arguments as the app (claudeArgs), with the same
@@ -118,7 +118,8 @@ setTimeout(() => {
   const width = Number(at('width', '1280')), height = Number(at('height', '536'));
   const mime = at('mime', 'image/png') as string;
   const req = { question: at('question', 'Explain this') as string, screenshot: { mime, base64: png.toString('base64'), width, height }, thread: [] } as never;
-  const text = questionText(req);
+  const extra = at('extra');
+  const text = questionText(req) + (extra ? `\n${extra}` : '');
   const message = JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mime, data: png.toString('base64') } }, { type: 'text', text }] } }) + '\n';
   console.log(`image ${png.length} bytes, message ${message.length} chars`);
   sentAt = performance.now();
