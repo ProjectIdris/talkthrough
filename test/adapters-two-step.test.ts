@@ -34,6 +34,7 @@ test('what each half is told: the first asks for step 1 alone (about 25 words), 
   const first = questionText({ ...request, stage: { part: 'first' } });
   assert.match(first, /Write only step 1 now/);
   assert.match(first, /about 25 words/);
+  assert.match(first, /the checklist is drawn in step 2/);
   const rest = questionText({ ...request, stage: { part: 'rest', first: { say: 'Hello.', actions: [] } } });
   assert.match(rest, /Step 1 of this answer is already drawn and spoken: \{"say":"Hello\.","actions":\[\]\}/);
   assert.match(rest, /from step 2 onward/);
