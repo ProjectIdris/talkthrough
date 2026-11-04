@@ -1,4 +1,4 @@
-import { app, dialog, nativeImage, screen } from 'electron';
+import { app, dialog, nativeImage, safeStorage, screen } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { uIOhook, UiohookKey } from 'uiohook-napi';
@@ -6,16 +6,19 @@ import { parseArgs } from './args.ts';
 import { createClaudeModel } from '../adapters/claude-model.ts';
 import { createCodexModel } from '../adapters/codex-model.ts';
 import { createLocalSpeechServerRecogniser } from '../adapters/local-speech-server.ts';
+import { createOpenAIModel } from '../adapters/openai-model.ts';
 import type { Model } from '../adapters/model.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
 import { displayUnderPointer } from './capture.ts';
 import { runGrab } from './grab.ts';
 import { startHotkey } from './hotkey.ts';
+import { createKeyStore } from './keystore.ts';
 import { createMedia } from './media.ts';
 import { createOverlayManager } from './overlay-windows.ts';
 import { createSamplePlayer } from './samples.ts';
 import { createSession } from './session.ts';
+import { createSettingsWindow } from './settings-window.ts';
 import { loadSettings } from './settings.ts';
 import { createTray } from './tray.ts';
 
@@ -49,6 +52,8 @@ const audioPreload = join(__dirname, 'audio-preload.cjs');
 // A stand-in overlay page may be named for development only; a packaged app always loads its own.
 const overlayPage = (!app.isPackaged && process.env.TALKTHROUGH_OVERLAY_PAGE) || join(__dirname, '..', 'overlay', 'index.html');
 const audioPage = join(__dirname, '..', 'audio', 'index.html');
+const settingsPreload = join(__dirname, 'settings-preload.cjs');
+const settingsPage = join(__dirname, '..', 'settings', 'index.html');
 
 // A second launch must not get as far as making windows or the key hook.
 const firstInstance = options.grab !== undefined || app.requestSingleInstanceLock();
@@ -142,9 +147,21 @@ async function main(): Promise<void> {
     speech.warm?.().then(() => log('speech server reachable'), (error: unknown) => log(`speech server: ${error instanceof Error ? error.message : String(error)}`));
   } else log('no speech server in the settings: questions cannot be heard yet');
 
+  // The API key, if the person uses that route: encrypted for their account, read only here, never logged.
+  const keys = createKeyStore({ file: join(app.getPath('userData'), 'api-key.bin'), safeStorage });
+  const settingsWindow = createSettingsWindow({ preload: settingsPreload, page: settingsPage, keys });
+
   const model: Model = settings.model === 'claude'
     ? createClaudeModel({ model: settings.claudeModel, effort: settings.effort, ...(settings.claudeCommand ? { command: settings.claudeCommand } : {}) })
-    : createCodexModel({ model: settings.codexModel, fast: settings.codexFast, effort: settings.effort, log, ...(settings.codexCommand ? { command: settings.codexCommand } : {}) });
+    : settings.model === 'openai'
+      ? createOpenAIModel({
+        apiKey: () => keys.load(),
+        model: settings.openaiModel,
+        effort: settings.effort,
+        ...(settings.openaiServiceTier ? { serviceTier: settings.openaiServiceTier } : {}),
+        ...(settings.openaiBaseUrl ? { baseUrl: settings.openaiBaseUrl } : {}),
+      })
+      : createCodexModel({ model: settings.codexModel, fast: settings.codexFast, effort: settings.effort, log, ...(settings.codexCommand ? { command: settings.codexCommand } : {}) });
   model.warm?.().catch((error: unknown) => log(`model: ${error instanceof Error ? error.message : String(error)}`));
   log(`model ${model.id}`);
 
@@ -202,6 +219,7 @@ async function main(): Promise<void> {
     session?.dispose();
     overlays.dispose();
     media.dispose();
+    settingsWindow.dispose();
     tray.destroy();
     // Let the model's process end (and its working folder go) before we leave, but never hang on it.
     void Promise.race([Promise.resolve(model.close?.()), new Promise((r) => setTimeout(r, 3000))]).finally(() => app.exit(0));
@@ -214,6 +232,7 @@ async function main(): Promise<void> {
       session?.reset();
     },
     onPlaySample: () => playSample(screen.getPrimaryDisplay().id),
+    onApiKey: () => settingsWindow.open(),
   });
 
   let hotkey: ReturnType<typeof startHotkey> | null = null;

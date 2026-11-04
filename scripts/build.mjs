@@ -11,12 +11,15 @@ const targets = [
   { entry: 'src/main/main.ts', out: 'dist/main/main.cjs', ...node, external: ['electron', 'uiohook-napi', 'get-windows'] },
   { entry: 'src/main/preload.ts', out: 'dist/main/preload.cjs', ...node, external: ['electron'] },
   { entry: 'src/main/audio-preload.ts', out: 'dist/main/audio-preload.cjs', ...node, external: ['electron'] },
+  { entry: 'src/main/settings-preload.ts', out: 'dist/main/settings-preload.cjs', ...node, external: ['electron'] },
+  { entry: 'src/settings/settings.ts', out: 'dist/settings/settings.js', ...browser, external: [] },
   { entry: 'src/overlay/overlay.ts', out: 'dist/overlay/overlay.js', ...browser, external: [] },
   { entry: 'src/audio/audio.ts', out: 'dist/audio/audio.js', ...browser, external: [] },
 ];
 const pages = [
   ['src/overlay/index.html', 'dist/overlay/index.html'],
   ['src/audio/index.html', 'dist/audio/index.html'],
+  ['src/settings/index.html', 'dist/settings/index.html'],
 ];
 
 for (const { entry, out, platform, format, external } of targets) {

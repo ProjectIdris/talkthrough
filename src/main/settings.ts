@@ -9,12 +9,16 @@ export type Settings = {
   speechServerUrl?: string;
   /** Asked of the speech server as limit_ms: how long its main recogniser may take before its quicker one answers. */
   speechLimitMs?: number;
-  /** Which model answers: the user's ChatGPT plan through Codex, or their Claude plan. */
-  model: 'codex' | 'claude';
+  /** Which route runs the model: the user's own Codex CLI, their own Claude Code, or an API key (OpenAI). */
+  model: 'codex' | 'claude' | 'openai';
   codexModel: string;
   /** Fast mode for the Codex process this app starts (not the user's own Codex settings). */
   codexFast: boolean;
   claudeModel: string;
+  /** The API-key route: model name, an optional service tier (costs more), and an optional base address (https or loopback only). */
+  openaiModel: string;
+  openaiServiceTier?: string;
+  openaiBaseUrl?: string;
   /** Explicit paths of the command-line tools; unset: found on PATH. */
   codexCommand?: string;
   claudeCommand?: string;
@@ -31,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
   codexModel: 'gpt-6-luna',
   codexFast: false,
   claudeModel: 'claude-haiku-5-5',
+  openaiModel: 'gpt-6-luna',
   micWindowMs: 1000,
   screenshotEdge: 1280,
   effort: 'low',
@@ -52,10 +57,18 @@ export function loadSettings(path: string, warn: (message: string) => void = () 
   const url = str(raw.speechServerUrl);
   if (url) settings.speechServerUrl = url;
   if (typeof raw.speechLimitMs === 'number' && raw.speechLimitMs >= 200 && raw.speechLimitMs <= 15000) settings.speechLimitMs = Math.round(raw.speechLimitMs);
-  if (raw.model === 'codex' || raw.model === 'claude') settings.model = raw.model;
+  if (raw.model === 'codex' || raw.model === 'claude' || raw.model === 'openai') settings.model = raw.model;
   settings.codexModel = str(raw.codexModel) ?? settings.codexModel;
   if (typeof raw.codexFast === 'boolean') settings.codexFast = raw.codexFast;
   settings.claudeModel = str(raw.claudeModel) ?? settings.claudeModel;
+  settings.openaiModel = str(raw.openaiModel) ?? settings.openaiModel;
+  const tier = str(raw.openaiServiceTier);
+  if (tier) settings.openaiServiceTier = tier;
+  const base = str(raw.openaiBaseUrl);
+  if (base) {
+    if (safeBaseUrl(base)) settings.openaiBaseUrl = base;
+    else warn('openaiBaseUrl must be https (or a loopback address); using the default');
+  }
   const codex = str(raw.codexCommand);
   if (codex) settings.codexCommand = codex;
   const claude = str(raw.claudeCommand);
@@ -64,4 +77,15 @@ export function loadSettings(path: string, warn: (message: string) => void = () 
   if (typeof raw.screenshotEdge === 'number' && raw.screenshotEdge >= 640 && raw.screenshotEdge <= 2560) settings.screenshotEdge = Math.round(raw.screenshotEdge);
   settings.effort = str(raw.effort) ?? settings.effort;
   return settings;
+}
+
+/** A key is only ever sent over https, or to a loopback address (a local server for checks). */
+export function safeBaseUrl(text: string): boolean {
+  try {
+    const url = new URL(text);
+    if (url.protocol === 'https:') return true;
+    return url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '[::1]');
+  } catch {
+    return false;
+  }
 }

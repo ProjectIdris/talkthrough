@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'">
+<title>Talkthrough settings</title>
+<style>
+  body { font: 14px system-ui, sans-serif; margin: 20px; color: #1b2430; }
+  h1 { font-size: 16px; margin: 0 0 10px; }
+  p { margin: 0 0 12px; line-height: 1.45; color: #46515f; }
+  input { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 4px 0 10px; }
+  button { font: inherit; padding: 6px 14px; margin-right: 8px; }
+  #state { font-weight: 600; color: #1b2430; }
+  #message { min-height: 1.4em; color: #a33; }
+</style>
+</head>
+<body>
+<h1>API key</h1>
+<p>Used only to call the model API you choose (<code>"model": "openai"</code> in the settings file). It is stored encrypted for your Windows account and never shown again or written to a log.</p>
+<p id="state">&nbsp;</p>
+<label for="key">Paste a key</label>
+<input id="key" type="password" autocomplete="off" spellcheck="false">
+<button id="save">Save</button><button id="remove">Remove</button><button id="close">Close</button>
+<p id="message"></p>
+<script src="./settings.js"></script>
+</body>
+</html>

@@ -18,7 +18,7 @@ function trayIcon() {
   return nativeImage.createFromBitmap(buffer, { width: size, height: size });
 }
 
-export function createTray(handlers: { onQuit(): void; onPlaySample(): void; onClear(): void }): Tray {
+export function createTray(handlers: { onQuit(): void; onPlaySample(): void; onClear(): void; onApiKey(): void }): Tray {
   const tray = new Tray(trayIcon());
   tray.setToolTip('Talkthrough');
   tray.setContextMenu(
@@ -28,6 +28,7 @@ export function createTray(handlers: { onQuit(): void; onPlaySample(): void; onC
       { type: 'separator' },
       { label: 'Play a sample scene', click: handlers.onPlaySample },
       { label: 'Clear the overlay', click: handlers.onClear },
+      { label: 'API key…', click: handlers.onApiKey },
       { label: 'Quit', click: handlers.onQuit },
     ]),
   );

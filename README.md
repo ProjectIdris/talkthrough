@@ -44,7 +44,7 @@ Talkthrough sends your screenshot and question to a model you choose. Pick one i
 
 1. **Your own locally installed Codex CLI**, signed in by you.
 2. **Your own Claude Code**, signed in by you.
-3. **An API key** (planned).
+3. **An API key** (OpenAI), entered from the tray menu and stored encrypted for your Windows account.
 
 Talkthrough starts the tool you already have and gives it no tools of its own: it can only answer. It never reads or stores your sign-in. Check your provider's terms for automated use before you pick one.
 
@@ -86,7 +86,7 @@ Models, voices, speech recognition and backends are adapters in `src/adapters/`,
 | Overlay window, hotkey, screen capture, microphone, tray | working |
 | Models through your own Codex or Claude install, locked down to no tools | working, tested against stand-ins |
 | A speech recogniser that ships with the app | planned (today: a local server you point it at) |
-| Model through an API key | planned (an adapter) |
+| Model through an OpenAI API key | working, tested against a fake server (not yet run against the live service) |
 | Saving an answer to come back to, and a guided-task history | planned |
 | Guided mode that waits for your click before the next step | planned |
 | Mac and Linux | planned |

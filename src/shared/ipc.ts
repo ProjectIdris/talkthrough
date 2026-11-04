@@ -117,6 +117,20 @@ export interface TalkthroughAudioApi {
   frameError(id: number, message: string): void;
 }
 
+/** The small settings window (API key entry). The key only ever travels page -> main. */
+export const SETTINGS_CHANNEL = {
+  status: 'tt:key-status',
+  save: 'tt:key-save',
+  clear: 'tt:key-clear',
+} as const;
+
+export interface TalkthroughSettingsApi {
+  /** Whether a key can be stored here, and whether one is saved. Never the key. */
+  status(): Promise<{ available: boolean; saved: boolean }>;
+  save(key: string): Promise<{ ok: true } | { ok: false; message: string }>;
+  clear(): Promise<void>;
+}
+
 export interface TalkthroughApi {
   /** Tell main the page is ready; main answers with onDisplay. */
   ready(): void;
@@ -136,5 +150,6 @@ declare global {
   interface Window {
     talkthrough: TalkthroughApi;
     talkthroughAudio: TalkthroughAudioApi;
+    talkthroughSettings: TalkthroughSettingsApi;
   }
 }
