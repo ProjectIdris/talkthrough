@@ -94,3 +94,14 @@ test('the guide asks for a short first step and its example keeps to it', () => 
   assert.ok((steps[0]?.say.length ?? 999) <= 90, 'and one short sentence');
   assert.ok(JSON.stringify(sceneGuideExample).length < 1200, 'the example stays lean');
 });
+
+test('the guide says a figure adds what the page lacks and follows what the page shows, and that a label starts beside its point', () => {
+  const rule = sceneGuide.split('\n').find((l) => l.startsWith('- A figure adds what the page lacks'));
+  assert.ok(rule, 'a rule of its own');
+  for (const part of [
+    'Do not draw again what the page already has (its graph, its table, its list of steps): point at it with marks',
+    'the proof the figure on the page shows (not another proof of the same theorem)',
+    'Where the page does not give the content (the method of a recipe that lists only ingredients), say in the step that it is general knowledge',
+    'A label starts just to the right of its point, at the height of the point',
+  ]) assert.ok(rule!.includes(part), part);
+});
