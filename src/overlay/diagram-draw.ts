@@ -316,11 +316,13 @@ function drawTimeline(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Se
   const build = (px: number): { labels: Map<string, Label>; lay: ReturnType<typeof timelineLayout> } => {
   const whenPx = px * 1.08, textPx = px, notePx = px * 0.84;
   // Each label: its lines and size, wrapped to a width that leaves room for the others.
-  const maxW = Math.max(70, Math.min(area.w * 0.3, px * 15));
+  // Along a tall area the labels stand to the right of the axis and may use most of the width; along a wide one they share it.
+  const tall = area.w - 2 * pad < (area.h - 2 * pad) * 0.9;
+  const maxW = tall ? Math.max(70, (area.w - 2 * pad) * 0.7 - 20) : Math.max(70, Math.min(area.w * 0.3, px * 15));
   const labels = new Map<string, Label>();
   for (const e of events) {
     const when = e.def.when ? wrapLines(measureAt(fontAt(theme.titleFont, whenPx)), e.def.when, maxW, 1) : [];
-    const text = wrapLines(measureAt(fontAt(theme.font, textPx)), e.def.text, maxW, 3);
+    const text = wrapLines(measureAt(fontAt(theme.font, textPx)), e.def.text, maxW, tall ? 5 : 3);
     const note = e.def.note ? wrapLines(measureAt(fontAt(theme.font, notePx)), e.def.note, maxW, 2) : [];
     let w = 0;
     for (const l of when) w = Math.max(w, measureAt(fontAt(theme.titleFont, whenPx))(l));
