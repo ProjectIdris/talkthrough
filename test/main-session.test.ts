@@ -1047,7 +1047,7 @@ const noStrokeMedia = (compose: Array<unknown>): SessionDeps['media'] => ({
   stopMic: async () => ({ samples: new Float32Array(16), sampleRate: 16000, durationMs: 1500, startLatencyMs: 100 }),
   abortMic: () => undefined,
   capture: async () => ({ screenshot: shotOf('CLEAN'), ms: 5, grabId: 9 }),
-  compose: async (_grab, strokes) => (compose.push(strokes), { screenshot: shotOf('MARKED'), crop: shotOf('CROP', 40, 40), box: { x: 250, y: 250, w: 250, h: 250 } }),
+  compose: async (_grab, strokes) => (compose.push(strokes), { screenshot: shotOf('MARKED'), focus: [{ crop: shotOf('CROP', 40, 40), box: { x: 250, y: 250, w: 250, h: 250 } }] }),
 });
 
 test('a circle taken back is not in the picture, the crop or the numbering: only the circles left are composed, and none left means the plain screenshot', async () => {
