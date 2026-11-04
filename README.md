@@ -89,7 +89,8 @@ Models, voices, speech recognition and backends are adapters in `src/adapters/`,
 | Circle something with the mouse while the keys are held: the model sees your stroke and a closer crop | working, tested with a stand-in stroke; the drag itself not yet tried by hand |
 | Model through an OpenAI API key | working, tested against a fake server (not yet run against the live service) |
 | A deeper backend over HTTP, by the offer or by voice, answering in the scene language | working, tested against a fake server; the contract is in docs/backend.md |
-| Saving an answer to come back to, and a guided-task history | planned |
+| Pinning an answer (tray, or say "pin this"): its question, the conversation and the scene saved to a local folder | working, tested |
+| A short history that lasts while a guided task runs | planned |
 | Guided mode that waits for your click before the next step | planned |
 | Mac and Linux | planned |
 
@@ -98,8 +99,8 @@ Windows is the first platform.
 ## Privacy
 
 - **What leaves the app:** your screenshot and the text of your question go to the model you chose (see above), and your recording goes to the speech server whose address you set (meant to be on your own machine; none is built in). If you set a backend address, a question you hand to it also goes there with its screenshot, the earlier questions and what is on screen. Nothing else.
-- **What Talkthrough keeps:** the screenshot and your recording live in memory only and are not written to disk in normal use (the development options `--save-capture`, `--save-pen` and `--frames-dir` save images). Your latest questions and answers stay in memory so a follow-up question works; they are gone when you quit. The model tool you choose has its own policies.
-- **Planned:** saving an answer to come back to, and a short history that lasts while a guided task runs. Neither is built yet.
+- **What Talkthrough keeps:** the screenshot and your recording live in memory only and are not written to disk in normal use (the development options `--save-capture`, `--save-pen` and `--frames-dir` save images). Your latest questions and answers stay in memory so a follow-up question works; they are gone when you quit. The one thing that is written to disk is an answer you pin (tray, or say "pin this"): its question, what was said and the scene go to a folder on your machine ([docs/pins.md](docs/pins.md)), and the screenshot only if you tick "Include the screenshot in pins". Nothing else is kept. The model tool you choose has its own policies.
+- **Planned:** a short history that lasts while a guided task runs. It is not built yet.
 
 ## Layout
 

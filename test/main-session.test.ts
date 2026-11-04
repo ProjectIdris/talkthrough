@@ -440,3 +440,39 @@ test('a backend that fails, or answers with only text, is a clear notice and nev
     assert.equal(r.sent.at(-1)?.kind, 'notice');
   }
 });
+
+test('"pin this" by voice keeps the answer and asks nothing of the model or the backend; with nothing on screen it says so', async () => {
+  const pinned: Array<{ question: string; thread: number; steps: number; screenshot: boolean }> = [];
+  let modelCalls = 0;
+  const base = createScriptedModel([step('One.'), step('Two.')]);
+  const heard = ['what is this', 'pin this'];
+  let i = 0;
+  let keepPicture = false;
+  const r = rig({
+    model: () => ({ ...base, ask: (req: ModelRequest) => (modelCalls++, base.ask(req)) }),
+    speech: { id: 'fake', transcribe: async () => ({ text: heard[i++] ?? '' }) },
+    pin: (input) => (pinned.push({ question: input.question, thread: input.thread.length, steps: input.steps.length, screenshot: input.screenshot !== undefined }), { file: 'x.json' }),
+    pinScreenshot: () => keepPicture,
+  });
+  await question(r);
+  assert.equal(modelCalls, 1);
+  r.sent.length = 0;
+  await question(r);
+  assert.equal(modelCalls, 1, 'pinning is not a question');
+  assert.deepEqual(pinned, [{ question: 'what is this', thread: 1, steps: 2, screenshot: false }]);
+  assert.ok(r.sent.some((m) => m.kind === 'notice' && m.level === 'info' && m.text === 'Pinned.'));
+  // with the choice ticked the clean screenshot goes with it; the tray does the same
+  keepPicture = true;
+  r.session.pin(7);
+  assert.equal(pinned[1]?.screenshot, true);
+  assert.ok(r.sent.some((m) => m.kind === 'notice' && m.text === 'Pinned, with the screenshot.'));
+
+  const empty = rig({ pin: () => { throw new Error('should not be called'); } });
+  empty.session.pin(7);
+  assert.ok(empty.sent.some((m) => m.kind === 'notice' && m.text.includes('nothing to pin')));
+  const failing = rig({ pin: () => { throw new Error('disk full'); } });
+  await question(failing);
+  failing.sent.length = 0;
+  failing.session.pin(7);
+  assert.ok(failing.sent.some((m) => m.kind === 'notice' && m.level === 'error' && m.text.includes("couldn't save")));
+});

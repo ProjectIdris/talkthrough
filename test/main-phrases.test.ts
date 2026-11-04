@@ -16,3 +16,8 @@ test('a question that only mentions the backend is an ordinary question', () => 
   assert.equal(parseSpoken('What is this?'), null);
   assert.equal(parseSpoken(''), null);
 });
+
+test('"pin this" has to be the whole request', () => {
+  for (const ok of ['Pin this.', 'pin that', 'Please pin it', 'Hey, pin this answer!', 'pin this one']) assert.deepEqual(parseSpoken(ok), { kind: 'pin' }, ok);
+  for (const no of ['Pin this to the top of the page', 'What does pin this mean?', 'How do I pin this tab to the taskbar', 'pinned']) assert.equal(parseSpoken(no), null, no);
+});

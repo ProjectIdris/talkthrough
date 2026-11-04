@@ -1,4 +1,4 @@
-import { app, dialog, nativeImage, safeStorage, screen } from 'electron';
+import { app, dialog, safeStorage, screen, shell } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { uIOhook, UiohookKey } from 'uiohook-napi';
@@ -17,6 +17,8 @@ import { startHotkey } from './hotkey.ts';
 import { createKeyStore } from './keystore.ts';
 import { createMedia } from './media.ts';
 import { createOverlayManager } from './overlay-windows.ts';
+import { createPins } from './pins.ts';
+import { createPrefs } from './prefs.ts';
 import { createSamplePlayer } from './samples.ts';
 import { createSession } from './session.ts';
 import { createSettingsWindow } from './settings-window.ts';
@@ -133,8 +135,11 @@ async function main(): Promise<void> {
   void media.warm();
 
   const fixedQuestion = options.question;
+  // "one || two": a different text for each question, the last one repeating
+  const fixedTexts = (fixedQuestion ?? '').split('||').map((t) => t.trim());
+  let spoken = 0;
   const speech: SpeechToText | null = fixedQuestion
-    ? { id: 'fixed-text', transcribe: async () => ({ text: fixedQuestion }) } // checks only: skips the speech server
+    ? { id: 'fixed-text', transcribe: async () => ({ text: fixedTexts[Math.min(spoken++, fixedTexts.length - 1)] as string }) } // checks only: skips the speech server
     : settings.speechServerUrl ? createLocalSpeechServerRecogniser({ url: settings.speechServerUrl, ...(settings.speechLimitMs ? { limitMs: settings.speechLimitMs } : {}) }) : null;
   if (fixedQuestion) log('question text fixed for this run (speech server not used)');
   else if (speech) {
@@ -165,7 +170,11 @@ async function main(): Promise<void> {
   const frames = options.framesDir ? createFrameRecorder(options.framesDir, options.frameEveryMs, overlays, log) : null;
 
   const backend = settings.backendUrl ? createHttpBackend({ url: settings.backendUrl, ...(settings.backendTimeoutMs ? { timeoutMs: settings.backendTimeoutMs } : {}) }) : undefined;
+  const pins = createPins({ dir: options.pinsDir ?? join(app.getPath('userData'), 'pins') });
+  const prefs = createPrefs(join(app.getPath('userData'), 'prefs.json'));
   session = createSession({
+    pin: (input) => pins.save(input),
+    pinScreenshot: () => prefs.get().pinScreenshot,
     ...(backend ? { backend } : {}),
     pointerDisplayId: () => displayUnderPointer().id,
     media: {
@@ -243,6 +252,13 @@ async function main(): Promise<void> {
     },
     onPlaySample: () => playSample(screen.getPrimaryDisplay().id),
     onApiKey: () => settingsWindow.open(),
+    onPin: () => session?.pin(displayUnderPointer().id),
+    onOpenPins: () => {
+      mkdirSync(pins.dir, { recursive: true });
+      void shell.openPath(pins.dir);
+    },
+    pinScreenshot: () => prefs.get().pinScreenshot,
+    onPinScreenshot: (on) => prefs.set({ pinScreenshot: on }),
   });
 
   let hotkey: ReturnType<typeof startHotkey> | null = null;

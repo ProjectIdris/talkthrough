@@ -47,6 +47,13 @@ export type SessionDeps = {
   micWindowMs: number;
   /** Epoch milliseconds. */
   now?(): number;
+  /**
+   * Keeps an answer (see pins.ts). Absent: pinning is not available. `screenshot` is given only when the
+   * person has chosen to keep a picture of the screen with their pins.
+   */
+  pin?(input: { question: string; thread: readonly ThreadTurn[]; steps: readonly unknown[]; screenshot?: Screenshot }): { file: string };
+  /** Whether the person has chosen to keep a picture of the screen with pins. */
+  pinScreenshot?(): boolean;
   /** Called with the figures of a question when it ends, and again as the page reports its milestones. */
   onReport?(report: QuestionReport): void;
 };
@@ -109,7 +116,7 @@ export function createSession(deps: SessionDeps) {
   let thread: ThreadTurn[] = [];
   let state: SceneState = createSceneState();
   let lastActivity = 0;
-  let lastAsk: { question: string; screenshot: Screenshot; reason?: string } | null = null;
+  let lastAsk: { question: string; screenshot: Screenshot; /** The picture as grabbed, without a pen stroke. */ clean: Screenshot; reason?: string } | null = null;
   let report: QuestionReport | null = null;
   let releasedAt = 0;
   /** The press whose pen strokes still count: the one held now, and for a moment after release. */
@@ -217,6 +224,21 @@ export function createSession(deps: SessionDeps) {
     penOff(a.displayId);
     deps.log('chord released');
     void ask(a);
+  }
+
+  /** Pins the answer in the thread (the last one, if it is still in memory). */
+  function pinNow(): { ok: boolean; text: string } {
+    if (!deps.pin) return { ok: false, text: 'Pinning is not available.' };
+    const last = thread[thread.length - 1];
+    if (!last) return { ok: false, text: 'There is nothing to pin yet. Ask something first.' };
+    try {
+      const keep = deps.pinScreenshot?.() === true && lastAsk?.clean;
+      deps.pin({ question: last.question, thread: [...thread], steps: thread.flatMap((t) => [...t.steps]), ...(keep ? { screenshot: keep } : {}) });
+      return { ok: true, text: keep ? 'Pinned, with the screenshot.' : 'Pinned.' };
+    } catch (error) {
+      deps.log(`pin: ${error instanceof Error ? error.message : String(error)}`);
+      return { ok: false, text: "I couldn't save the pin." };
+    }
   }
 
   /** What the backend is told about the scene on screen: the steps drawn in this thread and the ids in use. */
@@ -368,6 +390,12 @@ export function createSession(deps: SessionDeps) {
         r.error = 'empty transcript';
         return notice(a.displayId, "I didn't catch that. Try again?");
       }
+      if (parseSpoken(question)?.kind === 'pin') {
+        // Not a question: keep what is on screen. No picture is needed, and the model is not asked.
+        const said = pinNow();
+        r.error = said.ok ? undefined : 'pin failed';
+        return notice(a.displayId, said.text, said.ok ? 'info' : 'error');
+      }
       let shot: Grab;
       try {
         shot = await a.capture;
@@ -406,7 +434,7 @@ export function createSession(deps: SessionDeps) {
         r.error = 'nothing to ask the backend';
         return notice(a.displayId, 'Ask your question first, or say it after "ask the backend".');
       }
-      lastAsk = { question: asking, screenshot: seen };
+      lastAsk = { question: asking, screenshot: seen, clean: shot.screenshot };
       deps.send(a.displayId, { kind: 'screenshot', url: `data:${shot.screenshot.mime};base64,${shot.screenshot.base64}` });
 
       const source: Source = toBackend
@@ -481,6 +509,11 @@ export function createSession(deps: SessionDeps) {
         deps.log(`report ${JSON.stringify(deps.logText ? r : { ...r, question: r.question ? '(not logged)' : '' })}`);
         deps.onReport?.(r);
       }
+    },
+    /** The tray's "Pin this answer". */
+    pin(displayId: number): void {
+      const said = pinNow();
+      notice(displayId, said.text, said.ok ? 'info' : 'error');
     },
     /** The overlay was cleared by hand: the next question starts a new thread. */
     reset(): void {

@@ -49,6 +49,14 @@ export function cleanBackendText(text: string, max = 300): string {
   return text.replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩﻿]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
+/** One earlier turn as it is written down for others: the question and the lines that were spoken for it. */
+export function threadEntry(turn: ThreadTurn): { question: string; said: string[] } {
+  return {
+    question: turn.question,
+    said: turn.steps.map((s) => (s as { say?: unknown }).say).filter((t): t is string => typeof t === 'string').slice(0, MAX_SAID),
+  };
+}
+
 /** The request body (the wire format of docs/backend.md). */
 export function backendBody(req: BackendRequest): Record<string, unknown> {
   return {
@@ -57,10 +65,7 @@ export function backendBody(req: BackendRequest): Record<string, unknown> {
     ...(req.reason ? { reason: req.reason } : {}),
     question: req.question,
     screenshot: { mime: req.screenshot.mime, width: req.screenshot.width, height: req.screenshot.height, base64: req.screenshot.base64 },
-    thread: req.thread.map((turn) => ({
-      question: turn.question,
-      said: turn.steps.map((s) => (s as { say?: unknown }).say).filter((t): t is string => typeof t === 'string').slice(0, MAX_SAID),
-    })),
+    thread: req.thread.map(threadEntry),
     scene: { steps: req.scene.steps, ids: req.scene.ids },
   };
 }
