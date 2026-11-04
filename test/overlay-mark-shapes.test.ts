@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateScene, sceneGuide } from '../src/scene/index.ts';
+import { validateScene, sceneGuide, sceneGuideExample } from '../src/scene/index.ts';
 import type { Scene } from '../src/scene/index.ts';
 import { drawMarks } from '../src/overlay/marks.ts';
 import { markFootprint } from '../src/overlay/placement.ts';
@@ -128,4 +128,15 @@ test('a second set of marks drawn over the diagrams (append) leaves what is on t
   drawMarks(second.ctx, frame.marks, VIEW, undefined, { append: true });
   assert.ok(!second.calls.some((c) => c.startsWith('clearRect(')), 'an appended draw must not wipe the diagrams under it');
   assert.ok(second.calls.some((c) => c.startsWith('stroke(')), 'and it still draws');
+});
+
+test('the model is told to name the parts and places of a picture with a point and a label (in the first rule, where the shapes were first taken up), that a pin is for a 3D object only, and the example shows a label', () => {
+  const first = sceneGuide.split('\n').find((l) => l.startsWith('- Step 1'))!;
+  assert.match(first, /When the parts or places of a picture are the point of the question/);
+  assert.match(first, /a point on its exact spot and a label of one to three words beside it/);
+  assert.match(first, /a box round the picture is not a naming/);
+  assert.match(sceneGuide, /a pin goes on a 3D object only/);
+  assert.ok(!/not with floating text/.test(sceneGuide), 'the old rule that steered the model away from a label is gone');
+  const example = sceneGuideExample as { steps: Array<{ actions: Array<{ op: string }> }> };
+  assert.ok(example.steps.some((s) => s.actions.some((a) => a.op === 'label')), 'the example has a label on the page');
 });
