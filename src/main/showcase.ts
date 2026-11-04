@@ -29,6 +29,8 @@ export function createRecorder(options: { source: FrameSource; width: number; he
   let first: number | undefined;
   let loop: Promise<void> = Promise.resolve();
   let frames = 0;
+  let closed = false;
+  let closedWait: Promise<void> = Promise.resolve();
   const minGap = 1000 / (fps * 1.5);
   return {
     start() {
@@ -38,6 +40,22 @@ export function createRecorder(options: { source: FrameSource; width: number; he
         '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'bgra', '-video_size', `${width}x${height}`, '-use_wallclock_as_timestamps', '1', '-i', '-',
         '-vf', `fps=${fps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '17', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', options.file,
       ], { stdio: ['pipe', 'ignore', 'pipe'] });
+      const c = child;
+      // ffmpeg that cannot start, or that ends early, ends the recording (the loop below stops, and so does stop()) instead of waiting on it.
+      closedWait = new Promise<void>((resolve) => {
+        c.once('error', (error) => {
+          options.log(`record: ffmpeg could not run: ${error.message}`);
+          closed = true;
+          running = false;
+          resolve();
+        });
+        c.once('close', () => {
+          if (running) options.log('record: ffmpeg ended before the recording did');
+          closed = true;
+          running = false;
+          resolve();
+        });
+      });
       child.stderr?.on('data', (d: Buffer) => options.log(`ffmpeg: ${d.toString().trim()}`));
       child.stdin?.on('error', () => undefined);
       loop = (async () => {
@@ -50,7 +68,7 @@ export function createRecorder(options: { source: FrameSource; width: number; he
             break;
           }
           if (first === undefined) first = Date.now();
-          if (!child.stdin.write(frame.bitmap)) await new Promise<void>((resolve) => child?.stdin?.once('drain', () => resolve()));
+          if (!child.stdin.write(frame.bitmap)) await Promise.race([new Promise<void>((resolve) => child?.stdin?.once('drain', () => resolve())), closedWait]);
           frames++;
           const wait = minGap - (Date.now() - t0);
           if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
@@ -58,15 +76,14 @@ export function createRecorder(options: { source: FrameSource; width: number; he
       })();
     },
     async stop() {
-      if (!running) return first;
+      const wasRunning = running;
       running = false;
+      if (!wasRunning && !child) return first;
       await loop;
       const c = child;
-      if (c) {
-        await new Promise<void>((resolve) => {
-          c.once('close', () => resolve());
-          c.stdin?.end();
-        });
+      if (c && !closed) {
+        c.stdin?.end();
+        await closedWait;
       }
       options.log(`record: ${frames} frames written to the video`);
       return first;
@@ -146,6 +163,7 @@ export type DriveStep =
   | { wait: number }
   | { click: string }
   | { until: string; max: number }
+  | { gone: string; max: number }
   | { drag: { anchor: string; from: [number, number]; to: [number, number]; ms: number } };
 
 /** What the driver may do to a window: send a mouse event, and ask the page where an element is. */
@@ -163,6 +181,11 @@ export async function runDrive(target: DriveTarget, steps: ReadonlyArray<DriveSt
   for (const step of steps) {
     if ('wait' in step) {
       await pause(step.wait);
+    } else if ('gone' in step) {
+      // Waits for a button to go (a long job has begun), for at most `max` ms.
+      const end = Date.now() + step.max;
+      while (Date.now() < end && (await target.rectOf(step.gone))) await pause(300);
+      log(`drive: ${step.gone} ${(await target.rectOf(step.gone)) ? 'did not go' : 'is gone'}`);
     } else if ('until' in step) {
       // Waits for a button to show (the model has settled), for at most `max` ms.
       const end = Date.now() + step.max;
@@ -211,7 +234,11 @@ export async function runDrive(target: DriveTarget, steps: ReadonlyArray<DriveSt
 }
 
 /** One call to the model as it was: what it yielded, and how long after the call began each piece came. */
-export type TapeCall = { outputs: Array<{ at: number; output: ModelOutput }> };
+export type TapeCall = {
+  /** The model's whole raw text of the call (where the caller asked for it), which the step-by-step wrapper reads its plan from. */
+  raw?: string;
+  outputs: Array<{ at: number; output: ModelOutput }>;
+};
 
 /** Wraps a model so every call's output is written to `file` (as a tape of calls) as the answer comes; the wrapped model answers as always. */
 export function tapeModel(inner: Model, file: string, log: (line: string) => void): Model {
@@ -227,7 +254,7 @@ export function tapeModel(inner: Model, file: string, log: (line: string) => voi
       calls.push(call);
       const t0 = Date.now();
       try {
-        for await (const output of inner.ask(request)) {
+        for await (const output of inner.ask({ ...request, onRaw: (text: string) => { call.raw = text; request.onRaw?.(text); } })) {
           call.outputs.push({ at: Date.now() - t0, output });
           yield output;
         }
@@ -258,6 +285,7 @@ export function replayModel(file: string, log: (line: string) => void): Model {
         if (request.signal?.aborted) return;
         yield output;
       }
+      if (call.raw !== undefined) request.onRaw?.(call.raw);
     },
   };
 }

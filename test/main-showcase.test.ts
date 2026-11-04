@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { createWavDecoder } from '../src/adapters/http-voice.ts';
 import type { VoiceEvent } from '../src/adapters/http-voice.ts';
 import type { Model, ModelOutput, ModelRequest } from '../src/adapters/model.ts';
-import { recordedVoice, replayModel, runDrive, tapeModel, wavFromPcm } from '../src/main/showcase.ts';
+import { createRecorder, recordedVoice, replayModel, runDrive, tapeModel, wavFromPcm } from '../src/main/showcase.ts';
 import type { DriveTarget } from '../src/main/showcase.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'showcase-test-'));
@@ -86,4 +86,40 @@ test('the drive waits for a button, presses buttons by the app\'s own route, and
   assert.ok(events.includes('mouseMove'));
   assert.equal(events[events.length - 1], 'press cut');
   assert.ok(lines.some((l) => l.includes('pressed cut')));
+});
+
+test('a tape played again under the step-by-step wrapper gives all the steps the live answer gave (the plan the wrapper reads comes from the tape)', async () => {
+  const { createClaudeModel } = await import('../src/adapters/claude-model.ts');
+  const { createStepByStepModel } = await import('../src/adapters/step-by-step.ts');
+  const { sceneSchemaChain } = await import('../src/scene/index.ts');
+  const fakeClaude = new URL('./support/fake-claude.mjs', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+  const full = { question: 'what is this?', screenshot: { mime: 'image/png' as const, base64: 'AAAA', width: 4, height: 4 }, thread: [], schema: sceneSchemaChain } as ModelRequest;
+  const says = async (model: Model): Promise<string[]> => {
+    const out: string[] = [];
+    for await (const o of model.ask(full)) if (o.type === 'step') out.push(String((o.step as { say: string }).say));
+    return out;
+  };
+  process.env.FAKE_CHAIN = '1';
+  const real = createClaudeModel({ command: process.execPath, prefixArgs: [fakeClaude], schema: sceneSchemaChain });
+  const file = join(dir, 'chain-tape.json');
+  try {
+    const live = await says(createStepByStepModel(tapeModel(real, file, () => undefined), {}));
+    assert.deepEqual(live, ['S1.', 'S2.', 'S3.'], 'the fake answers three steps, one to a call');
+    const again = await says(createStepByStepModel(replayModel(file, () => undefined), {}));
+    assert.deepEqual(again, live, 'the replay carries on to the later steps');
+  } finally {
+    delete process.env.FAKE_CHAIN;
+    await real.close?.();
+  }
+});
+
+test('a recorder whose ffmpeg is missing, or ends at once, ends the recording instead of hanging or crashing', async () => {
+  const frame = { bitmap: Buffer.alloc(512 * 512 * 4), width: 512, height: 512 };
+  for (const ffmpeg of [join(dir, 'no-such-ffmpeg.exe'), process.execPath]) {
+    const lines: string[] = [];
+    const recorder = createRecorder({ source: async () => frame, width: 512, height: 512, fps: 30, file: join(dir, 'never.mp4'), ffmpeg, log: (l) => lines.push(l) });
+    recorder.start();
+    const stopped = await Promise.race([recorder.stop().then(() => 'stopped'), new Promise((r) => setTimeout(() => r('hung'), 8000))]);
+    assert.equal(stopped, 'stopped', `${ffmpeg === process.execPath ? 'an ffmpeg that ends early' : 'a missing ffmpeg'} must not hang stop()`);
+  }
 });

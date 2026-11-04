@@ -376,7 +376,7 @@ export function createOverlayManager(options: OverlayOptions) {
     },
     /** Where an element of the page is, in its pixels (development scripts). */
     /** Presses one of the page's buttons the way the small catcher windows over them do (development scripts: the hidden overlay has none). */
-    press(displayId: number, id: 'explode' | 'cut'): void {
+    press(displayId: number, id: 'explode' | 'cut' | 'detail'): void {
       const overlay = overlays.get(displayId);
       if (overlay && !overlay.window.isDestroyed()) overlay.window.webContents.send(CHANNEL.scene, { kind: 'press', id } satisfies SceneMessage);
     },

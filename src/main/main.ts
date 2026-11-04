@@ -406,7 +406,7 @@ async function main(): Promise<void> {
           // Recording: a while after the answer, the scripted mouse (turn the model, Explode, Cut), then the settle, then the end.
           setTimeout(() => {
             const id = overlays.displayIds()[0] ?? -1;
-            void runDrive({ input: (e) => overlays.input(id, e), press: (name) => overlays.press(id, name === 'cut' ? 'cut' : 'explode'), rectOf: (name) => overlays.rectOf(id, name) }, drive, log)
+            void runDrive({ input: (e) => overlays.input(id, e), press: (name) => overlays.press(id, name === 'cut' ? 'cut' : name === 'detail' ? 'detail' : 'explode'), rectOf: (name) => overlays.rectOf(id, name) }, drive, log)
               .catch((e: unknown) => log(`drive: ${String(e)}`))
               .then(() => setTimeout(finishRun, options.settleSeconds * 1000));
           }, options.driveAfter * 1000);
