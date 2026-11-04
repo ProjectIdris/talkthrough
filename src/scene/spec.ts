@@ -160,8 +160,8 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'point', op: 'point', creates: 'mark',
-    doc: 'A marker (a ring with a dot) on one exact point of the screenshot: where two lines cross, a tip, a place on a map.',
-    fields: { id: { k: 'newId' }, x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN }, color: COLOR, at: AT },
+    doc: 'A marker (a ring with a dot) on one exact point of the screenshot: where two lines cross, a tip, a place on a map. cell: only when a closer picture with a grid was given, the grid cell the part is in ("C4", or "C4b" for a quarter of it).',
+    fields: { id: { k: 'newId' }, x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN }, color: COLOR, cell: { k: 'str', min: 2, max: 4, opt: true }, at: AT },
   },
   {
     name: 'trace', op: 'trace', creates: 'mark',

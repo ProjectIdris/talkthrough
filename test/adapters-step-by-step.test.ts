@@ -349,3 +349,74 @@ test('the extra call is told what it is for: whole answer = no step and done, ot
   assert.match(t, /Set "plan" to the titles/);
   assert.ok(!/The plan for the rest/.test(t));
 });
+
+/** A model that writes the next of a few scripted raw answers on each call and keeps the requests it was given. */
+function scripted(raws: string[]): { inner: Model; asked: ModelRequest[] } {
+  const asked: ModelRequest[] = [];
+  let at = 0;
+  const inner: Model = {
+    id: 'scripted',
+    async *ask(req: ModelRequest): AsyncGenerator<ModelOutput> {
+      asked.push(req);
+      const raw = raws[at++] ?? raws[raws.length - 1] as string;
+      req.onRaw?.(raw);
+      const scene = JSON.parse(raw) as { steps: unknown[] };
+      yield { type: 'step', step: scene.steps[0] as never } as ModelOutput;
+    },
+  };
+  return { inner, asked };
+}
+
+const enlargeStep = JSON.stringify({ steps: [{ say: 'Here is the map enlarged.', actions: [{ op: 'image', id: 'zoom', sx: 100, sy: 200, sw: 300, sh: 400, dx: 500, dy: 100, dw: 400, color: 'red' }] }], plan: ['Name the parts'], done: false, escalate: null });
+const nextStep = JSON.stringify({ steps: [{ say: 'The north island.', actions: [] }], plan: null, done: true, escalate: null });
+
+test('the step after an enlargement is given a full-resolution picture of what was enlarged, and only that step', async () => {
+  const lines: string[] = [];
+  const s = scripted([enlargeStep, nextStep]);
+  const cuts: Array<{ x: number; y: number; w: number; h: number }> = [];
+  const crop = { mime: 'image/png' as const, base64: 'SHARP', width: 600, height: 800 };
+  const model = createStepByStepModel(s.inner, { log: (m) => lines.push(m) });
+  await collect(model, { cropOf: async (box) => (cuts.push(box), crop) });
+  assert.equal(s.asked.length, 2);
+  assert.equal(s.asked[0]?.focus, undefined, 'the first call has no closer picture yet');
+  assert.deepEqual(s.asked[1]?.focus, [{ crop, box: { x: 100, y: 200, w: 300, h: 400 }, card: { x: 500, y: 108, w: 400, h: (400 * 400) / 300 }, kind: 'picture' }]);
+  assert.deepEqual(cuts, [{ x: 100, y: 200, w: 300, h: 400 }]);
+  assert.ok(lines.some((l) => /given a full-resolution picture of what step 1 enlarged/.test(l)), lines.join('\n'));
+});
+
+test('a pen picture stays with the calls and the enlargement is added after it; a frame that is gone, or a step that enlarges nothing, adds nothing', async () => {
+  const pen = { crop: { mime: 'image/png' as const, base64: 'PEN', width: 10, height: 10 }, box: { x: 0, y: 0, w: 100, h: 100 }, kind: 'circle' as const };
+  const crop = { mime: 'image/png' as const, base64: 'SHARP', width: 600, height: 800 };
+  const a = scripted([enlargeStep, nextStep]);
+  await collect(createStepByStepModel(a.inner), { focus: [pen], cropOf: async () => crop });
+  assert.deepEqual(a.asked[1]?.focus?.map((f) => f.kind), ['circle', 'picture']);
+  const gone = scripted([enlargeStep, nextStep]);
+  await collect(createStepByStepModel(gone.inner), { cropOf: async () => null });
+  assert.equal(gone.asked[1]?.focus, undefined);
+  const plainStep = JSON.stringify({ steps: [{ say: 'Just words.', actions: [] }], plan: ['More'], done: false, escalate: null });
+  const none = scripted([plainStep, nextStep]);
+  let cuts = 0;
+  await collect(createStepByStepModel(none.inner), { cropOf: async () => (cuts++, crop) });
+  assert.equal(cuts, 0);
+  assert.equal(none.asked[1]?.focus, undefined);
+  // a third call after the enlargement is not given it again
+  const three = scripted([enlargeStep.replace('["Name the parts"]', '["Two", "Three"]'), JSON.stringify({ steps: [{ say: 'Two.', actions: [] }], plan: ['Three'], done: false, escalate: null }), nextStep]);
+  await collect(createStepByStepModel(three.inner), { cropOf: async () => crop });
+  assert.equal(three.asked.length, 3);
+  assert.equal(three.asked[2]?.focus, undefined);
+});
+
+test('what the model is told about the closer picture: where it is on the screenshot and how to give points from it', () => {
+  const text = questionText({ ...request, focus: [{ crop: { mime: 'image/png', base64: 'X', width: 600, height: 800 }, box: { x: 100, y: 200, w: 300, h: 400 }, kind: 'picture' }] });
+  assert.match(text, /from x 100 to 400, y 200 to 600/);
+  assert.match(text, /x = 100 \+ u \* 300, y = 200 \+ v \* 400/);
+  assert.ok(!/red pen/.test(text), 'a picture is not a pen mark');
+});
+
+test('with the card where the enlargement is drawn, points are told to go on the card, from the closer picture', () => {
+  const crop = { mime: 'image/png' as const, base64: 'X', width: 600, height: 800 };
+  const text = questionText({ ...request, focus: [{ crop, box: { x: 100, y: 200, w: 300, h: 400 }, card: { x: 500, y: 108, w: 400, h: 400 }, kind: 'picture' }] });
+  assert.match(text, /fills the card from x 500 to 900 and from y 108 to 508/);
+  assert.ok(text.includes('x = 500 + u * 400, y = 108 + v * 400'), text);
+  assert.match(text, /never beside it or on the sea/);
+});

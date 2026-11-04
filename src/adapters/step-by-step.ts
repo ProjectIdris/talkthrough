@@ -10,8 +10,10 @@
 // A call after the first that fails ends the answer there (what was shown stays) with one line in the log; a failure of the first call
 // fails the question. Whatever a call writes after its one step is dropped. Ending the question aborts the call in progress.
 
+import { cellPoint } from '../shared/pen-grid.ts';
+import type { Grid } from '../shared/pen-grid.ts';
 import { sumUsage } from './two-step.ts';
-import type { Model, ModelOutput, ModelRequest, Usage } from './model.ts';
+import type { FocusCrop, Model, ModelOutput, ModelRequest, Usage } from './model.ts';
 
 export type StepByStepOptions = {
   log?: (message: string) => void;
@@ -23,6 +25,22 @@ export type StepByStepOptions = {
 function endsOnWait(step: unknown): boolean {
   const actions = (step as { actions?: unknown }).actions;
   return Array.isArray(actions) && actions.some((a) => typeof a === 'object' && a !== null && (a as { op?: unknown }).op === 'wait');
+}
+
+/** The part of the screenshot a step enlarges (an `image` action's source box, 0..1000), or null. */
+function enlargedBox(step: unknown): { box: { x: number; y: number; w: number; h: number }; card: { x: number; y: number; w: number; h: number } } | null {
+  const actions = (step as { actions?: unknown }).actions;
+  if (!Array.isArray(actions)) return null;
+  for (const a of actions) {
+    const m = a as { op?: unknown; sx?: unknown; sy?: unknown; sw?: unknown; sh?: unknown; dx?: unknown; dy?: unknown; dw?: unknown };
+    if (m.op === 'image' && [m.sx, m.sy, m.sw, m.sh, m.dx, m.dy, m.dw].every((v) => typeof v === 'number' && Number.isFinite(v)) && (m.sw as number) > 0 && (m.sh as number) > 0 && (m.dw as number) > 0) {
+      const x = Math.max(0, Math.min(1000, m.sx as number)), y = Math.max(0, Math.min(1000, m.sy as number));
+      // The card shows the part at its own shape (the same scale across and down, so the units agree), with a border of about 8 above the picture.
+      const card = { x: m.dx as number, y: (m.dy as number) + 8, w: m.dw as number, h: ((m.dw as number) * (m.sh as number)) / (m.sw as number) };
+      return { box: { x, y, w: Math.min(1000 - x, m.sw as number), h: Math.min(1000 - y, m.sh as number) }, card };
+    }
+  }
+  return null;
 }
 
 /** The end of the first JSON object in the text (the index after its closing brace), or -1. */
@@ -72,6 +90,24 @@ function planAndDone(raw: string): { plan: string[]; done: boolean; given: boole
   return { plan, done: scene.done === true, given: scene.plan !== undefined || scene.done !== undefined };
 }
 
+type Box = { x: number; y: number; w: number; h: number };
+
+/**
+ * The action with its point moved to the middle of the grid cell the model named (`cell`), when the closer picture had a grid and the name is a
+ * cell of it; anything else comes back as it was. `note` is told each move (for the log).
+ */
+function placedFromCell(action: unknown, grid: Grid, card: Box, note: (line: string) => void): unknown {
+  const a = action as { op?: unknown; cell?: unknown; x?: unknown; y?: unknown; id?: unknown };
+  if (typeof a !== 'object' || a === null || a.op !== 'point' || a.cell === undefined) return action;
+  const at = cellPoint(a.cell, grid, card);
+  if (!at) {
+    note(`point ${String(a.id)}: "${String(a.cell)}" is not a cell of the grid, its own x,y kept`);
+    return action;
+  }
+  note(`point ${String(a.id)}: cell ${String(a.cell)} -> ${at[0]},${at[1]} (it wrote ${String(a.x)},${String(a.y)})`);
+  return { ...a, x: at[0], y: at[1] };
+}
+
 export function createStepByStepModel(inner: Model, options: StepByStepOptions = {}): Model {
   const log = options.log ?? (() => undefined);
   const maxSteps = Math.max(2, options.maxSteps ?? 6);
@@ -96,7 +132,9 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
       let waits = 0;
       // The first call wrote neither a plan nor done: the next call is asked once whether the answer goes on, and for a plan.
       let asking = false;
-      const { focus, ...plain } = req;
+      const { focus: _pen, ...plain } = req;
+      // What the step just written enlarged, being cut from the full-resolution frame while that step is spoken: the next call gets it as a sharp picture to place points on.
+      let zoom: { box: { x: number; y: number; w: number; h: number }; card: { x: number; y: number; w: number; h: number }; crop: Promise<Awaited<ReturnType<NonNullable<ModelRequest['cropOf']>>>> } | undefined;
       try {
         for (let n = 1; n <= maxSteps; n++) {
           const began = Date.now();
@@ -105,9 +143,29 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
           let sawStep = false;
           let escalated = false;
           let waited = false;
+          const closer: FocusCrop[] = [];
+          let cells: { grid: Grid; card: Box } | undefined;
+          if (zoom) {
+            const cut = await zoom.crop;
+            const { grid, ...crop } = cut ?? ({} as { grid?: Grid });
+            if (cut && !link.signal.aborted) {
+              closer.push({ crop: crop as unknown as FocusCrop['crop'], box: zoom.box, card: zoom.card, ...(grid ? { grid } : {}), kind: 'picture' });
+              if (grid) cells = { grid, card: zoom.card };
+            }
+            log(`step ${n}: ${cut ? 'given a full-resolution picture of what step ' + (n - 1) + ' enlarged' : 'the enlarged part could not be cut (the frame is gone)'}`);
+            zoom = undefined;
+          }
+          const focusNow = [...(fresh ? [] : req.focus ?? []), ...closer];
           const stage: NonNullable<ModelRequest['stage']> = n === 1 ? { part: 'first', plan: true } : { part: 'next', n, shown: [...shown], plan, ...(asking ? { unplanned: true as const } : {}), ...(fresh ? { fresh: true as const } : {}) };
           try {
-            for await (const out of inner.ask({ ...(fresh ? plain : req), screenshot, stage, signal: link.signal, onRaw: (text: string) => void (raw = text) })) {
+            for await (const got of inner.ask({ ...plain, ...(focusNow.length > 0 ? { focus: focusNow } : {}), screenshot, stage, signal: link.signal, onRaw: (text: string) => void (raw = text) })) {
+              // Points the model gave as a grid cell are put in the middle of that cell.
+              let out: ModelOutput = got;
+              if (cells && got.type === 'action') out = { type: 'action', action: placedFromCell(got.action, cells.grid, cells.card, log) };
+              else if (cells && got.type === 'step' && Array.isArray((got.step as { actions?: unknown }).actions)) {
+                const s = got.step as { actions: unknown[] };
+                out = { type: 'step', step: { ...s, actions: s.actions.map((a) => placedFromCell(a, cells.grid, cells.card, () => undefined)) } };
+              }
               if (out.type === 'usage') {
                 usages.push(out.usage);
                 continue;
@@ -117,6 +175,8 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
               if (out.type === 'step') {
                 sawStep = true;
                 shown.push(out.step);
+                const enlarged = !fresh && req.cropOf ? enlargedBox(out.step) : null;
+                if (enlarged) zoom = { box: enlarged.box, card: enlarged.card, crop: req.cropOf!(enlarged.box).catch(() => null) };
                 waited = endsOnWait(out.step);
                 if (waited) waits++;
               }

@@ -158,6 +158,49 @@ export function systemPrompt(): string {
   ].join('\n\n');
 }
 
+const KIND_WORDS = {
+  circle: 'circled',
+  underline: 'underlined',
+  arrow: 'pointed with an arrow at',
+  picture: 'enlarged',
+} as const;
+
+/**
+ * What the model is told about the closer picture of what the step before it enlarged (cut from the full-resolution screen), so that points
+ * for the parts of that picture are put on the parts themselves: read off the closer picture, then given on the whole screenshot's scale.
+ */
+export function pictureText(box: { x: number; y: number; w: number; h: number }, crop: { width: number; height: number }, card?: { x: number; y: number; w: number; h: number }, grid?: { cols: number; rows: number }): string {
+  const r = (n: number) => Math.round(n * 10) / 10;
+  if (card && grid) {
+    const last = String.fromCharCode(64 + grid.cols);
+    return `The picture you enlarged in the step before is also given at full resolution (the last of the images, ${crop.width}x${crop.height} pixels): it is the part of the screen the enlargement card shows, sharper than the card, with a grid drawn on it: columns A to ${last} across, rows 1 to ${grid.rows} down, each cell named in its top-left corner. To mark a part of this picture, write a point for it as usual (x,y: your best guess on the card, which fills x ${r(card.x)} to ${r(card.x + card.w)} and y ${r(card.y)} to ${r(card.y + card.h)}) and also give "cell": the cell and the quarter of it that the part is in, such as "C4b" (a letter for the quarter: a top left, b top right, c bottom left, d bottom right). The app puts the point in the middle of that quarter, so pick the cell and quarter that are mostly the part itself, its land or its inside, never one that only touches it at an edge, is beside it or is on the sea: if a part runs across several cells, name the one at its middle. A label goes beside its point, inside the card, with no cell.`;
+  }
+  if (card) {
+    return `The picture you enlarged in the step before is also given at full resolution (the last of the images, ${crop.width}x${crop.height} pixels): it is the part of the screen the enlargement card shows, sharper than the card. Marks for the parts of that picture go on the card, where you drew it: the picture fills the card from x ${r(card.x)} to ${r(card.x + card.w)} and from y ${r(card.y)} to ${r(card.y + card.h)} on the 0 to 1000 scale of the whole screenshot. To place a point: find the part on the closer picture, note how far across (u, 0 to 1) and down (v, 0 to 1) it is, and write the point at x = ${r(card.x)} + u * ${r(card.w)}, y = ${r(card.y)} + v * ${r(card.h)}. Put each point on the part itself (an island's land, a chamber's inside), never beside it or on the sea; a label goes beside its point, inside the card.`;
+  }
+  return `The picture you enlarged in the step before is also given at full resolution (the last picture of the images, ${crop.width}x${crop.height} pixels): it is the part of the screen from x ${r(box.x)} to ${r(box.x + box.w)}, y ${r(box.y)} to ${r(box.y + box.h)} on the 0 to 1000 scale of the whole screenshot, so ${r(box.w)} wide and ${r(box.h)} tall on that scale. Use it to place points on the parts of that picture: find the part on the closer picture, note how far across (u, 0 to 1) and down (v, 0 to 1) it is, and give the point on the whole screenshot's scale as x = ${r(box.x)} + u * ${r(box.w)}, y = ${r(box.y)} + v * ${r(box.h)}. Put each point on the part itself, not beside it.`;
+}
+
+/** What the model is told about the pen marks on the screenshot and the closer pictures that follow it. */
+export function penText(focus: NonNullable<ModelRequest['focus']>): string {
+  const r = (n: number) => Math.round(n);
+  const where = (f: (typeof focus)[number]) => `from x ${r(f.box.x)} to ${r(f.box.x + f.box.w)}, y ${r(f.box.y)} to ${r(f.box.y + f.box.h)}`;
+  const word = (f: (typeof focus)[number]) => KIND_WORDS[f.kind ?? 'circle'];
+  const rough = 'The marks are drawn by hand and are approximate: take the whole thing a mark mostly covers (the whole paragraph, picture, control or figure), even where the stroke cuts through it or runs over onto the next thing. If it is unclear which of two things was meant, say so in step 1 and take the one the mark covers more.';
+  const tail = 'Marks still use the 0 to 1000 scale of the whole screenshot, never of a closer picture. The red strokes are the person’s, not part of the page; do not describe them.';
+  if (focus.length === 1) {
+    const f = focus[0] as (typeof focus)[number];
+    const what = f.kind === 'underline'
+      ? 'The person drew a red pen line under some words on the screenshot: the underlined words (the line of text just above the line) are what "this", "that" or "here" in the question means.'
+      : f.kind === 'arrow'
+        ? 'The person drew a red pen arrow on the screenshot: what it points at, at its tip, is what "this", "that" or "here" in the question means.'
+        : `The person drew a red pen ${f.open ? 'half-circle (an unfinished circle, meant as a whole one)' : f.loops && f.loops > 1 ? 'circle, going round more than once (still one circle)' : 'circle'} on the screenshot: the circled thing is what "this", "that" or "here" in the question means.`;
+    return `${what} ${rough} A second, closer picture follows the first: it is the same screen, without the stroke, cropped to what the mark is on (${where(f)} on the 0 to 1000 scale of the whole screenshot), for reading small details. ${tail}`;
+  }
+  const list = focus.map((f, i) => `${i + 1}. ${word(f)}, in the picture that follows (${where(f)})`).join('; ');
+  return `The person marked ${focus.length} things with the pen, in this order, each numbered in red beside its stroke on the screenshot: ${list}. They are what "this", "that", "these", "here" in the question mean, taken together or one by one as the question says; answer about each of the ${focus.length}, in the order they were marked. ${rough} After the screenshot come ${focus.length} closer pictures in the same order, each the same screen without the strokes, cropped to what that mark is on, for reading small details. ${tail}`;
+}
+
 /** The text that goes with the screenshot: the question, and the earlier turns if this is a follow-up. */
 export function questionText(request: ModelRequest): string {
   const parts: string[] = [];
@@ -171,11 +214,10 @@ export function questionText(request: ModelRequest): string {
     parts.push(`Earlier in this conversation (what you drew stays on screen until cleared, and its ids can be used again):\n${history}`);
   }
   parts.push(`The screenshot is ${request.screenshot.width}x${request.screenshot.height} pixels, but your marks do NOT use pixels: x and y run from 0 to 1000 across the whole screenshot (500 is the middle of each axis, 1000 the right and bottom edges), whatever its pixel size. Convert before you answer.`);
-  if (request.focus) {
-    const b = request.focus.box;
-    const r = (n: number) => Math.round(n);
-    parts.push(`The person drew a red pen stroke on the screenshot to circle or point at something. The circled area is what "this", "that" or "here" in the question means. A second, closer picture follows the first: it is the same screen, without the stroke, cropped to the area around the stroke (from x ${r(b.x)} to ${r(b.x + b.w)}, y ${r(b.y)} to ${r(b.y + b.h)} on the 0 to 1000 scale of the whole screenshot), for reading small details. Marks still use the 0 to 1000 scale of the whole screenshot, never of the crop. The red stroke is the person's, not part of the page; do not describe it.`);
-  }
+  const pen = (request.focus ?? []).filter((f) => f.kind !== 'picture');
+  const picture = (request.focus ?? []).find((f) => f.kind === 'picture');
+  if (pen.length > 0) parts.push(penText(pen));
+  if (picture) parts.push(pictureText(picture.box, picture.crop, picture.card, picture.grid));
   parts.push(`The user's question, transcribed from speech (it may contain recognition errors): ${JSON.stringify(request.question)}`);
   if (request.detail) parts.push(detailText(request.detail.steps));
   if (request.stage) parts.push(stageText(request.stage));

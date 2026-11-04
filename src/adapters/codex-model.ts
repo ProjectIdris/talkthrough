@@ -504,7 +504,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
           threadId,
           input: [
             { type: 'image', url: `data:${req.screenshot.mime};base64,${req.screenshot.base64}` },
-            ...(req.focus ? [{ type: 'image', url: `data:${req.focus.crop.mime};base64,${req.focus.crop.base64}` }] : []),
+            ...(req.focus ?? []).map((f) => ({ type: 'image', url: `data:${f.crop.mime};base64,${f.crop.base64}` })),
             // a continued thread already holds the earlier turns
             { type: 'text', text: questionText(reuse ? { ...req, thread: [] } : req) },
           ],

@@ -184,7 +184,29 @@ export function createMedia(options: { preload: string; page: string }) {
         }, 10_000).unref();
       });
       const toShot = (p: { png: Uint8Array; width: number; height: number }) => ({ mime: 'image/png' as const, base64: Buffer.from(p.png).toString('base64'), width: p.width, height: p.height });
-      return { screenshot: toShot(result.full), crop: toShot(result.crop), box: result.box };
+      if (!result.full) throw new Error('the page sent no picture');
+      return {
+        screenshot: toShot(result.full),
+        focus: result.marks.map((m) => ({ crop: toShot(m), box: m.box, kind: m.kind, ...(m.loops !== undefined ? { loops: m.loops } : {}), ...(m.open ? { open: true } : {}) })),
+      };
+    },
+    /** A part of a grabbed frame (a 0..1000 box), cut from the full-resolution picture with nothing drawn on it. Null when the frame is no longer held. */
+    async crop(grabId: number, box: { x: number; y: number; w: number; h: number }, cropEdge = 1024) {
+      const id = nextCompose++;
+      const request: ComposeRequest = { id, grab: grabId, maxEdge: 0, cropEdge, strokes: [], boxes: [box], grid: true };
+      try {
+        const result = await new Promise<ComposeResult>((resolve, reject) => {
+          composing.set(id, { resolve, reject });
+          window?.webContents.send(AUDIO_CHANNEL.compose, request);
+          setTimeout(() => {
+            if (composing.delete(id)) reject(new Error('cutting the picture took too long'));
+          }, 5_000).unref();
+        });
+        const m = result.marks[0];
+        return m ? { mime: 'image/png' as const, base64: Buffer.from(m.png).toString('base64'), width: m.width, height: m.height, ...(m.grid ? { grid: m.grid } : {}) } : null;
+      } catch {
+        return null;
+      }
     },
     dispose(): void {
       window?.destroy();

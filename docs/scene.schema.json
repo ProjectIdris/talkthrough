@@ -307,6 +307,13 @@
           "type": "string",
           "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
         },
+        "cell": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 4 characters"
+        },
         "at": {
           "type": [
             "number",
@@ -321,10 +328,11 @@
         "x",
         "y",
         "color",
+        "cell",
         "at"
       ],
       "additionalProperties": false,
-      "description": "A marker (a ring with a dot) on one exact point of the screenshot: where two lines cross, a tip, a place on a map."
+      "description": "A marker (a ring with a dot) on one exact point of the screenshot: where two lines cross, a tip, a place on a map. cell: only when a closer picture with a grid was given, the grid cell the part is in (\"C4\", or \"C4b\" for a quarter of it)."
     },
     "trace": {
       "type": "object",

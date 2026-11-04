@@ -78,7 +78,9 @@ test('a check that throws, or never answers, is a refusal: the press waits for i
     r.session.arm();
     r.session.start();
     r.session.stop();
-    await wait(250);
+    // Until the refusal has been said (not for a fixed time: a loaded machine is slow), then a moment more for anything that should not happen.
+    for (let waited = 0; !/Could not tell which window/.test(noticeText(r)) && waited < 10_000; waited += 5) await wait(5);
+    await wait(30);
     assert.equal(asked, false);
     assert.deepEqual(r.calls, []);
     assert.match(noticeText(r), /Could not tell which window is in front/);

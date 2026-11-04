@@ -182,7 +182,7 @@ test('a circled area adds a second, closer picture and says what it is; without 
     res.end(sse('response.output_text.delta', { delta: '{"steps":[],"escalate":null}' }) + sse('response.completed'));
   }, async (baseUrl, seen) => {
     const model = createOpenAIModel({ apiKey: () => KEY, baseUrl });
-    const focus = { crop: { mime: 'image/png' as const, base64: 'CROPPED', width: 40, height: 30 }, box: { x: 100, y: 200, w: 300, h: 150 } };
+    const focus = [{ crop: { mime: 'image/png' as const, base64: 'CROPPED', width: 40, height: 30 }, box: { x: 100, y: 200, w: 300, h: 150 } }];
     for await (const _ of model.ask({ ...request, focus })) void _;
     for await (const _ of model.ask(request)) void _;
     const content = (i: number) => ((seen[i]?.body as Record<string, any>).input[0].content as Array<Record<string, string>>);
@@ -190,9 +190,9 @@ test('a circled area adds a second, closer picture and says what it is; without 
     assert.equal(withPen.filter((c) => c.type === 'input_image').length, 2);
     assert.ok(withPen[1]?.image_url?.endsWith('CROPPED'));
     const text = withPen.find((c) => c.type === 'input_text')?.text ?? '';
-    assert.ok(text.includes('red pen stroke') && text.includes('x 100 to 400') && text.includes('y 200 to 350'), text);
+    assert.ok(text.includes('red pen circle') && text.includes('x 100 to 400') && text.includes('y 200 to 350'), text);
     assert.equal(content(1).filter((c) => c.type === 'input_image').length, 1);
-    assert.ok(!(content(1).find((c) => c.type === 'input_text')?.text ?? '').includes('pen stroke'));
+    assert.ok(!(content(1).find((c) => c.type === 'input_text')?.text ?? '').includes('red pen'));
   });
 });
 

@@ -343,7 +343,7 @@ export class Snapper {
   }
 
   /** The page as the block fitters read it. */
-  private get blockGrid(): BlockGrid { return { cols: this.cols, rows: this.rows, ink: this.ink, strong: this.strong }; }
+  get blockGrid(): BlockGrid { return { cols: this.cols, rows: this.rows, ink: this.ink, strong: this.strong }; }
 
   /** A box round part of a table or a paragraph, as the whole block (rows or lines), or nothing when it is not one. */
   private fitBlock(m: Extract<Mark, { op: 'box' }>): Mark | undefined {
