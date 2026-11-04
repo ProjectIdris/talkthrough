@@ -1,8 +1,7 @@
-import { createStubBackend } from '../adapters/backend.ts';
 import type { Backend } from '../adapters/backend.ts';
 import { ModelError } from '../adapters/model.ts';
 import { NO_KEY_MESSAGE } from '../adapters/openai-model.ts';
-import type { Model, ThreadTurn, Usage } from '../adapters/model.ts';
+import type { Model, ModelOutput, ThreadTurn, Usage } from '../adapters/model.ts';
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
@@ -11,6 +10,7 @@ import type { SceneState, Step } from '../scene/index.ts';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
 import { isRealStroke } from '../shared/pen.ts';
+import { parseSpoken } from './phrases.ts';
 import type { Box, Point } from '../shared/pen.ts';
 
 /** Everything the question loop needs from the outside, so it can be tested without a window or a microphone. */
@@ -37,6 +37,7 @@ export type SessionDeps = {
   /** Null when no speech server is set up. */
   speech: SpeechToText | null;
   model(): Model;
+  /** The deeper backend, when the user has set one up (their settings name its address). Absent: none. */
   backend?: Backend;
   send(displayId: number, message: SceneMessage): void;
   log(line: string): void;
@@ -46,6 +47,13 @@ export type SessionDeps = {
   micWindowMs: number;
   /** Epoch milliseconds. */
   now?(): number;
+  /**
+   * Keeps an answer (see pins.ts). Absent: pinning is not available. `screenshot` is given only when the
+   * person has chosen to keep a picture of the screen with their pins.
+   */
+  pin?(input: { question: string; thread: readonly ThreadTurn[]; steps: readonly unknown[]; screenshot?: Screenshot }): { file: string };
+  /** Whether the person has chosen to keep a picture of the screen with pins. */
+  pinScreenshot?(): boolean;
   /** Called with the figures of a question when it ends, and again as the page reports its milestones. */
   onReport?(report: QuestionReport): void;
 };
@@ -96,16 +104,21 @@ type Attempt = {
   timer: NodeJS.Timeout | null;
 };
 
+/** Where an answer's steps come from: the model, or the backend. */
+type Source = { kind: 'model' | 'backend'; label: string; stream(): AsyncIterable<ModelOutput>; /** A line to show instead, when the source answered with text only. */ message?(): string | undefined };
+
 export function createSession(deps: SessionDeps) {
   const now = deps.now ?? (() => Date.now());
-  const backend = deps.backend ?? createStubBackend();
+  const backend = deps.backend;
   let attempt: Attempt | null = null;
   let nextId = 1;
   let asking: AbortController | null = null;
   let thread: ThreadTurn[] = [];
+  /** The picture each kept turn was asked about (as grabbed, no pen stroke), so a pin saves the right one. */
+  const pictures = new WeakMap<ThreadTurn, Screenshot>();
   let state: SceneState = createSceneState();
   let lastActivity = 0;
-  let lastAsk: { question: string; screenshot: Screenshot } | null = null;
+  let lastAsk: { question: string; screenshot: Screenshot; /** The picture as grabbed, without a pen stroke. */ clean: Screenshot; reason?: string } | null = null;
   let report: QuestionReport | null = null;
   let releasedAt = 0;
   /** The press whose pen strokes still count: the one held now, and for a moment after release. */
@@ -170,6 +183,8 @@ export function createSession(deps: SessionDeps) {
 
   /** Both keys are down. */
   function start(): void {
+    // A request still running is let go: its status (working, with the backend) must not outlive the press.
+    const supersedes = asking !== null;
     asking?.abort();
     const a = attempt && !attempt.chord ? attempt : (attempt && dropAttempt('a new press began'), begin(false));
     if (a.timer) clearTimeout(a.timer);
@@ -193,6 +208,7 @@ export function createSession(deps: SessionDeps) {
       penOff(a.displayId);
       deps.log(`pen: ${error instanceof Error ? error.message : String(error)}`);
     }
+    if (supersedes) deps.send(a.displayId, { kind: 'status', status: 'idle' });
     deps.send(a.displayId, { kind: 'status', status: 'hush' });
     if (a.micStarted) deps.send(a.displayId, { kind: 'status', status: 'listening' });
   }
@@ -213,6 +229,114 @@ export function createSession(deps: SessionDeps) {
     penOff(a.displayId);
     deps.log('chord released');
     void ask(a);
+  }
+
+  /** Pins the answer in the thread (the last one, if it is still in memory). */
+  function pinNow(): { ok: boolean; text: string } {
+    if (!deps.pin) return { ok: false, text: 'Pinning is not available.' };
+    const last = thread[thread.length - 1];
+    if (!last) return { ok: false, text: 'There is nothing to pin yet. Ask something first.' };
+    try {
+      const keep = deps.pinScreenshot?.() === true && pictures.get(last);
+      deps.pin({ question: last.question, thread: [...thread], steps: thread.flatMap((t) => [...t.steps]), ...(keep ? { screenshot: keep } : {}) });
+      return { ok: true, text: keep ? 'Pinned, with the screenshot.' : 'Pinned.' };
+    } catch (error) {
+      deps.log(`pin: ${error instanceof Error ? error.message : String(error)}`);
+      return { ok: false, text: "I couldn't save the pin." };
+    }
+  }
+
+  /** What the backend is told about the scene on screen: the steps drawn in this thread and the ids in use. */
+  function sceneOnScreen(): { steps: unknown[]; ids: Record<string, string> } {
+    return { steps: thread.flatMap((t) => [...t.steps]), ids: Object.fromEntries(state.ids) };
+  }
+
+  /** The backend as a source of steps: the overlay says it is with the backend while it waits. */
+  function backendSource(displayId: number, trigger: 'offer' | 'spoken', question: string, screenshot: Screenshot, reason: string | undefined, signal: AbortSignal): Source {
+    let said: string | undefined;
+    return {
+      kind: 'backend',
+      label: 'backend',
+      message: () => said,
+      async *stream(): AsyncGenerator<ModelOutput> {
+        deps.send(displayId, { kind: 'status', status: 'backend' });
+        const reply = await backend!.ask({ question, screenshot, thread: [...thread], scene: sceneOnScreen(), trigger, ...(reason ? { reason } : {}), signal });
+        said = reply.message;
+        const scene = reply.scene;
+        if (scene === undefined) return;
+        const steps = scene && typeof scene === 'object' ? (scene as { steps?: unknown }).steps : undefined;
+        if (!Array.isArray(steps)) throw new ModelError('bad-output', 'the backend sent a scene without steps');
+        // The backend is where an escalation ends: an `escalate` in its scene is ignored, so it never offers itself again.
+        for (const step of steps) yield { type: 'step', step };
+      },
+    };
+  }
+
+  /** The question is on its way to its answer: the thread, the validator, begin/step/end and every way it can end. */
+  async function answer(displayId: number, controller: AbortController, r: QuestionReport, since: () => number, question: string, source: Source, keepThread = false): Promise<void> {
+    const continuing = thread.length > 0 && (keepThread || now() - lastActivity < THREAD_WINDOW_MS);
+    if (!continuing) {
+      thread = [];
+      state = createSceneState();
+    }
+    const turn = thread.length + 1;
+    const picture = lastAsk?.clean;
+    startTurn(state);
+    deps.log(`question heard (turn ${turn}, ${source.label}${deps.logText ? `): ${JSON.stringify(question)}` : ')'}`);
+
+    const shown: Step[] = [];
+    let begun = false;
+    const open = () => {
+      if (begun) return;
+      begun = true;
+      deps.send(displayId, { kind: 'begin', turn });
+    };
+    let escalate: string | undefined;
+    let failure: unknown;
+    try {
+      for await (const out of source.stream()) {
+        if (out.type !== 'usage') r.firstPieceMs ??= since();
+        if (controller.signal.aborted) break;
+        if (out.type === 'step') {
+          const checked = validateStep(out.step, state);
+          if (checked.issues.length > 0) deps.log(`validator: ${checked.issues.length} notes on step ${shown.length + 1}`);
+          if (!checked.step) continue;
+          open();
+          shown.push(checked.step);
+          r.firstStepMs ??= since();
+          deps.send(displayId, { kind: 'step', step: checked.step });
+        } else if (out.type === 'usage') {
+          r.tokens = out.usage;
+        } else {
+          escalate = validateEscalate(out.reason).escalate;
+        }
+      }
+    } catch (error) {
+      failure = error;
+    }
+    if (controller.signal.aborted) return;
+    if (failure) {
+      const code = failure instanceof ModelError ? failure.code : 'failed';
+      r.error = `${source.kind}: ${code}: ${failure instanceof Error ? failure.message : String(failure)}`;
+      if (begun) deps.send(displayId, { kind: 'end' });
+      return notice(displayId, failure instanceof ModelError && code === 'auth' && failure.message === NO_KEY_MESSAGE ? 'No API key is set. Open the tray menu and choose API key.' : source.kind === 'backend' ? backendMessage(code) : modelMessage(code), 'error');
+    }
+    r.steps = shown.length;
+    if (escalate) r.escalate = escalate;
+    r.endMs = since();
+    if (shown.length === 0 && !escalate) {
+      const said = source.message?.();
+      if (said) return notice(displayId, said);
+      r.error = `the ${source.kind} gave nothing to show`;
+      return notice(displayId, "I couldn't work out an answer to that. Try asking another way?");
+    }
+    open();
+    deps.send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) });
+    const kept: ThreadTurn = { question, steps: shown };
+    if (picture) pictures.set(kept, picture);
+    thread.push(kept);
+    lastActivity = now();
+    if (lastAsk) lastAsk.reason = escalate;
   }
 
   async function ask(a: Attempt): Promise<void> {
@@ -274,6 +398,12 @@ export function createSession(deps: SessionDeps) {
         r.error = 'empty transcript';
         return notice(a.displayId, "I didn't catch that. Try again?");
       }
+      if (parseSpoken(question)?.kind === 'pin') {
+        // Not a question: keep what is on screen. No picture is needed, and the model is not asked.
+        const said = pinNow();
+        r.error = said.ok ? undefined : 'pin failed';
+        return notice(a.displayId, said.text, said.ok ? 'info' : 'error');
+      }
       let shot: Grab;
       try {
         shot = await a.capture;
@@ -298,67 +428,32 @@ export function createSession(deps: SessionDeps) {
         }
         if (controller.signal.aborted) return;
       }
-      lastAsk = { question, screenshot: seen };
+      const previous = lastAsk;
+      const spoken = parseSpoken(question);
+      // "Ask the backend" hands the question over by voice; with nothing after it, the last question goes again.
+      const toBackend = spoken?.kind === 'backend';
+      const asking = toBackend ? (spoken.rest || previous?.question || '') : question;
+      if (toBackend) r.model = 'backend';
+      if (toBackend && !backend) {
+        r.error = 'no backend';
+        return notice(a.displayId, NO_BACKEND_MESSAGE, 'error');
+      }
+      if (toBackend && !asking) {
+        r.error = 'nothing to ask the backend';
+        return notice(a.displayId, 'Ask your question first, or say it after "ask the backend".');
+      }
+      lastAsk = { question: asking, screenshot: seen, clean: shot.screenshot };
       deps.send(a.displayId, { kind: 'screenshot', url: `data:${shot.screenshot.mime};base64,${shot.screenshot.base64}` });
 
-      const continuing = thread.length > 0 && now() - lastActivity < THREAD_WINDOW_MS;
-      if (!continuing) {
-        thread = [];
-        state = createSceneState();
-      }
-      const turn = thread.length + 1;
-      startTurn(state);
-      deps.log(`question heard (turn ${turn}, ${model.id}${deps.logText ? `): ${JSON.stringify(question)}` : ')'}`);
-
-      const shown: Step[] = [];
-      let begun = false;
-      const open = () => {
-        if (begun) return;
-        begun = true;
-        deps.send(a.displayId, { kind: 'begin', turn });
-      };
-      let escalate: string | undefined;
-      let failure: unknown;
-      asked = true;
-      try {
-        for await (const out of model.ask({ question, screenshot: seen, ...(focus ? { focus } : {}), thread, schema: sceneSchemaLean, signal: controller.signal })) {
-          r.firstPieceMs ??= since();
-          if (controller.signal.aborted) break;
-          if (out.type === 'step') {
-            const checked = validateStep(out.step, state);
-            if (checked.issues.length > 0) deps.log(`validator: ${checked.issues.length} notes on step ${shown.length + 1}`);
-            if (!checked.step) continue;
-            open();
-            shown.push(checked.step);
-            r.firstStepMs ??= since();
-            deps.send(a.displayId, { kind: 'step', step: checked.step });
-          } else if (out.type === 'usage') {
-            r.tokens = out.usage;
-          } else {
-            escalate = validateEscalate(out.reason).escalate;
-          }
-        }
-      } catch (error) {
-        failure = error;
-      }
-      if (controller.signal.aborted) return;
-      if (failure) {
-        const code = failure instanceof ModelError ? failure.code : 'failed';
-        r.error = `model: ${code}: ${failure instanceof Error ? failure.message : String(failure)}`;
-        if (begun) deps.send(a.displayId, { kind: 'end' });
-        return notice(a.displayId, failure instanceof ModelError && code === 'auth' && failure.message === NO_KEY_MESSAGE ? 'No API key is set. Open the tray menu and choose API key.' : modelMessage(code), 'error');
-      }
-      r.steps = shown.length;
-      if (escalate) r.escalate = escalate;
-      r.endMs = since();
-      if (shown.length === 0 && !escalate) {
-        r.error = 'the model gave nothing to show';
-        return notice(a.displayId, "I couldn't work out an answer to that. Try asking another way?");
-      }
-      open();
-      deps.send(a.displayId, { kind: 'end', ...(escalate ? { escalate } : {}) });
-      thread.push({ question, steps: shown });
-      lastActivity = now();
+      const source: Source = toBackend
+        ? backendSource(a.displayId, 'spoken', asking, seen, undefined, controller.signal)
+        : {
+          kind: 'model',
+          label: model.id,
+          stream: () => model.ask({ question, screenshot: seen, ...(focus ? { focus } : {}), thread, schema: sceneSchemaLean, signal: controller.signal }),
+        };
+      asked = !toBackend;
+      await answer(a.displayId, controller, r, since, asking, source, false);
     } finally {
       if (penFor === a) penFor = null;
       if (!asked) model.unprime?.(); // the chord came to nothing: the spare thread is let go (and counted)
@@ -405,11 +500,28 @@ export function createSession(deps: SessionDeps) {
       deps.log(`milestone ${m.what} ${ms} ms after release`);
       deps.onReport?.(report);
     },
-    /** The user clicked the escalation offer. */
+    /** The user clicked the escalation offer: the question goes to the backend, with the thread and the scene on screen. */
     async offer(displayId: number): Promise<void> {
       if (!lastAsk) return;
-      const receipt = await backend.send({ question: lastAsk.question, screenshot: lastAsk.screenshot, thread });
-      notice(displayId, receipt.accepted ? (receipt.detail ?? 'Sent.') : "The deeper helper isn't built yet.");
+      if (!backend) return notice(displayId, NO_BACKEND_MESSAGE, 'error');
+      const controller = new AbortController();
+      asking?.abort();
+      asking = controller;
+      releasedAt = now();
+      const r: QuestionReport = { model: 'backend', question: lastAsk.question, steps: 0 };
+      report = r;
+      try {
+        await answer(displayId, controller, r, () => now() - releasedAt, lastAsk.question, backendSource(displayId, 'offer', lastAsk.question, lastAsk.screenshot, lastAsk.reason, controller.signal), true);
+      } finally {
+        if (asking === controller) asking = null;
+        deps.log(`report ${JSON.stringify(deps.logText ? r : { ...r, question: r.question ? '(not logged)' : '' })}`);
+        deps.onReport?.(r);
+      }
+    },
+    /** The tray's "Pin this answer". */
+    pin(displayId: number): void {
+      const said = pinNow();
+      notice(displayId, said.text, said.ok ? 'info' : 'error');
     },
     /** The overlay was cleared by hand: the next question starts a new thread. */
     reset(): void {
@@ -424,6 +536,18 @@ export function createSession(deps: SessionDeps) {
       attempt = null;
     },
   };
+}
+
+const NO_BACKEND_MESSAGE = 'No backend is set up. Add its address to the settings.';
+
+function backendMessage(code: string): string {
+  switch (code) {
+    case 'unavailable': return "I couldn't reach the backend.";
+    case 'auth': return 'The backend did not accept the request.';
+    case 'rate-limited': return 'The backend is busy. Try again in a moment.';
+    case 'bad-output': return "The backend's answer was garbled.";
+    default: return 'The backend could not answer.';
+  }
 }
 
 function modelMessage(code: string): string {

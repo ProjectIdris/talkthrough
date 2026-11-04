@@ -88,7 +88,7 @@ export type SceneMessage =
    * listening: recording has really started (show the cue);
    * working: released, waiting for the first step; idle: hide the cue and the indicator.
    */
-  | { kind: 'status'; status: 'hush' | 'listening' | 'working' | 'idle' }
+  | { kind: 'status'; status: 'hush' | 'listening' | 'working' | 'backend' | 'idle' }
   /** A short line that fades by itself. */
   | { kind: 'notice'; text: string; level: 'info' | 'error' };
 

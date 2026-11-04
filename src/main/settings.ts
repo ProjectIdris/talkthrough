@@ -19,6 +19,10 @@ export type Settings = {
   openaiModel: string;
   openaiServiceTier?: string;
   openaiBaseUrl?: string;
+  /** Where the deeper backend is reached (https or a loopback address; see docs/backend.md). Unset: no backend, nothing is ever sent there. */
+  backendUrl?: string;
+  /** How long to wait for the backend's answer, in milliseconds. */
+  backendTimeoutMs?: number;
   /** Explicit paths of the command-line tools; unset: found on PATH. */
   codexCommand?: string;
   claudeCommand?: string;
@@ -69,6 +73,12 @@ export function loadSettings(path: string, warn: (message: string) => void = () 
     if (safeBaseUrl(base)) settings.openaiBaseUrl = base;
     else warn('openaiBaseUrl must be https (or a loopback address); using the default');
   }
+  const backend = str(raw.backendUrl);
+  if (backend) {
+    if (safeBaseUrl(backend)) settings.backendUrl = backend;
+    else warn('backendUrl must be https (or a loopback address); no backend is used');
+  }
+  if (typeof raw.backendTimeoutMs === 'number' && raw.backendTimeoutMs >= 5000 && raw.backendTimeoutMs <= 900_000) settings.backendTimeoutMs = Math.round(raw.backendTimeoutMs);
   const codex = str(raw.codexCommand);
   if (codex) settings.codexCommand = codex;
   const claude = str(raw.claudeCommand);

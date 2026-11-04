@@ -36,3 +36,14 @@ test('a key is only ever pointed at https or a loopback address', () => {
   assert.equal(settings.openaiBaseUrl, undefined);
   assert.equal(warnings.length, 1);
 });
+
+test('the backend has no default; its address must be https or loopback, and its timeout stays in range', () => {
+  assert.equal(settingsFrom(null).settings.backendUrl, undefined);
+  const ok = settingsFrom(JSON.stringify({ backendUrl: 'http://127.0.0.1:4900/ask', backendTimeoutMs: 60000 })).settings;
+  assert.equal(ok.backendUrl, 'http://127.0.0.1:4900/ask');
+  assert.equal(ok.backendTimeoutMs, 60000);
+  const bad = settingsFrom(JSON.stringify({ backendUrl: 'http://backend.example.com/ask', backendTimeoutMs: 10 }));
+  assert.equal(bad.settings.backendUrl, undefined);
+  assert.equal(bad.settings.backendTimeoutMs, undefined);
+  assert.equal(bad.warnings.length, 1);
+});

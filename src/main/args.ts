@@ -31,6 +31,8 @@ export type Options = {
   settings?: string;
   /** Checks: use this image as the screenshot instead of grabbing the screen. */
   captureImage?: string;
+  /** Checks only: keep pins in this folder instead of the app's data folder. */
+  pinsDir?: string;
   /** Checks only: a pen stroke made without a mouse, as points on the 0..1000 scale ("x,y x,y ..."). */
   /** Checks only: write the picture the model gets with a stroke (and its crop) into this folder. */
   savePen?: string;
@@ -95,6 +97,7 @@ export function parseArgs(argv: readonly string[]): Options {
         i++;
         break;
       }
+      case '--pins-dir': options.pinsDir = value(i, a); i++; break;
       case '--capture-image': options.captureImage = value(i, a); i++; break;
       case '--fake-mic-file': options.fakeMicFile = value(i, a); options.fakeMic = true; i++; break;
       case '--save-capture': options.saveCapture = value(i, a); i++; break;
