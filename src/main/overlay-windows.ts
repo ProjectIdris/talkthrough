@@ -25,6 +25,10 @@ export type OverlayOptions = {
   globalKeys?: boolean;
   /** Development runs: tell the pages to speak nothing. */
   silent?: boolean;
+  /** Development runs: make each window this size (at its display's top-left corner) instead of covering the display, so a recording has the shape asked for. */
+  size?: { width: number; height: number };
+  /** Development runs: the windows make no sound (a recording has the audio from the voice server's own stream). */
+  muted?: boolean;
   /** Called when an overlay page reports ready, with a one-line description of its window. */
   onReady?: (description: string) => void;
   /** Called when the renderer reports the end of a played scene. */
@@ -95,7 +99,11 @@ export function createOverlayManager(options: OverlayOptions) {
     return info;
   }
 
-  function create(display: Display): void {
+  /** A display as the overlay covers it: the display itself, or (development recordings) a window of the size asked for at its corner. */
+  const covered = (real: Display): Display => (options.size ? { ...real, bounds: { ...real.bounds, width: options.size.width, height: options.size.height } } : real);
+
+  function create(realDisplay: Display): void {
+    const display = covered(realDisplay);
     const window = new BrowserWindow({
       ...display.bounds,
       show: false,
@@ -121,6 +129,7 @@ export function createOverlayManager(options: OverlayOptions) {
         autoplayPolicy: 'no-user-gesture-required',
       },
     });
+    if (options.muted) window.webContents.setAudioMuted(true);
     window.setAlwaysOnTop(true, 'screen-saver');
     window.setIgnoreMouseEvents(true, { forward: true });
     if (options.hideFromCapture) window.setContentProtection(true);
@@ -286,9 +295,10 @@ export function createOverlayManager(options: OverlayOptions) {
 
   function sync(): void {
     const current = screen.getAllDisplays();
-    for (const display of current) {
+    for (const real of current) {
+      const display = covered(real);
       const existing = overlays.get(display.id);
-      if (!existing) create(display);
+      if (!existing) create(real);
       else {
         existing.display = display;
         existing.window.setBounds(display.bounds);
@@ -350,6 +360,33 @@ export function createOverlayManager(options: OverlayOptions) {
       const overlay = overlays.get(displayId);
       if (!overlay || !overlay.ready) return null;
       return (await overlay.window.webContents.capturePage()).toPNG();
+    },
+    /** The window's picture now as raw BGRA bytes (development recordings). */
+    async frame(displayId: number): Promise<{ bitmap: Buffer; width: number; height: number } | null> {
+      const overlay = overlays.get(displayId);
+      if (!overlay || !overlay.ready || overlay.window.isDestroyed()) return null;
+      const image = await overlay.window.webContents.capturePage();
+      const size = image.getSize();
+      return { bitmap: image.toBitmap(), width: size.width, height: size.height };
+    },
+    /** A mouse event on the window, as a person's would be (development scripts). */
+    input(displayId: number, event: Electron.MouseInputEvent): void {
+      const overlay = overlays.get(displayId);
+      if (overlay && !overlay.window.isDestroyed()) overlay.window.webContents.sendInputEvent(event);
+    },
+    /** Where an element of the page is, in its pixels (development scripts). */
+    /** Presses one of the page's buttons the way the small catcher windows over them do (development scripts: the hidden overlay has none). */
+    press(displayId: number, id: 'explode' | 'cut'): void {
+      const overlay = overlays.get(displayId);
+      if (overlay && !overlay.window.isDestroyed()) overlay.window.webContents.send(CHANNEL.scene, { kind: 'press', id } satisfies SceneMessage);
+    },
+    async rectOf(displayId: number, id: string): Promise<{ x: number; y: number; w: number; h: number; text: string } | null> {
+      const overlay = overlays.get(displayId);
+      if (!overlay || overlay.window.isDestroyed()) return null;
+      const r = (await overlay.window.webContents.executeJavaScript(
+        `(() => { const e = document.getElementById(${JSON.stringify(id)}); if (!e || e.style.display === 'none') return null; const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, text: e.textContent }; })()`,
+      )) as { x: number; y: number; w: number; h: number; text: string } | null;
+      return r;
     },
     displayIds(): number[] {
       return [...overlays.keys()];
