@@ -8,11 +8,11 @@ Hold a key and ask out loud. Talkthrough looks at your screen, points at what ma
 > *Demo GIF coming with the first release.*
 
 - **Works in any app or website:** no tutorial in another window.
-- **Open source (MIT), bring your own model.**
+- **Open source (MIT).** You choose how it runs your model (see [Choose how it runs your model](#choose-how-it-runs-your-model)).
 - **Private:** nothing is stored unless you pin it.
 - **Safe:** it draws, it never runs generated code.
 
-> **Status: pre-release, Windows first.** The whole loop runs: hotkey, microphone, screen capture, a model on your own ChatGPT or Claude plan, the scene language and the three.js overlay. It needs a local speech recogniser you point it at (see [setup](docs/setup.md)). Step-by-step guiding that waits for your click is planned. See [Status](#status) for exactly what exists today.
+> **Status: pre-release, Windows first.** The whole loop runs: hotkey, microphone, screen capture, a model through your own Codex or Claude Code install, the scene language and the three.js overlay. It needs a local speech recogniser you point it at (see [setup](docs/setup.md)). Step-by-step guiding that waits for your click is planned. See [Status](#status) for exactly what exists today.
 
 ## Contribute
 
@@ -37,6 +37,16 @@ npm run typecheck   # tsc --noEmit
 ```
 
 `npm start` runs the app; see [docs/setup.md](docs/setup.md) for the settings, the model and speech.
+
+## Choose how it runs your model
+
+Talkthrough sends your screenshot and question to a model you choose. Pick one in [settings](docs/setup.md):
+
+1. **Your own locally installed Codex CLI**, signed in by you.
+2. **Your own Claude Code**, signed in by you.
+3. **An API key** (planned).
+
+Talkthrough starts the tool you already have and gives it no tools of its own: it can only answer. It never sees or stores your sign-in. Check your provider's terms for automated use before you pick one.
 
 ## How it works
 

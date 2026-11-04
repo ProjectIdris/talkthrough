@@ -21,21 +21,22 @@ A JSON file, `%APPDATA%\talkthrough\settings.json` (the app logs the exact path 
 | `speechLimitMs` | Sent to the speech server as `limit_ms`: how long its main recogniser may take before a quicker one answers. About 1000 suits a CPU-only server. | server's own |
 | `model` | `"codex"` or `"claude"` | `"codex"` |
 | `codexModel` | Model name in your Codex catalog | `"gpt-6-luna"` |
-| `codexFast` | Fast mode for the Codex process this app starts (uses more of your plan's allowance; your own Codex settings are not touched) | `false` |
+| `codexFast` | Fast mode for the Codex process this app starts (uses more of your usage allowance; your own Codex settings are not touched) | `false` |
 | `claudeModel` | Claude model name | `"claude-haiku-5-5"` |
 | `codexCommand`, `claudeCommand` | Full path of the tool, if it is not on `PATH` | found on `PATH` |
 | `micWindowMs` | How long Right Ctrl may be held alone before the early microphone and screen grab are dropped | `1000` |
 | `screenshotEdge` | Longer side of the screenshot sent to the model, in pixels | `1280` |
 | `effort` | Reasoning effort asked of the model | `"low"` |
 
-## The model
+## Choose how it runs your model
 
-Talkthrough starts a command-line tool you already have, signed in as you, and gives it no tools: it can only answer.
+Talkthrough sends your screenshot and question to a model you choose. Set `model` in the settings file:
 
-- **Codex** (`"model": "codex"`): your own `codex` install, signed in with ChatGPT. The app runs `codex app-server` itself with a read-only sandbox, no approvals, its tool features off and an empty working folder, and ends the question if anything tries to use a tool.
-- **Claude** (`"model": "claude"`): your own `claude` install. The app runs it in print mode with no tools, no MCP servers, no slash commands and no settings files, and refuses to go on if its first message lists anything else.
+1. **`"codex"`: your own locally installed Codex CLI**, signed in by you. The app runs `codex app-server` itself with a read-only sandbox, no approvals, its tool features off and an empty working folder, and ends the question if anything tries to use a tool.
+2. **`"claude"`: your own Claude Code**, signed in by you. The app runs it in print mode with no tools, no MCP servers, no slash commands and no settings files, and refuses to go on if its first message lists anything else.
+3. **An API key** (planned): a model that calls a provider's API directly with a key you enter in settings.
 
-Both use your plan's allowance. Your terms of service are your own to read: these routes are meant for one person on their own machine. To use something else, write a `Model` adapter (`src/adapters/model.ts`); an API-key model is the natural one.
+For the first two, Talkthrough only starts the tool you already have; it never sees or stores your sign-in. **Check your provider's terms for automated use before you pick one.** To use something else, write a `Model` adapter (`src/adapters/model.ts`).
 
 ## Speech
 
