@@ -25,8 +25,22 @@ export type ModelRequest = {
   signal?: AbortSignal;
 };
 
-/** What a model yields: raw (unvalidated) steps as they complete, then at most one escalation. */
-export type ModelOutput = { type: 'step'; step: unknown } | { type: 'escalate'; reason: unknown };
+/** What one question cost, in tokens, as the provider reports it (when it does). */
+export type Usage = {
+  /** All input tokens of the request, cached ones included. */
+  input: number;
+  /** Of those, how many were read from the provider's cache. */
+  cached: number;
+  /** Tokens written to a cache, where the provider says so. */
+  cacheWrite?: number;
+  output: number;
+};
+
+/**
+ * What a model yields: raw (unvalidated) steps as they complete, then at most one escalation, and, when
+ * the provider reports it, the token usage of the question (last, after the answer).
+ */
+export type ModelOutput = { type: 'step'; step: unknown } | { type: 'escalate'; reason: unknown } | { type: 'usage'; usage: Usage };
 
 /**
  * A vision model that answers with scene steps.

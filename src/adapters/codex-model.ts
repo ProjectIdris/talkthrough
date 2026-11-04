@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { createStepStream } from '../scene/stream.ts';
 import type { StepStream } from '../scene/stream.ts';
 import { ModelError } from './model.ts';
-import type { Model, ModelOutput, ModelRequest } from './model.ts';
+import type { Model, ModelOutput, ModelRequest, Usage } from './model.ts';
 import { AsyncQueue, childEnv, createLineSplitter, questionText, resolveCommand, stopAndRemove, systemPrompt } from './subscription-shared.ts';
 
 /**
@@ -32,6 +32,8 @@ export type CodexModelOptions = {
   prefixArgs?: string[];
   /** Give up on one answer after this long. Default 60000. */
   timeoutMs?: number;
+  /** Config overrides for each thread (the same keys `-c` takes), for trying what trims the prompt. */
+  threadConfig?: Record<string, unknown>;
   /** One-line facts about what the process reported (tier, model), for the app's log. */
   log?: (line: string) => void;
 };
@@ -44,7 +46,7 @@ const DISABLED_FEATURES = ['shell_tool', 'unified_exec', 'apps', 'plugins', 'mul
 
 type Json = Record<string, unknown>;
 type Waiter = { proc: ChildProcessWithoutNullStreams; resolve: (value: Json) => void; reject: (error: Error) => void };
-type Turn = { proc?: ChildProcessWithoutNullStreams; queue: AsyncQueue<ModelOutput>; stream: StepStream; threadId: string; turnId?: string; done: boolean; firstDeltaAt?: number };
+type Turn = { proc?: ChildProcessWithoutNullStreams; queue: AsyncQueue<ModelOutput>; stream: StepStream; threadId: string; turnId?: string; done: boolean; firstDeltaAt?: number; usage?: Usage };
 
 export function codexLockdownArgs(fast: boolean): string[] {
   const args = ['-c', 'web_search="disabled"'];
@@ -118,6 +120,18 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
     if (!turn) return;
 
     switch (method) {
+      case 'thread/tokenUsage/updated': {
+        const tu = ((params.tokenUsage ?? {}) as Json).last as Json | undefined;
+        if (tu && typeof tu.inputTokens === 'number') {
+          turn.usage = {
+            input: tu.inputTokens,
+            cached: typeof tu.cachedInputTokens === 'number' ? tu.cachedInputTokens : 0,
+            ...(typeof tu.cacheWriteInputTokens === 'number' && tu.cacheWriteInputTokens > 0 ? { cacheWrite: tu.cacheWriteInputTokens } : {}),
+            output: typeof tu.outputTokens === 'number' ? tu.outputTokens : 0,
+          };
+        }
+        break;
+      }
       case 'turn/started': {
         const t = params.turn as Json | undefined;
         if (t && typeof t.id === 'string') turn.turnId = t.id;
@@ -170,6 +184,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
         }
         const escalate = turn.stream.escalate;
         if (escalate && escalate.trim()) turn.queue.push({ type: 'escalate', reason: escalate });
+        if (turn.usage) turn.queue.push({ type: 'usage', usage: turn.usage });
         turn.done = true;
         turn.queue.close();
         break;
@@ -340,6 +355,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
           ephemeral: true,
           serviceName: 'talkthrough',
           baseInstructions: systemPrompt(),
+          ...(options.threadConfig ? { config: options.threadConfig } : {}),
         })).catch((error: unknown) => {
           throw error instanceof ModelError ? error : errorFrom(error instanceof Error ? error.message : String(error));
         });

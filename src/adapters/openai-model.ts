@@ -1,6 +1,6 @@
 import { createStepStream } from '../scene/stream.ts';
 import { ModelError } from './model.ts';
-import type { Model, ModelOutput, ModelRequest } from './model.ts';
+import type { Model, ModelOutput, ModelRequest, Usage } from './model.ts';
 import { questionText, systemPrompt } from './subscription-shared.ts';
 
 /**
@@ -97,6 +97,7 @@ export function createOpenAIModel(options: OpenAIModelOptions): Model {
 
       const stream = createStepStream();
       let completed = false;
+      let usage: Usage | undefined;
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let pending = '';
@@ -104,7 +105,7 @@ export function createOpenAIModel(options: OpenAIModelOptions): Model {
       /** One server-sent event: returns the steps it completed; throws on an error event. */
       const handle = (data: string): unknown[] => {
         if (data === '[DONE]') return [];
-        let event: { type?: string; delta?: string; refusal?: string; error?: { message?: string }; response?: { error?: { message?: string }; incomplete_details?: { reason?: string } } };
+        let event: { type?: string; delta?: string; refusal?: string; error?: { message?: string }; response?: { error?: { message?: string }; incomplete_details?: { reason?: string }; usage?: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } } } };
         try {
           event = JSON.parse(data) as typeof event;
         } catch {
@@ -116,9 +117,12 @@ export function createOpenAIModel(options: OpenAIModelOptions): Model {
           case 'response.refusal.delta':
           case 'response.refusal.done':
             throw new ModelError('refused', 'the model declined to answer');
-          case 'response.completed':
+          case 'response.completed': {
             completed = true;
+            const u = event.response?.usage;
+            if (u && typeof u.input_tokens === 'number') usage = { input: u.input_tokens, cached: u.input_tokens_details?.cached_tokens ?? 0, output: u.output_tokens ?? 0 };
             return [];
+          }
           case 'response.incomplete':
             throw new ModelError('bad-output', `the answer was cut short (${event.response?.incomplete_details?.reason ?? 'incomplete'})`);
           case 'response.failed':
@@ -166,6 +170,7 @@ export function createOpenAIModel(options: OpenAIModelOptions): Model {
         }
         const escalate = stream.escalate;
         if (escalate && escalate.trim()) yield { type: 'escalate', reason: escalate };
+        if (usage) yield { type: 'usage', usage };
       } finally {
         void reader.cancel().catch(() => undefined);
       }

@@ -2,7 +2,7 @@ import { createStubBackend } from '../adapters/backend.ts';
 import type { Backend } from '../adapters/backend.ts';
 import { ModelError } from '../adapters/model.ts';
 import { NO_KEY_MESSAGE } from '../adapters/openai-model.ts';
-import type { Model, ThreadTurn } from '../adapters/model.ts';
+import type { Model, ThreadTurn, Usage } from '../adapters/model.ts';
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
@@ -64,6 +64,8 @@ export type QuestionReport = {
   firstMarkMs?: number;
   firstWordMs?: number;
   steps: number;
+  /** What the model says the question cost, when it says. */
+  tokens?: Usage;
   /** The person circled something with the pen and the model was shown it. */
   circled?: boolean;
   escalate?: string;
@@ -318,6 +320,8 @@ export function createSession(deps: SessionDeps) {
             shown.push(checked.step);
             r.firstStepMs ??= since();
             deps.send(a.displayId, { kind: 'step', step: checked.step });
+          } else if (out.type === 'usage') {
+            r.tokens = out.usage;
           } else {
             escalate = validateEscalate(out.reason).escalate;
           }

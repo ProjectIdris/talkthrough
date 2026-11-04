@@ -48,6 +48,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     const timer = setInterval(() => {
       if (i >= answer.length) {
         clearInterval(timer);
+        if (process.env.FAKE_USAGE) send({ method: 'thread/tokenUsage/updated', params: { threadId, turnId: turn.id, tokenUsage: { last: { inputTokens: 16000, cachedInputTokens: 15000, outputTokens: 90, reasoningOutputTokens: 10, totalTokens: 16090 }, total: {} } } });
         send({ method: 'turn/completed', params: { threadId, turn: { ...turn, status: 'completed' } } });
         return;
       }

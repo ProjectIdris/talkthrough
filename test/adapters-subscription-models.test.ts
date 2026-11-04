@@ -211,3 +211,18 @@ test('codex: tool servers in your own Codex setup are switched off by name, and 
     delete process.env.FAKE_MCP_STUBBORN;
   }
 });
+
+test('the token usage the provider reports comes out last, with cached and written tokens kept apart', async () => {
+  process.env.FAKE_MODE = 'ok';
+  process.env.FAKE_USAGE = '1';
+  const codex = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex] });
+  const claude = createClaudeModel({ command: process.execPath, prefixArgs: [fakeClaude] });
+  try {
+    assert.deepEqual((await collect(codex)).at(-1), { type: 'usage', usage: { input: 16000, cached: 15000, output: 90 } });
+    assert.deepEqual((await collect(claude)).at(-1), { type: 'usage', usage: { input: 9312, cached: 9000, cacheWrite: 300, output: 80 } });
+  } finally {
+    delete process.env.FAKE_USAGE;
+    await codex.close?.();
+    await claude.close?.();
+  }
+});

@@ -25,7 +25,7 @@ createInterface({ input: process.stdin }).once('line', () => {
   const timer = setInterval(() => {
     if (i >= answer.length) {
       clearInterval(timer);
-      send({ type: 'result', subtype: 'success', is_error: false, result: '' });
+      send({ type: 'result', subtype: 'success', is_error: false, result: '', ...(process.env.FAKE_USAGE ? { usage: { input_tokens: 12, cache_read_input_tokens: 9000, cache_creation_input_tokens: 300, output_tokens: 80 } } : {}) });
       return;
     }
     send({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: answer.slice(i, i + chunk) } } });

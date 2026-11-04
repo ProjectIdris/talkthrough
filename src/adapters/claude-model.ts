@@ -192,6 +192,12 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
           }
           const escalate = stream.escalate;
           if (escalate && escalate.trim()) queue.push({ type: 'escalate', reason: escalate });
+          const u = event.usage as Json | undefined;
+          if (u && typeof u.input_tokens === 'number') {
+            const read = typeof u.cache_read_input_tokens === 'number' ? u.cache_read_input_tokens : 0;
+            const wrote = typeof u.cache_creation_input_tokens === 'number' ? u.cache_creation_input_tokens : 0;
+            queue.push({ type: 'usage', usage: { input: u.input_tokens + read + wrote, cached: read, ...(wrote > 0 ? { cacheWrite: wrote } : {}), output: typeof u.output_tokens === 'number' ? u.output_tokens : 0 } });
+          }
           finished = true;
           queue.close();
         }
