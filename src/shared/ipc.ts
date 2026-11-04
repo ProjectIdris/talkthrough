@@ -4,6 +4,7 @@
 
 import type { VoiceEvent } from '../adapters/http-voice.ts';
 import type { Action, Scene, Step } from '../scene/types.ts';
+import type { SaveResult, SettingsForm } from './settings-form.ts';
 
 export const CHANNEL = {
   /** main -> overlay: which display this overlay covers. Sent after `ready`, and again if it changes. */
@@ -201,11 +202,14 @@ export interface TalkthroughAudioApi {
   onRelease(listener: (grabId: number) => void): void;
 }
 
-/** The small settings window (API key entry). The key only ever travels page -> main. */
+/** The settings window. The API key only ever travels page -> main; the other settings are checked by main before they are written. */
 export const SETTINGS_CHANNEL = {
   status: 'tt:key-status',
   save: 'tt:key-save',
   clear: 'tt:key-clear',
+  get: 'tt:settings-get',
+  put: 'tt:settings-put',
+  restart: 'tt:settings-restart',
 } as const;
 
 export interface TalkthroughSettingsApi {
@@ -213,6 +217,12 @@ export interface TalkthroughSettingsApi {
   status(): Promise<{ available: boolean; saved: boolean }>;
   save(key: string): Promise<{ ok: true } | { ok: false; message: string }>;
   clear(): Promise<void>;
+  /** The settings as the file says now, and the words for the keys the chord is made of. */
+  load(): Promise<SettingsForm>;
+  /** Checks and writes the settings; nothing is written if a value is refused. */
+  store(form: SettingsForm): Promise<SaveResult>;
+  /** Quits and starts Talkthrough again, so saved settings take effect. */
+  restart(): void;
 }
 
 export interface TalkthroughApi {

@@ -2,12 +2,15 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { SETTINGS_CHANNEL } from '../shared/ipc.ts';
 import { KeyStoreError } from './keystore.ts';
 import type { createKeyStore } from './keystore.ts';
+import type { SettingsService } from './settings-service.ts';
+import type { SettingsForm } from '../shared/settings-form.ts';
 
 /**
- * The small window where the API key is entered (opened from the tray). Only that window's page may
- * talk to the key store, the key is never sent back to it, and it is never logged.
+ * The settings window (opened from the tray): the settings a person may change, and the API key. Only that window's page may
+ * talk to the key store, the key is never sent back to it, and it is never logged. The other settings are checked by the
+ * settings service (the same checks as the file) before anything is written.
  */
-export function createSettingsWindow(options: { preload: string; page: string; keys: ReturnType<typeof createKeyStore> }) {
+export function createSettingsWindow(options: { preload: string; page: string; keys: ReturnType<typeof createKeyStore>; settings: SettingsService; /** Quit and start again. */ onRestart(): void; /** Called with the settings as saved, so what can take effect at once does. */ onSaved?(form: SettingsForm): void }) {
   let window: BrowserWindow | null = null;
 
   const trusted = (event: Electron.IpcMainInvokeEvent) => window !== null && event.sender === window.webContents;
@@ -27,6 +30,16 @@ export function createSettingsWindow(options: { preload: string; page: string; k
   ipcMain.handle(SETTINGS_CHANNEL.clear, (event) => {
     if (trusted(event)) options.keys.clear();
   });
+  ipcMain.handle(SETTINGS_CHANNEL.get, (event) => (trusted(event) ? options.settings.read() : null));
+  ipcMain.handle(SETTINGS_CHANNEL.put, (event, form: unknown) => {
+    if (!trusted(event)) return { ok: false, messages: ['Not saved.'] };
+    const result = options.settings.save(form);
+    if (result.ok) options.onSaved?.(result.form);
+    return result;
+  });
+  ipcMain.on(SETTINGS_CHANNEL.restart, (event) => {
+    if (trusted(event)) options.onRestart();
+  });
 
   return {
     open(): void {
@@ -36,8 +49,11 @@ export function createSettingsWindow(options: { preload: string; page: string; k
         return;
       }
       window = new BrowserWindow({
-        width: 480,
-        height: 360,
+        width: 620,
+        height: 800,
+        minWidth: 520,
+        minHeight: 480,
+        backgroundColor: '#111622',
         title: 'Talkthrough settings',
         autoHideMenuBar: true,
         minimizable: false,

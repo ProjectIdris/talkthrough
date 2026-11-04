@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import { DEFAULT_HOTKEY, parseHotkey } from './chord.ts';
+import { cleanSkipList, DEFAULT_SKIP_LIST } from './skip-list.ts';
 
 /**
  * The user's local settings (a JSON file in the app's data folder, or the path given with
@@ -36,6 +38,16 @@ export type Settings = {
   voiceCooldownMs: number;
   /** How long one utterance may take in all, in milliseconds. */
   voiceTimeoutMs: number;
+  /**
+   * The two keys held together to ask (see CHORD_KEYS in chord.ts), as "first+second"; the first, held alone, opens the
+   * microphone and the screen grab early. Read once, at start.
+   */
+  hotkey: string;
+  /**
+   * Words that name windows never to look at (matched against the app name, program file and title of the window in front, whatever
+   * the case): a press of the chord then does nothing. See skip-list.ts.
+   */
+  captureBlocklist: string[];
   /** Explicit paths of the command-line tools; unset: found on PATH. */
   codexCommand?: string;
   claudeCommand?: string;
@@ -94,20 +106,31 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceFirstAudioMs: 2000,
   voiceCooldownMs: 20_000,
   voiceTimeoutMs: 30_000,
+  hotkey: DEFAULT_HOTKEY,
+  captureBlocklist: [...DEFAULT_SKIP_LIST],
 };
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
 
-/** Reads the settings file; a missing or broken file gives the defaults (and says why). */
-export function loadSettings(path: string, warn: (message: string) => void = () => undefined): Settings {
-  let raw: Record<string, unknown> = {};
+/** The settings file as an object; a missing or broken file is an empty one (and says why). */
+export function readRawSettings(path: string, warn: (message: string) => void = () => undefined): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
-    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) raw = parsed as Record<string, unknown>;
-    else warn('the settings file is not an object; using defaults');
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
+    warn('the settings file is not an object; using defaults');
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') warn(`could not read the settings file: ${error instanceof Error ? error.message : String(error)}`);
   }
+  return {};
+}
+
+/** Reads the settings file; a missing or broken file gives the defaults (and says why). */
+export function loadSettings(path: string, warn: (message: string) => void = () => undefined): Settings {
+  return settingsFromRaw(readRawSettings(path, warn), warn);
+}
+
+/** The checks every setting goes through, whether it came from the file or from the settings window. */
+export function settingsFromRaw(raw: Record<string, unknown>, warn: (message: string) => void = () => undefined): Settings {
   const settings: Settings = { ...DEFAULT_SETTINGS };
   const url = str(raw.speechServerUrl);
   if (url) settings.speechServerUrl = url;
@@ -141,6 +164,14 @@ export function loadSettings(path: string, warn: (message: string) => void = () 
   if (typeof raw.voiceFirstAudioMs === 'number' && raw.voiceFirstAudioMs >= 300 && raw.voiceFirstAudioMs <= 2400) settings.voiceFirstAudioMs = Math.round(raw.voiceFirstAudioMs);
   if (typeof raw.voiceCooldownMs === 'number' && raw.voiceCooldownMs >= 2000 && raw.voiceCooldownMs <= 600_000) settings.voiceCooldownMs = Math.round(raw.voiceCooldownMs);
   if (typeof raw.voiceTimeoutMs === 'number' && raw.voiceTimeoutMs >= 5000 && raw.voiceTimeoutMs <= 120_000) settings.voiceTimeoutMs = Math.round(raw.voiceTimeoutMs);
+  if (raw.hotkey !== undefined) {
+    if (typeof raw.hotkey === 'string' && parseHotkey(raw.hotkey)) settings.hotkey = raw.hotkey.split('+').map((p) => p.trim().toLowerCase()).join('+');
+    else warn(`hotkey must be two different keys from right-ctrl, right-shift, right-alt, left-ctrl, left-shift, left-alt joined by +; using ${DEFAULT_HOTKEY}`);
+  }
+  if (raw.captureBlocklist !== undefined) {
+    if (Array.isArray(raw.captureBlocklist)) settings.captureBlocklist = cleanSkipList(raw.captureBlocklist, (m) => warn(`captureBlocklist: ${m}`));
+    else warn('captureBlocklist must be a list of words; using the default list');
+  }
   const codex = str(raw.codexCommand);
   if (codex) settings.codexCommand = codex;
   const claude = str(raw.claudeCommand);

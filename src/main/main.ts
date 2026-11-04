@@ -1,7 +1,7 @@
 import { app, dialog, safeStorage, screen, shell } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { uIOhook, UiohookKey } from 'uiohook-napi';
+import { join, sep } from 'node:path';
+import { uIOhook } from 'uiohook-napi';
 import { parseArgs } from './args.ts';
 import { createHttpBackend } from '../adapters/backend.ts';
 import { createClaudeModel } from '../adapters/claude-model.ts';
@@ -16,6 +16,10 @@ import { runGrab } from './grab.ts';
 import { gridOf } from './frame-grid.ts';
 import type { Click } from './guide.ts';
 import { startHotkey, watchGuideInput } from './hotkey.ts';
+import { parseHotkey } from './chord.ts';
+import { createFrontWindowReader } from './front-window.ts';
+import { createSkipCheck } from './skip-list.ts';
+import { createSettingsService } from './settings-service.ts';
 import { createKeyStore } from './keystore.ts';
 import { createMedia } from './media.ts';
 import { createOverlayManager } from './overlay-windows.ts';
@@ -183,7 +187,28 @@ async function main(): Promise<void> {
 
   // The API key, if the person uses that route: encrypted for their account, read only here, never logged.
   const keys = createKeyStore({ file: join(app.getPath('userData'), 'api-key.bin'), safeStorage });
-  const settingsWindow = createSettingsWindow({ preload: settingsPreload, page: settingsPage, keys });
+  // The windows the person asked us not to look at (see skip-list.ts). The list is read each time, so one just saved protects at once.
+  let skipList: readonly string[] = settings.captureBlocklist;
+  // In a packaged app both the worker and the native file it loads are outside the archive (asarUnpack).
+  const unpacked = (path: string): string => path.replace('app.asar' + sep, 'app.asar.unpacked' + sep);
+  const frontReader = createFrontWindowReader({ file: unpacked(join(__dirname, 'front-window-worker.cjs')), addonDir: unpacked(join(__dirname, '..', '..', 'node_modules', 'get-windows')), log });
+  const skipped = createSkipCheck(() => skipList, { read: () => frontReader.read(), log });
+  if (skipList.length > 0) void frontReader.read().catch(() => undefined); // starts the reader now, not at the first press
+  const settingsWindow = createSettingsWindow({
+    onSaved: (form) => {
+      skipList = form.captureBlocklist;
+      if (skipList.length > 0) void frontReader.read().catch(() => undefined);
+    },
+    preload: settingsPreload,
+    page: settingsPage,
+    keys,
+    settings: createSettingsService({ path: settingsPath, warn: (m) => log(`settings: ${m}`) }),
+    onRestart: () => {
+      app.relaunch();
+      quit();
+    },
+  });
+  const chord = parseHotkey(settings.hotkey) ?? parseHotkey('right-ctrl+right-shift')!;
 
   /** One route's model, locked down the same way whichever it is; the detail pass uses the same code with its own choices. */
   const makeModel = (route: 'codex' | 'claude' | 'openai', name: string, effort: string, quick: boolean): Model => route === 'claude'
@@ -230,6 +255,7 @@ async function main(): Promise<void> {
   const uia = controlHelper && settings.controlSnap ? createUiaReader({ helper: controlHelper }) : undefined;
   const navigator = controlHelper && settings.guideNavigation && navConsent ? createNavigator({ helper: controlHelper }) : undefined;
   session = createSession({
+    skipped,
     ...(uia
       ? {
         controls: {
@@ -251,6 +277,7 @@ async function main(): Promise<void> {
       stopMic: () => media.stopMic(),
       abortMic: () => media.abortMic(),
       capture: async (displayId) => {
+        if (await skipped()) throw new Error('the window in front is not to be looked at (the list of windows to skip)');
         const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
         // A stand-in picture goes through the same page as a real grab, so a pen crop works the same way.
         const c = captureImage ? await media.captureFromImage(display, captureImage, settings.screenshotEdge) : await media.capture(display, settings.screenshotEdge);
@@ -273,6 +300,7 @@ async function main(): Promise<void> {
     guide: {
       // A fresh look at the screen for the guide: the frame is let go at once (only the picture and its grid are kept).
       capture: async (displayId) => {
+        if (await skipped()) throw new Error('the window in front is not to be looked at (the list of windows to skip)');
         const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
         const c = captureImage ? await media.captureFromImage(display, captureImage, settings.screenshotEdge) : await media.capture(display, settings.screenshotEdge);
         media.release(c.grabId);
@@ -355,6 +383,7 @@ async function main(): Promise<void> {
     overlays.dispose();
     media.dispose();
     settingsWindow.dispose();
+    frontReader.dispose();
     tray.destroy();
     // Let the model's process end (and its working folder go) before we leave, but never hang on it.
     void Promise.race([Promise.all([model.close?.(), detailModel?.close?.()]), new Promise((r) => setTimeout(r, 3000))]).finally(() => app.exit(0));
@@ -367,7 +396,8 @@ async function main(): Promise<void> {
       session?.reset();
     },
     onPlaySample: () => playSample(screen.getPrimaryDisplay().id),
-    onApiKey: () => settingsWindow.open(),
+    onSettings: () => settingsWindow.open(),
+    hotkeyLabel: chord.label,
     onPin: () => session?.pin(displayUnderPointer().id),
     onOpenPins: () => {
       mkdirSync(pins.dir, { recursive: true });
@@ -407,22 +437,22 @@ async function main(): Promise<void> {
           frames?.start();
           session?.stop();
         },
-      });
+      }, chord);
     } catch (error) {
       log(`the key hook could not start: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  log(hotkey ? 'ready: hold Right Ctrl + Right Shift' : 'ready (hotkey off)');
+  log(hotkey ? `ready: hold ${chord.label}` : 'ready (hotkey off)');
 
   if (options.playSample) playSample(screen.getPrimaryDisplay().id);
   if (options.selfChord) {
     // Check only: press and release the chord through the hook itself, once.
     const press = (holdMs: number) => {
-      uIOhook.keyToggle(UiohookKey.CtrlRight, 'down');
-      uIOhook.keyToggle(UiohookKey.ShiftRight, 'down');
+      uIOhook.keyToggle(chord.lead, 'down');
+      uIOhook.keyToggle(chord.second, 'down');
       setTimeout(() => {
-        uIOhook.keyToggle(UiohookKey.ShiftRight, 'up');
-        uIOhook.keyToggle(UiohookKey.CtrlRight, 'up');
+        uIOhook.keyToggle(chord.second, 'up');
+        uIOhook.keyToggle(chord.lead, 'up');
       }, holdMs);
     };
     // One press per question asked for (two by default); a further press would stop an answer still arriving.

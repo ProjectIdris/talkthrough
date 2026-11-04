@@ -34,7 +34,10 @@ export function createTray(handlers: {
   onQuit(): void;
   onPlaySample(): void;
   onClear(): void;
-  onApiKey(): void;
+  /** Opens the settings window. */
+  onSettings(): void;
+  /** The keys held to ask, in words ("Right Ctrl + Right Shift"). */
+  hotkeyLabel: string;
   onPin(): void;
   onOpenPins(): void;
   /** Whether a picture of the screen is kept with pins; the tray shows it as a ticked item. */
@@ -47,7 +50,7 @@ export function createTray(handlers: {
   tray.setToolTip('Talkthrough');
   const build = () => Menu.buildFromTemplate([
       { label: 'Talkthrough', enabled: false },
-      { label: 'Hold Right Ctrl + Right Shift to ask', enabled: false },
+      { label: `Hold ${handlers.hotkeyLabel} to ask`, enabled: false },
       { type: 'separator' },
       { label: 'Pin this answer', click: handlers.onPin },
       { label: 'Include the screenshot in pins', type: 'checkbox', checked: handlers.pinScreenshot(), click: (item) => { handlers.onPinScreenshot(item.checked); tray.setContextMenu(build()); } },
@@ -56,7 +59,7 @@ export function createTray(handlers: {
       ...(handlers.guideActions ? guideItems(handlers.guideActions) : []),
       { label: 'Play a sample scene', click: handlers.onPlaySample },
       { label: 'Clear the overlay', click: handlers.onClear },
-      { label: 'API key…', click: handlers.onApiKey },
+      { label: 'Settings…', click: handlers.onSettings },
       { label: 'Quit', click: handlers.onQuit },
     ]);
   tray.setContextMenu(build());
