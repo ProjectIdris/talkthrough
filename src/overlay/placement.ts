@@ -217,7 +217,7 @@ const POINTED_HIT = 1.5;
 const TOP_BAND = 200;
 const TOP_COST = 6;
 
-export type PlacerOptions = { aspect: number; /** Keep this far (units) from the edge of the screen. */ margin?: number };
+export type PlacerOptions = { aspect: number; /** Keep this far (units) from the edge of the screen. */ margin?: number; /** The screen's height in pixels: the page draws no text smaller than 11 px, which a label's room allows for. */ height?: number };
 
 export class Placer {
   private edge: Sums;
@@ -228,6 +228,11 @@ export class Placer {
   private fixtures: Sums;
   private luma: Sums;
   private reserved: Box[] = [];
+  private heightPx: number | undefined;
+  /** The points marked so far, as they are finally placed, and whether a label has been put beside each. */
+  private points: Array<{ id: string; x: number; y: number; color: string; taken: boolean; ahead?: true }> = [];
+  /** Where the labels went (their final rectangles), so the next does not land on them. */
+  private labelled: Array<Box & { id: string }> = [];
   private cards = new Map<string, Box>();
   /** Each flat diagram's rectangle as asked for and as placed: marks written inside the first go with it to the second. */
   private homes = new Map<string, { from: Box; to: Box }>();
@@ -245,6 +250,7 @@ export class Placer {
     this.luma = new Sums(grid.cols, grid.rows, grid.gray);
     this.aspect = options.aspect;
     this.margin = options.margin ?? 12;
+    this.heightPx = options.height;
   }
 
   /** A new turn: what the last answer pointed at is no longer being kept clear (the stage stays where it is). */
@@ -252,6 +258,8 @@ export class Placer {
     this.reserved = [];
     this.cards.clear();
     this.homes.clear();
+    this.points = [];
+    this.labelled = [];
   }
 
   /** The page under a rectangle is being pointed at, or is otherwise to be kept clear. */
@@ -394,6 +402,11 @@ export class Placer {
     return this.aspect;
   }
 
+  /** The room a label takes here, in units (see labelUnits). */
+  labelRoom(a: { text: string; size?: number }): { w: number; h: number } {
+    return labelUnits(a, this.aspect, this.heightPx);
+  }
+
   /** A card that marks may be written on (an enlarged crop): marks written inside the rectangle it was asked for go with it to where it was placed. */
   home(id: string, from: Box, to: Box): void {
     this.homes.set(id, { from, to });
@@ -412,14 +425,74 @@ export class Placer {
     return best;
   }
 
+  /** A point was marked, at the place it finally took. */
+  notePoint(id: string, x: number, y: number, color: string): void {
+    this.points = this.points.filter((q) => q.id !== id);
+    this.points.push({ id, x, y, color, taken: false });
+  }
+
+  /**
+   * A point that comes later in the answer (or the step), at about where it will be: the names written before it keep off its ring. It is no
+   * label's until it is marked itself (notePoint).
+   */
+  foresee(id: string, x: number, y: number): void {
+    if (!this.points.some((q) => q.id === id)) this.points.push({ id, x, y, color: '', taken: false, ahead: true });
+  }
+
+  /**
+   * The point a label names: the nearest one that has no label yet, of the label's own colour when there is one (any colour otherwise), and
+   * not farther than LABEL_REACH (in units of the screen's height). It is then taken. Undefined when there is none: the label stands as it is.
+   */
+  takePoint(label: { x: number; y: number; color: string }, w: number, h: number): { id: string; x: number; y: number } | undefined {
+    const cx = label.x + w / 2, cy = label.y + h / 2;
+    const far = (q: { x: number; y: number }): number => Math.hypot((q.x - cx) * this.aspect, q.y - cy);
+    let best: (typeof this.points)[number] | undefined;
+    for (const own of [true, false]) {
+      for (const q of this.points) {
+        if (q.taken || q.ahead || (own && q.color !== label.color) || far(q) > LABEL_REACH) continue;
+        if (!best || far(q) < far(best)) best = q;
+      }
+      if (best) break;
+    }
+    if (best) best.taken = true;
+    return best;
+  }
+
+  /** The rectangle a mark placed at (x, y) is kept inside: the card or diagram it sits on, else the picture the answer boxed, else the screen. */
+  roomAt(x: number, y: number, w: number, h: number): Box {
+    let card: Box | undefined;
+    for (const home of this.homes.values()) {
+      const t = home.to;
+      if (x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h && (!card || t.w * t.h < card.w * card.h)) card = t;
+    }
+    return card ?? this.holding(x, y, w, h) ?? { x: 0, y: 0, w: 1000, h: 1000 };
+  }
+
+  /** A label's final rectangle: the next ones keep off it. */
+  noteLabel(id: string, box: Box): void {
+    this.labelled = this.labelled.filter((q) => q.id !== id);
+    this.labelled.push({ id, ...box });
+  }
+
+  /** Whether a rectangle lands on a label already placed, or on a point other than the one the label names (the ring drawn on it). */
+  onLabel(box: Box, except: string, ownPoint: string): boolean {
+    const ring = POINT_RING;
+    return this.labelled.some((q) => q.id !== except && overlap(box, q) > 1)
+      || this.points.some((q) => q.id !== ownPoint && overlap(box, { x: q.x - ring / this.aspect, y: q.y - ring, w: (2 * ring) / this.aspect, h: 2 * ring }) > 1);
+  }
+
   /** A card or crop went (cleared by id, or all of them): its place is free for the next. */
   release(target: string): void {
     if (target === 'all' || target === 'marks') {
       this.cards.clear();
       this.homes.clear();
+      this.points = [];
+      this.labelled = [];
     } else {
       this.cards.delete(target);
       this.homes.delete(target);
+      this.points = this.points.filter((q) => q.id !== target);
+      this.labelled = this.labelled.filter((q) => q.id !== target);
     }
   }
 }
@@ -530,7 +603,10 @@ export function followDiagram(placer: Placer, a: Action, aspect: number): Action
     case 'underline': return { ...a, x: X(a.x), y: Y(a.y), w: r1(a.w * fx) };
     case 'arrow': return { ...a, x1: X(a.x1), y1: Y(a.y1), x2: X(a.x2), y2: Y(a.y2) };
     case 'point': return { ...a, x: X(a.x), y: Y(a.y) };
-    case 'label': return labelWithin({ ...a, x: X(a.x), y: Y(a.y), ...(a.size !== undefined ? { size: r1(a.size * fy) } : {}) }, to, aspect);
+    case 'label': {
+      const moved = { ...a, x: X(a.x), y: Y(a.y), ...(a.size !== undefined ? { size: r1(a.size * fy) } : {}) };
+      return labelWithin(moved, to, placer.labelRoom(moved));
+    }
     case 'poly': case 'trace': return { ...a, pts: a.pts.map(([x, y]) => [X(x), Y(y)] as [number, number]) };
     default: return undefined;
   }
@@ -555,8 +631,9 @@ export const DIAGRAM_MIN_SIZE = { w: 150, h: 150 };
 export const DIAGRAM_MIN_RATIO: Partial<Record<string, number>> = { chart: 1.1 };
 
 /** The room a label takes in units: its text at its size and the pill round it (the page draws it as measured, with its colour dot: 2.5 em of padding and dot, 1.85 em tall; this is the same to within a few percent). */
-export function labelUnits(a: { text: string; size?: number }, aspect: number): { w: number; h: number } {
-  const size = a.size ?? 24;
+export function labelUnits(a: { text: string; size?: number }, aspect: number, height?: number): { w: number; h: number } {
+  // The page draws no text under 11 px, however small the label asks to be (a name on a shrunken card).
+  const size = Math.max(a.size ?? 24, height ? 11000 / height : 0);
   return { w: ((a.text.length * 0.56 + 2.5) * size) / aspect, h: size * 1.85 };
 }
 
@@ -569,10 +646,77 @@ function keepInside(x: number, y: number, w: number, h: number, inside: Box): { 
 }
 
 /** A label pulled back inside `inside`, or as it was when it already is. */
-function labelWithin(a: Extract<Action, { op: 'label' }>, inside: Box, aspect: number): Action {
-  const { w, h } = labelUnits(a, aspect);
+function labelWithin(a: Extract<Action, { op: 'label' }>, inside: Box, room: { w: number; h: number }): Action {
+  const { w, h } = room;
   const at = keepInside(a.x, a.y, w, h, inside);
   return at.x === a.x && at.y === a.y ? a : { ...a, x: r1(at.x), y: r1(at.y) };
+}
+
+/** The farthest (in units of the screen's height) a label may be from the point it names. */
+export const LABEL_REACH = 180;
+
+/** How far a point's ring reaches from its centre, in units of the screen's height: a name keeps off the rings of the other points. */
+const POINT_RING = 14;
+
+/** The space between a point and the label beside it, in units of the screen's height. */
+const LABEL_GAP = 18;
+
+/**
+ * The name of a point goes just to its right, at the point's height; to its left when there is no room on the right (the edge of the card or
+ * picture it is on, or of the screen); and a little up or down when a label, or the ring of another point, is already there. The label is paired with the nearest point of its
+ * own colour that has none (else the nearest of any colour) within LABEL_REACH; a label with no point near it stays where the answer put it.
+ * The model's own offset is not trusted: one put a name 62 units to the left of its point and 25 below it.
+ */
+function besidePoint(placer: Placer, a: Extract<Action, { op: 'label' }>): Action {
+  const aspect = placer.aspectOf();
+  const { w, h } = placer.labelRoom(a);
+  const point = placer.takePoint(a, w, h);
+  if (!point) {
+    placer.noteLabel(a.id, { x: a.x, y: a.y, w, h });
+    return a;
+  }
+  const room = placer.roomAt(point.x, point.y, w, h);
+  const gap = LABEL_GAP / aspect;
+  const right = point.x + gap, left = point.x - gap - w;
+  const fitsRight = right + w <= room.x + room.w, fitsLeft = left >= room.x;
+  const xs = fitsRight || !fitsLeft ? [right, left] : [left, right];
+  let chosen: { x: number; y: number } | undefined;
+  let first: { x: number; y: number } | undefined;
+  for (const x of xs) {
+    for (const dy of [0, -0.85 * h, 0.85 * h, -1.7 * h, 1.7 * h]) {
+      const at = keepInside(x, point.y - h / 2 + dy, w, h, room);
+      first ??= at;
+      if (!placer.onLabel({ ...at, w, h }, a.id, point.id)) {
+        chosen = at;
+        break;
+      }
+    }
+    if (chosen) break;
+  }
+  const at = chosen ?? first!;
+  placer.noteLabel(a.id, { ...at, w, h });
+  return at.x === a.x && at.y === a.y ? a : { ...a, x: r1(at.x), y: r1(at.y) };
+}
+
+/** The points among these marks are made known ahead of their turn, so the names written before them keep off their rings (see Placer.foresee). */
+export function foreseePoints(placer: Placer, actions: readonly Action[], aspect: number): void {
+  for (const a of actions) {
+    if (a.op !== 'point') continue;
+    const at = (followDiagram(placer, a, aspect) ?? a) as { x: number; y: number };
+    placer.foresee(a.id, at.x, at.y);
+  }
+}
+
+/**
+ * The last thing done to a mark once it is where it goes: a point is noted, and a label is put beside the point it names (see besidePoint).
+ * Marks come in the order the answer wrote them, a point before its name.
+ */
+export function settleMark(placer: Placer, a: Action): Action {
+  if (a.op === 'point') {
+    placer.notePoint(a.id, a.x, a.y, a.color);
+    return a;
+  }
+  return a.op === 'label' ? besidePoint(placer, a) : a;
 }
 
 /** How tall an enlarged crop card is, in units: the crop at its true shape, with the card's border and its caption. */
@@ -609,9 +753,9 @@ export function placeAction(placer: Placer, a: Action, screenHeight: number): Ac
   }
   if (a.op === 'label') {
     // A name written on a picture the answer boxed stays inside that box: not over its caption, nor out on the page.
-    const { w, h } = labelUnits(a, placer.aspectOf());
+    const { w, h } = placer.labelRoom(a);
     const holder = placer.holding(a.x, a.y, w, h);
-    return holder ? labelWithin(a, holder, placer.aspectOf()) : a;
+    return holder ? labelWithin(a, holder, { w, h }) : a;
   }
   if (a.op === 'clear') placer.release(a.target);
   return a;
