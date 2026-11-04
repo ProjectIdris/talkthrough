@@ -47,7 +47,10 @@ export function toneSamples(seconds: number, rate = 24000): Float32Array {
 
 export type FakeVoiceOptions = {
   /** What it does with a request. */
-  mode?: 'wav' | 'pcm' | 'error' | 'hang' | 'text' | 'empty' | 'dropped';
+  mode?: 'wav' | 'pcm' | 'error' | 'hang' | 'text' | 'empty' | 'dropped' | 'redirect';
+  /** For mode 'redirect': where to send the caller (status 307, or `redirectStatus`). */
+  location?: string;
+  redirectStatus?: number;
   /** Seconds of audio. Default 0.5. */
   seconds?: number;
   /** Before the first byte. */
@@ -96,6 +99,11 @@ export async function startFakeVoice(initial: FakeVoiceOptions = {}): Promise<Fa
       res.on('close', done);
       const send = (): void => {
         const seconds = o.seconds ?? 0.5;
+        if (o.mode === 'redirect') {
+          res.writeHead(o.redirectStatus ?? 307, { Location: o.location ?? '/', 'Content-Length': '0' });
+          res.end();
+          return;
+        }
         if (o.mode === 'error') {
           res.writeHead(503, { 'Content-Type': 'text/plain' });
           res.end('the model is not loaded');

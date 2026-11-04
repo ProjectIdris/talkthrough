@@ -101,7 +101,7 @@ What the server must do: accept `POST <voiceServerUrl>` with the JSON body `{"te
 - a WAV stream (`Content-Type: audio/wav`): 8, 16, 24 or 32-bit integer PCM or 32-bit float, one or two channels. The length in the header may be real, zero or unknown (the audio then runs to the end of the response);
 - raw PCM (`Content-Type: audio/pcm; rate=24000; channels=1`): signed 16-bit little-endian.
 
-Any other answer is an error (a text body is shown in the log). The app asks for each step as soon as it arrives, so the next sentence is usually ready when the last one ends, and it starts playing after about a tenth of a second of sound has arrived.
+Any other answer is an error (a text body is shown in the log), and that includes a redirect: the app never follows one, so the words go only to the address you set. The app asks for each step as soon as it arrives, so the next sentence is usually ready when the last one ends, and it starts playing after about a tenth of a second of sound has arrived.
 
 If the server does not make a sound within `voiceFirstAudioMs`, or answers an error, that step is spoken by the system voice, and the server is left alone for `voiceCooldownMs` so a down server costs one short wait, not one per step; then it is tried again. A stream that breaks half-way ends that step (it is not spoken again). Pick a first-sound limit well under the 2.5 seconds after which a step is drawn anyway.
 

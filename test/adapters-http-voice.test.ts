@@ -122,6 +122,22 @@ test('a server that is down, answers an error, sends text, sends nothing or drop
   await assert.rejects(collect(streamSpeech({ url, text: 'a', timeoutMs: 2000 })), (e: unknown) => e instanceof VoiceServerError && e.code === 'unavailable', 'a closed port');
 });
 
+test('a redirect is an error and is not followed: the words never reach the address it names', async () => {
+  const target = await startFakeVoice();
+  const front = await startFakeVoice({ mode: 'redirect', location: target.url });
+  try {
+    for (const status of [301, 302, 307, 308]) {
+      front.set({ mode: 'redirect', location: target.url, redirectStatus: status });
+      await assert.rejects(collect(streamSpeech({ url: front.url, text: 'a private sentence' })), (e: unknown) => e instanceof VoiceServerError && e.code === 'unavailable', `status ${status}`);
+    }
+    assert.equal(front.requests.length, 4, 'the address that was set was asked');
+    assert.equal(target.requests.length, 0, 'the address it named was never called');
+  } finally {
+    await front.close();
+    await target.close();
+  }
+});
+
 test('a server that never answers is given up on at the time limit, and one that is stopped by the caller ends quietly', async () => {
   const server = await startFakeVoice({ mode: 'hang' });
   try {

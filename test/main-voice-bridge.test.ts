@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createVoiceBridge, VOICE_TEXT_MAX } from '../src/main/voice-bridge.ts';
+import { createVoiceBridge, VOICE_IN_FLIGHT_MAX, VOICE_TEXT_MAX } from '../src/main/voice-bridge.ts';
 import type { VoiceEvent } from '../src/adapters/http-voice.ts';
 import { startFakeVoice } from './support/fake-voice-server.ts';
 
@@ -102,6 +102,65 @@ test('a very long text is cut before it is sent', async () => {
     bridge.speak('1:1', 'x'.repeat(VOICE_TEXT_MAX * 3), (e) => events.push(e));
     await until(() => events.at(-1)?.kind === 'end');
     assert.equal(server.requests[0]!.text!.length, VOICE_TEXT_MAX);
+  } finally {
+    bridge.dispose();
+    await server.close();
+  }
+});
+
+test('one page may have only so many requests running; the next is refused with an error event and never reaches the server', async () => {
+  const server = await startFakeVoice({ seconds: 3, pieces: 30, pieceMs: 30 });
+  const logs: string[] = [];
+  const bridge = createVoiceBridge({ url: server.url, log: (l) => logs.push(l) });
+  try {
+    const events: VoiceEvent[][] = [];
+    for (let i = 0; i < VOICE_IN_FLIGHT_MAX; i++) {
+      events.push([]);
+      bridge.speak(`7:${i}`, 'long', (e) => events[i]!.push(e), '7');
+    }
+    await until(() => server.requests.length >= VOICE_IN_FLIGHT_MAX);
+    const refused: VoiceEvent[] = [];
+    bridge.speak('7:99', 'one too many', (e) => refused.push(e), '7');
+    assert.deepEqual(refused, [{ kind: 'error', message: 'too many voice requests at once' }]);
+    assert.ok(logs.some((l) => /too many requests/.test(l)));
+    // asking again under a key already running replaces it, and so is not one more
+    bridge.speak('7:0', 'again', () => undefined, '7');
+    // another page has its own allowance
+    const other: VoiceEvent[] = [];
+    bridge.speak('8:0', 'elsewhere', (e) => other.push(e), '8');
+    await until(() => server.requests.length >= VOICE_IN_FLIGHT_MAX + 2);
+    assert.equal(server.requests.length, VOICE_IN_FLIGHT_MAX + 2, 'the refused one was never sent');
+    assert.ok(!other.some((e) => e.kind === 'error'));
+    // a request that is cancelled gives its place back
+    bridge.cancel('7:1');
+    const again: VoiceEvent[] = [];
+    bridge.speak('7:100', 'now there is room', (e) => again.push(e), '7');
+    await until(() => server.requests.length >= VOICE_IN_FLIGHT_MAX + 3);
+    assert.ok(!again.some((e) => e.kind === 'error'));
+  } finally {
+    bridge.dispose();
+    await server.close();
+  }
+});
+
+test('a page that goes away takes its requests with it: they stop on the server, and the other page goes on', async () => {
+  const server = await startFakeVoice({ seconds: 3, pieces: 30, pieceMs: 30 });
+  const bridge = createVoiceBridge({ url: server.url, log: () => undefined });
+  try {
+    const gone: VoiceEvent[] = [], stays: VoiceEvent[] = [];
+    bridge.speak('7:1', 'one', (e) => gone.push(e), '7');
+    bridge.speak('7:2', 'two', (e) => gone.push(e), '7');
+    bridge.speak('8:1', 'three', (e) => stays.push(e), '8');
+    await until(() => stays.length >= 2 && gone.length >= 4);
+    bridge.cancelGroup('7');
+    await until(() => server.active() === 1);
+    assert.equal(server.active(), 1, 'only the other page request is left running');
+    const seen = gone.length;
+    const before = stays.length;
+    await new Promise((r) => setTimeout(r, 120));
+    assert.ok(gone.length <= seen + 1, 'nothing more for the page that went');
+    assert.ok(stays.length > before, 'the other page audio goes on');
+    assert.ok(!gone.some((e) => e.kind === 'error' || e.kind === 'end'), 'going away is neither an error nor an end');
   } finally {
     bridge.dispose();
     await server.close();

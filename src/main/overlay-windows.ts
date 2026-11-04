@@ -141,7 +141,10 @@ export function createOverlayManager(options: OverlayOptions) {
       }),
     };
     overlays.set(display.id, overlay);
+    // Its requests to the voice server go with it, instead of being left to run out their time.
+    const pageId = window.webContents.id;
     window.on('closed', () => {
+      options.voice?.bridge.cancelGroup(String(pageId));
       overlay.guard.release();
       overlay.engaged = false;
       overlays.delete(display.id);
@@ -222,7 +225,7 @@ export function createOverlayManager(options: OverlayOptions) {
     const sender = event.sender, id = r.id as number;
     bridge.speak(voiceKey(event, id), r.text, (e) => {
       if (!sender.isDestroyed()) sender.send(CHANNEL.voiceEvent, id, e);
-    });
+    }, String(sender.id));
   });
   ipcMain.on(CHANNEL.voiceCancel, (event, id: unknown) => {
     if (find(event) && Number.isSafeInteger(id)) options.voice?.bridge.cancel(voiceKey(event, id as number));

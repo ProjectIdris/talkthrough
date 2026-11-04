@@ -212,6 +212,8 @@ export async function* streamSpeech(options: StreamSpeechOptions): AsyncGenerato
   try {
     response = await doFetch(options.url, {
       method: 'POST',
+      // The words go to the address that was set and to no other: a redirect (which could name any address, even a private one) is an error, not followed.
+      redirect: 'error',
       headers: { 'Content-Type': 'application/json', Accept: 'audio/wav, audio/pcm' },
       body: JSON.stringify({ text: options.text, ...(options.voice ? { voice: options.voice } : {}) }),
       signal,
