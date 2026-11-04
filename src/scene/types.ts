@@ -46,31 +46,31 @@ export type Material = 'plastic' | 'metal' | 'rubber' | 'pcb' | 'glass' | 'glow'
 type Surface = { color?: Color; material?: Material; edges?: boolean; opacity?: number };
 export type SolidShape = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'plane';
 export type AddSolid = {
-  op: 'add'; shape: SolidShape; id: string; parent?: string; pos?: Vec3; size: Vec3; rot?: Vec3; bevel?: number;
+  op: 'add'; shape: SolidShape; id: string; parent?: string; explode?: Vec3; pos?: Vec3; size: Vec3; rot?: Vec3; bevel?: number;
 } & Surface & At;
 export type AddExtrude = {
-  op: 'add'; shape: 'extrude'; id: string; parent?: string; pos?: Vec3; rot?: Vec3; outline: Vec2[]; depth: number; bevel?: number;
+  op: 'add'; shape: 'extrude'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; depth: number; bevel?: number;
 } & Surface & At;
 export type AddLathe = {
-  op: 'add'; shape: 'lathe'; id: string; parent?: string; pos?: Vec3; rot?: Vec3; profile: Vec2[]; sides?: number;
+  op: 'add'; shape: 'lathe'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; profile: Vec2[]; sides?: number;
 } & Surface & At;
 export type AddTube = {
-  op: 'add'; shape: 'tube'; id: string; parent?: string; pts: Vec3[]; radius: number; flat?: number; draw?: number;
+  op: 'add'; shape: 'tube'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; radius: number; flat?: number; draw?: number;
 } & Surface & At;
 export type AddPath = {
-  op: 'add'; shape: 'line' | 'arrow'; id: string; parent?: string; pts: Vec3[]; color?: Color; draw?: number; opacity?: number;
+  op: 'add'; shape: 'line' | 'arrow'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; color?: Color; draw?: number; opacity?: number;
 } & At;
 export type PartKind = 'chip' | 'header' | 'port' | 'lens' | 'screen' | 'button' | 'fan' | 'wheel';
 export type PartVariant = 'black' | 'metal' | 'usb' | 'usb3' | 'ethernet' | 'hdmi' | 'usbc' | 'gold';
 export type AddPart = {
-  op: 'add'; shape: 'part'; id: string; parent?: string; pos?: Vec3; rot?: Vec3; part: PartKind; variant?: PartVariant;
+  op: 'add'; shape: 'part'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; part: PartKind; variant?: PartVariant;
   size: Vec3; n?: number; color?: Color; opacity?: number;
 } & At;
 export type AddArray = { op: 'add'; shape: 'array'; id: string; of: string; count: number; step?: Vec3; turn?: Vec3 } & At;
 export type AddText = {
-  op: 'add'; shape: 'text'; id: string; parent?: string; pos?: Vec3; text: string; height: number; color: Color;
+  op: 'add'; shape: 'text'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; text: string; height: number; color: Color;
 } & At;
-export type AddGroup = { op: 'add'; shape: 'group'; id: string; parent?: string; pos?: Vec3; rot?: Vec3 } & At;
+export type AddGroup = { op: 'add'; shape: 'group'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3 } & At;
 
 export type AddAction = AddSolid | AddExtrude | AddLathe | AddTube | AddPath | AddPart | AddArray | AddText | AddGroup;
 

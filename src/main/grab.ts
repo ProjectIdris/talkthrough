@@ -63,18 +63,18 @@ export async function runGrab(grab: NonNullable<Options['grab']>, backdrop: stri
     await loaded;
     await new Promise((r) => setTimeout(r, 200)); // let the display message land
     let token = 0;
-    for (const { step, t } of grab.steps) {
+    for (const { step, t, view } of grab.steps) {
       token++;
       const frame = new Promise<void>((done, fail) => {
         waiters.set(token, done);
         setTimeout(() => fail(new Error(`no frame for step ${step} at ${t}s within 15 s`)), 15000);
       });
-      const message: SceneMessage = { kind: 'seek', scene, step, t, token };
+      const message: SceneMessage = { kind: 'seek', scene, step, t, token, ...(view ? { view } : {}) };
       window.webContents.send(CHANNEL.scene, message);
       await frame;
       await new Promise((r) => setTimeout(r, 120)); // one more paint after the renderer's own
       const image = await window.webContents.capturePage();
-      const file = join(grab.out, `step${step}-t${String(t).replace('.', '_')}.png`);
+      const file = join(grab.out, `step${step}-t${String(t).replace('.', '_')}${view ? '-' + Object.entries(view).map(([k, v]) => k + String(v).replace('.', '_')).join('-') : ''}.png`);
       writeFileSync(file, image.toPNG({ scaleFactor: grab.scaleFactor }));
       written.push(file);
     }

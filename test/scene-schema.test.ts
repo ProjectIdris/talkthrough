@@ -16,9 +16,17 @@ test('the lean schema is the same structure without descriptions, and just as st
   const text = JSON.stringify(sceneSchemaLean);
   assert.ok(!text.includes('"description"'));
   assert.ok(text.length < JSON.stringify(sceneSchema).length * 0.7);
+  // The lean schema also leaves out `explode` (see LEAN_OMITS in schema.ts): it is in the full schema and the validator only.
+  const omitted = new Set(['explode']);
   const strip = (v: unknown): unknown => Array.isArray(v) ? v.map(strip)
-    : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'description').map(([k, x]) => [k, strip(x)])) : v;
+    : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'description').map(([k, x]) => {
+      if (k === 'properties' && x && typeof x === 'object') return [k, strip(Object.fromEntries(Object.entries(x).filter(([name]) => !omitted.has(name))))];
+      if (k === 'required' && Array.isArray(x)) return [k, x.filter((name) => !omitted.has(String(name)))];
+      return [k, strip(x)];
+    })) : v;
   assert.deepEqual(sceneSchemaLean, strip(sceneSchema));
+  assert.ok(!text.includes('"explode":{"type":["array","null"]'), 'the lean schema does not ask for an explode offset on every part');
+  assert.ok(JSON.stringify(sceneSchema).includes('"explode":{"type":["array","null"]'));
 });
 
 test('the guide names every action and its example is a valid scene', () => {

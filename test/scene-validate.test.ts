@@ -314,3 +314,16 @@ test('a colour name outside the palette is read as the nearest palette colour, n
   const same = validateScene(scene(box('e', { color: 'teal' }), box('f', { color: '#e3b341' })));
   assert.deepEqual(same.issues, []);
 });
+
+test('a part may name where it moves when the model is exploded; a bad offset is not kept', () => {
+  const find = (r: ReturnType<typeof validateScene>) => actionsOf(r).find((a) => (a as { id?: string }).id === 'a') as { explode?: unknown } | undefined;
+  const ok = validateScene(scene(group('g'), cube('a', { parent: 'g', pos: [1, 0, 0], explode: [0, 3, 0] })));
+  assert.deepEqual(ok.issues, []);
+  assert.deepEqual(find(ok)?.explode, [0, 3, 0]);
+  const big = validateScene(scene(group('g'), cube('a', { parent: 'g', explode: [0, 9999, 0] })));
+  assert.deepEqual(find(big)?.explode, [0, 100, 0], 'capped at the world limit');
+  for (const wrong of [[1, 2], 'up', [1, 'x', 3]]) {
+    const a = find(validateScene(scene(group('g'), cube('a', { parent: 'g', explode: wrong }))));
+    assert.ok(!a || a.explode === undefined, `a bad offset (${JSON.stringify(wrong)}) is not kept`);
+  }
+});

@@ -28,3 +28,11 @@ test('bad values are refused with a clear message', () => {
   assert.throws(() => parseArgs(['--max-seconds', '0']), /positive/);
   assert.throws(() => parseArgs(['--out']), /needs a value/);
 });
+
+test('a frame grab can ask for a turned, zoomed or opened view', () => {
+  assert.deepEqual(parseSteps('7:20'), [{ step: 7, t: 20 }]);
+  assert.deepEqual(parseSteps('7:20:55:22'), [{ step: 7, t: 20, view: { az: 55, el: 22 } }]);
+  assert.deepEqual(parseSteps('7:20::::1'), [{ step: 7, t: 20, view: { explode: 1 } }]);
+  assert.deepEqual(parseSteps('7:20:-30:10:1.5:0.5,0:1'), [{ step: 7, t: 20, view: { az: -30, el: 10, zoom: 1.5, explode: 0.5 } }, { step: 0, t: 1 }]);
+  assert.throws(() => parseSteps('7:20:a'), /az is not a number/);
+});

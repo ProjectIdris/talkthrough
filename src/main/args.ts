@@ -1,7 +1,7 @@
 // Command-line options of the app. Everything here is for development and checks; a normal
 // launch passes none of them.
 
-export type GrabStep = { step: number; t: number };
+export type GrabStep = { step: number; t: number; /** Turn, zoom or open the model as a person could (`step:t:az:el:zoom:explode`). */ view?: { az?: number; el?: number; zoom?: number; explode?: number } };
 
 export type Options = {
   /**
@@ -123,14 +123,25 @@ export function parseArgs(argv: readonly string[]): Options {
   return options;
 }
 
-/** "0:0.5,1:2" -> step 0 at 0.5 s, step 1 at 2 s. */
+/**
+ * "0:0.5,1:2" -> step 0 at 0.5 s, step 1 at 2 s. After the time may come the model's view as a person could
+ * leave it: "2:3:40:20:1.3:1" -> az 40, el 20, zoom 1.3, exploded; any of the four may be left empty ("2:3::::1").
+ */
 export function parseSteps(text: string): GrabStep[] {
   return text.split(',').map((part) => {
-    const [step, t] = part.split(':');
-    const parsed = { step: Number(step), t: Number(t ?? 0) };
+    const [step, t, az, el, zoom, explode] = part.split(':');
+    const parsed: GrabStep = { step: Number(step), t: Number(t ?? 0) };
     if (!Number.isInteger(parsed.step) || parsed.step < 0 || !Number.isFinite(parsed.t) || parsed.t < 0) {
       throw new Error(`bad --steps entry "${part}" (expected step:seconds)`);
     }
+    const view: NonNullable<GrabStep['view']> = {};
+    for (const [key, raw] of [['az', az], ['el', el], ['zoom', zoom], ['explode', explode]] as const) {
+      if (raw === undefined || raw === '') continue;
+      const n = Number(raw);
+      if (!Number.isFinite(n)) throw new Error(`bad --steps entry "${part}" (${key} is not a number)`);
+      view[key] = n;
+    }
+    if (Object.keys(view).length > 0) parsed.view = view;
     return parsed;
   });
 }

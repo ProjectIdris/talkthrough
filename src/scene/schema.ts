@@ -43,9 +43,19 @@ function fieldSchema(f: Field, descriptions: boolean): Schema {
   return d ? { ...s, description: d } : s;
 }
 
+/**
+ * Fields the language has but the lean schema (the one models are held to) leaves out: in a strict schema every
+ * optional field is written as null on every action, and these are rarely wanted, so they would cost output on
+ * each part. The validator and the full schema still know them.
+ */
+const LEAN_OMITS: ReadonlySet<string> = new Set(['explode']);
+
 function variantSchema(v: Variant, descriptions: boolean): Schema {
   const properties: Record<string, Schema> = { op: { enum: [v.op] } };
-  for (const [name, f] of Object.entries(v.fields)) properties[name] = fieldSchema(f, descriptions);
+  for (const [name, f] of Object.entries(v.fields)) {
+    if (!descriptions && LEAN_OMITS.has(name)) continue;
+    properties[name] = fieldSchema(f, descriptions);
+  }
   const out: Schema = { type: 'object', properties, required: Object.keys(properties), additionalProperties: false };
   return descriptions ? { ...out, description: v.doc } : out;
 }
