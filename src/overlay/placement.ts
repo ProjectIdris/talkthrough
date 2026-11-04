@@ -208,6 +208,8 @@ const BLANK = 0.01;
  */
 /** Covering the page's controls, figures and sidebars costs this many times what covering the same amount of body text does. */
 const FIXTURE_COST = 6;
+/** How much more a grown diagram may cost the page than the one it grew from before it stays small instead (a few percent of a figure or a fifth of a column of text). */
+const GROWTH_COVER_SLACK = 3;
 
 /** What a place that overlaps something the answer points at costs, however little of it. */
 const POINTED_HIT = 1.5;
@@ -355,6 +357,31 @@ export class Placer {
     this.cards.set(id, placed);
     this.homes.set(id, { from: asked, to: placed });
     return placed;
+  }
+
+  /**
+   * A flat diagram that has to grow (so its nodes read): the larger rectangle is placed again, in the nearest free place for its new size,
+   * keeping off the page's text and figures, what is pointed at, the stage and the other cards. Undefined when the place found is worse for
+   * the page than where the diagram was (a little more is allowed): it then stays as it was, small.
+   */
+  regrow(id: string, grown: Box): Box | undefined {
+    const was = this.cards.get(id) ?? this.homes.get(id)?.to ?? grown;
+    const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...(this.stage ? [this.stage] : [])];
+    const placed = this.search(grown, [1], [...keepOut, ...this.reserved, ...this.reserved], [1], 0, true);
+    if (this.coverage(placed, keepOut) > this.coverage(was, keepOut) + GROWTH_COVER_SLACK) return undefined;
+    this.cards.set(id, placed);
+    const home = this.homes.get(id);
+    if (home) this.homes.set(id, { from: home.from, to: placed });
+    return placed;
+  }
+
+  /** What a rectangle costs the page, apart from where it is: the busy, prose and fixture ink under it, and the pointed-at places and cards it covers. */
+  private coverage(box: Box, keepOut: readonly Box[]): number {
+    const padded = { x: box.x - 6, y: box.y - 10, w: box.w + 12, h: box.h + 20 };
+    let c = this.edge.mean(box) * 6 + this.prose.mean(padded) * 30 + this.fixtures.mean(padded) * 30 * FIXTURE_COST;
+    for (const r of keepOut) c += (overlap(box, r) / (box.w * box.h)) * 5;
+    for (const r of this.reserved) if (overlap(box, r) > 0) c += POINTED_HIT;
+    return c;
   }
 
   /** The flat diagram a point on the screen belongs to (it is inside the rectangle the diagram was asked for), and where it was placed. */

@@ -139,7 +139,7 @@ export function busyFromGray(gray: ArrayLike<number>, cols: number, rows: number
   };
 }
 
-export type Env = { occ: Occupancy; busy?: Busy };
+export type Env = { occ: Occupancy; busy?: Busy; /** Rectangles no tag may sit on (the app's own buttons), whether or not they are showing yet. */ keepOut?: readonly Rect[] };
 export type PinRequest = { anchor: Pt; w: number; h: number; /** The author's wish for where the tag goes from the anchor, in pixels; a hint only. */ hint?: Pt };
 /** `alpha` is below 1 while a tag that would have to cross another fades out and in at its new place. */
 export type Placement = { rect: Rect; attach: Pt; alpha: number };
@@ -153,6 +153,8 @@ const MARGIN = 8;
 const GAP = 8;
 /** Frames a tag may sit with a leader across another leader or tag before it is placed again. */
 const TANGLE_FRAMES = 8;
+/** How far a tag keeps from a keep-out rectangle (pixels). */
+const KEEP_OUT_PAD = 4;
 /** Frames to wait before looking again when no place cleared the tangle. */
 const TANGLE_RETRY_FRAMES = 60;
 
@@ -344,6 +346,16 @@ export class LabelBoard {
     if (Number.isNaN(entry.target.x)) return;
     const others: Entry[] = [];
     for (const other of this.entries.values()) if (other !== entry && !Number.isNaN(other.target.x)) others.push(other);
+    // A tag on one of the app's buttons (they came after it was placed) moves at once, to a place off them if there is one.
+    const keepOut = env().keepOut ?? [];
+    if (keepOut.some((k) => overlaps(entry.target, k, KEEP_OUT_PAD))) {
+      const rect = this.search(entry.request, env(), others.map((o) => o.target), others.map((o): [Pt, Pt] => [o.request.anchor, attachPoint(o.target, o.request.anchor)]));
+      if (!keepOut.some((k) => overlaps(rect, k, KEEP_OUT_PAD))) {
+        entry.target = rect;
+        entry.tangled = 0;
+        return;
+      }
+    }
     const tangledAt = (rect: Rect): boolean => {
       const mine: [Pt, Pt] = [entry.request.anchor, attachPoint(rect, entry.request.anchor)];
       return others.some((other) => {
@@ -374,6 +386,11 @@ export class LabelBoard {
   }
 
   private search(req: PinRequest, env: Env, placed: Rect[], leaders: Array<[Pt, Pt]>): Rect {
+    // Off the keep-out rectangles if any place is; with none, as if they were not there.
+    return this.scan(req, env, placed, leaders, env.keepOut ?? []) ?? this.scan(req, env, placed, leaders, []) ?? { x: Math.max(MARGIN, Math.min(this.width - req.w - MARGIN, req.anchor.x - req.w / 2)), y: Math.max(MARGIN, req.anchor.y - req.h - 30), w: req.w, h: req.h };
+  }
+
+  private scan(req: PinRequest, env: Env, placed: Rect[], leaders: Array<[Pt, Pt]>, avoid: readonly Rect[]): Rect | undefined {
     const s = this.height / 1080;
     const { anchor: a, w, h } = req;
     const hintAngle = req.hint && (req.hint.x !== 0 || req.hint.y !== 0) ? Math.atan2(req.hint.y, req.hint.x) : undefined;
@@ -387,6 +404,7 @@ export class LabelBoard {
         const rect = { x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w, h };
         if (rect.x < MARGIN || rect.y < MARGIN || rect.x + w > this.width - MARGIN || rect.y + h > this.height - MARGIN) continue;
         if (placed.some((p) => overlaps(rect, p, GAP))) continue;
+        if (avoid.some((k) => overlaps(rect, k, KEEP_OUT_PAD))) continue;
         const attach = attachPoint(rect, a);
         let cost = dist * 0.9 + env.occ.fraction({ x: rect.x - 6, y: rect.y - 6, w: w + 12, h: h + 12 }) * 6000;
         if (env.busy) cost += Math.min(1, env.busy.mean(rect) * 2.5) * 1500;
@@ -404,9 +422,6 @@ export class LabelBoard {
         if (!best || cost < best.cost) best = { rect, cost };
       }
     }
-    if (best) return best.rect;
-    if (fallback) return fallback.rect;
-    // Nowhere fits (a tiny window): keep it on the screen above the anchor.
-    return { x: Math.max(MARGIN, Math.min(this.width - w - MARGIN, a.x - w / 2)), y: Math.max(MARGIN, a.y - h - 30), w, h };
+    return best?.rect ?? fallback?.rect;
   }
 }

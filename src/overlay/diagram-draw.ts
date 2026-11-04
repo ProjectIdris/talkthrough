@@ -82,6 +82,14 @@ type Env = { ctx: Ctx; view: View; alpha: number; accent: Rgb; px: number; paint
 /** Draws diagrams, remembering where each piece was last put so a re-layout glides. One per canvas. */
 export class DiagramPainter {
   private cur = new Map<string, Px>();
+  /** The card a flow was grown to, for the layout it was worked out for (what it holds, its place and the screen): worked out once, not every frame. */
+  private grown = new Map<string, { layout: string; card: Px }>();
+  private grownLive = new Set<string>();
+  /** Where a flow card that has to grow goes: the page finds a free place for its new size (pixels in, pixels out; undefined: stay as it was). */
+  private readonly options: { regrow?: (id: string, want: Px) => Px | undefined };
+  constructor(options: { regrow?: (id: string, want: Px) => Px | undefined } = {}) {
+    this.options = options;
+  }
   private last: number | undefined;
   moving = false;
 
@@ -110,6 +118,7 @@ export class DiagramPainter {
     const dt = this.last === undefined ? 0 : Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     this.moving = false;
+    this.grownLive.clear();
     const seen = new Set<string>();
     for (const d of diagrams) {
       const alpha = Math.max(0, Math.min(1, d.opacity * d.fade));
@@ -123,11 +132,24 @@ export class DiagramPainter {
       }
     }
     for (const key of [...this.cur.keys()]) if (!seen.has(key)) this.cur.delete(key);
+    for (const key of [...this.grown.keys()]) if (!this.grownLive.has(key)) this.grown.delete(key);
     return this.moving;
   }
 
-  /** The card a flow is drawn on: the rectangle it was placed at, made larger (to the screen's limits) until every node is at least the least readable size. */
+  /** The card a flow is drawn on, worked out again only when what it holds, its place or the screen changes (growFlow searches sizes and places). */
   private grownFlow(ctx: Ctx, d: DiagramFrame, r0: Px, view: View): Px {
+    const key = String(d.key);
+    this.grownLive.add(key);
+    const layout = JSON.stringify([d.def.title, d.items.map((i) => (i.def.op === 'node' ? [i.id, i.def.text, i.def.note] : i.def.op === 'edge' ? [i.id, i.def.from, i.def.to, i.def.text] : i.id)), [r0.x, r0.y, r0.w, r0.h].map(Math.round), view.width, view.height]);
+    const memo = this.grown.get(key);
+    if (memo && memo.layout === layout) return memo.card;
+    const card = this.growFlow(ctx, d, r0, view);
+    this.grown.set(key, { layout, card });
+    return card;
+  }
+
+  /** The rectangle a flow was placed at, made larger (to the screen's limits) until every node is at least the least readable size. */
+  private growFlow(ctx: Ctx, d: DiagramFrame, r0: Px, view: View): Px {
     if (!d.items.some((i) => i.def.op === 'node')) return r0;
     const limit = Math.min(FLOW_GROWTH_MAX, (FLOW_GROWTH_SHARE * view.width) / r0.w, (view.height - 8) / r0.h);
     if (!(limit > 1)) return r0;
@@ -144,7 +166,12 @@ export class DiagramPainter {
       return flowReadable(flowLayout(inputs.ids, inputs.edges, area, { ...inputs.options, pad }), { w: base * FLOW_NODE_LEAST.w, h: base * FLOW_NODE_LEAST.h });
     };
     const f = flowGrowth(readable, limit);
-    return f === undefined ? r0 : at(f);
+    if (f === undefined) return r0;
+    const want = at(f);
+    const regrow = this.options.regrow;
+    if (!regrow || f === 1) return want;
+    // The grown card goes where the page has room for it, not just around where it was.
+    return regrow(d.def.id, want) ?? r0;
   }
 
   private one(ctx: Ctx, d: DiagramFrame, view: View, alpha: number, dt: number, seen: Set<string>): void {

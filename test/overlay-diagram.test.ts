@@ -509,3 +509,64 @@ test('one long edge label widens only its own gap: a seven-node chain with a sin
   const gap = (p: string, q: string): number => { const m = one.nodes.get(p)!, n = one.nodes.get(q)!; return Math.max(n.x - (m.x + m.w), m.x - (n.x + n.w)); };
   if (sameRow('b', 'c') && sameRow('c', 'd')) assert.ok(gap('b', 'c') >= 130 && gap('c', 'd') < 130, 'only the labelled gap is wide');
 });
+
+test('a flow card that has to grow asks the page where to go, and is drawn where it is told (or stays as it was when told nothing)', () => {
+  const frame = settle(planStep(emptyFrame(), step(flow({ x: 600, y: 700, w: 160, h: 140, title: 'Calls' }), node('a', { text: 'Big problem' }), node('b', { text: 'Smaller problem' }), node('c', { text: 'Base case: answer directly' }), node('d', { text: 'Results combine back up' }), edge('ab', 'a', 'b', { text: 'calls itself' }), edge('bc', 'b', 'c', { text: 'until simple' }), edge('cd', 'c', 'd'))));
+  const asked: Array<{ id: string; want: Px }> = [];
+  const moves: Array<[number, number]> = [];
+  const recorder = () => {
+    const state: Record<string, unknown> = { font: '10px x' };
+    return new Proxy(state, {
+      get(t, k: string) {
+        if (k === 'measureText') return (s: string) => ({ width: s.length * 7 });
+        if (k === 'moveTo') return (x: number, y: number) => { moves.push([x, y]); };
+        if (k in t) return t[k];
+        return () => undefined;
+      },
+      set(t, k: string, v) { t[k] = v; return true; },
+    }) as unknown as CanvasRenderingContext2D;
+  };
+  const told: Px = { x: 700, y: 120, w: 900, h: 420 };
+  new DiagramPainter({ regrow: (id, want) => { asked.push({ id, want }); return told; } }).draw(recorder(), frame.diagrams, view, 0);
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0]!.id, 'f');
+  assert.ok(asked[0]!.want.w > (160 / 1000) * view.width && asked[0]!.want.h > (140 / 1000) * view.height, `it asked for a larger card: ${JSON.stringify(asked[0]!.want)}`);
+  assert.ok(moves.some(([x, y]) => Math.abs(y - told.y) < 1 && x >= told.x && x < told.x + 30), `the card is drawn where it was told: ${JSON.stringify(moves.slice(0, 3))}`);
+  // Told nothing (no place is as good as where it was): the card stays at the size and place it was given.
+  moves.length = 0;
+  new DiagramPainter({ regrow: () => undefined }).draw(recorder(), frame.diagrams, view, 0);
+  const home = { x: (600 / 1000) * view.width, y: (700 / 1000) * view.height };
+  assert.ok(moves.some(([x, y]) => Math.abs(y - home.y) < 1 && x >= home.x && x < home.x + 30), `the card stays at its own place: ${JSON.stringify(moves.slice(0, 3))}`);
+  // Asked once for a size, not again every frame.
+  let calls = 0;
+  const painter = new DiagramPainter({ regrow: () => { calls++; return told; } });
+  for (let t = 0; t < 5; t++) painter.draw(recorder(), frame.diagrams, view, t * 16);
+  assert.equal(calls, 1);
+});
+
+test('the size a flow card grows to is worked out once for its layout, not on every frame; it is worked out again when a node arrives', () => {
+  const small = { x: 600, y: 700, w: 160, h: 140, title: 'Calls' };
+  const names = ['Big problem', 'Smaller problem', 'Base case: answer directly', 'Results combine back up', 'Return to the caller', 'Final answer', 'Done'];
+  const chain = (n: number) => settle(planStep(emptyFrame(), step(flow(small), ...names.slice(0, n).map((text, i) => node('n' + i, { text })), ...names.slice(1, n).map((_, i) => edge('e' + i, 'n' + i, 'n' + (i + 1), { text: 'label number ' + i })))));
+  const four = chain(6), five = chain(7);
+  let measured = 0;
+  const counting = () => {
+    const state: Record<string, unknown> = { font: '10px x' };
+    return new Proxy(state, {
+      get(t, k: string) {
+        if (k === 'measureText') return (s: string) => { measured++; return { width: s.length * 7 }; };
+        if (k in t) return t[k];
+        return () => undefined;
+      },
+      set(t, k: string, v) { t[k] = v; return true; },
+    }) as unknown as CanvasRenderingContext2D;
+  };
+  const painter = new DiagramPainter();
+  const cost = (frame: typeof four, now: number): number => { measured = 0; painter.draw(counting(), frame.diagrams, view, now); return measured; };
+  const first = cost(four, 0);
+  const second = cost(four, 16);
+  const third = cost(four, 32);
+  assert.ok(second < first / 2, `the second frame does not search again: ${first} then ${second}`);
+  assert.equal(third, second, 'and neither does the third');
+  assert.ok(cost(five, 48) > second * 2, 'a new node makes the search happen again');
+});

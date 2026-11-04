@@ -25,7 +25,7 @@ import type { Snapper } from './snap.ts';
 import type { PageGrid } from './placement.ts';
 import type { Busy } from './labels.ts';
 import { panelRect } from './layout.ts';
-import { createHold, explodeButtonBox, overModel, wheelFactor } from './orbit.ts';
+import { createHold, modelButtonRects, overModel, wheelFactor } from './orbit.ts';
 import { DiagramPainter } from './diagram-draw.ts';
 import { drawMarks } from './marks.ts';
 import type { View } from './marks.ts';
@@ -292,7 +292,15 @@ function cropSource(): { image: CanvasImageSource; width: number; height: number
 const board = new LabelBoard();
 /** The ids of the marks that belong to a flat diagram (placement.ts): drawn over its card, where the rest stay under it. */
 const ownedMarks = new Set<string>();
-const diagramPainter = new DiagramPainter();
+const diagramPainter = new DiagramPainter({
+  // A flow card that had to grow is placed again for its new size, off the page's text and figures (placement.ts).
+  regrow: (id, want) => {
+    const p = placer();
+    if (!p) return want;
+    const placed = p.regrow(id, { x: (want.x / view.width) * 1000, y: (want.y / view.height) * 1000, w: (want.w / view.width) * 1000, h: (want.h / view.height) * 1000 });
+    return placed ? { x: (placed.x / 1000) * view.width, y: (placed.y / 1000) * view.height, w: (placed.w / 1000) * view.width, h: (placed.h / 1000) * view.height } : undefined;
+  },
+});
 let diagramsMoving = false;
 const pen = new PenLayer();
 // Frame grabs (seek) step a clock of their own, one thirtieth of a second a grab, so a clip's tags move at the clip's pace.
@@ -393,7 +401,23 @@ function labelEnvironment(): { occ: Occupancy; busy?: Busy } {
     occ.fillConvex([{ x: x - 4, y: y - 4 }, { x: x + w + 4, y: y - 4 }, { x: x + w + 4, y: y + h + 4 }, { x: x - 4, y: y + h + 4 }]);
   }
   const busy = busyMap();
-  return busy ? { occ, busy } : { occ };
+  const keepOut = buttonKeepOut();
+  return { occ, ...(busy ? { busy } : {}), ...(keepOut.length > 0 ? { keepOut } : {}) };
+}
+
+/** What the buttons beside the model will cover once they show (they come when the model is finished, after its tags are placed): no tag sits there. */
+function buttonKeepOut(): ScreenRect[] {
+  if (!modelRect) return [];
+  const rects = modelButtonRects(modelRect, view, buttonSizes());
+  return [rects.explode, rects.cut, ...(rects.detail ? [rects.detail] : [])];
+}
+
+function buttonSizes(): { explode: { w: number; h: number }; cut: { w: number; h: number }; detail?: { w: number; h: number } } {
+  return {
+    explode: { w: explodeEl.offsetWidth || 74, h: explodeEl.offsetHeight || 26 },
+    cut: { w: cutEl.offsetWidth || 50, h: cutEl.offsetHeight || 26 },
+    ...(display?.detail && detailState === 'none' ? { detail: { w: detailEl.offsetWidth || 90, h: detailEl.offsetHeight || 26 } } : {}),
+  };
 }
 
 function showHud(): void {
@@ -429,24 +453,25 @@ function placeExplode(frame: Frame): void {
   cutEl.style.display = 'block';
   const label = player.exploded ? 'Assemble' : 'Explode';
   if (explodeEl.textContent !== label) explodeEl.textContent = label;
-  const box = explodeButtonBox(modelRect, view, { w: explodeEl.offsetWidth || 74, h: explodeEl.offsetHeight || 26 });
-  explodeEl.style.left = `${box.x}px`;
-  explodeEl.style.top = `${box.y}px`;
+  const rects = modelButtonRects(modelRect, view, buttonSizes());
+  explodeEl.style.left = `${rects.explode.x}px`;
+  explodeEl.style.top = `${rects.explode.y}px`;
   // Cut sits under Explode, at the same right edge.
   const cutLabel = player.cut ? 'Whole' : 'Cut';
   if (cutEl.textContent !== cutLabel) cutEl.textContent = cutLabel;
-  const ew = explodeEl.offsetWidth || 74, eh = explodeEl.offsetHeight || 26;
-  cutEl.style.left = `${box.x + ew - (cutEl.offsetWidth || 50)}px`;
-  cutEl.style.top = `${box.y + eh + 6}px`;
+  cutEl.style.left = `${rects.cut.x}px`;
+  cutEl.style.top = `${rects.cut.y}px`;
   // "More detail" sits to the left of Explode, once per answer, and only where a detail model is set up.
   if (!display?.detail || detailState !== 'none') {
     detailEl.style.display = 'none';
     return;
   }
   detailEl.style.display = 'block';
-  const w = detailEl.offsetWidth || 90;
-  detailEl.style.left = `${Math.max(6, box.x - w - 8)}px`;
-  detailEl.style.top = `${box.y}px`;
+  const place = rects.detail;
+  if (place) {
+    detailEl.style.left = `${place.x}px`;
+    detailEl.style.top = `${place.y}px`;
+  }
 }
 
 /** The buttons the page shows, by the name main knows them by. */

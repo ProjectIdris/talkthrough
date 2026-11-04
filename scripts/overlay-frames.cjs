@@ -4,7 +4,7 @@
 //   npm run build
 //   (run it as `env -u ELECTRON_RUN_AS_NODE` if your shell sets that)
 //   npx electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 \
-//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--controls <boxes.json>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--gpu yes] [--clean yes] [--metrics yes]
+//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--controls <boxes.json>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--gpu yes] [--clean yes] [--metrics yes] [--hold <ms>]
 //
 // --steps is a list of step:seconds pairs (seconds into that step; earlier steps are complete).
 // --dpr sets the display scale; offscreen windows always render at 1, so use --hidden (a hidden, non-offscreen window) for dpr other than 1.
@@ -109,7 +109,7 @@ app.whenReady().then(async () => {
     const done = new Promise((r) => pending.set(mine, r));
     win.webContents.send(CHANNEL.scene, { kind: 'seek', scene, step, t, token: mine });
     await Promise.race([done, sleep(10000).then(() => { throw new Error('no frame painted for ' + name); })]);
-    await sleep(120);
+    await sleep(120 + Number(args.hold || 0)); // --hold <ms>: wait longer so tags that glide or fade in real time have arrived
     const image = await capture();
     const file = path.join(args.out, name + '.png');
     fs.writeFileSync(file, image.toPNG());

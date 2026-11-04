@@ -258,3 +258,25 @@ test('when nothing is free even at the least size, a diagram covers body text be
   const fixtures: Box[] = [{ x: AC(138), y: (28 / ROWS) * 1000, w: AC(32), h: (34 / ROWS) * 1000 }, { x: AC(174), y: (12 / ROWS) * 1000, w: AC(16), h: (40 / ROWS) * 1000 }, { x: AC(138), y: (64 / ROWS) * 1000, w: AC(52), h: (40 / ROWS) * 1000 }];
   for (const f of fixtures) assert.ok(!overlaps(placed, f), `off ${JSON.stringify(f)}: ${JSON.stringify(placed)}`);
 });
+
+test('a diagram that has to grow is placed again for its new size: off the page\'s figure and controls, not just around where it was; and it stays small if no better place exists', () => {
+  const p = new Placer(articlePage(), { aspect: 16 / 9 });
+  const placed = placeAction(p, { op: 'diagram', id: 't', kind: 'flow', x: 740, y: 600, w: 230, h: 260 } as Action, 1080) as Action & { x: number; y: number; w: number; h: number };
+  const figure = { x: AC(138), y: (28 / ROWS) * 1000, w: AC(32), h: (34 / ROWS) * 1000 };
+  const options = { x: AC(174), y: (12 / ROWS) * 1000, w: AC(16), h: (40 / ROWS) * 1000 };
+  // Grown about its centre by 1.3, as the drawing would (kept on the page): it now reaches the infobox's table.
+  const cx = placed.x + placed.w / 2, cy = placed.y + placed.h / 2;
+  const grown = { x: Math.min(1000 - placed.w * 1.3 - 12, cx - placed.w * 0.65), y: cy - placed.h * 0.65, w: placed.w * 1.3, h: placed.h * 1.3 };
+  const table = { x: AC(138), y: (50 / ROWS) * 1000, w: AC(32), h: (12 / ROWS) * 1000 };
+  assert.ok(overlaps(grown, table) || overlaps(grown, figure) || overlaps(grown, options), `the test starts with the grown card over a figure: ${JSON.stringify(grown)}`);
+  const again = p.regrow('t', grown);
+  assert.ok(again, 'there is a place');
+  for (const f of [figure, options, table]) assert.ok(!overlaps(again!, f), `off ${JSON.stringify(f)}: ${JSON.stringify(again)}`);
+  assert.ok(Math.abs(again!.w - grown.w) < 1e-6 && Math.abs(again!.h - grown.h) < 1e-6, 'the size it asked for');
+  // Where the page has no free place for the bigger card at all, it stays as it was (undefined), not shoved over a figure.
+  const full = new Placer(articlePage(false), { aspect: 16 / 9 });
+  const start = placeAction(full, { op: 'diagram', id: 't', kind: 'flow', x: 740, y: 600, w: 230, h: 260 } as Action, 1080) as Action & { x: number; y: number; w: number; h: number };
+  const big = { x: start.x - 200, y: start.y - 200, w: start.w + 400, h: start.h + 400 };
+  const verdict = full.regrow('t', big);
+  assert.ok(verdict === undefined || !overlaps(verdict, figure), `no better place: ${JSON.stringify(verdict)}`);
+});

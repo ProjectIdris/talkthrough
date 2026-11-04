@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEPTH_GAIN, EXPLODE_SECONDS, ExplodeValue, SOFT_REACH, USER_SPREAD, depthOf, spreadPosition, userOffsets } from '../src/overlay/explode.ts';
 import type { Part } from '../src/overlay/explode.ts';
-import { HOVER_MARGIN, createHold, explodeButtonBox, overModel, wheelFactor } from '../src/overlay/orbit.ts';
+import { HOVER_MARGIN, createHold, explodeButtonBox, modelButtonRects, overModel, wheelFactor } from '../src/overlay/orbit.ts';
 import { Player, createSilentVoice } from '../src/overlay/player.ts';
 import type { Clock } from '../src/overlay/player.ts';
 import { ZOOM_MAX, ZOOM_MIN } from '../src/overlay/timeline.ts';
@@ -337,4 +337,23 @@ test("a detail turn leaves the person's opened model and the camera a double cli
   assert.equal(player.exploded, true);
   player.resetCamera();
   assert.ok(Math.abs(player.update().camera.az) < 1e-6, 'a double click goes back to where the scene left the camera, not to where the person had turned it');
+});
+
+test('the buttons beside a model: Explode inside its top-right corner, Cut under it at the same right edge, More detail to the left, none on another, all on screen', () => {
+  const view = { width: 1920, height: 1080 };
+  const sizes = { explode: { w: 74, h: 26 }, cut: { w: 50, h: 26 }, detail: { w: 90, h: 26 } };
+  const model = { x: 760, y: 300, w: 560, h: 380 };
+  const r = modelButtonRects(model, view, sizes);
+  assert.deepEqual({ x: r.explode.x, y: r.explode.y }, explodeButtonBox(model, view, sizes.explode));
+  assert.equal(r.cut.x + r.cut.w, r.explode.x + r.explode.w, 'Cut shares the right edge');
+  assert.ok(r.cut.y >= r.explode.y + r.explode.h, 'Cut is under Explode');
+  assert.ok(r.detail && r.detail.x + r.detail.w <= r.explode.x, 'More detail is to the left');
+  const all = [r.explode, r.cut, r.detail!];
+  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+    const a = all[i]!, b = all[j]!;
+    assert.ok(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y, `${i} ${j} overlap`);
+  }
+  assert.equal(modelButtonRects(model, view, { explode: sizes.explode, cut: sizes.cut }).detail, undefined, 'no detail model, no detail button');
+  const edge = modelButtonRects({ x: 1800, y: -50, w: 600, h: 200 }, view, sizes);
+  for (const b of [edge.explode, edge.cut, edge.detail!]) assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= view.width && b.y + b.h <= view.height, JSON.stringify(b));
 });

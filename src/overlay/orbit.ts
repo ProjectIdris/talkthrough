@@ -31,6 +31,23 @@ export function explodeButtonBox(model: Rect, view: { width: number; height: num
 }
 
 /**
+ * Where the buttons beside a model go, from the model's rectangle and the buttons' sizes: Explode just inside its top-right corner,
+ * Cut under it at the same right edge, and, when there is a detail model and the pass has not been asked, More detail to the left of Explode.
+ * Pure, so the page can keep a tag off them before they show.
+ */
+export function modelButtonRects(
+  model: Rect,
+  view: { width: number; height: number },
+  sizes: { explode: { w: number; h: number }; cut: { w: number; h: number }; detail?: { w: number; h: number } },
+): { explode: Rect; cut: Rect; detail?: Rect } {
+  const at = explodeButtonBox(model, view, sizes.explode);
+  const explode = { x: at.x, y: at.y, w: sizes.explode.w, h: sizes.explode.h };
+  const cut = { x: at.x + sizes.explode.w - sizes.cut.w, y: at.y + sizes.explode.h + 6, w: sizes.cut.w, h: sizes.cut.h };
+  const detail = sizes.detail ? { x: Math.max(6, at.x - sizes.detail.w - 8), y: at.y, w: sizes.detail.w, h: sizes.detail.h } : undefined;
+  return { explode, cut, ...(detail ? { detail } : {}) };
+}
+
+/**
  * Whether the overlay window should be solid right now, and the page's repeated saying so. The window is solid
  * while the pointer is on the model (or on one of the app's own buttons), or while the model is being dragged.
  * It is worked out again every time any of those change, and on every heartbeat, from where the pointer really is
