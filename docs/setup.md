@@ -9,6 +9,17 @@ npm start        # builds, then starts the app in the tray
 
 Hold **Right Ctrl + Right Shift**, ask out loud, let go. The overlay answers on the screen you were looking at. The tray icon has *Play a sample scene*, *Clear the overlay* and *Quit*.
 
+### Building the installer
+
+To build the Windows installer (per-user, no administrator rights, unsigned for now):
+
+```
+npm ci
+npm run dist       # builds, then writes release/Talkthrough-Setup-<version>.exe
+```
+
+Use `npm ci` in a folder of its own, not a `node_modules` linked from elsewhere: the packager only includes the modules it finds there. The icon is drawn by `scripts/make-icon.mjs` into `build/`; the packaging settings are in `electron-builder.yml`. Because the installer is unsigned, Windows SmartScreen may say "Windows protected your PC" when it is downloaded; *More info*, then *Run anyway*, starts it.
+
 Talkthrough needs two things outside itself: a way to hear you and a model.
 
 ## Settings
