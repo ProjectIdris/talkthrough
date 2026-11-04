@@ -9,6 +9,31 @@ npm start        # builds, then starts the app in the tray
 
 Hold **Right Ctrl + Right Shift**, ask out loud, let go. The overlay answers on the screen you were looking at. The tray icon has *Play a sample scene*, *Clear the overlay* and *Quit*.
 
+### Building the installer
+
+To build the Windows installer (per-user, no administrator rights, unsigned for now):
+
+```
+npm ci
+npm run dist       # builds, then writes release/Talkthrough-Setup-<version>.exe
+```
+
+Use `npm ci` in a folder of its own, not a `node_modules` linked from elsewhere: the packager only includes the modules it finds there. The icon is drawn by `scripts/make-icon.mjs` into `build/`; the packaging settings are in `electron-builder.yml`. Because the installer is unsigned, Windows SmartScreen may say "Windows protected your PC" when it is downloaded; *More info*, then *Run anyway*, starts it.
+
+### Uninstalling, and what it leaves
+
+The installer puts the program under `%LOCALAPPDATA%\Programs\Talkthrough` and adds a Start menu entry; *Apps > Installed apps* (or the uninstaller in that folder) removes both. It leaves **your own files** on purpose, in `%APPDATA%\Talkthrough`: your settings file, the encrypted API key file (`api-key.bin`), your pins (the `pins` folder), the app's preferences (`prefs.json`) and the browser engine's caches. After uninstalling, delete that folder to remove all of it.
+
+### A log from an installed copy
+
+The app writes its log to the console it was started from, and an installed copy has none. To get one, quit Talkthrough (tray menu, *Quit*), then in a Command Prompt run:
+
+```
+"%LOCALAPPDATA%\Programs\Talkthrough\Talkthrough.exe" > talkthrough-log.txt 2>&1
+```
+
+Do the thing that went wrong, quit from the tray, and read `talkthrough-log.txt`. It lists what the app did, with no screenshot and no question text unless you start it with `--log-steps`. Remove anything private before you share it.
+
 Talkthrough needs two things outside itself: a way to hear you and a model.
 
 ## Settings

@@ -1,6 +1,6 @@
 {
   "name": "talkthrough",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "An AI that talks you through anything on your screen, and draws as it talks.",
   "keywords": [
     "screen assistant",
@@ -20,17 +20,20 @@
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.mjs",
     "start": "node scripts/start.mjs",
-    "test": "node --test \"test/*.test.ts\""
+    "test": "node --test \"test/*.test.ts\"",
+    "dist": "node scripts/dist.mjs"
   },
   "dependencies": {
-    "electron": "45.2.2",
     "get-windows": "10.0.0",
-    "three": "0.187.0",
     "uiohook-napi": "1.5.5"
   },
   "devDependencies": {
     "@types/three": "0.187.0",
+    "electron": "45.2.2",
+    "electron-builder": "26.18.0",
     "esbuild": "0.28.2",
+    "three": "0.187.0",
     "typescript": "7.0.2"
-  }
+  },
+  "author": "Talkthrough contributors"
 }

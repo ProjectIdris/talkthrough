@@ -1,0 +1,55 @@
+# Windows installer: `npm run dist` builds the app, then packs it into release/.
+# Per-user (no administrator rights), unsigned for now.
+appId: app.talkthrough.desktop
+productName: Talkthrough
+copyright: Copyright (c) Talkthrough contributors. MIT licence.
+directories:
+  output: release
+  buildResources: build
+# The native modules ship prebuilt for Windows x64, so nothing is compiled when packing.
+npmRebuild: false
+# Use the Electron already installed for development instead of downloading another copy.
+electronDist: node_modules/electron/dist
+# Only English interface strings are needed in Chromium's own files (the app has its own words).
+electronLanguages:
+  - en-US
+files:
+  - package.json
+  - dist/**
+  - '!dist/**/*.map'
+  - samples/scenes/**
+  - LICENSE
+  # uiohook-napi finds its binary through node-gyp-build at run time.
+  - node_modules/node-gyp-build/**
+  # What the two native modules need on Windows x64, and no build leftovers or other platforms.
+  - '!**/node_modules/**/{test,tests,__tests__,docs,example,examples}/**'
+  - '!**/node_modules/**/*.{md,ts.map,lib,exp,iobj,ipdb,pdb,tlog,vcxproj,filters,recipe,lastbuildstate}'
+  - '!**/node_modules/**/build/Release/obj/**'
+  - '!**/node_modules/uiohook-napi/{src,libuiohook}/**'
+  - '!**/node_modules/uiohook-napi/prebuilds/{darwin-*,linux-*,win32-arm64}/**'
+  - '!**/node_modules/get-windows/lib/binding/napi-*-darwin-*/**'
+  - '!**/node_modules/get-windows/Sources/**'
+asar: true
+# Native modules cannot be loaded from inside the archive.
+asarUnpack:
+  - node_modules/uiohook-napi/**
+  - node_modules/get-windows/**
+win:
+  target:
+    - target: nsis
+      arch: x64
+  icon: build/icon.ico
+  # No signing certificate yet: the installer is unsigned, and Windows SmartScreen will say so.
+  signAndEditExecutable: true
+nsis:
+  oneClick: true
+  perMachine: false
+  allowElevation: false
+  runAfterFinish: true
+  createDesktopShortcut: false
+  createStartMenuShortcut: true
+  shortcutName: Talkthrough
+  deleteAppDataOnUninstall: false
+  artifactName: Talkthrough-Setup-${version}.${ext}
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
