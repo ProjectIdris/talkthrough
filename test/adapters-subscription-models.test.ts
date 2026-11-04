@@ -228,6 +228,21 @@ test('the token usage the provider reports comes out last, with cached and writt
   }
 });
 
+test('claude: a scene that is whole ends the answer there, with the figures of that call, not after the tool asks the model to write it again', async () => {
+  process.env.FAKE_MODE = 'retry';
+  const claude = createClaudeModel({ command: process.execPath, prefixArgs: [fakeClaude] });
+  try {
+    const started = Date.now();
+    const out = await collect(claude);
+    const took = Date.now() - started;
+    assert.equal(out.filter((o) => o.type === 'step').length, 2);
+    assert.deepEqual(out.at(-1), { type: 'usage', usage: { input: 9302, cached: 9000, cacheWrite: 300, output: 80 } });
+    assert.ok(took < 1200, `the answer ended after ${took} ms: it waited for the tool's retries`);
+  } finally {
+    await claude.close?.();
+  }
+});
+
 test('codex keepThread: a follow-up continues the open thread without the history text; a fresh question starts a new thread', async () => {
   process.env.FAKE_MODE = 'ok';
   process.env.FAKE_USAGE = 'thread';

@@ -128,6 +128,9 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
       let finished = false;
       let stderrTail = '';
       let streamingTool = false;
+      // The API call being streamed, for the figures when the answer is taken before the command-line tool ends its own.
+      let call: Json | undefined;
+      let settle: ReturnType<typeof setTimeout> | undefined;
 
       const fail = (error: ModelError) => {
         if (finished) return;
@@ -143,6 +146,29 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
         }
       };
 
+      const usageOf = (u: Json | undefined): ModelOutput | undefined => {
+        if (!u || typeof u.input_tokens !== 'number') return undefined;
+        const read = typeof u.cache_read_input_tokens === 'number' ? u.cache_read_input_tokens : 0;
+        const wrote = typeof u.cache_creation_input_tokens === 'number' ? u.cache_creation_input_tokens : 0;
+        return { type: 'usage', usage: { input: u.input_tokens + read + wrote, cached: read, ...(wrote > 0 ? { cacheWrite: wrote } : {}), output: typeof u.output_tokens === 'number' ? u.output_tokens : 0 } };
+      };
+      /** The answer is whole: end the stream, offer the escalation, report the figures. */
+      const complete = (u: Json | undefined): void => {
+        try {
+          stream.end();
+        } catch (error) {
+          fail(new ModelError('bad-output', error instanceof Error ? error.message : String(error), { cause: error }));
+          return;
+        }
+        const escalate = stream.escalate;
+        if (escalate && escalate.trim()) queue.push({ type: 'escalate', reason: escalate });
+        const usage = usageOf(u);
+        if (usage) queue.push(usage);
+        finished = true;
+        if (settle) clearTimeout(settle);
+        queue.close();
+      };
+
       const onEvent = (event: Json) => {
         if (finished) return;
         if (event.type === 'system' && event.subtype === 'init') {
@@ -152,7 +178,15 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
         }
         if (event.type === 'stream_event') {
           const inner = (event.event ?? {}) as Json;
-          if (inner.type === 'content_block_start') {
+          if (inner.type === 'message_start') {
+            call = { ...((inner.message as Json | undefined)?.usage as Json | undefined) };
+          } else if (inner.type === 'message_delta') {
+            call = { ...call, ...(inner.usage as Json | undefined) };
+            // The scene is whole: the command-line tool checks it against the schema and, when it does not match
+            // to the letter, asks the model to write all of it again (twice more, in the runs measured), each time
+            // reading the whole prompt again. Nothing of that changes what is drawn, so the answer ends here.
+            if (stream.complete) complete(call);
+          } else if (inner.type === 'content_block_start') {
             const block = (inner.content_block ?? {}) as Json;
             if (block.type === 'tool_use') {
               if (block.name !== 'StructuredOutput') fail(new ModelError('refused', `the model tried to use a tool (${String(block.name)})`));
@@ -160,7 +194,11 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
             }
           } else if (inner.type === 'content_block_delta') {
             const delta = (inner.delta ?? {}) as Json;
-            if (delta.type === 'input_json_delta' && streamingTool && typeof delta.partial_json === 'string') feed(delta.partial_json);
+            if (delta.type === 'input_json_delta' && streamingTool && typeof delta.partial_json === 'string') {
+              feed(delta.partial_json);
+              // The call's closing figures come with the next event; if they do not, the answer ends anyway.
+              if (stream.complete && !finished && !settle) settle = setTimeout(() => { if (!finished) complete(call); }, 400);
+            }
           }
           return;
         }
@@ -183,22 +221,7 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
           }
           if (!stream.complete && event.structured_output !== undefined && event.structured_output !== null) feed(JSON.stringify(event.structured_output));
           if (finished) return;
-          try {
-            stream.end();
-          } catch (error) {
-            fail(new ModelError('bad-output', error instanceof Error ? error.message : String(error), { cause: error }));
-            return;
-          }
-          const escalate = stream.escalate;
-          if (escalate && escalate.trim()) queue.push({ type: 'escalate', reason: escalate });
-          const u = event.usage as Json | undefined;
-          if (u && typeof u.input_tokens === 'number') {
-            const read = typeof u.cache_read_input_tokens === 'number' ? u.cache_read_input_tokens : 0;
-            const wrote = typeof u.cache_creation_input_tokens === 'number' ? u.cache_creation_input_tokens : 0;
-            queue.push({ type: 'usage', usage: { input: u.input_tokens + read + wrote, cached: read, ...(wrote > 0 ? { cacheWrite: wrote } : {}), output: typeof u.output_tokens === 'number' ? u.output_tokens : 0 } });
-          }
-          finished = true;
-          queue.close();
+          complete(event.usage as Json | undefined);
         }
       };
 
@@ -240,6 +263,7 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
         yield* queue;
       } finally {
         clearTimeout(timer);
+        if (settle) clearTimeout(settle);
         req.signal?.removeEventListener('abort', onAbort);
         finished = true;
         proc.stdin.end();
