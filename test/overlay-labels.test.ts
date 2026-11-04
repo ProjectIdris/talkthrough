@@ -138,17 +138,15 @@ test('pins that are gone free their room, and the attach point sits on the tag o
 test('when the model turns and two leaders would cross, the two tags swap places', () => {
   const b = board();
   const e = env();
-  const first = [
-    b.place(1, { anchor: { x: 880, y: 420 }, ...SIZE, hint: { x: -100, y: -80 } }, () => e),
-    b.place(2, { anchor: { x: 1180, y: 420 }, ...SIZE, hint: { x: 100, y: -80 } }, () => e),
-  ];
-  assert.ok(first[0].rect.x < first[1].rect.x, 'tag 1 starts on the left');
+  const f1 = b.place(1, { anchor: { x: 880, y: 420 }, ...SIZE, hint: { x: -100, y: -80 } }, () => e);
+  const f2 = b.place(2, { anchor: { x: 1180, y: 420 }, ...SIZE, hint: { x: 100, y: -80 } }, () => e);
+  assert.ok(f1.rect.x < f2.rect.x, 'tag 1 starts on the left');
   // The model turns: the parts trade sides while the tags stay where they were.
   b.beginFrame({ width: W, height: H, model: MODEL, dragging: false, now: 16 });
   const a1 = { x: 1180, y: 420 }, a2 = { x: 880, y: 420 };
-  const next = [b.place(1, { anchor: a1, ...SIZE }, () => e), b.place(2, { anchor: a2, ...SIZE }, () => e)];
+  let p1 = b.place(1, { anchor: a1, ...SIZE }, () => e);
+  let p2 = b.place(2, { anchor: a2, ...SIZE }, () => e);
   // The swap is made on the targets; let the glide finish.
-  let p1 = next[0], p2 = next[1];
   for (let n = 1; n < 60; n++) {
     b.beginFrame({ width: W, height: H, model: MODEL, dragging: false, now: 16 + n * 16 });
     p1 = b.place(1, { anchor: a1, ...SIZE }, () => e);
