@@ -51,6 +51,8 @@ export const DETAIL_MODELS: Record<'codex' | 'claude' | 'openai', string> = {
   openai: 'gpt-6.1-sol',
 };
 export const DETAIL_EFFORT = 'medium';
+/** How long a detail answer may take (a stronger model writing a richer scene is slower than a quick answer's 60 s). */
+export const DETAIL_TIMEOUT_MS = 240_000;
 
 export const DEFAULT_SETTINGS: Settings = {
   model: 'codex',
