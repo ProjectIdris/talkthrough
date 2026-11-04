@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readdirSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { claudeArgs, createClaudeModel, initProblem } from '../src/adapters/claude-model.ts';
 import { codexLockdownArgs, createCodexModel } from '../src/adapters/codex-model.ts';
@@ -224,5 +225,94 @@ test('the token usage the provider reports comes out last, with cached and writt
     delete process.env.FAKE_USAGE;
     await codex.close?.();
     await claude.close?.();
+  }
+});
+
+test('codex keepThread: a follow-up continues the open thread without the history text; a fresh question starts a new thread', async () => {
+  process.env.FAKE_MODE = 'ok';
+  process.env.FAKE_USAGE = 'thread';
+  const model = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex], keepThread: true });
+  const ask = async (thread: readonly { question: string; steps: readonly never[] }[]) => {
+    const out: ModelOutput[] = [];
+    for await (const o of model.ask({ ...request, thread })) out.push(o);
+    const u = out.find((o) => o.type === 'usage');
+    return u?.type === 'usage' ? { thread: Math.floor(u.usage.input / 1000), turn: u.usage.input % 1000, sawHistory: u.usage.output === 1 } : null;
+  };
+  const turn = (q: string) => ({ question: q, steps: [] as never[] });
+  try {
+    assert.deepEqual(await ask([]), { thread: 1, turn: 1, sawHistory: false });
+    assert.deepEqual(await ask([turn('a')]), { thread: 1, turn: 2, sawHistory: false }, 'same thread, no history text (the thread holds it)');
+    assert.deepEqual(await ask([turn('a'), turn('b')]), { thread: 1, turn: 3, sawHistory: false });
+    assert.deepEqual(await ask([]), { thread: 2, turn: 1, sawHistory: false }, 'a fresh question starts a new thread');
+    assert.deepEqual(await ask([turn('a'), turn('b'), turn('c')]), { thread: 3, turn: 1, sawHistory: true }, 'a thread that is not the open one is rebuilt from the history text');
+  } finally {
+    delete process.env.FAKE_USAGE;
+    await model.close?.();
+  }
+  // without keepThread every question has its own thread
+  process.env.FAKE_USAGE = 'thread';
+  const plain = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex] });
+  try {
+    for await (const o of plain.ask({ ...request, thread: [{ question: 'a', steps: [] }] })) void o;
+    const out: ModelOutput[] = [];
+    for await (const o of plain.ask({ ...request, thread: [{ question: 'a', steps: [] }] })) out.push(o);
+    const u = out.find((o) => o.type === 'usage');
+    assert.equal(u?.type === 'usage' && Math.floor(u.usage.input / 1000), 2);
+  } finally {
+    delete process.env.FAKE_USAGE;
+    await plain.close?.();
+  }
+});
+
+test('codex: with Codex\'s own added instructions switched off the lock-down is the same: tool item and approval request still refuse, and the sandbox, approval policy and tool switches are unchanged', async () => {
+  const threadConfig = { include_permissions_instructions: false, include_apps_instructions: false, include_environment_context: false };
+  for (const mode of ['tool', 'approval']) {
+    process.env.FAKE_MODE = mode;
+    const model = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex], timeoutMs: 5000, threadConfig });
+    try {
+      assert.equal((await failure(model)).code, 'refused', mode);
+    } finally {
+      process.env.FAKE_MODE = 'ok';
+      await model.close?.();
+    }
+  }
+  // what the thread is started with: read-only, never ask, and the process flags are not touched by the config
+  process.env.FAKE_MODE = 'ok';
+  const logFile = join(mkdtempSync(join(tmpdir(), 'tt-fakelog-')), 'start.jsonl');
+  process.env.FAKE_LOG = logFile;
+  const model = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex], threadConfig });
+  try {
+    assert.equal((await collect(model)).filter((o) => o.type === 'step').length, 2);
+  } finally {
+    delete process.env.FAKE_LOG;
+    await model.close?.();
+  }
+  const started = JSON.parse(readFileSync(logFile, 'utf8').trim().split(/\r?\n/)[0] as string).params;
+  rmSync(dirname(logFile), { recursive: true, force: true });
+  assert.equal(started.sandbox, 'read-only');
+  assert.equal(started.approvalPolicy, 'never');
+  assert.equal(started.ephemeral, true);
+  assert.deepEqual(started.config, threadConfig);
+  assert.match(codexLockdownArgs(false).join(' '), /--disable shell_tool/);
+});
+
+test('codex keepThread: a thread nobody follows up on is let go after its time, so an old screenshot is not kept', async () => {
+  process.env.FAKE_MODE = 'ok';
+  process.env.FAKE_USAGE = 'thread';
+  const model = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex], keepThread: true, keepThreadMs: 60 });
+  const thread = async (history: boolean) => {
+    const out: ModelOutput[] = [];
+    for await (const o of model.ask({ ...request, thread: history ? [{ question: 'a', steps: [] }] : [] })) out.push(o);
+    const u = out.find((o) => o.type === 'usage');
+    return u?.type === 'usage' ? Math.floor(u.usage.input / 1000) : 0;
+  };
+  try {
+    assert.equal(await thread(false), 1);
+    assert.equal(await thread(true), 1, 'inside the time: the same thread');
+    await new Promise((r) => setTimeout(r, 200));
+    assert.equal(await thread(true), 2, 'after the time: the thread is gone, the history is sent again in a new one');
+  } finally {
+    delete process.env.FAKE_USAGE;
+    await model.close?.();
   }
 });

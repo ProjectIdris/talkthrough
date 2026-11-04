@@ -58,7 +58,11 @@ export class AsyncQueue<T> {
 export async function stopAndRemove(proc: { kill(): boolean; exitCode: number | null; once(event: 'exit', listener: () => void): unknown } | null, dir: string | null): Promise<void> {
   if (proc && proc.exitCode === null) {
     const gone = new Promise<void>((resolve) => proc.once('exit', () => resolve()));
-    proc.kill();
+    try {
+      proc.kill();
+    } catch {
+      // it never started (the command was not found): nothing to stop
+    }
     await Promise.race([gone, new Promise<void>((resolve) => setTimeout(resolve, 2000).unref())]);
   }
   if (!dir) return;

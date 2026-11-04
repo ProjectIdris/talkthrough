@@ -32,6 +32,14 @@ export type CodexModelOptions = {
   prefixArgs?: string[];
   /** Give up on one answer after this long. Default 60000. */
   timeoutMs?: number;
+  /**
+   * Keep the thread open between a question and its follow-ups: the fixed instructions then go once
+   * and the provider can cache everything before the new question. A question that is not a follow-up
+   * (an empty thread in the request) still starts a fresh thread, so an old screenshot is never carried.
+   */
+  keepThread?: boolean;
+  /** How long an open thread waits for a follow-up before it is let go (and its screenshots with it). Default 20000. */
+  keepThreadMs?: number;
   /** Config overrides for each thread (the same keys `-c` takes), for trying what trims the prompt. */
   threadConfig?: Record<string, unknown>;
   /** One-line facts about what the process reported (tier, model), for the app's log. */
@@ -66,6 +74,15 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
   let child: ChildProcessWithoutNullStreams | null = null;
   let starting: Promise<ChildProcessWithoutNullStreams> | null = null;
   let nextId = 1;
+  /** The open thread a follow-up may continue (only with keepThread), and how many turns it holds. */
+  let kept: { threadId: string; turns: number; proc: ChildProcessWithoutNullStreams } | null = null;
+  let keptTimer: NodeJS.Timeout | undefined;
+  const letGo = () => {
+    clearTimeout(keptTimer);
+    const old = kept;
+    kept = null;
+    if (old) void request(old.proc, 'thread/unsubscribe', { threadId: old.threadId }).catch(() => undefined);
+  };
   let serviceTier: string | undefined;
   const waiters = new Map<number, Waiter>();
   const turns = new Map<string, Turn>(); // by thread id
@@ -302,6 +319,8 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
     },
 
     async close() {
+      clearTimeout(keptTimer);
+      kept = null;
       const proc = child;
       const dir = workDir;
       child = null;
@@ -343,11 +362,17 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
       const within = <T>(promise: Promise<T>): Promise<T> => Promise.race([promise, bail]);
 
       let threadId = '';
+      let finishedWell = false;
       try {
         const proc = await within(ensure());
         live = proc;
         const tReady = performance.now();
-        const started = await within(request(proc, 'thread/start', {
+        const reuse = options.keepThread === true && req.thread.length > 0 && kept !== null && kept.proc === proc && kept.turns === req.thread.length ? kept : null;
+        clearTimeout(keptTimer);
+        const old = kept;
+        kept = null; // it is put back only when this question ends well
+        if (old && !reuse) void request(old.proc, 'thread/unsubscribe', { threadId: old.threadId }).catch(() => undefined);
+        const started = reuse ? { thread: { id: reuse.threadId } } as Json : await within(request(proc, 'thread/start', {
           cwd: workDir,
           model: modelName,
           sandbox: 'read-only',
@@ -363,7 +388,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
         const thread = started.thread as Json | undefined;
         threadId = thread && typeof thread.id === 'string' ? thread.id : '';
         if (!threadId) throw new ModelError('failed', 'codex did not start a thread');
-        if (serviceTier !== started.serviceTier) {
+        if (!reuse && serviceTier !== started.serviceTier) {
           serviceTier = typeof started.serviceTier === 'string' ? started.serviceTier : undefined;
           log(`codex model ${String(started.model)}, service tier ${serviceTier ?? 'default'}`);
         }
@@ -376,7 +401,8 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
           input: [
             { type: 'image', url: `data:${req.screenshot.mime};base64,${req.screenshot.base64}` },
             ...(req.focus ? [{ type: 'image', url: `data:${req.focus.crop.mime};base64,${req.focus.crop.base64}` }] : []),
-            { type: 'text', text: questionText(req) },
+            // a continued thread already holds the earlier turns
+            { type: 'text', text: questionText(reuse ? { ...req, thread: [] } : req) },
           ],
           outputSchema: req.schema,
           effort,
@@ -390,6 +416,12 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
         const tTurn = performance.now();
         if (req.signal?.aborted) onAbort();
         yield* mine.queue;
+        finishedWell = true;
+        if (finishedWell && options.keepThread) {
+          kept = { threadId, turns: req.thread.length + 1, proc };
+          keptTimer = setTimeout(letGo, options.keepThreadMs ?? 20_000);
+          keptTimer.unref();
+        }
         const ms = (x: number, y: number) => Math.round(y - x);
         log(`codex timings: process ${ms(t0, tReady)} ms, thread ${ms(tReady, tThread)} ms, turn accepted ${ms(tThread, tTurn)} ms, first text ${mine.firstDeltaAt === undefined ? '-' : ms(tTurn, mine.firstDeltaAt)} ms after that, all ${ms(tTurn, performance.now())} ms`);
       } finally {
@@ -400,7 +432,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
           turn.done = true;
           if (live) stopTurn(live, turn);
         }
-        if (live && threadId) void request(live, 'thread/unsubscribe', { threadId }).catch(() => undefined);
+        if (live && threadId && !(finishedWell && options.keepThread)) void request(live, 'thread/unsubscribe', { threadId }).catch(() => undefined);
       }
     },
   };

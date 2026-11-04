@@ -3,12 +3,13 @@
 // reports (input, of them cached, output) and the time to the first piece and to the end.
 // Each question is one live model call, so the tool prints the count first and stops at --max-calls.
 //
-//   node scripts/measure-prompt.ts --image page.png --model codex:gpt-6-luna|claude:claude-haiku-5-5 \
+//   node scripts/measure-prompt.ts --image page.png[,other.png,...] --model codex:gpt-6-luna|claude:claude-haiku-5-5 \
 //        [--n 3] [--question "what is this?"] [--schema lean|full] [--codex-config key=json ...] \
-//        [--follow-up] --max-calls 4 [--out results.json]
+//        [--follow-up] [--keep-thread] --max-calls 4 [--out results.json]
 //
 // --codex-config sets a Codex config key for each thread (value as JSON), e.g. include_permissions_instructions=false.
 // --follow-up asks each question as a follow-up of the last (the model is told the earlier turns).
+// --keep-thread (Codex) continues one thread for the follow-ups instead of starting a new one each time.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createClaudeModel } from '../src/adapters/claude-model.ts';
@@ -40,11 +41,12 @@ for (const pair of many('codex-config')) {
   threadConfig[pair.slice(0, at)] = JSON.parse(pair.slice(at + 1));
 }
 const model: Model = kind === 'claude'
-  ? createClaudeModel({ model: name, schema })
-  : createCodexModel({ model: name, ...(Object.keys(threadConfig).length > 0 ? { threadConfig } : {}) });
+  ? createClaudeModel({ model: name, schema, ...(process.env.TALKTHROUGH_CLAUDE ? { command: process.env.TALKTHROUGH_CLAUDE } : {}) })
+  : createCodexModel({ model: name, ...(process.env.TALKTHROUGH_CODEX ? { command: process.env.TALKTHROUGH_CODEX } : {}), keepThread: flag('keep-thread'), ...(Object.keys(threadConfig).length > 0 ? { threadConfig } : {}) });
 await model.warm?.();
 
-const base64 = readFileSync(image).toString('base64');
+// several pictures (comma-separated) are used in turn, as different screens would be
+const pictures = image.split(',').map((f) => readFileSync(f).toString('base64'));
 const rows: Array<{ n: number; usage?: Usage; firstPieceMs?: number; totalMs: number; steps: number; error?: string }> = [];
 const thread: ThreadTurn[] = [];
 for (let i = 1; i <= n; i++) {
@@ -54,7 +56,7 @@ for (let i = 1; i <= n; i++) {
   const steps: unknown[] = [];
   let error: string | undefined;
   try {
-    for await (const out of model.ask({ question, screenshot: { mime: 'image/png', base64, width: 1280, height: 536 }, thread: flag('follow-up') ? thread : [], schema })) {
+    for await (const out of model.ask({ question, screenshot: { mime: 'image/png', base64: pictures[(i - 1) % pictures.length] as string, width: 1280, height: 536 }, thread: flag('follow-up') ? thread : [], schema })) {
       first ??= performance.now() - started;
       if (out.type === 'step') steps.push(out.step);
       else if (out.type === 'usage') usage = out.usage;

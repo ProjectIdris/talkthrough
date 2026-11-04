@@ -155,7 +155,7 @@ async function main(): Promise<void> {
         ...(settings.openaiServiceTier ? { serviceTier: settings.openaiServiceTier } : {}),
         ...(settings.openaiBaseUrl ? { baseUrl: settings.openaiBaseUrl } : {}),
       })
-      : createCodexModel({ model: settings.codexModel, fast: settings.codexFast, effort: settings.effort, log, ...(settings.codexCommand ? { command: settings.codexCommand } : {}) });
+      : createCodexModel({ model: settings.codexModel, keepThread: true, fast: settings.codexFast, effort: settings.effort, log, ...(settings.codexCommand ? { command: settings.codexCommand } : {}) });
   model.warm?.().catch((error: unknown) => log(`model: ${error instanceof Error ? error.message : String(error)}`));
   log(`model ${model.id}`);
 
