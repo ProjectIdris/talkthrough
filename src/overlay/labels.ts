@@ -110,8 +110,8 @@ export class Occupancy {
 /** How much is going on in the page under a rectangle, 0 (blank) to 1 (text-dense). */
 export type Busy = { mean(rect: Rect): number };
 
-/** Busy-ness from a small grayscale picture of the page: edges (a text line is full of them) count. */
-export function busyFromGray(gray: ArrayLike<number>, cols: number, rows: number, width: number, height: number): Busy {
+/** Where the edges are in a small grayscale picture (a text line is full of them), 0 to 1 a cell. */
+export function edgeGrid(gray: ArrayLike<number>, cols: number, rows: number): Float32Array {
   const edge = new Float32Array(cols * rows);
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -121,6 +121,12 @@ export function busyFromGray(gray: ArrayLike<number>, cols: number, rows: number
       edge[r * cols + c] = Math.min(1, (dx + dy) / 80);
     }
   }
+  return edge;
+}
+
+/** Busy-ness from a small grayscale picture of the page: edges (a text line is full of them) count. */
+export function busyFromGray(gray: ArrayLike<number>, cols: number, rows: number, width: number, height: number): Busy {
+  const edge = edgeGrid(gray, cols, rows);
   const sx = cols / width, sy = rows / height;
   return {
     mean(rect: Rect): number {
