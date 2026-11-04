@@ -214,16 +214,32 @@ export type OutputStream = {
   end(): void;
 };
 
-export function createOutputStream(pieces = false): OutputStream {
+/** How much of an answer's raw text is kept for `onRaw`: far more than a scene is. */
+const MAX_RAW_CHARS = 200_000;
+
+/**
+ * `onRaw`, when given, is handed the model's whole raw text once: when the answer ends, or when the text turns out not to be a scene
+ * (so a garbled answer can be read afterwards). It is for a check run's log and is off unless the caller asks.
+ */
+export function createOutputStream(pieces = false, onRaw?: (text: string) => void): OutputStream {
   const seen: StepPiece[] = [];
   const stream = createStepStream({ onPiece: (p) => seen.push(p) });
+  let raw = '';
+  let reported = false;
+  const report = (): void => {
+    if (reported || !onRaw) return;
+    reported = true;
+    onRaw(raw);
+  };
   const out: OutputStream = {
     pieces,
     push(chunk) {
+      if (onRaw && raw.length < MAX_RAW_CHARS) raw += chunk.slice(0, MAX_RAW_CHARS - raw.length);
       try {
         stream.push(chunk);
-      } finally {
-        // What closed before an error is dropped with it: the error ends the answer.
+      } catch (error) {
+        report();
+        throw error;
       }
       const got = seen.splice(0);
       return out.pieces ? got : got.filter((p) => p.type === 'step');
@@ -234,7 +250,13 @@ export function createOutputStream(pieces = false): OutputStream {
     get complete() {
       return stream.complete;
     },
-    end: () => stream.end(),
+    end: () => {
+      try {
+        stream.end();
+      } finally {
+        report();
+      }
+    },
   };
   return out;
 }

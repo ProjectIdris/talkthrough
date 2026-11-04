@@ -117,6 +117,8 @@ type Attempt = {
 type Source = { kind: 'model' | 'backend'; label: string; stream(): AsyncIterable<ModelOutput>; /** A line to show instead, when the source answered with text only. */ message?(): string | undefined };
 
 export function createSession(deps: SessionDeps) {
+  /** Checks only (logText): each answer's raw text goes in the log, so a garbled one can be read afterwards. Otherwise nothing is asked for. */
+  const rawLog = (): { onRaw?: (text: string) => void } => (deps.logText ? { onRaw: (text) => deps.log(`answer-raw ${JSON.stringify(text)}`) } : {});
   const now = deps.now ?? (() => Date.now());
   const backend = deps.backend;
   let attempt: Attempt | null = null;
@@ -441,7 +443,7 @@ export function createSession(deps: SessionDeps) {
     const source: Source = {
       kind: 'model',
       label: model.id,
-      stream: () => model.ask({ question: base.question, screenshot: base.clean, thread: [], schema: sceneSchemaLean, pieces: true, detail: { steps: scene }, signal: controller.signal }),
+      stream: () => model.ask({ question: base.question, screenshot: base.clean, thread: [], schema: sceneSchemaLean, pieces: true, ...rawLog(), detail: { steps: scene }, signal: controller.signal }),
     };
     await answer(displayId, controller, r, since, base.question, source, true, true);
   }
@@ -561,7 +563,7 @@ export function createSession(deps: SessionDeps) {
         : {
           kind: 'model',
           label: model.id,
-          stream: () => model.ask({ question, screenshot: seen, ...(focus ? { focus } : {}), thread, schema: sceneSchemaLean, pieces: true, signal: controller.signal }),
+          stream: () => model.ask({ question, screenshot: seen, ...(focus ? { focus } : {}), thread, schema: sceneSchemaLean, pieces: true, ...rawLog(), signal: controller.signal }),
         };
       asked = !toBackend;
       await answer(a.displayId, controller, r, since, asking, source, false);

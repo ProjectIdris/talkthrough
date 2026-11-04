@@ -124,7 +124,7 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
       if (req.signal?.aborted) throw new ModelError('aborted', 'request aborted');
       const { proc } = take();
       const queue = new AsyncQueue<ModelOutput>();
-      const stream = createOutputStream(req.pieces === true);
+      const stream = createOutputStream(req.pieces === true, req.onRaw);
       let finished = false;
       let stderrTail = '';
       let streamingTool = false;
