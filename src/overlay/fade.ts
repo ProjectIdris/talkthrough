@@ -61,6 +61,7 @@ export function fadeFrame(frame: Frame, k: number): Frame {
     ...frame,
     panel: frame.panel ? { ...frame.panel, fade: frame.panel.fade * f } : null,
     marks: frame.marks.map((m) => ({ ...m, fade: m.fade * f })),
+    diagrams: frame.diagrams.map((d) => ({ ...d, fade: d.fade * f })),
     objects: frame.objects.map((o) => ({ ...o, fade: o.fade * f })),
   };
 }

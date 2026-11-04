@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "In the autumn of 1066 three battles in three weeks decided who ruled England: first in the north, then the Normans' landing, then Hastings.",
+      "actions": [
+        { "op": "diagram", "id": "year", "kind": "timeline", "x": 60, "y": 640, "w": 880, "h": 300, "title": "Autumn 1066" },
+        { "op": "node", "id": "fulford", "of": "year", "when": "20 Sep", "pos": 263, "text": "Fulford", "note": "Norse army beats the northern earls", "at": 0.5 },
+        { "op": "node", "id": "stamford", "of": "year", "when": "25 Sep", "pos": 268, "text": "Stamford Bridge", "note": "Harold destroys the Norse army", "at": 3 },
+        { "op": "node", "id": "landing", "of": "year", "when": "28 Sep", "pos": 271, "text": "Normans land", "note": "William at Pevensey", "at": 5.5 },
+        { "op": "node", "id": "hastings", "of": "year", "when": "14 Oct", "pos": 287, "text": "Hastings", "note": "Harold killed; Norman victory", "color": "red", "at": 8 }
+      ]
+    }
+  ]
+}

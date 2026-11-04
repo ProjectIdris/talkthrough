@@ -450,6 +450,391 @@
       "additionalProperties": false,
       "description": "A crop of the screenshot (the region sx,sy,sw,sh) shown as a card at dx,dy, dw wide, with an optional caption: to zoom in on something small."
     },
+    "diagram": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "diagram"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "flow",
+            "timeline",
+            "steps",
+            "chart"
+          ]
+        },
+        "x": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "y": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "w": {
+          "type": "number",
+          "description": "80 to 1000"
+        },
+        "h": {
+          "type": "number",
+          "description": "60 to 1000"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 60 characters"
+        },
+        "xlabel": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 24 characters"
+        },
+        "ylabel": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 24 characters"
+        },
+        "xrange": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y], each -1000000 to 1000000"
+        },
+        "yrange": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y], each -1000000 to 1000000"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "kind",
+        "x",
+        "y",
+        "w",
+        "h",
+        "title",
+        "xlabel",
+        "ylabel",
+        "xrange",
+        "yrange",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A flat diagram in the rectangle x,y,w,h (moved off the page's text if it sits on it), filled by node, edge, series and dot pieces that name it with of. kind flow: nodes joined by edges, laid out for you. timeline: nodes along an axis. steps: numbered nodes, ticked off with tick. chart: series (lines or curves through points) and dots on labelled axes; xrange and yrange [min,max] fix the axes, else they fit the data. Sent again under the same id it replaces the diagram."
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "node"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "of": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string",
+          "description": "up to 40 characters"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 60 characters"
+        },
+        "when": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 24 characters"
+        },
+        "pos": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-1000000 to 1000000"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "of",
+        "text",
+        "note",
+        "when",
+        "pos",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A piece of a flow, timeline or steps diagram: a box in a flow; an event on a timeline (when is its date, pos where it falls on the axis as a number, else events are spread in the order written); a numbered step in steps (in the order written). note is a short line under the text. A piece with no at appears with the words, one after another."
+    },
+    "edge": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "edge"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 24 characters"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "from",
+        "to",
+        "text",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "An arrow from one node of a flow to another, drawn on as it comes in; text is a short label on it."
+    },
+    "series": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "series"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "of": {
+          "type": "string"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "2 to 40 points [x,y], each -1000000 to 1000000"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 24 characters"
+        },
+        "curve": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "of",
+        "pts",
+        "label",
+        "curve",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A line (a smooth curve with curve true) through points [x,y] in chart units, drawn along from its first point; label names it at its end."
+    },
+    "dot": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "dot"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "of": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number",
+          "description": "-1000000 to 1000000"
+        },
+        "y": {
+          "type": "number",
+          "description": "-1000000 to 1000000"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 30 characters"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "of",
+        "x",
+        "y",
+        "text",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A labelled point of a chart at x,y in chart units."
+    },
+    "tick": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "tick"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "done": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "done",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Tick a step of a steps diagram off (done false takes the tick away): the guide does this as the person gets through each step."
+    },
     "panel": {
       "type": "object",
       "properties": {
@@ -2319,7 +2704,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Remove an object or mark (and what is attached to it), or everything with \"all\", every mark, card and pin with \"marks\", the 3D stage and its objects with \"panel\"."
+      "description": "Remove an object or mark (and what is attached to it), or everything with \"all\", every mark, card, diagram and pin with \"marks\", the 3D stage and its objects with \"panel\"."
     },
     "action": {
       "anyOf": [
@@ -2343,6 +2728,24 @@
         },
         {
           "$ref": "#/$defs/image"
+        },
+        {
+          "$ref": "#/$defs/diagram"
+        },
+        {
+          "$ref": "#/$defs/node"
+        },
+        {
+          "$ref": "#/$defs/edge"
+        },
+        {
+          "$ref": "#/$defs/series"
+        },
+        {
+          "$ref": "#/$defs/dot"
+        },
+        {
+          "$ref": "#/$defs/tick"
         },
         {
           "$ref": "#/$defs/panel"

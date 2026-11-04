@@ -10,6 +10,10 @@ Hand-written scenes in the scene language (`docs/scene-language.md`) for playing
 | `earth-layers-followup.json` | the same page, after `earth-layers.json` | a follow-up question that reaches the earlier objects by id: fades layers, focuses and zooms on the core, restores them |
 | `pin-tumbler-lock.json` | an encyclopaedia article with the figure on the left (40,150 to 650,790) and the text on the right | a cutaway lock built up part by part: housing, plug, pins and springs, then a key that slides in and lifts every pin pair to the shear line, then the plug turns; pins, a 3D line and a note card |
 | `wind-turbine.json` | an energy page with the figure on the right (370,100 to 930,880) and text on the left | a wind turbine built up, its nacelle lid opening to show the shaft, gearbox, generator and cable, then the nacelle yawing; camera focus and zoom, a see-through rotor and a note card |
+| `diagram-flow.json` | any page with a free right-hand side | a flat flow diagram of opening a web page: four nodes and their arrows drawn on in time with the words, then an arrow back |
+| `diagram-timeline.json` | a page with free space along the bottom | a timeline of four dated events in autumn 1066, spaced to scale |
+| `diagram-steps.json` | any page with a free right-hand side | numbered steps, one ticked off in the second step |
+| `diagram-chart.json` | any page with a free right-hand side | a chart with a demand curve, a supply curve and a labelled dot where they meet |
 | `escalate.json` | a settings menu top-left (20,40 to 180,100) | a brief partial answer with a mark, plus an `escalate` reason: the app offers a deeper backend |
 
 

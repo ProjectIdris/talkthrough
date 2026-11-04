@@ -1,6 +1,9 @@
 // Scene language v0: the types a validated scene has. See docs/scene-language.md.
 // A validated action never carries null: absent optional fields are simply missing.
 
+import type { DiagramKind } from './spec.ts';
+export type { DiagramKind } from './spec.ts';
+
 export type Vec3 = [number, number, number];
 export type Vec2 = [number, number];
 
@@ -37,6 +40,20 @@ export type ImageMark = {
 export type PinMark = { op: 'pin'; id: string; on: string; point?: Vec3; anchor?: string; text: string; off?: Vec2; color?: Color } & At;
 
 export type Mark = BoxMark | CircleMark | UnderlineMark | ArrowMark | LabelMark | CardMark | ImageMark | PinMark;
+
+// Flat diagrams: a rectangle on the screenshot (0..1000) and the pieces drawn in it. See docs/scene-language.md.
+export type DiagramAction = {
+  op: 'diagram'; id: string; kind: DiagramKind; x: number; y: number; w: number; h: number; title?: string;
+  xlabel?: string; ylabel?: string; xrange?: Vec2; yrange?: Vec2; color?: Color;
+} & At;
+export type NodeAction = { op: 'node'; id: string; of: string; text: string; note?: string; when?: string; pos?: number; color?: Color } & At;
+export type EdgeAction = { op: 'edge'; id: string; from: string; to: string; text?: string; color?: Color } & At;
+export type SeriesAction = { op: 'series'; id: string; of: string; pts: Vec2[]; label?: string; curve?: boolean; color?: Color } & At;
+export type DotAction = { op: 'dot'; id: string; of: string; x: number; y: number; text?: string; color?: Color } & At;
+export type TickAction = { op: 'tick'; id: string; done?: boolean } & At;
+/** What is drawn in a diagram, and the diagram itself. */
+export type DiagramPiece = NodeAction | EdgeAction | SeriesAction | DotAction;
+export type DiagramThing = DiagramAction | DiagramPiece;
 
 /** The one 3D stage: a rectangle on the screenshot (0..1000) a model is fitted to. Sent again, it moves or resizes. */
 export type PanelAction = { op: 'panel'; x: number; y: number; w: number; h: number; frame?: boolean } & Timing;
@@ -102,7 +119,7 @@ export type FocusAction = { op: 'focus'; id?: string } & Timing;
 export type ClearAction = { op: 'clear'; target: string } & At;
 
 export type Action =
-  | Mark | PanelAction | AddAction
+  | Mark | PanelAction | AddAction | DiagramThing | TickAction
   | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | StyleAction | HighlightAction
   | CutAction | SpinAction | CrankAction | CamAction | FlashAction
   | OrbitAction | ZoomAction | FocusAction | ClearAction;

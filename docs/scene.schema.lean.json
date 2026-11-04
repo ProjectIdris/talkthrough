@@ -394,6 +394,355 @@
       ],
       "additionalProperties": false
     },
+    "diagram": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "diagram"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "flow",
+            "timeline",
+            "steps",
+            "chart"
+          ]
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "xlabel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ylabel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "xrange": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "yrange": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "kind",
+        "x",
+        "y",
+        "w",
+        "h",
+        "title",
+        "xlabel",
+        "ylabel",
+        "xrange",
+        "yrange",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "node"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "of": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "when": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pos": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "of",
+        "text",
+        "note",
+        "when",
+        "pos",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "edge": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "edge"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "from",
+        "to",
+        "text",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "series": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "series"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "of": {
+          "type": "string"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "curve": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "of",
+        "pts",
+        "label",
+        "curve",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "dot": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "dot"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "of": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "of",
+        "x",
+        "y",
+        "text",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "tick": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "tick"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "done": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "done",
+        "at"
+      ],
+      "additionalProperties": false
+    },
     "panel": {
       "type": "object",
       "properties": {
@@ -2030,6 +2379,24 @@
         },
         {
           "$ref": "#/$defs/image"
+        },
+        {
+          "$ref": "#/$defs/diagram"
+        },
+        {
+          "$ref": "#/$defs/node"
+        },
+        {
+          "$ref": "#/$defs/edge"
+        },
+        {
+          "$ref": "#/$defs/series"
+        },
+        {
+          "$ref": "#/$defs/dot"
+        },
+        {
+          "$ref": "#/$defs/tick"
         },
         {
           "$ref": "#/$defs/panel"

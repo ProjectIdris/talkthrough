@@ -18,6 +18,7 @@ import type { PageGrid } from './placement.ts';
 import type { Busy } from './labels.ts';
 import { panelRect } from './layout.ts';
 import { createHold, explodeButtonBox, overModel, wheelFactor } from './orbit.ts';
+import { DiagramPainter } from './diagram-draw.ts';
 import { drawMarks } from './marks.ts';
 import type { View } from './marks.ts';
 import { TIERS } from './materials.ts';
@@ -250,11 +251,13 @@ function draw(frame: Frame): void {
     project: (key, point, anchor) => panelScene.project(key, point, view.width, view.height, anchor),
     ...(cropSource() ? { source: cropSource()! } : {}),
   }, { reduceMotion: reduceMotion.matches });
+  // The flat diagrams go over the marks' canvas in free space; a piece moved by a later arrival glides, which wants frames until it is there.
+  diagramsMoving = frame.diagrams.length > 0 && diagramPainter.draw(marksCtx, frame.diagrams, view, labelClock());
   drawPen(marksCtx, pen.view(labelClock()), view);
   if (pointerX >= 0) hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY))); // a button can fade under a resting pointer
   hold.model(modelRect);
 
-  if (!milestones.mark && (frame.marks.some((m) => m.appear > 0) || frame.objects.some((o) => o.appear > 0))) {
+  if (!milestones.mark && (frame.marks.some((m) => m.appear > 0) || frame.diagrams.some((d) => d.appear > 0) || frame.objects.some((o) => o.appear > 0))) {
     milestones.mark = true;
     milestone('first-mark');
   }
@@ -267,6 +270,8 @@ function cropSource(): { image: CanvasImageSource; width: number; height: number
 }
 
 const board = new LabelBoard();
+const diagramPainter = new DiagramPainter();
+let diagramsMoving = false;
 const pen = new PenLayer();
 // Frame grabs (seek) step a clock of their own, one thirtieth of a second a grab, so a clip's tags move at the clip's pace.
 let seekClock: number | undefined;
@@ -401,7 +406,7 @@ function loop(): void {
   if (pen.active) sendPen();
   showHud();
   const fading = fader.armed && k < 1 && k > 0;
-  if (player.active || dragging || fading || board.moving || pen.animating(now) || pen.active) {
+  if (player.active || dragging || fading || board.moving || diagramsMoving || pen.animating(now) || pen.active) {
     request();
     return;
   }

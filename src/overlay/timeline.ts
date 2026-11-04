@@ -9,6 +9,8 @@
 import { PALETTE_RGB } from '../scene/colors.ts';
 import { advanceMotion, emptyMotion, poses, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
 import type { CamDef, CrankDef, FlashDef, Motion, Pose, SpinPlan } from './motion.ts';
+import { applyDiagramAction, clearDiagrams, diagramPlanFrom, diagramTimes, emptyDiagramPlan, evaluateDiagrams, pulseDiagramThing, styleDiagramThing } from './diagram-plan.ts';
+import type { DiagramFrame, DiagramPlan } from './diagram-plan.ts';
 import { mechanismColor } from './part-colors.ts';
 import type { Rgb } from '../scene/colors.ts';
 import type { Action, AddAction, Mark, Step, Vec3 } from '../scene/types.ts';
@@ -111,6 +113,8 @@ export type ObjectFrame = {
 export type Frame = {
   panel: { rect: Rect; appear: number; fade: number; frame: boolean } | null;
   marks: MarkFrame[];
+  /** The flat diagrams (flow, timeline, steps, chart) on the screen, and what is drawn in each. */
+  diagrams: DiagramFrame[];
   /** Parents come before their children. */
   objects: ObjectFrame[];
   camera: { az: number; el: number; zoom: number; focus: FocusFrame };
@@ -125,7 +129,7 @@ export type Frame = {
 
 export function emptyFrame(): Frame {
   return {
-    panel: null, marks: [], objects: [], nextKey: 1, motion: emptyMotion(),
+    panel: null, marks: [], diagrams: [], objects: [], nextKey: 1, motion: emptyMotion(),
     camera: { ...DEFAULT_CAMERA, focus: { key: null, k: 1 } },
   };
 }
@@ -213,6 +217,7 @@ type Pulse = { key: number; start: number; dur: number; color: Rgb | undefined }
 
 export type StepPlan = {
   marks: MarkInst[];
+  diagrams: DiagramPlan;
   objs: ObjInst[];
   panels: PanelInst[];
   az: Track; el: Track; zoom: Track; focus: FocusTrack;
@@ -263,7 +268,7 @@ export function strokeSeconds(mark: Mark): number | undefined {
 /** Builds the plan of a step from the Frame the previous step settled in. */
 export function planStep(base: Frame, step: Step): StepPlan {
   const plan: StepPlan = {
-    marks: [], objs: [], panels: [],
+    marks: [], diagrams: base.diagrams.length > 0 ? diagramPlanFrom(base.diagrams) : emptyDiagramPlan(), objs: [], panels: [],
     az: track([base.camera.az]), el: track([base.camera.el]), zoom: track([base.camera.zoom]),
     focus: { init: base.camera.focus.key, segs: [] },
     pulses: [], nextKey: base.nextKey, duration: 0,
@@ -289,7 +294,8 @@ export function planStep(base: Frame, step: Step): StepPlan {
     plan.panels.push({ bornAt: NEVER, diedAt: undefined, rect: track([r.x, r.y, r.w, r.h]), frame: base.panel.frame });
   }
 
-  const events = step.actions.map((a, i) => ({ a, i, at: Math.max(0, a.at ?? 0) }));
+  const times = diagramTimes(step.actions);
+  const events = step.actions.map((a, i) => ({ a, i, at: times.get(i) ?? Math.max(0, a.at ?? 0) }));
   events.sort((p, q) => p.at - q.at || p.i - q.i);
   for (const { a, at } of events) applyAction(plan, a, at);
   return plan;
@@ -366,6 +372,9 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       end(grow ?? APPEAR_SECONDS);
       return;
     }
+    case 'diagram': case 'node': case 'edge': case 'series': case 'dot': case 'tick':
+      end(applyDiagramAction(plan.diagrams, a, at, () => plan.nextKey++));
+      return;
     case 'panel': {
       const p = alivePanel(plan, at);
       const target = [a.x, a.y, a.w, a.h];
@@ -432,7 +441,10 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
     case 'style': {
       const target = lookup(plan.objs, a.id, at);
       const mark = target ? undefined : lookup(plan.marks, a.id, at);
-      if (!target && !mark) return;
+      if (!target && !mark) {
+        if (styleDiagramThing(plan.diagrams, a.id, at, a.color, a.opacity)) end(dur);
+        return;
+      }
       const hit: Array<ObjInst | MarkInst> = target ? [target, ...descendants(plan, target.key, at)] : [mark as MarkInst];
       for (const h of hit) {
         if (a.color !== undefined) {
@@ -447,7 +459,10 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
     case 'highlight': {
       const target = lookup(plan.objs, a.id, at);
       const mark = target ? undefined : lookup(plan.marks, a.id, at);
-      if (!target && !mark) return;
+      if (!target && !mark) {
+        if (pulseDiagramThing(plan.diagrams, a.id, at, dur, a.color)) end(Math.max(0.2, dur));
+        return;
+      }
       const hit: Array<ObjInst | MarkInst> = target ? [target, ...descendants(plan, target.key, at)] : [mark as MarkInst];
       for (const h of hit) plan.pulses.push({ key: h.key, start: at, dur: Math.max(0.2, dur), color: a.color !== undefined ? parseColor(a.color) : undefined });
       end(Math.max(0.2, dur));
@@ -635,6 +650,7 @@ function clearTarget(plan: StepPlan, target: string, at: number): void {
   const killMarks = target === 'all' || target === 'marks';
   const killPanel = target === 'all' || target === 'panel';
   if (killMarks) for (const m of plan.marks) if (aliveAt(m, at)) kill(plan, m, at);
+  if (killMarks) clearDiagrams(plan.diagrams, 'all', at);
   if (killPanel) {
     for (const o of plan.objs) if (aliveAt(o, at)) kill(plan, o, at);
     const p = alivePanel(plan, at);
@@ -654,6 +670,7 @@ function clearTarget(plan: StepPlan, target: string, at: number): void {
   }
   const m = lookup(plan.marks, target, at);
   if (m) kill(plan, m, at);
+  else clearDiagrams(plan.diagrams, target, at);
 }
 
 // ---- Evaluating -----------------------------------------------------------------------------
@@ -699,6 +716,7 @@ export function evaluate(plan: StepPlan, t: number): Frame {
       appear, fade, pulse: pulse.amount, pulseColor: pulse.color, tinted: m.tinted, ...(m.onKey !== undefined ? { onKey: m.onKey } : {}),
     });
   }
+  const diagrams = plan.diagrams.insts.length > 0 ? evaluateDiagrams(plan.diagrams, t) : [];
   const objects: ObjectFrame[] = [];
   for (const o of parentsFirst(plan.objs)) {
     if (!visibleAt(o, t)) continue;
@@ -721,7 +739,7 @@ export function evaluate(plan: StepPlan, t: number): Frame {
     panel = { rect: { x: r[0] ?? 0, y: r[1] ?? 0, w: r[2] ?? 0, h: r[3] ?? 0 }, appear: appearOf(p, t), fade: fadeOf(p, t), frame: p.frame };
   }
   return {
-    panel, marks, objects, nextKey: plan.nextKey, motion,
+    panel, marks, diagrams, objects, nextKey: plan.nextKey, motion,
     camera: {
       az: valueAt(plan.az, t)[0] ?? 0, el: valueAt(plan.el, t)[0] ?? 0, zoom: valueAt(plan.zoom, t)[0] ?? 1,
       focus: focusAt(plan.focus, t),

@@ -1,0 +1,25 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "When you open a page, your browser first asks a directory for the server's address, then the server asks its database for what to show.",
+      "actions": [
+        { "op": "diagram", "id": "web", "kind": "flow", "x": 560, "y": 120, "w": 400, "h": 480, "title": "Opening a web page" },
+        { "op": "node", "id": "browser", "of": "web", "text": "Browser", "at": 0.4 },
+        { "op": "node", "id": "dns", "of": "web", "text": "DNS lookup", "note": "name to address", "at": 2.2 },
+        { "op": "node", "id": "server", "of": "web", "text": "Web server", "at": 4 },
+        { "op": "node", "id": "db", "of": "web", "text": "Database", "at": 5.6 },
+        { "op": "edge", "id": "e1", "from": "browser", "to": "dns", "text": "where is it?", "at": 2.4 },
+        { "op": "edge", "id": "e2", "from": "dns", "to": "server", "text": "address", "at": 4.2 },
+        { "op": "edge", "id": "e3", "from": "server", "to": "db", "text": "query", "at": 5.8 }
+      ]
+    },
+    {
+      "say": "The answer then travels back the same way, and your browser draws the page.",
+      "actions": [
+        { "op": "edge", "id": "e4", "from": "db", "to": "browser", "text": "page data", "at": 0.5 },
+        { "op": "highlight", "id": "browser", "at": 2 }
+      ]
+    }
+  ]
+}
