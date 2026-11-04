@@ -10,10 +10,17 @@
 // --dpr sets the display scale; offscreen windows always render at 1, so use --hidden (a hidden, non-offscreen window) for dpr other than 1.
 // --after plays another scene to its end first, so a follow-up scene can reach its objects.
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+
+// A scratch run must never put an error dialog on someone's screen.
+dialog.showErrorBox = () => undefined;
+process.on('uncaughtException', (e) => {
+  console.error(e);
+  app.exit(1);
+});
 
 const CHANNEL = { display: 'tt:display', scene: 'tt:scene', ready: 'tt:ready', interactive: 'tt:interactive', rendered: 'tt:rendered', done: 'tt:done' };
 
