@@ -489,3 +489,23 @@ test('a flow refuses nodes below a readable size: its card grows to the least si
   assert.equal(flowGrowth(() => false, 2.2), undefined, 'a flow that would still not read at the largest card is left as it was, not blown up over the page');
   assert.equal(flowGrowth((k) => k >= 2.2, 2.2), 2.2, 'the largest card is used when it is just enough');
 });
+
+test('one long edge label widens only its own gap: a seven-node chain with a single labelled edge reads in a small card, and keeps no node on another', () => {
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+  const chain = (label: (i: number) => number) => ids.slice(1).map((_, i) => ({ id: `e${i}`, from: ids[i]!, to: ids[i + 1]!, labelW: label(i) }));
+  const options = { maxBox: { w: 165, h: 51 }, pad: 12, labelW: 130, labelH: 20 };
+  const area: Px = { x: 0, y: 0, w: 633, h: 209 };
+  const least = { w: 100, h: 38 };
+  const one = flowLayout(ids, chain((i) => (i === 1 ? 130 : 0)), area, options);
+  const all = flowLayout(ids, chain(() => 130), area, options);
+  assert.ok(flowReadable(one, least), 'with one label the nodes are readable');
+  assert.ok(!flowReadable(all, least), 'with a label on every edge the same card is too small: the room for labels is spent only where there are labels');
+  const boxes = [...one.nodes.values()];
+  assert.equal(boxes.length, 7);
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) assert.ok(!overlap(boxes[i]!, boxes[j]!), `${i} ${j}`);
+  for (const b of boxes) assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= area.w + 0.5 && b.y + b.h <= area.h + 0.5, JSON.stringify(b));
+  // The gap that holds the label is as wide as the label; the others are not.
+  const sameRow = (p: string, q: string): boolean => one.nodes.get(p)!.row === one.nodes.get(q)!.row;
+  const gap = (p: string, q: string): number => { const m = one.nodes.get(p)!, n = one.nodes.get(q)!; return Math.max(n.x - (m.x + m.w), m.x - (n.x + n.w)); };
+  if (sameRow('b', 'c') && sameRow('c', 'd')) assert.ok(gap('b', 'c') >= 130 && gap('c', 'd') < 130, 'only the labelled gap is wide');
+});

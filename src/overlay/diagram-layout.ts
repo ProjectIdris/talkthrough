@@ -152,26 +152,64 @@ function flowLayoutIn(ids: readonly string[], edges: readonly FlowEdge[], area: 
   const widest = Math.max(...columns.map((c) => c.length));
   const inner: Px = { x: area.x + options.pad, y: area.y + options.pad, w: Math.max(1, area.w - 2 * options.pad), h: Math.max(1, area.h - 2 * options.pad) };
   const lw = options.labelW ?? 0, lh = options.labelH ?? 0;
-  // A node box for a layer cell and a cross slot: as large as they allow (leaving a gap for an edge label), within the largest asked for.
-  const boxFor = (dir: 'right' | 'down', cell: number, slot: number): { w: number; h: number } =>
-    dir === 'right'
-      ? { w: Math.min(options.maxBox.w, lw > 0 ? cell - Math.max(lw + 18, cell * 0.3) : cell * 0.66), h: Math.min(options.maxBox.h, slot * 0.7) }
-      : { w: Math.min(options.maxBox.w, slot * 0.9), h: Math.min(options.maxBox.h, lh > 0 ? cell - Math.max(lh + 12, cell * 0.3) : cell * (options.notes ? 0.78 : 0.6)) };
+  // Room an edge's label needs between the two nodes it joins: the label's width along a row, its height down a column. An edge that has
+  // its own label width asks for that and no other does; when no edge says (only the widest label is known) every edge is taken to have it.
+  const perEdge = used.some((e) => e.labelW !== undefined);
+  const pairNeed = (dir: 'right' | 'down'): number[] => {
+    const need = Array.from({ length: Math.max(0, count - 1) }, () => 0);
+    for (const e of used) {
+      const a = layer.get(e.from) ?? 0, b = layer.get(e.to) ?? 0;
+      if (b <= a) continue; // a loop back swings round the outside of the nodes and needs no gap
+      const w = perEdge ? e.labelW ?? 0 : lw;
+      if (w <= 0) continue;
+      need[a] = Math.max(need[a]!, dir === 'right' ? w + 18 : lh + 12);
+    }
+    return need;
+  };
+  // The same, for each gap between neighbouring places of a row (a wrapped chain runs back along every second row).
+  const gapNeeds = (dir: 'right' | 'down', rows: number): number[] => {
+    const pair = pairNeed(dir);
+    if (rows === 1) return pair;
+    const per = Math.ceil(count / rows);
+    const out = Array.from({ length: Math.max(0, per - 1) }, () => 0);
+    for (let row = 0; row < rows; row++) {
+      for (let j = 0; j < per - 1; j++) {
+        const li = row * per + (row % 2 === 1 ? per - 2 - j : j);
+        if (li >= 0 && li + 1 < count && li + 1 < (row + 1) * per) out[j] = Math.max(out[j]!, pair[li]!);
+      }
+    }
+    return out;
+  };
+  // How much of its length along the run a node leaves empty beside it, as a share of the node (room for an arrow).
+  const slack = (dir: 'right' | 'down'): number => (dir === 'right' ? 0.515 : options.notes ? 0.282 : 0.667);
+  // Along a row (or column) of places: the largest node size that fits, a gap after each node that is at least what its labels need
+  // (and a share of the node), and whatever is left over shared out evenly. One long label widens only the gap it sits in.
+  const along = (dir: 'right' | 'down', rows: number, length: number): { size: number; gaps: number[]; edge: number } => {
+    const places = rows === 1 ? count : Math.ceil(count / rows);
+    const needs = gapNeeds(dir, rows);
+    const g0 = slack(dir);
+    const cap = Math.max(1, dir === 'right' ? options.maxBox.w : options.maxBox.h);
+    const total = (s: number): number => places * s + needs.reduce((t, n) => t + Math.max(g0 * s, n), 0) + g0 * s;
+    let lo = 0, hi = Math.min(cap, length);
+    if (total(hi) <= length) lo = hi;
+    else for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (total(mid) <= length) lo = mid; else hi = mid; }
+    const extra = Math.max(0, length - total(lo)) / places;
+    return { size: lo, gaps: needs.map((n) => Math.max(g0 * lo, n) + extra), edge: (g0 * lo + extra) / 2 };
+  };
   // Which way to run: the one that leaves the nodes larger (a node is about 2.4 times as wide as tall). A chain of single nodes
   // may also be wrapped into two or three rows (each running back the way the last came, so the arrow between rows is short);
   // that is chosen only when it makes the nodes clearly larger, so a long chain in a small card does not shrink its text to nothing.
   const fit = (dir: 'right' | 'down', rows = 1): number => {
-    const perRow = Math.ceil(count / rows);
-    const box = dir === 'right' ? boxFor('right', inner.w / perRow, inner.h / rows / widest) : boxFor('down', inner.h / count, inner.w / widest);
-    return Math.max(0, Math.min(box.w / 2.4, box.h));
+    if (dir === 'right') return Math.max(0, Math.min(along('right', rows, inner.w).size / 2.4, Math.min(options.maxBox.h, (inner.h / rows / widest) * 0.7)));
+    return Math.max(0, Math.min(Math.min(options.maxBox.w, (inner.w / widest) * 0.9) / 2.4, along('down', 1, inner.h).size));
   };
   const right = fit('right'), down = fit('down');
   const dir: 'right' | 'down' = right > down * 1.001 || (Math.abs(right - down) <= down * 0.001 && inner.w >= inner.h) ? 'right' : 'down';
   let rows = 1;
   // A loop back (an edge that goes to a layer no later than its own) runs round the outside of one row: a wrapped chain has no room for it.
   const loops = used.some((e) => (layer.get(e.to) ?? 0) <= (layer.get(e.from) ?? 0));
-  if (widest === 1 && count >= 4 && dir === 'right' && !loops) {
-    let best = fit('right', 1);
+  if (widest === 1 && count >= 4 && !loops) {
+    let best = Math.max(right, down);
     for (const r of [2, 3]) {
       if (Math.ceil(count / r) < 2) break;
       const f = fit('right', r);
@@ -180,9 +218,16 @@ function flowLayoutIn(ids: readonly string[], edges: readonly FlowEdge[], area: 
   }
   const wrapped = rows > 1;
   const dirOut: 'right' | 'down' = wrapped ? 'right' : dir;
-  const along = dirOut === 'right' ? inner.w : inner.h, across = dirOut === 'right' ? inner.h : inner.w;
+  const length = dirOut === 'right' ? inner.w : inner.h, across = dirOut === 'right' ? inner.h : inner.w;
   const perRow = wrapped ? Math.ceil(count / rows) : count;
-  const cell = along / perRow;
+  const run = along(dirOut, rows, length);
+  // The centre of each place along the run: an edge's margin, then node, gap, node, gap.
+  const centres: number[] = [];
+  let at = run.edge;
+  for (let p = 0; p < perRow; p++) {
+    centres.push(at + run.size / 2);
+    at += run.size + (run.gaps[p] ?? 0);
+  }
   const nodes = new Map<string, FlowBox>();
   columns.forEach((col, li) => {
     const row = wrapped ? Math.floor(li / perRow) : 0;
@@ -191,8 +236,9 @@ function flowLayoutIn(ids: readonly string[], edges: readonly FlowEdge[], area: 
     const slot = slotLen / col.length;
     const place = wrapped ? (rev ? perRow - 1 - (li % perRow) : li % perRow) : li;
     col.forEach((id, j) => {
-      const a = (place + 0.5) * cell, c = (wrapped ? row * slotLen : 0) + (j + 0.5) * slot;
-      const { w, h } = boxFor(dirOut, cell, slot);
+      const a = centres[place]!, c = (wrapped ? row * slotLen : 0) + (j + 0.5) * slot;
+      const w = dirOut === 'right' ? run.size : Math.min(options.maxBox.w, slot * 0.9);
+      const h = dirOut === 'right' ? Math.min(options.maxBox.h, slot * 0.7) : run.size;
       const cx = dirOut === 'right' ? inner.x + a : inner.x + c, cy = dirOut === 'right' ? inner.y + c : inner.y + a;
       nodes.set(id, { x: cx - w / 2, y: cy - h / 2, w, h, layer: li, ...(wrapped ? { row, rev } : {}) });
     });
