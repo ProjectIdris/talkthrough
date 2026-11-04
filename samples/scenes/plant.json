@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "A seedling: a stem that thickens toward the ground, two leaves, and a bulb of root below.",
+      "actions": [
+        { "op": "panel", "x": 560, "y": 160, "w": 420, "h": 560 },
+        { "op": "add", "shape": "blob", "id": "bulb", "pts": [[0, -1.5, 0], [0.3, -1.9, 0.1]], "sizes": [[1.6, 1.4, 1.5], [1.0, 1.0, 1.0]], "color": "orange", "material": "tissue" },
+        { "op": "add", "shape": "tube", "id": "stem", "pts": [[0, -1.0, 0], [-0.1, 0.4, 0], [0.1, 1.6, 0], [0.5, 2.6, 0]], "radius": 0.32, "swell": [[0, 1], [1, 0.35]], "color": "green", "material": "tissue", "at": 0.4 }
+      ]
+    },
+    {
+      "say": "Each leaf is a flat soft lump, long and thin, hanging off the stem.",
+      "actions": [
+        { "op": "add", "shape": "blob", "id": "leaf1", "pts": [[1.2, 1.0, 0], [2.0, 1.25, 0]], "sizes": [[2.2, 0.35, 1.0], [1.6, 0.3, 0.7]], "color": "green", "material": "tissue", "rot": [0, 0, 12] },
+        { "op": "add", "shape": "blob", "id": "leaf2", "pts": [[-1.1, 1.8, 0], [-1.9, 2.1, 0]], "sizes": [[2.0, 0.32, 0.9], [1.5, 0.3, 0.7]], "color": "green", "material": "tissue", "rot": [0, 0, -14], "at": 0.5 },
+        { "op": "pin", "id": "p1", "on": "leaf1", "text": "Leaf", "at": 1 },
+        { "op": "pin", "id": "p2", "on": "stem", "text": "Stem", "at": 1.4 }
+      ]
+    }
+  ]
+}

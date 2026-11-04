@@ -1125,6 +1125,7 @@
             "glass",
             "glow",
             "paper",
+            "tissue",
             null
           ],
           "description": "surface, default plastic"
@@ -1260,6 +1261,7 @@
             "glass",
             "glow",
             "paper",
+            "tissue",
             null
           ],
           "description": "surface, default plastic"
@@ -1399,6 +1401,7 @@
             "glass",
             "glow",
             "paper",
+            "tissue",
             null
           ],
           "description": "surface, default plastic"
@@ -1443,6 +1446,141 @@
       ],
       "additionalProperties": false,
       "description": "A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides (default 48) makes it faceted."
+    },
+    "addBlob": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "blob"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "1 to 12 points [x,y,z]"
+        },
+        "sizes": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "1 to 12 points [x,y,z]"
+        },
+        "soft": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.05 to 1"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "explode",
+        "pos",
+        "rot",
+        "pts",
+        "sizes",
+        "soft",
+        "color",
+        "material",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A soft organic form blended from up to 12 ellipsoid lumps, each at a point of pts with its own box size [x,y,z] in sizes (the same count, or the last is repeated): a heart or other organ, a fruit, an animal body or head, a leaf. Lumps that overlap melt into one skin with smooth necks; soft (0.05 to 1, default 0.5) is how far they blend. Build one form per blob and join forms with tube."
     },
     "addTube": {
       "type": "object",
@@ -1498,6 +1636,19 @@
           ],
           "description": "0.05 to 1"
         },
+        "swell": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "2 to 8 points [x,y], each 0 to 10"
+        },
         "color": {
           "type": [
             "string",
@@ -1514,6 +1665,7 @@
             "glass",
             "glow",
             "paper",
+            "tissue",
             null
           ],
           "description": "surface, default plastic"
@@ -1549,6 +1701,7 @@
         "pts",
         "radius",
         "flat",
+        "swell",
         "color",
         "material",
         "draw",
@@ -1556,7 +1709,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A smooth tube through the points: cables, pipes, vessels. flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn."
+      "description": "A smooth tube through the points: cables, pipes, vessels, stems, limbs. flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail."
     },
     "addPath": {
       "type": "object",
@@ -2971,6 +3124,9 @@
         },
         {
           "$ref": "#/$defs/addLathe"
+        },
+        {
+          "$ref": "#/$defs/addBlob"
         },
         {
           "$ref": "#/$defs/addTube"

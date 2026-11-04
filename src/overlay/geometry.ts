@@ -7,14 +7,15 @@ import {
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { BLOB_CELLS } from './blob.ts';
 import { catmull } from './timeline.ts';
 import type { Vec2, Vec3 } from '../scene/types.ts';
 
-export type Detail = { curve: number; bevel: number; radial: number; tube: number };
+export type Detail = { curve: number; bevel: number; radial: number; tube: number; blob: number };
 export const DETAIL: Record<'low' | 'mid' | 'high', Detail> = {
-  low: { curve: 20, bevel: 2, radial: 10, tube: 8 },
-  mid: { curve: 36, bevel: 3, radial: 14, tube: 12 },
-  high: { curve: 64, bevel: 5, radial: 24, tube: 18 },
+  low: { curve: 20, bevel: 2, radial: 10, tube: 8, blob: BLOB_CELLS.low },
+  mid: { curve: 36, bevel: 3, radial: 14, tube: 12, blob: BLOB_CELLS.mid },
+  high: { curve: 64, bevel: 5, radial: 24, tube: 18, blob: BLOB_CELLS.high },
 };
 
 /** The default rounding of a box edge: a small fraction of its smallest side, so parts look moulded rather than cut. */
@@ -72,12 +73,29 @@ export function samplePath(pts: readonly Vec3[], smooth: boolean, perSegment: nu
 const UP = new Vector3(0, 1, 0);
 const FORWARD = new Vector3(0, 0, 1);
 
+/** The radius factor a swell profile of [along 0..1, factor] points gives at `t` along a tube: smooth between the points, held beyond the ends, never below a sliver. */
+export function swellAt(swell: readonly Vec2[], t: number): number {
+  const pts = [...swell].sort((a, b) => a[0] - b[0]);
+  const first = pts[0] as Vec2, last = pts[pts.length - 1] as Vec2;
+  if (t <= first[0]) return Math.max(0.02, first[1]);
+  if (t >= last[0]) return Math.max(0.02, last[1]);
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i] as Vec2, b = pts[i + 1] as Vec2;
+    if (t >= a[0] && t <= b[0]) {
+      const u = b[0] > a[0] ? (t - a[0]) / (b[0] - a[0]) : 1;
+      const s = u * u * (3 - 2 * u);
+      return Math.max(0.02, a[1] + (b[1] - a[1]) * s);
+    }
+  }
+  return Math.max(0.02, last[1]);
+}
+
 /**
  * A tube along the sampled points. `flat` squashes it into a ribbon whose wide side runs across the
  * path (across x for a path going up or along z, across z for a path going along x), so a cable seen from the front shows its width.
  * The index runs ring after ring, so `drawRange` reveals it from the start.
  */
-export function tubeGeometry(path: readonly Vec3[], radius: number, flat: number, radial: number): BufferGeometry {
+export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: number, radial: number, swell?: readonly Vec2[]): BufferGeometry {
   const rings = path.length;
   const pos: number[] = [];
   const nor: number[] = [];
@@ -99,6 +117,7 @@ export function tubeGeometry(path: readonly Vec3[], radius: number, flat: number
     wide.crossVectors(tangent, ref).normalize();
     thin.crossVectors(wide, tangent).normalize();
     centre.set(p[0], p[1], p[2]);
+    const radius = baseRadius * (swell ? swellAt(swell, rings > 1 ? i / (rings - 1) : 0) : 1);
     for (let j = 0; j <= radial; j++) {
       const ang = (j / radial) * Math.PI * 2;
       const c = Math.cos(ang), s = Math.sin(ang);

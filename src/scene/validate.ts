@@ -311,6 +311,15 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', path, 'spin needs rpm or by');
     return null;
   }
+  if (variant.name === 'addBlob') {
+    // One size for each lump: a short list repeats its last, a long one is cut.
+    const pts = out.pts as unknown[];
+    const sizes = out.sizes as unknown[];
+    if (sizes.length !== pts.length) {
+      note(notes, 'trimmed', `${path}.sizes`, `sizes made to ${pts.length} (one for each point)`);
+      out.sizes = Array.from({ length: pts.length }, (_, i) => sizes[Math.min(i, sizes.length - 1)]);
+    }
+  }
   if (variant.name === 'card') {
     const rows = out.rows as string[] | undefined;
     if (out.title === undefined && (!rows || rows.length === 0)) {

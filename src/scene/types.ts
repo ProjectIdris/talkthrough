@@ -62,7 +62,7 @@ export type DiagramThing = DiagramAction | DiagramPiece;
 export type PanelAction = { op: 'panel'; x: number; y: number; w: number; h: number; frame?: boolean } & Timing;
 
 // 3D objects, added to the stage. Units: y up, x right, z toward the viewer.
-export type Material = 'plastic' | 'metal' | 'rubber' | 'pcb' | 'glass' | 'glow' | 'paper';
+export type Material = 'plastic' | 'metal' | 'rubber' | 'pcb' | 'glass' | 'glow' | 'paper' | 'tissue';
 type Surface = { color?: Color; material?: Material; edges?: boolean; opacity?: number };
 export type SolidShape = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'plane';
 export type AddSolid = {
@@ -74,8 +74,11 @@ export type AddExtrude = {
 export type AddLathe = {
   op: 'add'; shape: 'lathe'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; profile: Vec2[]; sides?: number;
 } & Surface & At;
+export type AddBlob = {
+  op: 'add'; shape: 'blob'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[]; sizes: Vec3[]; soft?: number;
+} & Surface & At;
 export type AddTube = {
-  op: 'add'; shape: 'tube'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; radius: number; flat?: number; draw?: number;
+  op: 'add'; shape: 'tube'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; radius: number; flat?: number; swell?: Vec2[]; draw?: number;
 } & Surface & At;
 export type AddPath = {
   op: 'add'; shape: 'line' | 'arrow'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; color?: Color; draw?: number; opacity?: number;
@@ -94,7 +97,7 @@ export type AddText = {
 } & At;
 export type AddGroup = { op: 'add'; shape: 'group'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3 } & At;
 
-export type AddAction = AddSolid | AddExtrude | AddLathe | AddTube | AddPath | AddPart | AddArray | AddText | AddGroup;
+export type AddAction = AddSolid | AddExtrude | AddLathe | AddBlob | AddTube | AddPath | AddPart | AddArray | AddText | AddGroup;
 
 // Tweens and changes on existing ids.
 export type MoveAction = { op: 'move'; id: string; to: Vec3 } & Timing;

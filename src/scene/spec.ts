@@ -29,6 +29,9 @@ export const LIMITS = {
   /** Corners of a screen polygon, and points of a traced curve. */
   maxPoly: 24,
   maxTrace: 40,
+  /** Lumps one soft blob is blended from, and the points of a tube's radius profile. */
+  maxLumps: 12,
+  maxSwell: 8,
   /** Copies one `array` may make, and the copies all arrays may make together in a scene. */
   maxArray: 64,
   maxCopies: 400,
@@ -78,10 +81,10 @@ export type Field =
   | { k: 'vec3'; min: number; max: number; opt?: boolean; doc?: string }
   | { k: 'vec2'; min: number; max: number; opt?: boolean; doc?: string }
   /** A list of [x,y] points (an outline or a profile). */
-  | { k: 'pts2'; min: number; max: number; lo: number; hi: number; doc?: string }
+  | { k: 'pts2'; min: number; max: number; lo: number; hi: number; opt?: boolean; doc?: string }
   /** A short list of short texts. */
   | { k: 'strs'; max: number; len: number; opt?: boolean; doc?: string }
-  | { k: 'pts'; min: number; max: number; lo: number; hi: number; doc?: string }
+  | { k: 'pts'; min: number; max: number; lo: number; hi: number; opt?: boolean; doc?: string }
   | { k: 'enum'; values: readonly string[]; opt?: boolean; doc?: string };
 
 export type Variant = {
@@ -113,7 +116,7 @@ const ROT: Field = { k: 'vec3', min: -3600, max: 3600, opt: true, doc: 'degrees 
 const EXPLODE: Field = { k: 'vec3', ...WORLD, opt: true, doc: 'where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it' };
 
 /** The surfaces a 3D object can be made of; the colour tints them. */
-export const MATERIALS = ['plastic', 'metal', 'rubber', 'pcb', 'glass', 'glow', 'paper'] as const;
+export const MATERIALS = ['plastic', 'metal', 'rubber', 'pcb', 'glass', 'glow', 'paper', 'tissue'] as const;
 const MATERIAL: Field = { k: 'enum', values: MATERIALS, opt: true, doc: 'surface, default plastic' };
 const BEVEL: Field = { k: 'num', min: 0, max: 20, opt: true, doc: 'rounding of the edges in units (default small)' };
 const EDGES: Field = { k: 'bool', opt: true, doc: 'dark edge lines (default true)' };
@@ -279,12 +282,23 @@ export const VARIANTS: readonly Variant[] = [
     },
   },
   {
+    name: 'addBlob', op: 'add', shapes: ['blob'], creates: 'solid',
+    doc: 'A soft organic form blended from up to 12 ellipsoid lumps, each at a point of pts with its own box size [x,y,z] in sizes (the same count, or the last is repeated): a heart or other organ, a fruit, an animal body or head, a leaf. Lumps that overlap melt into one skin with smooth necks; soft (0.05 to 1, default 0.5) is how far they blend. Build one form per blob and join forms with tube.',
+    fields: {
+      shape: { k: 'enum', values: ['blob'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      pts: { k: 'pts', min: 1, max: LIMITS.maxLumps, lo: WORLD.min, hi: WORLD.max },
+      sizes: { k: 'pts', min: 1, max: LIMITS.maxLumps, lo: 0.01, hi: 100 },
+      soft: { k: 'num', min: 0.05, max: 1, opt: true }, color: COLOR_OPT, material: MATERIAL, opacity: OPACITY, at: AT,
+    },
+  },
+  {
     name: 'addTube', op: 'add', shapes: ['tube'], creates: 'path',
-    doc: 'A smooth tube through the points: cables, pipes, vessels. flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn.',
+    doc: 'A smooth tube through the points: cables, pipes, vessels, stems, limbs. flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail.',
     fields: {
       shape: { k: 'enum', values: ['tube'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE,
       pts: { k: 'pts', min: 2, max: LIMITS.maxPts, lo: WORLD.min, hi: WORLD.max },
       radius: { k: 'num', min: 0.01, max: 20 }, flat: { k: 'num', min: 0.05, max: 1, opt: true },
+      swell: { k: 'pts2', min: 2, max: LIMITS.maxSwell, lo: 0, hi: 10, opt: true },
       color: COLOR_OPT, material: MATERIAL, draw: DRAW, opacity: OPACITY, at: AT,
     },
   },

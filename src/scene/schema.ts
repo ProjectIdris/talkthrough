@@ -34,10 +34,10 @@ function fieldSchema(f: Field, descriptions: boolean): Schema {
     case 'enum': s = { enum: opt ? [...f.values, null] : [...f.values] }; break;
     case 'bool': s = { type: nullable('boolean') }; break;
     case 'vec2': s = { type: nullable('array'), items: { type: 'number' } }; break;
-    case 'pts2': s = { type: 'array', items: { type: 'array', items: { type: 'number' } } }; break;
+    case 'pts2': s = { type: nullable('array'), items: { type: 'array', items: { type: 'number' } } }; break;
     case 'strs': s = { type: nullable('array'), items: { type: 'string' } }; break;
     case 'vec3': s = { type: nullable('array'), items: { type: 'number' } }; break;
-    case 'pts': s = { type: 'array', items: { type: 'array', items: { type: 'number' } } }; break;
+    case 'pts': s = { type: nullable('array'), items: { type: 'array', items: { type: 'number' } } }; break;
   }
   const d = descriptions ? describe(f) : undefined;
   return d ? { ...s, description: d } : s;

@@ -14,6 +14,7 @@ import {
 } from 'three';
 import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
+import { blobGeometry } from './blob.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, samplePath, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { TIERS, applySurface, makeSurface } from './materials.ts';
@@ -81,7 +82,7 @@ type Node = {
   /** Named points of a ready-made part, in its own space. */
   anchors?: Record<string, Vec3>;
   /** For tubes, lines and arrows: what is needed to draw them part way. */
-  path?: { geo: BufferGeometry; sampled: Vec3[]; head: Mesh | undefined };
+  path?: { geo: BufferGeometry; sampled: Vec3[]; head: Mesh | undefined; /** A tube thick for its length (a stem, a vessel, a limb, a pipe): part of the body, not a trailing cable. */ body: boolean };
 };
 
 type AddMesh = (geo: BufferGeometry, surface: string | undefined, edges: boolean) => Mesh;
@@ -201,7 +202,7 @@ export class PanelScene {
       }
       case 'text': this.buildText(node, o); break;
       case 'tube': case 'line': case 'arrow': this.buildPath(node, o, addMesh); break;
-      default: node.obj = addMesh(this.solidGeometry(def), material, 'edges' in def ? def.edges !== false : true);
+      default: node.obj = addMesh(this.solidGeometry(def), material, def.shape !== 'blob' && ('edges' in def ? def.edges !== false : true));
     }
     if (node.obj instanceof Sprite) node.baseScale = node.obj.scale.clone();
     return node;
@@ -255,6 +256,10 @@ export class PanelScene {
         const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number };
         return extrudeGeometry(e.outline, e.depth, e.bevel ?? Math.min(0.1, e.depth * 0.2), d);
       }
+      case 'blob': {
+        const b = def as { pts: Vec3[]; sizes: Vec3[]; soft?: number };
+        return blobGeometry(b.pts, b.sizes, b.soft ?? 0.5, d.blob);
+      }
       case 'lathe': {
         const l = def as { profile: Array<[number, number]>; sides?: number };
         return latheGeometry(l.profile, l.sides ?? d.curve);
@@ -267,11 +272,11 @@ export class PanelScene {
   }
 
   private buildPath(node: Node, o: ObjectFrame, addMesh: AddMesh): void {
-    const def = o.def as { shape: string; pts: Vec3[]; radius?: number; flat?: number; material?: string };
+    const def = o.def as { shape: string; pts: Vec3[]; radius?: number; flat?: number; swell?: Array<[number, number]>; material?: string };
     const tube = def.shape === 'tube';
     const sampled = samplePath(def.pts, tube, this.detail.tube);
     const radius = tube ? def.radius ?? PATH_RADIUS : PATH_RADIUS;
-    const geo = tubeGeometry(sampled, radius, tube ? def.flat ?? 1 : 1, this.detail.radial);
+    const geo = tubeGeometry(sampled, radius, tube ? def.flat ?? 1 : 1, this.detail.radial, tube ? def.swell : undefined);
     const mesh = addMesh(geo, tube ? def.material : 'plastic', false);
     const group = new Group();
     group.add(mesh);
@@ -281,7 +286,9 @@ export class PanelScene {
       group.add(head);
     }
     node.obj = group;
-    node.path = { geo, sampled, head };
+    let length = 0;
+    for (let i = 1; i < sampled.length; i++) length += Math.hypot(sampled[i]![0] - sampled[i - 1]![0], sampled[i]![1] - sampled[i - 1]![1], sampled[i]![2] - sampled[i - 1]![2]);
+    node.path = { geo, sampled, head, body: tube && radius >= 0.04 * length };
   }
 
   private buildText(node: Node, o: ObjectFrame): void {
@@ -506,7 +513,7 @@ export class PanelScene {
   private modelSphere(): { center: Vector3; radius: number } | undefined {
     const spheres: Sphere[] = [];
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || node.path) continue;
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
       for (const p of node.pieces) {
         const mesh = p.object as Mesh;
         const geo = mesh.geometry;
@@ -534,7 +541,7 @@ export class PanelScene {
     const box = new Box3();
     const corner = new Vector3();
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || node.path) continue;
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
       box.setFromObject(node.obj);
       if (box.isEmpty()) continue;
       for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) far = Math.max(far, corner.set(x, y, z).distanceTo(from));
@@ -547,7 +554,7 @@ export class PanelScene {
     this.box.makeEmpty();
     this.hasBox = false;
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || node.path) continue;
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
       const b = new Box3().setFromObject(node.obj);
       if (!b.isEmpty()) {
         this.box.union(b);
