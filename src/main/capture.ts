@@ -32,8 +32,12 @@ export async function captureDisplay(display: Display, maxEdge = 1280): Promise<
     types: ['screen'],
     thumbnailSize: { width: Math.round(nativeWidth * scale), height: Math.round(nativeHeight * scale) },
   });
-  const source = sources.find((s) => s.display_id === String(display.id)) ?? sources[0];
-  if (!source) throw new Error('no screen source was offered for capture');
+  // Match by display id; when the system leaves it empty, by position in the display list, never by
+  // guessing: the marks are mapped to this display, so the wrong screen would put them on the wrong picture.
+  const byId = sources.find((s) => s.display_id === String(display.id));
+  const index = screen.getAllDisplays().findIndex((d) => d.id === display.id);
+  const source = byId ?? (sources.every((s) => s.display_id === '') ? sources[index] : undefined);
+  if (!source) throw new Error('could not tell which captured screen is the display under the pointer');
   const image = source.thumbnail;
   const final = image.getSize();
   return {

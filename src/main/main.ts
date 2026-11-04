@@ -17,6 +17,7 @@ const options = parseArgs(process.argv.slice(1));
 // The GPU is reserved for other work for now: software rendering unless asked. WebGL still works
 // (it falls back to the system's software rasteriser; no extra Chromium flag is needed).
 if (!options.gpu && process.env.TALKTHROUGH_GPU !== '1') app.disableHardwareAcceleration();
+if (options.grab && options.grab.scaleFactor !== 1) app.commandLine.appendSwitch('force-device-scale-factor', String(options.grab.scaleFactor));
 if (options.fakeMic) {
   app.commandLine.appendSwitch('use-fake-device-for-media-stream');
   app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
@@ -27,16 +28,20 @@ const log = (message: string) => console.log(`[talkthrough +${((performance.now(
 
 const preload = join(__dirname, 'preload.cjs');
 const audioPreload = join(__dirname, 'audio-preload.cjs');
-const overlayPage = process.env.TALKTHROUGH_OVERLAY_PAGE ?? join(__dirname, '..', 'overlay', 'index.html');
+// A stand-in overlay page may be named for development only; a packaged app always loads its own.
+const overlayPage = (!app.isPackaged && process.env.TALKTHROUGH_OVERLAY_PAGE) || join(__dirname, '..', 'overlay', 'index.html');
 const audioPage = join(__dirname, '..', 'audio', 'index.html');
 
-if (!options.grab && !app.requestSingleInstanceLock()) app.quit();
+// A second launch must not get as far as making windows or the key hook.
+const firstInstance = options.grab !== undefined || app.requestSingleInstanceLock();
+if (!firstInstance) app.exit(0);
 
 app.on('window-all-closed', () => {
   // Stay alive in the tray when every window is closed.
 });
 
 async function main(): Promise<void> {
+  if (!firstInstance) return;
   app.setName('Talkthrough');
   await app.whenReady();
   if (!existsSync(overlayPage)) throw new Error(`overlay page not found: ${overlayPage} (run npm run build)`);
@@ -79,7 +84,7 @@ async function main(): Promise<void> {
     tray.destroy();
     app.exit(0);
   };
-  const tray = createTray({ onQuit: quit, onPlaySample: () => playSample(screen.getPrimaryDisplay().id) });
+  const tray = createTray({ onQuit: quit, onClear: () => overlays.clearAll(), onPlaySample: () => playSample(screen.getPrimaryDisplay().id) });
 
   // The chord: capture the screen and record the question while held; on release, play a sample.
   let recording: { capture: Promise<Capture>; displayId: number; timer: NodeJS.Timeout; pressedAt: number } | null = null;

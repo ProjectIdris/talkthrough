@@ -9,7 +9,7 @@ import type { Scene } from '../scene/index.ts';
 import type { Options } from './args.ts';
 
 /**
- * Frame grabs: draws scenes in an offscreen window (nothing appears on any screen), at the
+ * Frame grabs: draws scenes in a hidden window (nothing appears on any screen), at the
  * requested moments, and writes one PNG per moment. The window is transparent, so a --backdrop
  * image is what shows behind the marks.
  */
@@ -29,11 +29,13 @@ export async function runGrab(grab: NonNullable<Options['grab']>, backdrop: stri
     show: false,
     width: grab.width,
     height: grab.height,
+    useContentSize: true,
     transparent: true,
     frame: false,
-    webPreferences: { preload: env.preload, contextIsolation: true, nodeIntegration: false, sandbox: true, offscreen: true },
+    // A hidden normal window, not an offscreen one: offscreen windows always render at a device scale
+    // of 1. The scale comes from the force-device-scale-factor switch (set in main before ready).
+    webPreferences: { preload: env.preload, contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
   });
-  window.webContents.setFrameRate(30);
   const display: DisplayInfo = {
     id: 0,
     bounds: { x: 0, y: 0, width: grab.width, height: grab.height },
@@ -73,7 +75,7 @@ export async function runGrab(grab: NonNullable<Options['grab']>, backdrop: stri
       await new Promise((r) => setTimeout(r, 120)); // one more paint after the renderer's own
       const image = await window.webContents.capturePage();
       const file = join(grab.out, `step${step}-t${String(t).replace('.', '_')}.png`);
-      writeFileSync(file, image.toPNG());
+      writeFileSync(file, image.toPNG({ scaleFactor: grab.scaleFactor }));
       written.push(file);
     }
   } finally {
