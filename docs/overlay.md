@@ -44,6 +44,8 @@ npx electron scripts/overlay-frames.cjs samples/scenes/bar-chart.json --out fram
     --steps 2:2.5,5:3.5 --backdrop samples/pages/bar-chart.svg
 ```
 
+Offscreen windows always render at a device scale of 1; add `--hidden --dpr 2` to render in a hidden window at another scale (the PNG is then at physical size).
+
 `samples/pages/` has a backdrop for each sample, drawn to the page layout the sample's marks were written against. A follow-up is rendered after its first scene with `--after samples/scenes/earth-layers.json`.
 
 ## Software rendering
