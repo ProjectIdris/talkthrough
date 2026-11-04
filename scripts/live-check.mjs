@@ -13,7 +13,7 @@
 // It prints the report line, what the answer drew and what snapping moved. It runs one app at a time and stops it at the end.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -64,14 +64,17 @@ mkdirSync(frames, { recursive: true });
 mkdirSync(data, { recursive: true });
 const env = { ...process.env, DISABLE_AUTOUPDATER: '1' };
 delete env.ELECTRON_RUN_AS_NODE;
+// The app's own output goes to a file, not a pipe: on Windows its console output is lost on a pipe.
+const logFile = join(out, 'run.log');
+const logFd = openSync(logFile, 'w');
 const run = spawnSync(process.execPath, [
   'scripts/start.mjs', '--hidden', '--silent-voice', '--self-chord', '--exit-after-chord', '1',
   '--settle-seconds', args.get('settle') ?? '20', '--log-steps', '--max-seconds', args.get('max') ?? '150',
   '--capture-image', resolve(page), '--backdrop', resolve(page), '--question', question,
   '--settings', settingsFile, '--user-data-dir', data, '--frames-dir', frames, '--frame-every', '2000',
-], { cwd: root, env, encoding: 'utf8', timeout: 240_000, maxBuffer: 64 * 1024 * 1024 });
-const log = `${run.stdout ?? ''}${run.stderr ?? ''}`;
-writeFileSync(join(out, 'run.log'), log);
+], { cwd: root, env, stdio: ['ignore', logFd, logFd], timeout: 240_000 });
+closeSync(logFd);
+const log = readFileSync(logFile, 'utf8');
 
 // 4. What came back.
 const lines = log.split('\n');
