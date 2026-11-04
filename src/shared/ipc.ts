@@ -2,6 +2,7 @@
 // (src/scene) before it sends it; the renderer draws what it is given and nothing else.
 // The preload script exposes `window.talkthrough` (TalkthroughApi) to the overlay page.
 
+import type { VoiceEvent } from '../adapters/http-voice.ts';
 import type { Action, Scene, Step } from '../scene/types.ts';
 
 export const CHANNEL = {
@@ -25,6 +26,12 @@ export const CHANNEL = {
   consent: 'tt:consent',
   /** overlay -> main: the user clicked "More detail": ask the detail model for a richer version of the scene on screen. */
   detail: 'tt:detail',
+  /** overlay -> main: say these words with the voice server ({ id, text }); the audio comes back as `voiceEvent`s with the same id. */
+  voiceSpeak: 'tt:voice-speak',
+  /** overlay -> main: stop speaking request `id`. */
+  voiceCancel: 'tt:voice-cancel',
+  /** main -> overlay: one piece of the audio of request `id` (a VoiceEvent). */
+  voiceEvent: 'tt:voice-event',
   /** overlay -> main: a piece of a pen stroke (Stroke), streamed as the pointer moves while the pen is on. */
   stroke: 'tt:stroke',
   /** overlay -> main: a Milestone, for latency measurement (the first mark drawn or word spoken of a live turn). */
@@ -54,6 +61,8 @@ export type DisplayInfo = {
   silent?: boolean;
   /** A detail model is set up: the page may offer "More detail" beside a finished model. */
   detail?: boolean;
+  /** A voice server is set up: the page speaks with it, and with the system voice when it is down or slow (see adapters/fallback-voice.ts). */
+  voice?: { firstAudioMs: number; cooldownMs: number };
 };
 
 /**
@@ -205,6 +214,12 @@ export interface TalkthroughSettingsApi {
 }
 
 export interface TalkthroughApi {
+  /** The voice server's audio, through main (only when DisplayInfo says there is one). */
+  voice: {
+    speak(id: number, text: string): void;
+    cancel(id: number): void;
+    onEvent(listener: (id: number, event: VoiceEvent) => void): void;
+  };
   /** Tell main the page is ready; main answers with onDisplay. */
   ready(): void;
   onDisplay(listener: (display: DisplayInfo) => void): void;

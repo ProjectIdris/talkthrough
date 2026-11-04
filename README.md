@@ -47,7 +47,7 @@ See [the scene language](docs/scene-language.md) for everything a model may draw
 Talkthrough is built from small, self-contained pieces, and each is a good first contribution:
 
 - **Model adapters:** connect another vision model (hosted or local).
-- **Voice adapters:** another text-to-speech voice.
+- **Voice adapters:** another text-to-speech voice (a local server reached by a URL in the settings is built in; see [docs/setup.md](docs/setup.md#voice)).
 - **Speech adapters:** another way to turn your spoken question into text.
 - **Scene primitives:** new things the model can draw.
 - **Mac and Linux:** the overlay, hotkey and capture layers.
@@ -107,7 +107,7 @@ Talkthrough starts the tool you already have and gives it no tools of its own: i
 3. **Model.** A vision model gets the screenshot, your question and the earlier turns of the thread, and answers in the **scene language**: timed steps, each with something to say and things to draw. The model can also say a question is beyond it.
 4. **Scene language.** A small JSON format (boxes, ovals, arrows, labels, and 3D shapes with tweens and camera moves). It is data, validated before anything is drawn; no code is ever run. See [docs/scene-language.md](docs/scene-language.md).
 5. **Renderer.** A transparent, click-through overlay draws marks over your screen and 3D models over the page with [three.js](https://threejs.org). A framed 3D panel is optional.
-6. **Voice.** Each step is spoken as it arrives; the default is your system voice.
+6. **Voice.** Each step is spoken as it arrives; the default is your system voice, or a local text-to-speech server you name in the settings (the system voice takes over if it is down or slow).
 
 Models, voices, speech recognition and backends are adapters in `src/adapters/`, so you can plug in your own. A question that is beyond the fast model can go to a **deeper backend** you point the app at (a plain HTTP address; see [docs/backend.md](docs/backend.md)): click the offer, or say "ask the backend".
 
@@ -117,6 +117,7 @@ Models, voices, speech recognition and backends are adapters in `src/adapters/`,
 | --- | --- |
 | Scene language, validator, streaming parser, JSON Schema | working, tested |
 | Model, voice, speech-to-text and backend interfaces; system voice; local speech-server client | working, tested |
+| Voice from a local HTTP text-to-speech server, streamed, with the system voice as the spare | working, tested against a fake server and in the app |
 | Overlay window, hotkey, screen capture, microphone, tray | working |
 | Models through your own Codex or Claude install, locked down to no tools | working, tested against stand-ins |
 | A speech recogniser that ships with the app | planned (today: a local server you point it at) |
@@ -135,7 +136,7 @@ Windows is the first platform.
 
 ## Privacy
 
-- **What leaves the app:** your screenshot and the text of your question go to the model you chose (see above), and your recording goes to the speech server whose address you set (meant to be on your own machine; none is built in). If you set a backend address, a question you hand to it also goes there with its screenshot, the earlier questions and what is on screen. Nothing else.
+- **What leaves the app:** your screenshot and the text of your question go to the model you chose (see above), and your recording goes to the speech server whose address you set (meant to be on your own machine; none is built in). If you set a backend address, a question you hand to it also goes there with its screenshot, the earlier questions and what is on screen. If you set a voice server address, the words of each spoken step go there. Nothing else.
 - **What Talkthrough keeps:** the screenshot and your recording live in memory only and are not written to disk in normal use (the development options `--save-capture`, `--save-pen` and `--frames-dir` save images). Your latest questions and answers stay in memory so a follow-up question works; they are gone when you quit. The one thing that is written to disk is an answer you pin (tray, or say "pin this"): its question, what was said and the scene go to a folder on your machine ([docs/pins.md](docs/pins.md)), and the screenshot only if you tick "Include the screenshot in pins". Nothing else is kept. The model tool you choose has its own policies.
 - **While a guided task runs**, a short list of what happened so far is kept in memory only, and gone when the guide ends.
 

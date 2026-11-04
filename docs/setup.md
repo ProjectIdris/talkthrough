@@ -46,6 +46,11 @@ A JSON file, `%APPDATA%\talkthrough\settings.json` (the app logs the exact path 
 | `speechLimitMs` | Sent to the speech server as `limit_ms`: how long its main recogniser may take before a quicker one answers. About 1000 suits a CPU-only server. | server's own |
 | `model` | `"codex"`, `"claude"` or `"openai"` | `"codex"` |
 | `codexModel` | Model name in your Codex catalog | `"gpt-6-luna"` |
+| `voiceServerUrl` | A local text-to-speech server that makes the voice (https, or a loopback address): the full address a request is POSTed to. Without it the system voice speaks. The words of each spoken step are sent there, and nothing else. See [Voice](#voice). | none |
+| `voiceServerVoice` | Which voice to ask the server for (sent as `voice`), if it has several | none |
+| `voiceFirstAudioMs` | How long the server has to make its first sound before the system voice speaks that step instead, 300 to 2,400 | `2000` |
+| `voiceCooldownMs` | How long the server is then left alone before it is tried again, 2,000 to 600,000 | `20000` |
+| `voiceTimeoutMs` | How long one spoken step may take in all, 5,000 to 120,000 | `30000` |
 | `backendUrl` | Where the optional deeper backend listens (https, or a loopback address). Without it there is no backend and nothing is sent anywhere else. See [backend.md](backend.md). | none |
 | `backendTimeoutMs` | How long to wait for the backend's answer, 5,000 to 900,000 | `180000` |
 | `codexFast` | Fast mode for the Codex process this app starts (uses more of your usage allowance; your own Codex settings are not touched) | `false` |
@@ -86,3 +91,18 @@ A quick answer is drawn with a small, fast model. If you set `detailRoute`, a **
 ## Speech
 
 Your question is recorded in memory, turned into text by a local recogniser, and thrown away. Talkthrough ships a client for a recogniser that runs as a small local HTTP server (`createLocalSpeechServerRecogniser`): `POST /transcribe` with raw 16 kHz mono float32 samples, answer `{"text": "..."}`, and `GET /health` to check it is up. The app never starts it; if the address does not answer, the overlay says so. A recogniser that ships with the app is planned.
+
+## Voice
+
+By default each step is spoken by your system voice. If you run a text-to-speech server of your own, set `voiceServerUrl` and the app speaks with that instead, falling back to the system voice whenever the server is down or slow. Nothing is built in: no address is ever tried unless you set one, and the app never starts or stops the server.
+
+What the server must do: accept `POST <voiceServerUrl>` with the JSON body `{"text": "...", "voice": "..."}` (`voice` only if you set `voiceServerVoice`) and answer `200` with audio, sent as it is made, in either of two forms:
+
+- a WAV stream (`Content-Type: audio/wav`): 8, 16, 24 or 32-bit integer PCM or 32-bit float, one or two channels. The length in the header may be real, zero or unknown (the audio then runs to the end of the response);
+- raw PCM (`Content-Type: audio/pcm; rate=24000; channels=1`): signed 16-bit little-endian.
+
+Any other answer is an error (a text body is shown in the log). The app asks for each step as soon as it arrives, so the next sentence is usually ready when the last one ends, and it starts playing after about a tenth of a second of sound has arrived.
+
+If the server does not make a sound within `voiceFirstAudioMs`, or answers an error, that step is spoken by the system voice, and the server is left alone for `voiceCooldownMs` so a down server costs one short wait, not one per step; then it is tried again. A stream that breaks half-way ends that step (it is not spoken again). Pick a first-sound limit well under the 2.5 seconds after which a step is drawn anyway.
+
+The log says, in numbers only, how long the first sound took after the words (`voice streamed: first sound 173 ms after the words`, and the same for `speech-synthesis`). The words are never logged.

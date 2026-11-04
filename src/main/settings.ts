@@ -23,6 +23,19 @@ export type Settings = {
   backendUrl?: string;
   /** How long to wait for the backend's answer, in milliseconds. */
   backendTimeoutMs?: number;
+  /**
+   * A text-to-speech server the voice is made by (https or a loopback address; see docs/setup.md for what it must do): the full
+   * address a POST goes to. Unset: the system voice. The words of each step are sent there, and nothing else.
+   */
+  voiceServerUrl?: string;
+  /** Which voice to ask the server for (sent as `voice`), if it has several. */
+  voiceServerVoice?: string;
+  /** How long the server has to make its first sound before the system voice speaks instead, in milliseconds. */
+  voiceFirstAudioMs: number;
+  /** How long the server is then left alone, in milliseconds. */
+  voiceCooldownMs: number;
+  /** How long one utterance may take in all, in milliseconds. */
+  voiceTimeoutMs: number;
   /** Explicit paths of the command-line tools; unset: found on PATH. */
   codexCommand?: string;
   claudeCommand?: string;
@@ -78,6 +91,9 @@ export const DEFAULT_SETTINGS: Settings = {
   effort: 'low',
   controlSnap: false,
   guideNavigation: false,
+  voiceFirstAudioMs: 2000,
+  voiceCooldownMs: 20_000,
+  voiceTimeoutMs: 30_000,
 };
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
@@ -114,6 +130,17 @@ export function loadSettings(path: string, warn: (message: string) => void = () 
     else warn('backendUrl must be https (or a loopback address); no backend is used');
   }
   if (typeof raw.backendTimeoutMs === 'number' && raw.backendTimeoutMs >= 5000 && raw.backendTimeoutMs <= 900_000) settings.backendTimeoutMs = Math.round(raw.backendTimeoutMs);
+  const voiceUrl = str(raw.voiceServerUrl);
+  if (voiceUrl) {
+    if (safeBaseUrl(voiceUrl)) settings.voiceServerUrl = voiceUrl;
+    else warn('voiceServerUrl must be https (or a loopback address); the system voice is used');
+  }
+  const voiceName = str(raw.voiceServerVoice);
+  if (voiceName && voiceName.length <= 80) settings.voiceServerVoice = voiceName;
+  // The first sound has to come within the player's own patience (2.5 s), or the step has moved on without it.
+  if (typeof raw.voiceFirstAudioMs === 'number' && raw.voiceFirstAudioMs >= 300 && raw.voiceFirstAudioMs <= 2400) settings.voiceFirstAudioMs = Math.round(raw.voiceFirstAudioMs);
+  if (typeof raw.voiceCooldownMs === 'number' && raw.voiceCooldownMs >= 2000 && raw.voiceCooldownMs <= 600_000) settings.voiceCooldownMs = Math.round(raw.voiceCooldownMs);
+  if (typeof raw.voiceTimeoutMs === 'number' && raw.voiceTimeoutMs >= 5000 && raw.voiceTimeoutMs <= 120_000) settings.voiceTimeoutMs = Math.round(raw.voiceTimeoutMs);
   const codex = str(raw.codexCommand);
   if (codex) settings.codexCommand = codex;
   const claude = str(raw.claudeCommand);

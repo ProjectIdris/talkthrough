@@ -26,6 +26,7 @@ import { createSession } from './session.ts';
 import { createSettingsWindow } from './settings-window.ts';
 import { createGuideNavigation } from './guide-nav.ts';
 import { createNavConsent } from './nav-consent.ts';
+import { createVoiceBridge } from './voice-bridge.ts';
 import { createNavigator } from './nav.ts';
 import { createHelper } from './ps-helper.ts';
 import { createUiaReader, toDisplayBoxes } from './uia.ts';
@@ -126,6 +127,14 @@ async function main(): Promise<void> {
   let session: ReturnType<typeof createSession> | null = null;
   // The person's say-so before the app acts for them (a yes first, a pause any time); only where it has hands at all.
   const navConsent = settings.guideNavigation && !options.captureImage ? createNavConsent() : undefined;
+  // A voice server, when the person has set one up (never in a development run that speaks nothing): the pages ask main for its audio.
+  const voice = settings.voiceServerUrl && !options.silentVoice
+    ? {
+      bridge: createVoiceBridge({ url: settings.voiceServerUrl, ...(settings.voiceServerVoice ? { voice: settings.voiceServerVoice } : {}), timeoutMs: settings.voiceTimeoutMs, log }),
+      firstAudioMs: settings.voiceFirstAudioMs,
+      cooldownMs: settings.voiceCooldownMs,
+    }
+    : undefined;
   const overlays = createOverlayManager({
     preload,
     page: overlayPage,
@@ -133,6 +142,7 @@ async function main(): Promise<void> {
     hideFromCapture: !options.visibleToCapture,
     hidden: options.hidden,
     silent: options.silentVoice,
+    ...(voice ? { voice } : {}),
     onReady: log,
     onDone: () => {
       session?.done();
