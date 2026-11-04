@@ -235,3 +235,51 @@ test('a tag keeps off the app\'s own buttons: where a button will be, no tag is 
   const all = board().place(1, { anchor, ...SIZE }, () => ({ ...env(), keepOut: [{ x: 0, y: 0, w: W, h: H }] }));
   assert.ok(all.rect.w > 0 && all.alpha > 0);
 });
+
+// The model's card (the frame drawn round it) is no place for a tag to straddle: a tag is wholly inside it, or the card is too small and the tag goes where it can.
+const CARD: Rect = { x: 700, y: 300, w: 700, h: 260 };
+const inCard = (r: Rect, c: Rect = CARD) => r.x >= c.x && r.y >= c.y && r.x + r.w <= c.x + c.w && r.y + r.h <= c.y + c.h;
+const cardEnv = () => {
+  const occ = new Occupancy(W, H);
+  occ.fillConvex([{ x: 940, y: 330 }, { x: 1160, y: 330 }, { x: 1160, y: 520 }, { x: 940, y: 520 }]); // the model, in the middle of the card
+  return { occ };
+};
+const cardAnchors: Pt[] = [{ x: 1000, y: 335 }, { x: 1100, y: 335 }, { x: 950, y: 420 }];
+
+test('with a card round the model, every tag is wholly inside it (none above its top edge)', () => {
+  const b = new LabelBoard();
+  b.beginFrame({ width: W, height: H, model: { x: 940, y: 330, w: 220, h: 190 }, dragging: false, now: 0, within: CARD });
+  const e = cardEnv();
+  const placed = cardAnchors.map((anchor, i) => b.place(i + 1, { anchor, w: 130, h: 32 }, () => e));
+  placed.forEach((p, i) => assert.ok(inCard(p.rect), `tag ${i} at ${JSON.stringify(p.rect)} is not inside the card`));
+});
+
+test('without a card the same tags are free to go above the model (so the card is what keeps them in)', () => {
+  const b = new LabelBoard();
+  b.beginFrame({ width: W, height: H, model: { x: 940, y: 330, w: 220, h: 190 }, dragging: false, now: 0 });
+  const e = cardEnv();
+  const placed = cardAnchors.map((anchor, i) => b.place(i + 1, { anchor, w: 130, h: 32 }, () => e));
+  assert.ok(placed.some((p) => !inCard(p.rect)), 'the check above would pass anyway');
+});
+
+test('a tag placed before the card was there is moved inside it once the card is', () => {
+  const b = new LabelBoard();
+  const e = cardEnv();
+  let clock = 0;
+  const frame = (within?: Rect) => b.beginFrame({ width: W, height: H, model: { x: 940, y: 330, w: 220, h: 190 }, dragging: false, now: (clock += 16), ...(within ? { within } : {}) });
+  frame();
+  const request = { anchor: cardAnchors[0] as Pt, w: 130, h: 32 };
+  const before = b.place(1, request, () => e).rect;
+  assert.equal(inCard(before), false, 'the setup: it sits outside');
+  for (let i = 0; i < 3; i++) { frame(CARD); b.place(1, request, () => e); }
+  for (let i = 0; i < 90 && b.moving; i++) { frame(CARD); b.place(1, request, () => e); }
+  assert.ok(inCard(b.place(1, request, () => e).rect));
+});
+
+test('a card too small for the tags does not leave them unplaced', () => {
+  const b = new LabelBoard();
+  const tiny: Rect = { x: 940, y: 330, w: 100, h: 20 };
+  b.beginFrame({ width: W, height: H, model: { x: 940, y: 330, w: 220, h: 190 }, dragging: false, now: 0, within: tiny });
+  const p = b.place(1, { anchor: cardAnchors[0] as Pt, w: 130, h: 32 }, () => cardEnv());
+  assert.ok(p.rect.w === 130 && p.rect.x >= 0 && p.rect.y >= 0);
+});

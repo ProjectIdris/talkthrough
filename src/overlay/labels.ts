@@ -144,7 +144,7 @@ export type PinRequest = { anchor: Pt; w: number; h: number; /** The author's wi
 /** `alpha` is below 1 while a tag that would have to cross another fades out and in at its new place. */
 export type Placement = { rect: Rect; attach: Pt; alpha: number };
 
-type Entry = { target: Rect; shown: Rect; request: PinRequest; seen: number; tangled?: number; fade?: { phase: 'out' | 'in'; alpha: number } };
+type Entry = { target: Rect; shown: Rect; request: PinRequest; seen: number; tangled?: number; /** Frames to wait before looking again for a place inside the card, after none was found. */ fitWait?: number; fade?: { phase: 'out' | 'in'; alpha: number } };
 
 const FADE_OUT_SECONDS = 0.12;
 const FADE_IN_SECONDS = 0.2;
@@ -204,14 +204,17 @@ export class LabelBoard {
   private modelAt: Rect | undefined;
   private tick = 0;
   private dragging = false;
+  /** The frame of the model's card, when it has one: a tag stays wholly inside it (it never straddles the card's edge or sits beside it). */
+  private within: Rect | undefined;
 
   /**
    * Called once per frame before the tags are placed. `model` is the rectangle the model fills; a long
    * move of it (or a window of another size) lays every tag out again, unless the user is dragging it
    * round, when tags stay put however far the model turns.
    */
-  beginFrame(info: { width: number; height: number; model: Rect | undefined; dragging: boolean; now: number }): void {
+  beginFrame(info: { width: number; height: number; model: Rect | undefined; dragging: boolean; now: number; within?: Rect }): void {
     this.tick++;
+    this.within = info.within;
     this.lastNow = this.now ?? info.now;
     this.now = info.now;
     if (info.width !== this.width || info.height !== this.height) {
@@ -326,7 +329,7 @@ export class LabelBoard {
       // Swap the centres, each tag keeping its own size.
       const at = (r: Rect, c: Rect): Rect => ({ x: Math.round(c.x + c.w / 2 - r.w / 2), y: Math.round(c.y + c.h / 2 - r.h / 2), w: r.w, h: r.h });
       const n1 = at(entry.target, other.target), n2 = at(other.target, entry.target);
-      const inside = (r: Rect) => r.x >= MARGIN && r.y >= MARGIN && r.x + r.w <= this.width - MARGIN && r.y + r.h <= this.height - MARGIN;
+      const inside = (r: Rect) => r.x >= MARGIN && r.y >= MARGIN && r.x + r.w <= this.width - MARGIN && r.y + r.h <= this.height - MARGIN && this.fits(r);
       if (!inside(n1) || !inside(n2) || overlaps(n1, n2, GAP)) continue;
       if (segmentsCross(a1, attachPoint(n1, a1), a2, attachPoint(n2, a2))) continue;
       if (segmentHitsRect(a1, attachPoint(n1, a1), n2) || segmentHitsRect(a2, attachPoint(n2, a2), n1)) continue;
@@ -346,6 +349,17 @@ export class LabelBoard {
     if (Number.isNaN(entry.target.x)) return;
     const others: Entry[] = [];
     for (const other of this.entries.values()) if (other !== entry && !Number.isNaN(other.target.x)) others.push(other);
+    // A tag that is not wholly inside the card (the card came later, or moved) is placed again, to a place inside it if there is one.
+    if (entry.fitWait) entry.fitWait--;
+    if (this.within && !this.fits(entry.target) && !entry.fitWait) {
+      const rect = this.scan(entry.request, env(), others.map((o) => o.target), others.map((o): [Pt, Pt] => [o.request.anchor, attachPoint(o.target, o.request.anchor)]), env().keepOut ?? [], true) ?? this.scan(entry.request, env(), others.map((o) => o.target), others.map((o): [Pt, Pt] => [o.request.anchor, attachPoint(o.target, o.request.anchor)]), [], true);
+      if (rect) {
+        entry.target = rect;
+        entry.tangled = 0;
+        return;
+      }
+      entry.fitWait = TANGLE_RETRY_FRAMES;
+    }
     // A tag on one of the app's buttons (they came after it was placed) moves at once, to a place off them if there is one.
     const keepOut = env().keepOut ?? [];
     if (keepOut.some((k) => overlaps(entry.target, k, KEEP_OUT_PAD))) {
@@ -386,11 +400,17 @@ export class LabelBoard {
   }
 
   private search(req: PinRequest, env: Env, placed: Rect[], leaders: Array<[Pt, Pt]>): Rect {
-    // Off the keep-out rectangles if any place is; with none, as if they were not there.
-    return this.scan(req, env, placed, leaders, env.keepOut ?? []) ?? this.scan(req, env, placed, leaders, []) ?? { x: Math.max(MARGIN, Math.min(this.width - req.w - MARGIN, req.anchor.x - req.w / 2)), y: Math.max(MARGIN, req.anchor.y - req.h - 30), w: req.w, h: req.h };
+    // Inside the card and off the keep-out rectangles if any place is; then inside the card alone; then off the keep-outs alone; with none, as if neither were there.
+    return (this.within ? this.scan(req, env, placed, leaders, env.keepOut ?? [], true) ?? this.scan(req, env, placed, leaders, [], true) : undefined) ?? this.scan(req, env, placed, leaders, env.keepOut ?? []) ?? this.scan(req, env, placed, leaders, []) ?? { x: Math.max(MARGIN, Math.min(this.width - req.w - MARGIN, req.anchor.x - req.w / 2)), y: Math.max(MARGIN, req.anchor.y - req.h - 30), w: req.w, h: req.h };
   }
 
-  private scan(req: PinRequest, env: Env, placed: Rect[], leaders: Array<[Pt, Pt]>, avoid: readonly Rect[]): Rect | undefined {
+  /** Whether a tag lies wholly inside the card (always, when there is no card). */
+  private fits(r: Rect): boolean {
+    const c = this.within;
+    return !c || (r.x >= c.x && r.y >= c.y && r.x + r.w <= c.x + c.w && r.y + r.h <= c.y + c.h);
+  }
+
+  private scan(req: PinRequest, env: Env, placed: Rect[], leaders: Array<[Pt, Pt]>, avoid: readonly Rect[], inCard = false): Rect | undefined {
     const s = this.height / 1080;
     const { anchor: a, w, h } = req;
     const hintAngle = req.hint && (req.hint.x !== 0 || req.hint.y !== 0) ? Math.atan2(req.hint.y, req.hint.x) : undefined;
@@ -403,6 +423,7 @@ export class LabelBoard {
         const cy = a.y + Math.sin(ang) * (dist * s + h / 2);
         const rect = { x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w, h };
         if (rect.x < MARGIN || rect.y < MARGIN || rect.x + w > this.width - MARGIN || rect.y + h > this.height - MARGIN) continue;
+        if (inCard && !this.fits(rect)) continue;
         if (placed.some((p) => overlaps(rect, p, GAP))) continue;
         if (avoid.some((k) => overlaps(rect, k, KEEP_OUT_PAD))) continue;
         const attach = attachPoint(rect, a);

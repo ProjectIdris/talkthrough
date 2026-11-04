@@ -171,6 +171,8 @@ let detailState: 'none' | 'asked' | 'running' | 'done' = 'none';
 let view: View = { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 };
 /** Where the model is on screen (for the pointer), and the stage's frame when it has one. */
 let modelRect: ScreenRect | undefined;
+/** The model's card, when the panel is drawn in a frame: tags stay inside it. */
+let cardRect: ScreenRect | undefined;
 // Whether the window is solid for the pointer (orbit.ts): worked out from where the pointer is and where the model is.
 const hold = createHold((over) => window.talkthrough.setInteractive(over));
 let pointerX = -1, pointerY = -1;
@@ -212,6 +214,7 @@ function draw(frame: Frame): void {
   renderer.clear();
   const rect = panelRect(frame.panel, view);
   modelRect = undefined;
+  cardRect = undefined;
   stageSize = undefined;
   if (rect && frame.panel) {
     const { x, y, w, h, alpha } = rect;
@@ -233,6 +236,7 @@ function draw(frame: Frame): void {
     const bounds = panelScene.screenBounds(view.width, view.height);
     if (bounds) {
       modelRect = frame.panel.frame ? { x, y, w, h } : bounds.model;
+      if (frame.panel.frame) cardRect = { x, y, w, h };
       const r = clampRect(bounds.drawn, 14);
       if (r.w > 0 && r.h > 0) {
         renderer.setViewport(0, 0, view.width, view.height);
@@ -259,7 +263,7 @@ function draw(frame: Frame): void {
     panelScene.sync(frame, 1);
   }
   placeExplode(frame);
-  board.beginFrame({ width: view.width, height: view.height, model: modelRect, dragging, now: labelClock() });
+  board.beginFrame({ width: view.width, height: view.height, model: modelRect, dragging, now: labelClock(), ...(cardRect ? { within: cardRect } : {}) });
   board.keep(new Set(frame.marks.filter((m) => m.mark.op === 'pin').map((m) => m.key)));
   const annotator = {
     view,
