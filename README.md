@@ -30,13 +30,13 @@ Everything below is drawn by the overlay from a small JSON scene a model writes.
 
 ![A timeline of 1066 drawn over the Battle of Hastings article, with the page's text boxed.](docs/media/frame-timeline.jpg)
 
-![A flow showing recursion, with the loop back drawn in.](docs/media/frame-flow.jpg)
+![A flow showing how recursion works, with the loop back drawn in.](docs/media/frame-flow.jpg)
 
 ![A supply and demand chart with a point on the exact crossing.](docs/media/frame-chart.jpg)
 
 ![An outline round a tilted square in a Pythagorean theorem figure.](docs/media/frame-outline.jpg)
 
-![Guide mode: a box on the control to click and a checklist of the moves.](docs/media/frame-guide.jpg)
+![Guide mode: a checklist of the moves ticks off as you make each click.](docs/media/frame-guide.jpg)
 
 *Frames from live answers replayed over the pages they were asked about; in the guide frame the checklist is hand-written.*
 
