@@ -2,7 +2,7 @@ import { createStubBackend } from '../adapters/backend.ts';
 import type { Backend } from '../adapters/backend.ts';
 import { ModelError } from '../adapters/model.ts';
 import { NO_KEY_MESSAGE } from '../adapters/openai-model.ts';
-import type { Model, ThreadTurn } from '../adapters/model.ts';
+import type { Model, ThreadTurn, Usage } from '../adapters/model.ts';
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
@@ -64,6 +64,8 @@ export type QuestionReport = {
   firstMarkMs?: number;
   firstWordMs?: number;
   steps: number;
+  /** What the model says the question cost, when it says. */
+  tokens?: Usage;
   /** The person circled something with the pen and the model was shown it. */
   circled?: boolean;
   escalate?: string;
@@ -173,6 +175,16 @@ export function createSession(deps: SessionDeps) {
     if (a.timer) clearTimeout(a.timer);
     a.timer = null;
     a.chord = true;
+    // The chord is complete, so a question is on its way: let the model load its instructions while it is
+    // spoken. Not for a follow-up, which continues a thread that already holds them.
+    const following = thread.length > 0 && now() - lastActivity < THREAD_WINDOW_MS;
+    if (!following) {
+      try {
+        deps.model().prime?.();
+      } catch (error) {
+        deps.log(`prime: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
     penFor = a;
     try {
       deps.setPen(a.displayId);
@@ -208,6 +220,7 @@ export function createSession(deps: SessionDeps) {
     asking?.abort();
     asking = controller;
     const model = deps.model();
+    let asked = false;
     const r: QuestionReport = { model: model.id, question: '', steps: 0 };
     report = r;
     const since = () => now() - releasedAt;
@@ -306,6 +319,7 @@ export function createSession(deps: SessionDeps) {
       };
       let escalate: string | undefined;
       let failure: unknown;
+      asked = true;
       try {
         for await (const out of model.ask({ question, screenshot: seen, ...(focus ? { focus } : {}), thread, schema: sceneSchemaLean, signal: controller.signal })) {
           r.firstPieceMs ??= since();
@@ -318,6 +332,8 @@ export function createSession(deps: SessionDeps) {
             shown.push(checked.step);
             r.firstStepMs ??= since();
             deps.send(a.displayId, { kind: 'step', step: checked.step });
+          } else if (out.type === 'usage') {
+            r.tokens = out.usage;
           } else {
             escalate = validateEscalate(out.reason).escalate;
           }
@@ -345,6 +361,7 @@ export function createSession(deps: SessionDeps) {
       lastActivity = now();
     } finally {
       if (penFor === a) penFor = null;
+      if (!asked) model.unprime?.(); // the chord came to nothing: the spare thread is let go (and counted)
       releaseFrame(a);
       if (asking === controller) asking = null;
       deps.log(`report ${JSON.stringify(deps.logText ? r : { ...r, question: r.question ? '(not logged)' : '' })}`);

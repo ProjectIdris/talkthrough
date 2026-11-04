@@ -88,10 +88,12 @@ test('steps stream in as they complete, split anywhere in the event stream, then
 test('the request is strict structured output on the given schema, streamed, not stored, with the key only in the header', async () => {
   await withServer((_req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-    res.end(sse('response.output_text.delta', { delta: '{"steps":[],"escalate":null}' }) + sse('response.completed'));
+    res.end(sse('response.output_text.delta', { delta: '{"steps":[],"escalate":null}' }) + sse('response.completed', { response: { usage: { input_tokens: 7000, output_tokens: 60, input_tokens_details: { cached_tokens: 6500 } } } }));
   }, async (baseUrl, seen) => {
+    const got = await collect(createOpenAIModel({ apiKey: () => KEY, baseUrl }));
+    assert.deepEqual(got.at(-1), { type: 'usage', usage: { input: 7000, cached: 6500, output: 60 } });
     await collect(createOpenAIModel({ apiKey: () => KEY, baseUrl, model: 'gpt-6-luna', serviceTier: 'fast' }));
-    const [r] = seen;
+    const r = seen[1];
     assert.equal(r?.url, '/v1/responses');
     assert.equal(r?.headers.authorization, `Bearer ${KEY}`);
     const body = r?.body as Record<string, any>;
