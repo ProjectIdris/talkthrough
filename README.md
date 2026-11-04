@@ -2,7 +2,7 @@
 
 **An AI that talks you through anything on your screen, and draws as it talks.**
 
-Hold a key and ask out loud. Talkthrough looks at your screen, points at what matters, builds live diagrams (rotatable 3D included), and walks you through it step by step, waiting for your click before the next one.
+Hold a key and ask out loud. Talkthrough looks at your screen, points at what matters, builds live diagrams (rotatable 3D included), and walks you through it step by step.
 
 <!-- demo GIF goes here -->
 > *Demo GIF coming with the first release.*
