@@ -129,7 +129,7 @@ test('a chord made for a check goes into the tracker, start then stop, and the r
   const log: string[] = [];
   const tracker = createChordTracker({ arm: () => log.push('arm'), start: () => log.push('start'), stop: () => log.push('stop') });
   const waiting: Array<() => void> = [];
-  const release = pressChord(tracker, { lead: KEY_RIGHT_CTRL, second: KEY_RIGHT_SHIFT }, 1500, (fn) => void waiting.push(fn));
+  const release = pressChord(tracker, { lead: KEY_RIGHT_CTRL, second: KEY_RIGHT_SHIFT, label: 'test' }, 1500, (fn) => void waiting.push(fn));
   assert.deepEqual(log, ['arm', 'start']);
   assert.equal(tracker.held, true);
   release();
@@ -138,7 +138,7 @@ test('a chord made for a check goes into the tracker, start then stop, and the r
   assert.deepEqual(log, ['arm', 'start', 'stop']);
 });
 
-test('nothing in the app sends key or mouse input to the system (only to its own windows): no keyToggle, keyTap, SendInput or the like in src', () => {
+test('nothing in the app sends key or mouse input to the system (only to its own windows): no keyToggle, keyTap, SendInput or the like in src or scripts', () => {
   const found: string[] = [];
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -147,6 +147,6 @@ test('nothing in the app sends key or mouse input to the system (only to its own
       else if (/\.(ts|mjs|cjs|js)$/.test(entry.name) && /\b(keyToggle|keyTap|SendInput|SendKeys|keybd_event|mouse_event)\b/.test(readFileSync(path, 'utf8'))) found.push(path);
     }
   };
-  walk(new URL('../src', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+  for (const dir of ['../src', '../scripts']) walk(new URL(dir, import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
   assert.deepEqual(found, []);
 });
