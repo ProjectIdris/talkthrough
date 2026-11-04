@@ -28,6 +28,7 @@ import { createGuideNavigation } from './guide-nav.ts';
 import { createConsentCard } from './consent-card.ts';
 import { electronCardWindow } from './consent-window.ts';
 import { createNavConsent } from './nav-consent.ts';
+import { createVoiceBridge } from './voice-bridge.ts';
 import { createNavigator } from './nav.ts';
 import { createHelper } from './ps-helper.ts';
 import { createUiaReader, toDisplayBoxes } from './uia.ts';
@@ -136,6 +137,14 @@ async function main(): Promise<void> {
       onAnswer: (yes) => void navConsent.answer(yes),
     })
     : undefined;
+  // A voice server, when the person has set one up (never in a development run that speaks nothing): the pages ask main for its audio.
+  const voice = settings.voiceServerUrl && !options.silentVoice
+    ? {
+      bridge: createVoiceBridge({ url: settings.voiceServerUrl, ...(settings.voiceServerVoice ? { voice: settings.voiceServerVoice } : {}), timeoutMs: settings.voiceTimeoutMs, log }),
+      firstAudioMs: settings.voiceFirstAudioMs,
+      cooldownMs: settings.voiceCooldownMs,
+    }
+    : undefined;
   const overlays = createOverlayManager({
     preload,
     page: overlayPage,
@@ -143,6 +152,7 @@ async function main(): Promise<void> {
     hideFromCapture: !options.visibleToCapture,
     hidden: options.hidden,
     silent: options.silentVoice,
+    ...(voice ? { voice } : {}),
     onReady: log,
     onDone: () => {
       session?.done();

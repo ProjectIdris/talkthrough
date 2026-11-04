@@ -10,6 +10,8 @@ import type { DisplayInfo, SceneMessage } from '../shared/ipc.ts';
 import type { Action, Scene } from '../scene/types.ts';
 import type { Voice } from '../adapters/voice.ts';
 import { createSpeechSynthesisVoice } from '../adapters/speech-synthesis-voice.ts';
+import { createServerVoice } from './server-voice.ts';
+import { timedVoice } from '../adapters/timed-voice.ts';
 import { AutoFade, fadeFrame } from './fade.ts';
 import { HudState } from './hud.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
@@ -123,7 +125,7 @@ if (tier === 'high') {
  */
 function chooseVoice(): Voice {
   if (typeof speechSynthesis === 'undefined') return createSilentVoice();
-  return createSpeechSynthesisVoice();
+  return timedVoice(createSpeechSynthesisVoice(), (line) => console.info(`talkthrough: ${line}`));
 }
 
 const hud = new HudState();
@@ -841,8 +843,14 @@ function applyScene(message: SceneMessage): void {
 }
 
 window.addEventListener('resize', resize);
+let serverVoiceSet = false;
 window.talkthrough.onDisplay((info) => {
   display = info;
+  // A voice server, with the system voice as its spare; a development run that speaks nothing overrides both.
+  if (info.voice && !serverVoiceSet) {
+    serverVoiceSet = true;
+    player.setVoice(createServerVoice(window.talkthrough.voice, info.voice, chooseVoice(), (line) => console.info(`talkthrough: ${line}`)));
+  }
   if (info.silent) player.setVoice(createSilentVoice());
   if (info.backdrop) {
     backdropEl.onload = () => request();

@@ -6,6 +6,7 @@ import { createButtonCatchers, validRects } from './button-catchers.ts';
 import type { ButtonCatchers, ButtonRect } from './button-catchers.ts';
 import { electronCatcherWindow } from './button-window.ts';
 import { createClickGuard, createKeyHold, ignoreMouse, keyWanted } from './interaction.ts';
+import type { VoiceBridge } from './voice-bridge.ts';
 
 /** A stroke piece sent just after the pen went off (the last points of a drag) still counts for this long. */
 const PEN_GRACE_MS = 500;
@@ -31,6 +32,8 @@ export type OverlayOptions = {
   onMilestone?: (milestone: Milestone) => void;
   /** Called when the user clicks the escalation offer. */
   onOffer?: (displayId: number) => void;
+  /** A voice server (the pages ask it for the audio of a step's words, and fall back to the system voice when it is down or slow). */
+  voice?: { bridge: VoiceBridge; firstAudioMs: number; cooldownMs: number };
   /** A detail model is set up (the page then offers "More detail"), and what to do when the user asks for it. */
   onDetail?: (displayId: number) => void;
 };
@@ -77,6 +80,7 @@ export function createOverlayManager(options: OverlayOptions) {
     if (options.backdrop) info.backdrop = options.backdrop;
     if (options.silent) info.silent = true;
     if (options.onDetail) info.detail = true;
+    if (options.voice) info.voice = { firstAudioMs: options.voice.firstAudioMs, cooldownMs: options.voice.cooldownMs };
     return info;
   }
 
@@ -102,6 +106,8 @@ export function createOverlayManager(options: OverlayOptions) {
         nodeIntegration: false,
         sandbox: true,
         backgroundThrottling: false,
+        // The voice server's audio plays without anyone pressing anything on the page.
+        autoplayPolicy: 'no-user-gesture-required',
       },
     });
     window.setAlwaysOnTop(true, 'screen-saver');
@@ -143,8 +149,11 @@ export function createOverlayManager(options: OverlayOptions) {
       }),
     };
     overlays.set(display.id, overlay);
+    // Its requests to the voice server go with it, instead of being left to run out their time.
+    const pageId = window.webContents.id;
     window.on('closed', () => {
       overlay.catchers.dispose();
+      options.voice?.bridge.cancelGroup(String(pageId));
       overlay.guard.release();
       overlay.engaged = false;
       overlays.delete(display.id);
@@ -218,6 +227,20 @@ export function createOverlayManager(options: OverlayOptions) {
     if (!overlay) return;
     overlay.buttons = validRects(list);
     syncCatchers(overlay);
+  });
+  // The voice server's audio, for the page that asked: a request is named by the page's window and its own number.
+  const voiceKey = (event: IpcMainEvent, id: number): string => `${event.sender.id}:${id}`;
+  ipcMain.on(CHANNEL.voiceSpeak, (event, request: unknown) => {
+    const r = request as { id?: unknown; text?: unknown } | null;
+    const bridge = options.voice?.bridge;
+    if (!bridge || !find(event) || !r || !Number.isSafeInteger(r.id) || typeof r.text !== 'string' || r.text.trim() === '') return;
+    const sender = event.sender, id = r.id as number;
+    bridge.speak(voiceKey(event, id), r.text, (e) => {
+      if (!sender.isDestroyed()) sender.send(CHANNEL.voiceEvent, id, e);
+    }, String(sender.id));
+  });
+  ipcMain.on(CHANNEL.voiceCancel, (event, id: unknown) => {
+    if (find(event) && Number.isSafeInteger(id)) options.voice?.bridge.cancel(voiceKey(event, id as number));
   });
   ipcMain.on(CHANNEL.detail, (event) => {
     const overlay = find(event);
@@ -306,6 +329,7 @@ export function createOverlayManager(options: OverlayOptions) {
       return [...overlays.keys()];
     },
     dispose(): void {
+      options.voice?.bridge.dispose();
       screen.off('display-added', sync);
       screen.off('display-removed', sync);
       screen.off('display-metrics-changed', sync);
