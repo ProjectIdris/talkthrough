@@ -14,6 +14,7 @@ import {
   MeshStandardMaterial, NotEqualStencilFunc, AlwaysStencilFunc, PlaneGeometry, Plane, ReplaceStencilOp, Vector3,
 } from 'three';
 import type { Material, Object3D, StencilOp } from 'three';
+import { hatched, sectionTone } from './materials.ts';
 import type { Frame } from './timeline.ts';
 
 /** What the cutting needs to know of a drawn object: its three.js root, its meshes, and how it looks just now. */
@@ -36,11 +37,6 @@ type PieceState = {
   helpers: Array<{ back: Mesh; front: Mesh; cap: Mesh; plane: Plane }>;
 };
 
-/** Cap faces get a plain matte tone from the part's own colour, a little paler, so the cut reads as a section. */
-function capTone(rgb: readonly number[], out: MeshStandardMaterial): void {
-  out.color.setRGB(Math.min(1, rgb[0]! / 255 * 0.8 + 0.2), Math.min(1, rgb[1]! / 255 * 0.8 + 0.2), Math.min(1, rgb[2]! / 255 * 0.8 + 0.2), 'srgb');
-}
-
 export class Cutaway {
   private states = new WeakMap<Object3D, PieceState>();
   private ownerPlanes = new Map<number, Plane>();
@@ -53,7 +49,7 @@ export class Cutaway {
    * Brings the clipping planes and caps in line with a frame. `nodes` are the drawn objects by key (the same keys as
    * the frame's objects); `content` holds them all.
    */
-  update(frame: Frame, nodes: ReadonlyMap<number, CutNode>, host: Object3D): void {
+  update(frame: Frame, nodes: ReadonlyMap<number, CutNode>, host: Object3D, toward: Vector3 = new Vector3(0, 0, 1)): void {
     const children = new Map<number, number[]>();
     for (const o of frame.objects) if (o.parentKey !== null) children.set(o.parentKey, [...(children.get(o.parentKey) ?? []), o.key]);
 
@@ -71,8 +67,13 @@ export class Cutaway {
       if (!this.box.isEmpty()) radius = Math.max(1, this.box.getSize(new Vector3()).length());
     }
     if (user > 0 && !this.box.isEmpty()) {
-      const front = this.box.max.z + 0.01, middle = (this.box.min.z + this.box.max.z) / 2;
-      this.userPlane.set(new Vector3(0, 0, -1), front - (front - middle) * Math.min(1, user));
+      // Along the way from the model to the camera: the front is the far end of the box that way, the middle is the box centre.
+      const u = toward.clone().normalize();
+      let front = -Infinity;
+      for (const x of [this.box.min.x, this.box.max.x]) for (const y of [this.box.min.y, this.box.max.y]) for (const z of [this.box.min.z, this.box.max.z]) front = Math.max(front, u.x * x + u.y * y + u.z * z);
+      front += 0.01;
+      const middle = u.dot(this.box.getCenter(new Vector3()));
+      this.userPlane.set(u.clone().negate(), front - (front - middle) * Math.min(1, user));
       for (const o of frame.objects) if (o.parentKey === null) give(o.key, this.userPlane);
     }
     const live = new Set<number>();
@@ -143,7 +144,7 @@ export class Cutaway {
         helper.back.renderOrder = this.order++;
         helper.front.renderOrder = this.order++;
         helper.cap.renderOrder = this.order++;
-        capTone(node.color, helper.cap.material as MeshStandardMaterial);
+        sectionTone(node.color, (helper.cap.material as MeshStandardMaterial).color);
         // The cap lies on the plane, large enough to cover the part, facing along it.
         const cap = helper.cap;
         const plane = helper.plane;
@@ -166,6 +167,7 @@ export class Cutaway {
       side: DoubleSide, roughness: 0.82, metalness: 0.02, stencilWrite: true, stencilRef: 0, stencilFunc: NotEqualStencilFunc,
       stencilFail: ReplaceStencilOp, stencilZFail: ReplaceStencilOp, stencilZPass: ReplaceStencilOp,
     });
+    hatched(capMaterial);
     const cap = new Mesh(this.slab, capMaterial);
     for (const m of [back, front, cap]) {
       m.castShadow = false;

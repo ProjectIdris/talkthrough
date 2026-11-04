@@ -371,8 +371,9 @@ export class PanelScene {
       }
     }
     this.scene.updateMatrixWorld(true);
-    this.cutaway.update(frame, this.nodes, this.scene);
     this.aim(frame, aspect, view, standBack);
+    // The person's Cut goes through the middle of the model from the side the camera looks from.
+    this.cutaway.update(frame, this.nodes, this.scene, this.camera.getWorldDirection(new Vector3()).negate());
     this.placeShadow(frame);
   }
 

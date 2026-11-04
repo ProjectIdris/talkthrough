@@ -163,7 +163,6 @@ function resize(): void {
   document.documentElement.style.height = `${height}px`;
   renderer.setPixelRatio(Math.min(dpr, settings.maxPixelRatio));
   renderer.setSize(width, height);
-  finishing?.setSize(width * renderer.getPixelRatio(), height * renderer.getPixelRatio());
   marksCanvas.width = Math.round(width * dpr);
   marksCanvas.height = Math.round(height * dpr);
   marksCanvas.style.width = `${width}px`;
@@ -210,8 +209,19 @@ function draw(frame: Frame): void {
         renderer.setViewport(0, 0, view.width, view.height);
         renderer.setScissor(r.x, view.height - r.y - r.h, r.w, r.h);
         renderer.setScissorTest(true);
-        if (finishing) finishing.render(panelScene.scene, panelScene.camera);
-        else renderer.render(panelScene.scene, panelScene.camera);
+        if (finishing?.fits(r)) {
+          try {
+            finishing.render(panelScene.scene, panelScene.camera, r, view);
+          } catch {
+            // The graphics stack would not run it: this tier goes on without, from the next frame.
+            finishing.dispose();
+            finishing = undefined;
+            renderer.setRenderTarget(null);
+            renderer.render(panelScene.scene, panelScene.camera);
+          }
+        } else {
+          renderer.render(panelScene.scene, panelScene.camera);
+        }
       }
     }
   } else {

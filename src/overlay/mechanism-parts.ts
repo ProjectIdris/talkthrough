@@ -6,13 +6,14 @@
 // docs/scene-language.md, "The mechanism kit".
 
 import {
-  BufferGeometry, CatmullRomCurve3, CylinderGeometry, ExtrudeGeometry, InstancedMesh, LatheGeometry, Matrix4, Path, Shape, SphereGeometry, TorusGeometry, TubeGeometry, Vector2, Vector3,
+  BufferGeometry, CatmullRomCurve3, CylinderGeometry, ExtrudeGeometry, InstancedMesh, LatheGeometry, Matrix4, Path, PlaneGeometry, Shape, SphereGeometry, TorusGeometry, TubeGeometry, Vector2, Vector3,
 } from 'three';
 import { mergeGeometries, toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { AddPart, Vec3 } from '../scene/types.ts';
 import { boxGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { crankThrow, pistonPinDrop, rodEnds } from './mechanism-geometry.ts';
+import { SECTION } from './materials.ts';
 import { Builder, cyl } from './parts-base.ts';
 import type { Rgb } from './timeline.ts';
 
@@ -111,6 +112,11 @@ function cylinderBlock(b: Builder, def: AddPart, d: Detail): void {
   }
   const geo = slab(shape, sy, 0.02 * sy, d).rotateX(-Math.PI / 2);
   b.add(geo, 'cast', { tint: true, edges: true });
+  // The cut face of the half block: the two walls either side of the bore, hatched like a section drawing.
+  if (cut) {
+    const wall = sx / 2 - bore;
+    for (const side of [-1, 1]) b.add(new PlaneGeometry(wall, sy * 0.999), 'section', { color: SECTION, pos: [side * (bore + wall / 2), 0, 0.003], open: true });
+  }
   // Head bolts at the corners of the deck.
   const m = Math.min(sx, sz) * 0.11;
   const bz = cut ? [-(sz / 2 - m)] : [-(sz / 2 - m), sz / 2 - m];
@@ -237,27 +243,37 @@ function valve(b: Builder, def: AddPart, d: Detail): void {
 
 function camshaft(b: Builder, def: AddPart, d: Detail): void {
   const [sx, , sz] = def.size;
-  const rs = sx * 0.17;
-  const rBase = sx * 0.3;
+  const rs = sx * 0.15;
+  const rBase = sx * 0.27;
   const rNose = sx / 2;
   const n = Math.max(1, Math.min(def.n ?? 4, 12));
+  // The shaft runs the whole length with a bearing journal near each end, so a lobe sits on a shaft, not on a point.
   b.add(alongZ(cyl(rs, rs, sz, d.curve)), 'metal', { color: STEEL, edges: true });
+  for (const end of [-1, 1]) {
+    b.add(alongZ(cyl(rs * 1.3, rs * 1.3, sz * 0.1, d.curve)), 'metal', { color: BRIGHT, pos: [0, 0, end * sz * 0.4], edges: true });
+    b.add(alongZ(cyl(rs * 1.3, rs * 1.3, sz * 0.04, d.curve)), 'metal', { color: DARK_STEEL, pos: [0, 0, end * sz * 0.485] });
+  }
   const pitch = sz / n;
-  const lobeW = pitch * 0.34;
-  const steps = 48;
+  const lobeW = Math.min(pitch * 0.34, sz * 0.3);
+  // A real lobe: a round base circle over most of the turn, two smooth flanks rising to a rounded nose (a quarter turn
+  // either side of the nose is flank, the rest is base circle).
+  const steps = 72;
+  const flank = 64 * DEG;
   for (let i = 0; i < n; i++) {
     const s = new Shape();
     for (let k = 0; k < steps; k++) {
       const a = (k / steps) * Math.PI * 2;
-      const lift = Math.pow(Math.max(0, Math.cos(a - Math.PI / 2)), 5);
+      const away = Math.abs(Math.atan2(Math.sin(a - Math.PI / 2), Math.cos(a - Math.PI / 2)));
+      const lift = away >= flank ? 0 : 0.5 * (1 + Math.cos((Math.PI * away) / flank));
       const r = rBase + (rNose - rBase) * lift;
       if (k === 0) s.moveTo(Math.cos(a) * r, Math.sin(a) * r);
       else s.lineTo(Math.cos(a) * r, Math.sin(a) * r);
     }
     s.closePath();
     const z = -sz / 2 + pitch * (i + 0.5);
-    b.add(slab(s, lobeW, lobeW * 0.12, d), 'metal', { tint: true, pos: [0, 0, z], edges: true });
-    b.add(alongZ(cyl(rs * 1.5, rs * 1.5, lobeW * 0.5, d.curve)), 'metal', { color: DARK_STEEL, pos: [0, 0, z - pitch * 0.34] });
+    b.add(slab(s, lobeW, lobeW * 0.1, d), 'metal', { tint: true, pos: [0, 0, z], edges: true });
+    // The journal either side of the lobe, a little wider than the shaft.
+    for (const side of [-1, 1]) b.add(alongZ(cyl(rs * 1.35, rs * 1.35, lobeW * 0.35, d.curve)), 'metal', { color: DARK_STEEL, pos: [0, 0, z + side * (lobeW / 2 + lobeW * 0.17)] });
   }
   b.anchors['axis-front'] = [0, 0, sz / 2];
   b.anchors['axis-rear'] = [0, 0, -sz / 2];

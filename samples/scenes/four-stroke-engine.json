@@ -13,8 +13,8 @@
         },
         {
           "op": "orbit",
-          "az": -16,
-          "el": 10,
+          "az": -32,
+          "el": 12,
           "dur": 0
         },
         {
@@ -150,7 +150,7 @@
           "size": [
             1.3,
             1.3,
-            0.8
+            2.6
           ],
           "pos": [
             -0.75,
@@ -174,7 +174,7 @@
           "size": [
             1.3,
             1.3,
-            0.8
+            2.6
           ],
           "pos": [
             0.75,
@@ -218,9 +218,9 @@
           "shape": "sphere",
           "id": "burn",
           "size": [
-            1.9,
-            1.9,
-            1.9
+            2.2,
+            2.2,
+            2.2
           ],
           "pos": [
             0,
@@ -229,7 +229,27 @@
           ],
           "color": "orange",
           "material": "glow",
-          "opacity": 0.75,
+          "opacity": 1,
+          "edges": false
+        },
+        {
+          "op": "add",
+          "parent": "engine",
+          "shape": "sphere",
+          "id": "core",
+          "size": [
+            1.2,
+            1.2,
+            1.2
+          ],
+          "pos": [
+            0,
+            4.3,
+            0
+          ],
+          "color": "yellow",
+          "material": "glow",
+          "opacity": 1,
           "edges": false
         },
         {
@@ -238,9 +258,9 @@
           "shape": "sphere",
           "id": "spark",
           "size": [
-            0.55,
-            0.55,
-            0.55
+            0.7,
+            0.7,
+            0.7
           ],
           "pos": [
             0,
@@ -289,7 +309,14 @@
           "id": "burn",
           "by": "crank",
           "angle": 360,
-          "span": 170
+          "span": 200
+        },
+        {
+          "op": "flash",
+          "id": "core",
+          "by": "crank",
+          "angle": 360,
+          "span": 120
         },
         {
           "op": "flash",

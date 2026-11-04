@@ -91,6 +91,16 @@ test("the person's Cut control cuts the whole model from the front, through the 
   assert.equal(clipped(slab).length, 0);
 });
 
+test("the person's Cut stays on the side the camera looks from after the model is turned round", () => {
+  const behind: Frame = settle(planStep(emptyFrame(), step(...model, { op: 'orbit', az: 180, el: 0, dur: 0 })));
+  const scene = new PanelScene();
+  scene.sync({ ...behind, userCut: 1 }, 1);
+  const slab = scene.nodeOf(behind.objects.find((o) => o.id === 'slab')!.key)!;
+  const plane = (clipped(slab)[0] as Material).clippingPlanes![0]!;
+  // seen from behind (the camera at -z), the half nearest the camera is the back one
+  assert.ok(plane.distanceToPoint(new Vector3(0, 0, -3)) < 0 && plane.distanceToPoint(new Vector3(0, 0, 1)) > 0, 'the half toward the camera is gone');
+});
+
 test('removing a cut object takes its caps with it', () => {
   const cut = settle(planStep(emptyFrame(), step(...model, { op: 'cut', id: 'm', to: 0, dur: 0 })));
   const scene = new PanelScene();
