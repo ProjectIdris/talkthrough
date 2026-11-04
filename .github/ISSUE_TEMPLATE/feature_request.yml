@@ -1,0 +1,26 @@
+name: Feature idea
+description: Something Talkthrough could do
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: What would you like to be able to do?
+      description: Describe the situation ("I am looking at a spreadsheet and ask...") rather than the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: What would you expect to see or hear?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today instead?
+  - type: checkboxes
+    id: rule
+    attributes:
+      label: The rule
+      options:
+        - label: This does not need the model to run code. Anything it should draw can be said in the scene language (or needs a new primitive).
+          required: true

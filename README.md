@@ -25,7 +25,7 @@ Talkthrough is built from small, self-contained pieces, and each is a good first
 - **Scene primitives:** new things the model can draw.
 - **Mac and Linux:** the overlay, hotkey and capture layers.
 
-Start with `src/adapters/` (the three interfaces are a few lines each) and `docs/scene-language.md`.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) (how to run and test it, the seams, and the one rule: a model draws, it never runs code), then `src/adapters/` (the interfaces are a few lines each) and `docs/scene-language.md`.
 
 ## Quick start
 

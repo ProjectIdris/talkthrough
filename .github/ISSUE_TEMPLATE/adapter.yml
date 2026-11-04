@@ -1,0 +1,46 @@
+name: Adapter
+description: Propose or discuss a new model, speech recogniser or voice
+labels: ["adapter"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Adapters are the seams of the app: see "The seams" in CONTRIBUTING.md. Say what you plan to build before you build it, so nobody doubles up.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Which seam?
+      options:
+        - Model (a vision model that answers with scene steps)
+        - Speech to text (hearing the user)
+        - Voice (speaking the answer)
+        - Backend (a service behind docs/backend.md)
+    validations:
+      required: true
+  - type: input
+    id: target
+    attributes:
+      label: What does it connect to?
+      placeholder: "A local model server, a hosted API, an operating-system voice..."
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Where does the screenshot or the audio go?
+      description: Everything the adapter sends, and to whom. Models and recognisers see the user's screen and voice.
+    validations:
+      required: true
+  - type: textarea
+    id: lock
+    attributes:
+      label: How is it kept from doing more than answering?
+      description: For a model, how tools, file access and storage are off.
+  - type: dropdown
+    id: who
+    attributes:
+      label: Who will build it?
+      options:
+        - I will
+        - I would like help
+        - I am only suggesting it

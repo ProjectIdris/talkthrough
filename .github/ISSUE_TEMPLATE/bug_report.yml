@@ -1,0 +1,47 @@
+name: Bug report
+description: Something does not work, or works wrongly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. Please do not paste screenshots of private screens, API keys or the contents of your settings file.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you pressed, what you asked, what was on screen (a description is fine).
+    validations:
+      required: true
+  - type: dropdown
+    id: part
+    attributes:
+      label: Which part?
+      options:
+        - Hotkey, microphone or screen capture
+        - Speech recognition (hearing me)
+        - The model route (Codex, Claude Code, API key)
+        - The overlay (drawing, labels, 3D, pen)
+        - The voice
+        - The installer
+        - The backend or pinning
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and Windows version
+      placeholder: "Talkthrough 0.1.0, Windows 11 24H2"
+  - type: textarea
+    id: log
+    attributes:
+      label: Log lines
+      description: The app writes a log to the console when started with `npm start`. Paste only the lines that matter; remove anything private.
+      render: text
