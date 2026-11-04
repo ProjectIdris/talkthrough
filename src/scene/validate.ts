@@ -13,6 +13,8 @@ export type SceneState = {
   depth: Map<string, number>;
   turnSteps: number;
   turnActions: number;
+  /** Copies made by `array` actions so far. */
+  copies: number;
 };
 
 export type StepResult = { step: Step | null; issues: Issue[] };
@@ -25,7 +27,7 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 export function createSceneState(): SceneState {
-  return { ids: new Map(), parents: new Map(), depth: new Map(), turnSteps: 0, turnActions: 0 };
+  return { ids: new Map(), parents: new Map(), depth: new Map(), turnSteps: 0, turnActions: 0, copies: 0 };
 }
 
 /** Call at the start of each question's answer: the per-turn caps count from zero again. */
@@ -91,11 +93,24 @@ function parseVec3(v: unknown, min: number, max: number, path: string, notes: No
   return good(out);
 }
 
+function parseVec2(v: unknown, min: number, max: number, path: string, notes: Notes): Parsed {
+  if (!Array.isArray(v) || v.length !== 2) return bad('expected 2 numbers');
+  const out: number[] = [];
+  for (let i = 0; i < 2; i++) {
+    const n = v[i];
+    if (typeof n !== 'number' || !Number.isFinite(n)) return bad('expected 2 finite numbers');
+    out.push(clampNum(n, min, max, `${path}[${i}]`, notes));
+  }
+  return good(out);
+}
+
 function parseField(f: Field, v: unknown, path: string, state: SceneState, notes: Notes): Parsed {
   switch (f.k) {
     case 'num':
       if (typeof v !== 'number' || !Number.isFinite(v)) return bad('expected a finite number');
-      return good(clampNum(v, f.min, f.max, path, notes));
+      return good(clampNum(f.int ? Math.round(v) : v, f.min, f.max, path, notes));
+    case 'bool':
+      return typeof v === 'boolean' ? good(v) : bad('expected true or false');
     case 'str':
       return typeof v === 'string' ? cleanText(v, f.min, f.max, path, notes) : bad('expected text');
     case 'color':
@@ -111,7 +126,7 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       if (typeof v !== 'string') return bad('expected an id');
       const kind = state.ids.get(v);
       if (!kind) return bad(`unknown id "${v}"`);
-      return f.of === 'object3d' && kind === 'mark' ? bad(`"${v}" is a screen mark, not a 3D object`) : good(v);
+      return f.of === 'object3d' && (kind === 'mark' || kind === 'pin') ? bad(`"${v}" is a screen mark, not a 3D object`) : good(v);
     }
     case 'parent': {
       if (typeof v !== 'string') return bad('expected a group id');
@@ -123,6 +138,32 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       return (RESERVED_IDS as readonly string[]).includes(v) || state.ids.has(v) ? good(v) : bad(`unknown id "${v}"`);
     case 'vec3':
       return parseVec3(v, f.min, f.max, path, notes);
+    case 'vec2':
+      return parseVec2(v, f.min, f.max, path, notes);
+    case 'pts2': {
+      if (!Array.isArray(v) || v.length < f.min) return bad(`expected at least ${f.min} points`);
+      const src = v.length > f.max ? v.slice(0, f.max) : v;
+      if (v.length > f.max) note(notes, 'trimmed', path, `points cut to ${f.max}`);
+      const out: unknown[] = [];
+      for (let i = 0; i < src.length; i++) {
+        const p = parseVec2(src[i], f.lo, f.hi, `${path}[${i}]`, notes);
+        if (!p.ok) return bad(`point ${i}: ${p.why}`);
+        out.push(p.value);
+      }
+      return good(out);
+    }
+    case 'strs': {
+      if (!Array.isArray(v)) return bad('expected a list of texts');
+      const out: string[] = [];
+      for (let i = 0; i < v.length && out.length < f.max; i++) {
+        const item = v[i];
+        if (typeof item !== 'string') return bad(`row ${i}: expected text`);
+        const t = cleanText(item, 0, f.len, `${path}[${i}]`, notes);
+        if (t.ok && (t.value as string) !== '') out.push(t.value as string);
+      }
+      if (v.length > f.max) note(notes, 'trimmed', path, `rows cut to ${f.max}`);
+      return good(out);
+    }
     case 'pts': {
       if (!Array.isArray(v) || v.length < f.min) return bad(`expected at least ${f.min} points`);
       const src = v.length > f.max ? v.slice(0, f.max) : v;
@@ -150,6 +191,13 @@ function pickVariant(raw: object): Variant | string {
   return hit ?? `unknown shape for "${op}"`;
 }
 
+function isUnder(state: SceneState, id: string, ancestor: string): boolean {
+  for (let cur = state.parents.get(id), n = 0; cur !== undefined && n < 64; cur = state.parents.get(cur), n++) {
+    if (cur === ancestor) return true;
+  }
+  return false;
+}
+
 function removeWithDescendants(state: SceneState, id: string): void {
   const doomed = new Set([id]);
   for (let grew = true; grew; ) {
@@ -170,11 +218,11 @@ function removeWithDescendants(state: SceneState, id: string): void {
 
 function applyClear(state: SceneState, target: string): void {
   if (target === 'all') {
-    state.ids.clear(); state.parents.clear(); state.depth.clear();
+    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.copies = 0;
   } else if (target === 'marks' || target === 'panel') {
     const wantMark = target === 'marks';
     for (const [id, kind] of [...state.ids]) {
-      if ((kind === 'mark') === wantMark) removeWithDescendants(state, id);
+      if ((kind === 'mark' || kind === 'pin') === wantMark) removeWithDescendants(state, id);
     }
   } else {
     removeWithDescendants(state, target);
@@ -217,13 +265,31 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', path, 'style needs a colour or an opacity');
     return null;
   }
+  if (variant.name === 'card') {
+    const rows = out.rows as string[] | undefined;
+    if (out.title === undefined && (!rows || rows.length === 0)) {
+      note(notes, 'dropped', path, 'card needs a title or rows');
+      return null;
+    }
+  }
+  if (variant.name === 'addArray') {
+    const of = out.of as string;
+    let subtree = 1;
+    for (const [child] of state.parents) if (child !== of && isUnder(state, child, of)) subtree++;
+    const made = ((out.count as number) - 1) * subtree;
+    if (state.copies + made > LIMITS.maxCopies) {
+      note(notes, 'dropped', path, `arrays may make ${LIMITS.maxCopies} copies in all`);
+      return null;
+    }
+    state.copies += made;
+  }
   if (variant.creates) {
     if (state.ids.size >= LIMITS.maxObjects) {
       note(notes, 'dropped', path, `scene already holds ${LIMITS.maxObjects} objects`);
       return null;
     }
     const id = out.id as string;
-    const parent = out.parent as string | undefined;
+    const parent = (variant.attach ? out[variant.attach] : out.parent) as string | undefined;
     state.ids.set(id, variant.creates);
     state.parents.set(id, parent);
     state.depth.set(id, parent === undefined ? 1 : (state.depth.get(parent) ?? 0) + 1);

@@ -44,19 +44,7 @@
           "type": "number"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+          "type": "string"
         },
         "at": {
           "type": [
@@ -101,19 +89,7 @@
           "type": "number"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+          "type": "string"
         },
         "at": {
           "type": [
@@ -155,19 +131,7 @@
           "type": "number"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+          "type": "string"
         },
         "at": {
           "type": [
@@ -211,19 +175,7 @@
           "type": "number"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+          "type": "string"
         },
         "at": {
           "type": [
@@ -265,19 +217,7 @@
           "type": "string"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+          "type": "string"
         },
         "size": {
           "type": [
@@ -304,6 +244,156 @@
       ],
       "additionalProperties": false
     },
+    "card": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "card"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rows": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "layout": {
+          "enum": [
+            "list",
+            "timeline",
+            "stat",
+            null
+          ]
+        },
+        "to": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "w",
+        "title",
+        "rows",
+        "layout",
+        "to",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "image"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "sx": {
+          "type": "number"
+        },
+        "sy": {
+          "type": "number"
+        },
+        "sw": {
+          "type": "number"
+        },
+        "sh": {
+          "type": "number"
+        },
+        "dx": {
+          "type": "number"
+        },
+        "dy": {
+          "type": "number"
+        },
+        "dw": {
+          "type": "number"
+        },
+        "caption": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "sx",
+        "sy",
+        "sw",
+        "sh",
+        "dx",
+        "dy",
+        "dw",
+        "caption",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
     "panel": {
       "type": "object",
       "properties": {
@@ -324,6 +414,12 @@
         "h": {
           "type": "number"
         },
+        "frame": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "at": {
           "type": [
             "number",
@@ -343,6 +439,7 @@
         "y",
         "w",
         "h",
+        "frame",
         "at",
         "dur"
       ],
@@ -400,18 +497,33 @@
           }
         },
         "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "material": {
           "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            null
+          ]
+        },
+        "bevel": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
           ]
         },
         "opacity": {
@@ -436,6 +548,324 @@
         "size",
         "rot",
         "color",
+        "material",
+        "bevel",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "addExtrude": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "extrude"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "outline": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "depth": {
+          "type": "number"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            null
+          ]
+        },
+        "bevel": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "outline",
+        "depth",
+        "color",
+        "material",
+        "bevel",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "addLathe": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "lathe"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "profile": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "sides": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            null
+          ]
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "profile",
+        "sides",
+        "color",
+        "material",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "addTube": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "tube"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "radius": {
+          "type": "number"
+        },
+        "flat": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            null
+          ]
+        },
+        "draw": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pts",
+        "radius",
+        "flat",
+        "color",
+        "material",
+        "draw",
         "opacity",
         "at"
       ],
@@ -474,18 +904,15 @@
           }
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "draw": {
+          "type": [
+            "number",
+            "null"
           ]
         },
         "opacity": {
@@ -508,7 +935,180 @@
         "parent",
         "pts",
         "color",
+        "draw",
         "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "addPart": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "part"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "part": {
+          "enum": [
+            "chip",
+            "header",
+            "port",
+            "lens",
+            "screen",
+            "button",
+            "fan",
+            "wheel"
+          ]
+        },
+        "variant": {
+          "enum": [
+            "black",
+            "metal",
+            "usb",
+            "usb3",
+            "ethernet",
+            "hdmi",
+            "usbc",
+            "gold",
+            null
+          ]
+        },
+        "size": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "n": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "part",
+        "variant",
+        "size",
+        "n",
+        "color",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "addArray": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "array"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "of": {
+          "type": "string"
+        },
+        "count": {
+          "type": "number"
+        },
+        "step": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "turn": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "of",
+        "count",
+        "step",
+        "turn",
         "at"
       ],
       "additionalProperties": false
@@ -551,19 +1151,7 @@
           "type": "number"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+          "type": "string"
         },
         "at": {
           "type": [
@@ -643,6 +1231,66 @@
       ],
       "additionalProperties": false
     },
+    "pin": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "pin"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "on": {
+          "type": "string"
+        },
+        "point": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "text": {
+          "type": "string"
+        },
+        "off": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "on",
+        "point",
+        "text",
+        "off",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
     "move": {
       "type": "object",
       "properties": {
@@ -677,6 +1325,48 @@
         "op",
         "id",
         "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
+    "along": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "along"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "pts",
         "at",
         "dur"
       ],
@@ -760,6 +1450,78 @@
       ],
       "additionalProperties": false
     },
+    "explode": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "explode"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "to": {
+          "type": "number"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
+    "reveal": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "reveal"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "to": {
+          "type": "number"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
     "style": {
       "type": "object",
       "properties": {
@@ -772,19 +1534,9 @@
           "type": "string"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black",
-            null
+          "type": [
+            "string",
+            "null"
           ]
         },
         "opacity": {
@@ -828,19 +1580,9 @@
           "type": "string"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black",
-            null
+          "type": [
+            "string",
+            "null"
           ]
         },
         "at": {
@@ -1011,13 +1753,34 @@
           "$ref": "#/$defs/label"
         },
         {
+          "$ref": "#/$defs/card"
+        },
+        {
+          "$ref": "#/$defs/image"
+        },
+        {
           "$ref": "#/$defs/panel"
         },
         {
           "$ref": "#/$defs/addSolid"
         },
         {
+          "$ref": "#/$defs/addExtrude"
+        },
+        {
+          "$ref": "#/$defs/addLathe"
+        },
+        {
+          "$ref": "#/$defs/addTube"
+        },
+        {
           "$ref": "#/$defs/addPath"
+        },
+        {
+          "$ref": "#/$defs/addPart"
+        },
+        {
+          "$ref": "#/$defs/addArray"
         },
         {
           "$ref": "#/$defs/addText"
@@ -1026,13 +1789,25 @@
           "$ref": "#/$defs/addGroup"
         },
         {
+          "$ref": "#/$defs/pin"
+        },
+        {
           "$ref": "#/$defs/move"
+        },
+        {
+          "$ref": "#/$defs/along"
         },
         {
           "$ref": "#/$defs/turn"
         },
         {
           "$ref": "#/$defs/scale"
+        },
+        {
+          "$ref": "#/$defs/explode"
+        },
+        {
+          "$ref": "#/$defs/reveal"
         },
         {
           "$ref": "#/$defs/style"

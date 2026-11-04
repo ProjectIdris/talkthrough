@@ -56,7 +56,7 @@ test('the schema refuses what the validator would also drop', () => {
   const ok = { op: 'box', id: 'a', x: 1, y: 1, w: 1, h: 1, color: 'red', at: null };
   assert.deepEqual(check(schema, schema, step(ok)), []);
   assert.notDeepEqual(check(schema, schema, step({ ...ok, op: 'eval' })), []);
-  assert.notDeepEqual(check(schema, schema, step({ ...ok, color: 'javascript:1' })), []);
+  assert.notDeepEqual(check(schema, schema, step({ ...ok, color: 5 })), [], 'a colour is text; which text is for the validator to judge');
   assert.notDeepEqual(check(schema, schema, step({ ...ok, onclick: 'x' })), []);
   assert.notDeepEqual(check(schema, schema, step({ ...ok, x: '1' })), []);
   const { at: _at, ...withoutNull } = ok;

@@ -13,8 +13,12 @@ function describe(f: Field): string | undefined {
   if (f.doc) parts.push(f.doc);
   if (f.k === 'num') parts.push(`${f.min} to ${f.max}`);
   if (f.k === 'vec3') parts.push(`[x,y,z], each ${f.min} to ${f.max}`);
+  if (f.k === 'vec2') parts.push(`[x,y], each ${f.min} to ${f.max}`);
+  if (f.k === 'pts2') parts.push(`${f.min} to ${f.max} points [x,y], each ${f.lo} to ${f.hi}`);
+  if (f.k === 'strs') parts.push(`up to ${f.max} texts of up to ${f.len} characters`);
   if (f.k === 'pts') parts.push(`${f.min} to ${f.max} points [x,y,z]`);
   if (f.k === 'str') parts.push(`up to ${f.max} characters`);
+  if (f.k === 'color') parts.push(`a colour name (${PALETTE.join(', ')}) or hex "#rrggbb"`);
   if (f.k === 'target') parts.push('an id, or "all", "marks" or "panel"');
   return parts.length ? parts.join('; ') : undefined;
 }
@@ -26,8 +30,12 @@ function fieldSchema(f: Field, descriptions: boolean): Schema {
   switch (f.k) {
     case 'num': s = { type: nullable('number') }; break;
     case 'str': case 'newId': case 'ref': case 'parent': case 'target': s = { type: nullable('string') }; break;
-    case 'color': s = { enum: opt ? [...PALETTE, null] : [...PALETTE] }; break;
-    case 'enum': s = { enum: [...f.values] }; break;
+    case 'color': s = { type: nullable('string') }; break;
+    case 'enum': s = { enum: opt ? [...f.values, null] : [...f.values] }; break;
+    case 'bool': s = { type: nullable('boolean') }; break;
+    case 'vec2': s = { type: nullable('array'), items: { type: 'number' } }; break;
+    case 'pts2': s = { type: 'array', items: { type: 'array', items: { type: 'number' } } }; break;
+    case 'strs': s = { type: nullable('array'), items: { type: 'string' } }; break;
     case 'vec3': s = { type: nullable('array'), items: { type: 'number' } }; break;
     case 'pts': s = { type: 'array', items: { type: 'array', items: { type: 'number' } } }; break;
   }
