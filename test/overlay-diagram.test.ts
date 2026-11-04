@@ -380,3 +380,12 @@ test('a chain with a loop back to its start is not wrapped into rows (the loop r
   assert.equal(looped.rows, 1);
   assert.ok([...looped.nodes.values()].every((b) => b.row === undefined));
 });
+
+test('in a tall timeline card the labels use most of the width, so a long event is not broken into narrow lines', () => {
+  const text = 'Harold beats Hardrada and Tostig at Stamford Bridge';
+  const frame = settle(planStep(emptyFrame(), step({ op: 'diagram', id: 't', kind: 'timeline', x: 0, y: 0, w: 110, h: 560 }, { op: 'node', id: 'e1', of: 't', text, when: '25 Sep' }, { op: 'node', id: 'e2', of: 't', text: 'William lands', when: '28 Sep' })));
+  const { ctx, texts } = fakeCtx();
+  new DiagramPainter().draw(ctx, frame.diagrams, view, 0);
+  const longest = Math.max(...texts.filter((s) => text.startsWith(s.replace(/...$/, '').trim()) || text.includes(s)).map((s) => s.length));
+  assert.ok(longest >= 12, `the lines of a long event are wider than a word or two: ${JSON.stringify(texts)}`);
+});
