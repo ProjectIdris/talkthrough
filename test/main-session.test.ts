@@ -1128,18 +1128,3 @@ test('a right click on another display, with the chord not held, or its release 
   await wait(60);
   assert.ok(r.sent.some((m) => m.kind === 'step' || m.kind === 'begin'), 'the question goes on as usual');
 });
-
-test('Z while the chord is held tells the page to take back its last circle; not when the chord is not held', async () => {
-  const r = rig({ media: noStrokeMedia([]) });
-  r.session.undo();
-  r.session.arm();
-  r.session.undo();
-  assert.equal(r.sent.some((m) => m.kind === 'penUndo'), false);
-  r.session.start();
-  r.session.undo();
-  assert.equal(r.sent.filter((m) => m.kind === 'penUndo').length, 1);
-  r.session.stop();
-  r.session.undo();
-  assert.equal(r.sent.filter((m) => m.kind === 'penUndo').length, 1);
-  await wait(60);
-});

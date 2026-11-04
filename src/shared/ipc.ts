@@ -109,8 +109,6 @@ export type SceneMessage =
    * The stroke stays until the first `step` of the answer arrives, then fades; a new `pen on` removes it.
    */
   | { kind: 'pen'; on: boolean }
-  /** Z was pressed while the chord is held: the pen takes back its last circle (as its Undo button does). */
-  | { kind: 'penUndo' }
   /**
    * A streamed turn begins. `detail` marks the detail pass: a richer version of the scene already on screen is
    * coming, so nothing is cleared (whatever `turn` says), nothing is spoken, and an object whose id is on screen is

@@ -581,7 +581,7 @@ function syncUndo(): void {
   undoEl.style.left = `${Math.round(at.x)}px`;
   undoEl.style.top = `${Math.round(at.y)}px`;
 }
-/** Takes back the last circle (the button, or Z), and tells the main process to drop it. */
+/** Takes back the last circle (the Undo button), and tells the main process to drop it. */
 function undoCircle(): void {
   if (!pen.undo()) return;
   sendPen();
@@ -914,9 +914,6 @@ function applyScene(message: SceneMessage): void {
       }
       pen.fade(labelClock());
       hud.showNotice(message.text, message.level, performance.now());
-      break;
-    case 'penUndo':
-      undoCircle();
       break;
     case 'clear':
       pen.fade(labelClock());

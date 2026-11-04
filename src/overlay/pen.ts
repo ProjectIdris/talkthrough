@@ -238,7 +238,7 @@ export function calmLine(raw: ReadonlyArray<Pix>, spacing: number): Pix[] {
     let at = spacing - carry;
     while (at <= len) {
       const f = at / len;
-      out.push({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, t: a.t + (b.t - a.t) * f });
+      out.push({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, t: a.t === NO_TIME || b.t === NO_TIME ? NO_TIME : a.t + (b.t - a.t) * f });
       at += spacing;
     }
     carry = len - (at - spacing);
@@ -258,85 +258,139 @@ export function calmLine(raw: ReadonlyArray<Pix>, spacing: number): Pix[] {
   return line;
 }
 
-/** How many steps of opacity a stroke is drawn in: a run of the ribbon at one step is one filled shape, so no seam shows inside it. */
-const LEVELS = 14;
+/** The strength of the body of the ribbon and of its wider halo (the share of full opacity at the pen). */
+const BODY_STRENGTH = 0.6;
+const HALO_STRENGTH = 0.16;
+/** The halo is this many times as wide as the body. */
+const HALO_SPREAD = 1.9;
+
+/** A stroke as a ribbon: points along a calm line, with the half-width of its body and how much of its opacity is left at each. */
+export type Ribbon = { pts: Pix[]; half: number[]; level: number[] };
 
 /**
- * Draws the strokes as a soft marker: a translucent ribbon in the style's red, thickest at the pen and tapering at its very start and tip,
- * with a faint wider halo; no dark outline. With a decay, a point's opacity and thickness settle over `decayMs` to a muted trace
- * (`PEN_REST` of the opacity) that stays; without one the whole stroke is drawn at full strength. The ribbon is filled as a few single
- * polygons, one for each run of one opacity, so overlapping pieces never show as beads or seams.
+ * The ribbon of a stroke at `now`: the calm line, thickest at the pen and tapering at its start and tip, and, with a decay, each point
+ * settling over `decayMs` to `PEN_REST` of its opacity and 60 per cent of its thickness (they stay so). Nothing for a stroke too short to draw.
+ */
+export function penRibbon(s: { points: ReadonlyArray<Pt>; times?: ReadonlyArray<number> }, size: { width: number; height: number }, now: number, decayMs: number | undefined): Ribbon | undefined {
+  const width = Math.max(6, Math.max(size.width, size.height) * PEN_WIDTH_SHARE);
+  const raw: Pix[] = s.points.map((p, i) => ({ x: (p[0] / 1000) * size.width, y: (p[1] / 1000) * size.height, t: s.times?.[i] ?? NO_TIME }));
+  if (raw.length < 2) return undefined;
+  const pts = calmLine(raw, Math.max(4, width * 0.55));
+  const n = pts.length;
+  if (n < 2) return undefined;
+  // How fresh each point is: 1 at the pen, 0 once it has settled.
+  const fresh = (p: Pix): number => (decayMs === undefined || p.t === NO_TIME ? 1 : Math.max(0, Math.min(1, 1 - (now - p.t) / decayMs)));
+  const level = pts.map((p) => (decayMs === undefined ? 1 : PEN_REST + (1 - PEN_REST) * Math.pow(fresh(p), 0.9)));
+  const slim = pts.map((p) => (decayMs === undefined ? 1 : 0.6 + 0.4 * Math.pow(fresh(p), 0.8)));
+  // Distance along the line from each end, for the taper of the very start and tip.
+  const along: number[] = [0];
+  for (let i = 1; i < n; i++) along.push((along[i - 1] as number) + Math.hypot((pts[i] as Pix).x - (pts[i - 1] as Pix).x, (pts[i] as Pix).y - (pts[i - 1] as Pix).y));
+  const total = along[n - 1] as number;
+  const tip = width * 2.2;
+  const ease = (u: number): number => 0.3 + 0.7 * Math.sqrt(Math.max(0, Math.min(1, u)));
+  const half = pts.map((_, i) => (width * Math.min(ease((total - (along[i] as number)) / tip), ease((along[i] as number) / tip)) * (slim[i] as number)) / 2);
+  return { pts, half, level };
+}
+
+/** An image of a stroke: RGBA bytes for the rectangle `w` by `h` at (`x`, `y`). */
+export type PenRaster = { x: number; y: number; w: number; h: number; data: Uint8ClampedArray<ArrayBuffer> };
+
+/**
+ * The ribbon as pixels, worked out for each pixel from its nearest point on the line: the distance gives the edge (a pixel wide), the
+ * place along the line gives the opacity, which runs smoothly from point to point. There are no pieces joined end to end, so there is no
+ * seam or banding in it however the opacity changes, and where the stroke crosses itself the pixel keeps the stronger of the two (the
+ * ink does not pile up into a dark bead). `bounds` is the area the picture may cover (the window). Nothing when the ribbon is off it.
+ */
+export function rasterRibbon(r: Ribbon, bounds: { width: number; height: number }): PenRaster | undefined {
+  const { pts, half, level } = r;
+  const n = pts.length;
+  let reach = 0;
+  for (const h of half) reach = Math.max(reach, h * HALO_SPREAD);
+  reach += 1.5;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of pts) { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); }
+  const x0 = Math.max(0, Math.floor(minX - reach)), y0 = Math.max(0, Math.floor(minY - reach));
+  const x1 = Math.min(Math.ceil(bounds.width), Math.ceil(maxX + reach)), y1 = Math.min(Math.ceil(bounds.height), Math.ceil(maxY + reach));
+  const w = x1 - x0, h = y1 - y0;
+  if (w <= 0 || h <= 0 || w * h > 6_000_000) return undefined;
+  const body = new Float32Array(w * h), halo = new Float32Array(w * h);
+  for (let i = 0; i < n - 1; i++) {
+    const p = pts[i] as Pix, q = pts[i + 1] as Pix;
+    const dx = q.x - p.x, dy = q.y - p.y;
+    const len2 = dx * dx + dy * dy;
+    if (len2 === 0) continue;
+    const hp = half[i] as number, hq = half[i + 1] as number, lp = level[i] as number, lq = level[i + 1] as number;
+    const rr = Math.max(hp, hq) * HALO_SPREAD + 1;
+    const ya = Math.max(y0, Math.floor(Math.min(p.y, q.y) - rr)), yb = Math.min(y1, Math.ceil(Math.max(p.y, q.y) + rr));
+    const xa = Math.max(x0, Math.floor(Math.min(p.x, q.x) - rr)), xb = Math.min(x1, Math.ceil(Math.max(p.x, q.x) + rr));
+    for (let y = ya; y < yb; y++) {
+      const py = y + 0.5;
+      for (let x = xa; x < xb; x++) {
+        const px = x + 0.5;
+        const u = Math.max(0, Math.min(1, ((px - p.x) * dx + (py - p.y) * dy) / len2));
+        const ex = px - (p.x + dx * u), ey = py - (p.y + dy * u);
+        const hw = hp + (hq - hp) * u;
+        const reachHere = hw * HALO_SPREAD + 0.5;
+        const d2 = ex * ex + ey * ey;
+        if (d2 >= reachHere * reachHere) continue;
+        const d = Math.sqrt(d2);
+        const lv = lp + (lq - lp) * u;
+        const cb = Math.max(0, Math.min(1, hw - d + 0.5));
+        const ch = Math.max(0, Math.min(1, hw * HALO_SPREAD - d + 0.5));
+        if (ch <= 0) continue;
+        const k = (y - y0) * w + (x - x0);
+        if (cb * lv > (body[k] as number)) body[k] = cb * lv;
+        if (ch * lv > (halo[k] as number)) halo[k] = ch * lv;
+      }
+    }
+  }
+  const data = new Uint8ClampedArray(w * h * 4);
+  for (let k = 0; k < w * h; k++) {
+    const a = 1 - (1 - HALO_STRENGTH * (halo[k] as number)) * (1 - BODY_STRENGTH * (body[k] as number));
+    if (a <= 0) continue;
+    data[k * 4] = INK[0];
+    data[k * 4 + 1] = INK[1];
+    data[k * 4 + 2] = INK[2];
+    data[k * 4 + 3] = Math.round(a * 255);
+  }
+  return { x: x0, y: y0, w, h, data };
+}
+
+/** What a stroke was last drawn as, so a stroke that has settled (or stands still) is not worked out again for every frame the page draws. */
+const drawn = new WeakMap<object, { key: string; layer: HTMLCanvasElement | undefined; x: number; y: number }>();
+
+/**
+ * Draws the strokes as a soft marker: a translucent ribbon in the style's red, thickest at the pen and tapering at its start and tip, with a
+ * faint wider halo; no dark outline. With a decay, a point's opacity and thickness settle over `decayMs` to a muted trace (`PEN_REST` of the
+ * opacity) that stays; without one the whole stroke is drawn at full strength. Each stroke is one picture (see `rasterRibbon`) put on the
+ * canvas once, so it reads as one continuous marker. Needs a page (it makes small canvases); where there is none it draws nothing.
  */
 export function drawPen(ctx: Ctx, view: PenView, size: { width: number; height: number }): void {
-  if (view.alpha <= 0.002) return;
-  const width = Math.max(6, Math.max(size.width, size.height) * PEN_WIDTH_SHARE);
+  if (view.alpha <= 0.002 || typeof document === 'undefined') return;
   const decay = view.decayMs;
   const now = view.now ?? 0;
   ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, view.alpha));
   for (const s of view.strokes) {
-    const raw: Pix[] = s.points.map((p, i) => ({ x: (p[0] / 1000) * size.width, y: (p[1] / 1000) * size.height, t: s.times?.[i] ?? NO_TIME }));
-    if (raw.length < 2) continue;
-    const keep = calmLine(raw, Math.max(4, width * 0.55));
-    const n = keep.length;
-    if (n < 2) continue;
-    // How fresh each point is: 1 at the pen, 0 once it has settled.
-    const fresh = (p: Pix): number => (decay === undefined || p.t === NO_TIME ? 1 : Math.max(0, Math.min(1, 1 - (now - p.t) / decay)));
-    const body = keep.map((p) => (decay === undefined ? 1 : PEN_REST + (1 - PEN_REST) * Math.pow(fresh(p), 0.9)));
-    const slim = keep.map((p) => (decay === undefined ? 1 : 0.6 + 0.4 * Math.pow(fresh(p), 0.8)));
-    // Distance along the line from each end, for the taper of the very start and tip.
-    const along: number[] = [0];
-    for (let i = 1; i < n; i++) along.push((along[i - 1] as number) + Math.hypot((keep[i] as Pix).x - (keep[i - 1] as Pix).x, (keep[i] as Pix).y - (keep[i - 1] as Pix).y));
-    const total = along[n - 1] as number;
-    const tip = width * 2.2;
-    const ease = (u: number): number => 0.3 + 0.7 * Math.sqrt(Math.max(0, Math.min(1, u)));
-    const half = (i: number, spread: number): number => (width * spread * Math.min(ease((total - (along[i] as number)) / tip), ease((along[i] as number) / tip)) * (slim[i] as number)) / 2;
-    // The unit direction and the normal at each point (from the points either side of it).
-    const dir: Array<[number, number]> = keep.map((_, i) => {
-      const p = keep[Math.max(0, i - 1)] as Pix, q = keep[Math.min(n - 1, i + 1)] as Pix;
-      const l = Math.hypot(q.x - p.x, q.y - p.y) || 1;
-      return [(q.x - p.x) / l, (q.y - p.y) / l];
-    });
-    const level = (i: number): number => Math.round((body[i] as number) * LEVELS);
-    // The halo is a wider, fainter ribbon under the body.
-    for (const [spread, strength] of [[1.9, 0.16], [1, 0.6]] as const) {
-      let from = 0;
-      while (from < n - 1) {
-        let to = from + 1;
-        while (to < n - 1 && level(to) === level(from)) to++;
-        let mean = 0;
-        for (let i = from; i <= to; i++) mean += body[i] as number;
-        const alpha = strength * view.alpha * (mean / (to - from + 1));
-        if (alpha > 0.003) {
-          const last = to === n - 1;
-          // A hair of overlap into the next run, so the shared edge shows no seam.
-          const push = last ? 0 : 0.25;
-          const left: Array<[number, number]> = [], right: Array<[number, number]> = [];
-          for (let i = from; i <= to; i++) {
-            const p = keep[i] as Pix, [dx, dy] = dir[i] as [number, number], h = half(i, spread);
-            const o = i === to ? push : 0;
-            left.push([p.x - dy * h + dx * o, p.y + dx * h + dy * o]);
-            right.push([p.x + dy * h + dx * o, p.y - dx * h + dy * o]);
-          }
-          ctx.fillStyle = `rgba(${INK[0]},${INK[1]},${INK[2]},${alpha})`;
-          ctx.beginPath();
-          ctx.moveTo(...(left[0] as [number, number]));
-          for (const q of left) ctx.lineTo(...q);
-          if (last) {
-            // The tip is round: half a circle from the left side round to the right.
-            const p = keep[to] as Pix, [dx, dy] = dir[to] as [number, number], h = half(to, spread);
-            for (let k = 1; k < 8; k++) { const a = (k / 8) * Math.PI; ctx.lineTo(p.x + h * (-dy * Math.cos(a) + dx * Math.sin(a)), p.y + h * (dx * Math.cos(a) + dy * Math.sin(a))); }
-          }
-          for (let k = right.length - 1; k >= 0; k--) ctx.lineTo(...(right[k] as [number, number]));
-          if (from === 0) {
-            const p = keep[0] as Pix, [dx, dy] = dir[0] as [number, number], h = half(0, spread);
-            for (let k = 1; k < 8; k++) { const a = (k / 8) * Math.PI; ctx.lineTo(p.x + h * (dy * Math.cos(a) - dx * Math.sin(a)), p.y + h * (-dx * Math.cos(a) - dy * Math.sin(a))); }
-          }
-          ctx.closePath();
-          ctx.fill();
-        }
-        from = to;
+    const last = s.times?.[s.times.length - 1];
+    // A stroke whose points have all settled (or that has no decay) looks the same for every frame until it grows.
+    const still = decay === undefined || last === undefined || last === NO_TIME || now - last >= decay;
+    const key = `${s.points.length}|${size.width}x${size.height}|${decay === undefined ? 'n' : still ? 's' : now}`;
+    let entry = drawn.get(s);
+    if (!entry || entry.key !== key) {
+      const ribbon = penRibbon(s, size, now, decay);
+      const image = ribbon ? rasterRibbon(ribbon, size) : undefined;
+      let layer: HTMLCanvasElement | undefined;
+      if (image) {
+        layer = entry?.layer ?? document.createElement('canvas');
+        layer.width = image.w;
+        layer.height = image.h;
+        layer.getContext('2d')?.putImageData(new ImageData(image.data, image.w, image.h), 0, 0);
       }
+      entry = { key, layer, x: image?.x ?? 0, y: image?.y ?? 0 };
+      drawn.set(s, entry);
     }
+    if (entry.layer) ctx.drawImage(entry.layer, entry.x, entry.y);
   }
   ctx.restore();
 }

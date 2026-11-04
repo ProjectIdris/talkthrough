@@ -19,7 +19,7 @@ import { runGrab } from './grab.ts';
 import { gridOf } from './frame-grid.ts';
 import type { Click } from './guide.ts';
 import { startHotkey, watchGuideInput } from './hotkey.ts';
-import { parseHotkey, undoAccelerator } from './chord.ts';
+import { parseHotkey } from './chord.ts';
 import { createFrontWindowReader } from './front-window.ts';
 import { createSkipCheck } from './skip-list.ts';
 import { createSettingsService } from './settings-service.ts';
@@ -152,7 +152,6 @@ async function main(): Promise<void> {
       cooldownMs: settings.voiceCooldownMs,
     }
     : undefined;
-  const penUndoKey = undoAccelerator(parseHotkey(settings.hotkey) ?? parseHotkey('right-ctrl+right-shift')!);
   const overlays = createOverlayManager({
     preload,
     page: overlayPage,
@@ -169,7 +168,6 @@ async function main(): Promise<void> {
     },
     onStroke: (displayId, stroke) => session?.stroke(displayId, stroke),
     onCancel: (displayId, released) => session?.cancelQuestion(displayId, released),
-    ...(penUndoKey ? { undoAccelerator: penUndoKey } : {}),
     onOffer: (displayId) => void session?.offer(displayId),
     ...(settings.detailRoute ? { onDetail: (displayId: number) => void session?.detail(displayId) } : {}),
     onMilestone: (m) => session?.milestone(m),
@@ -433,7 +431,6 @@ async function main(): Promise<void> {
       hotkey = startHotkey({
         arm: () => session?.arm(),
         cancel: () => session?.cancel(),
-        undo: () => session?.undo(),
         start: () => {
           log('chord pressed');
           session?.start();

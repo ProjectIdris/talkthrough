@@ -30,8 +30,6 @@ export type OverlayOptions = {
   onStroke?: (displayId: number, stroke: Stroke) => void;
   /** Called when the person right-clicks while the pen is on (`released` false), and again when the button comes up. */
   onCancel?: (displayId: number, released: boolean) => void;
-  /** The system key of the pen's undo (the chord's modifiers and Z): held while the pen is on, so the app underneath never gets it. */
-  undoAccelerator?: string;
   /** Called when the page reports the first mark or word of a live turn. */
   onMilestone?: (milestone: Milestone) => void;
   /** Called when the user clicks the escalation offer. */
@@ -77,32 +75,7 @@ export function createOverlayManager(options: OverlayOptions) {
   });
   const stateOf = (overlay: Overlay) => ({ engaged: overlay.engaged, held: overlay.guard.held, penOn: overlay.pen, alive: !overlay.window.isDestroyed() });
   /** Everything that decides whether E is ours goes through here after it changes. */
-  // The undo key (the chord's modifiers and Z) is taken from the system while the pen is on, so the app underneath never receives it; the
-  // key hook sees it either way and tells the session, so a taken key does nothing here.
-  const undoKeys = options.undoAccelerator
-    ? createKeyHold({
-      accelerator: options.undoAccelerator,
-      register: (accelerator, onKey) => {
-        try {
-          return globalShortcut.register(accelerator, onKey);
-        } catch {
-          return false;
-        }
-      },
-      unregister: (accelerator) => {
-        try {
-          globalShortcut.unregister(accelerator);
-        } catch {
-          // already gone
-        }
-      },
-      onKey: () => undefined,
-    })
-    : undefined;
-  const refreshKey = (): void => {
-    keys.want(keyWanted([...overlays.values()].map(stateOf)));
-    undoKeys?.want([...overlays.values()].some((overlay) => overlay.pen && !overlay.window.isDestroyed()));
-  };
+  const refreshKey = (): void => keys.want(keyWanted([...overlays.values()].map(stateOf)));
 
   function infoFor(display: Display): DisplayInfo {
     const info: DisplayInfo = { id: display.id, bounds: { ...display.bounds }, scaleFactor: display.scaleFactor };

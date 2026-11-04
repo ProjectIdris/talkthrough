@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { PEN_DECAY_MS, PEN_FADE_MS, PEN_REST, PenLayer, calmLine, drawPen, routePenPointer, undoPlace } from '../src/overlay/pen.ts';
+import { PEN_DECAY_MS, PEN_FADE_MS, PEN_REST, PenLayer, calmLine, penRibbon, rasterRibbon, routePenPointer, undoPlace } from '../src/overlay/pen.ts';
 
 function draw(pen: PenLayer, points: Array<[number, number]>) {
   const [first, ...rest] = points;
@@ -62,35 +62,7 @@ test('the stroke stays until the answer begins, then fades over 0.6 s; a new pen
   assert.equal(pen.view(0).strokes.length, 0);
 });
 
-/** A drawing context that records the fills and the colours it is given. */
-function recorder() {
-  const fills: string[] = [];
-  let style = '';
-  const target = {} as Record<string, unknown>;
-  const ctx = new Proxy(target, {
-    get(t, key: string) {
-      if (key === 'fill') return () => fills.push(style);
-      if (key in t) return t[key];
-      return () => undefined;
-    },
-    set(t, key: string, v) { t[key] = v; if (key === 'fillStyle') style = String(v); return true; },
-  }) as unknown as CanvasRenderingContext2D;
-  return { ctx, fills };
-}
-const alphaOf = (s: string): number => Number(/,([\d.]+)\)$/.exec(s)?.[1] ?? 'NaN');
 const SIZE = { width: 1000, height: 500 };
-
-test('the pen is a soft translucent marker in the style\'s red, with no dark outline, and not drawn at all when faded', () => {
-  const { ctx, fills } = recorder();
-  drawPen(ctx, { strokes: [{ points: [[100, 100], [200, 150], [300, 100]] }], alpha: 1 }, SIZE);
-  assert.ok(fills.length > 0);
-  assert.ok(fills.every((s) => /^rgba\(226,84,90,/.test(s)), 'the refined red, nothing else: ' + [...new Set(fills)].slice(0, 3).join(' '));
-  assert.ok(fills.every((s) => alphaOf(s) < 0.7), 'translucent');
-  assert.ok(!fills.some((s) => s.startsWith('rgba(0,0,0')), 'no hard dark outline');
-  const none = recorder();
-  drawPen(none.ctx, { strokes: [{ points: [[0, 0], [10, 10]] }], alpha: 0 }, SIZE);
-  assert.equal(none.fills.length, 0);
-});
 
 /** A loop drawn over one second, a point every 50 ms, pen down at `at`. */
 function drawLoop(pen: PenLayer, at = 0): number {
@@ -101,28 +73,76 @@ function drawLoop(pen: PenLayer, at = 0): number {
   pen.up();
   return loop.length;
 }
-const peak = (fills: string[]): number => Math.max(...fills.map(alphaOf));
+
+/** The picture of the first stroke at `now`, as the opacity of each pixel (0..1) and the ribbon it was made from. */
+function picture(pen: PenLayer, now: number, options: { reduceMotion?: boolean } = {}) {
+  const view = pen.view(now, options);
+  const ribbon = penRibbon(view.strokes[0] as NonNullable<typeof view.strokes[0]>, SIZE, now, view.decayMs);
+  const raster = ribbon && rasterRibbon(ribbon, SIZE);
+  assert.ok(ribbon && raster, 'a stroke is drawn');
+  const at = (x: number, y: number): number => {
+    const px = Math.floor(x) - raster.x, py = Math.floor(y) - raster.y;
+    return px < 0 || py < 0 || px >= raster.w || py >= raster.h ? 0 : (raster.data[(py * raster.w + px) * 4 + 3] as number) / 255;
+  };
+  let peak = 0;
+  for (let k = 3; k < raster.data.length; k += 4) peak = Math.max(peak, (raster.data[k] as number) / 255);
+  return { ribbon, raster, at, peak };
+}
+
+test('the pen is a soft translucent marker in the style\'s red, with no dark outline', () => {
+  const pen = new PenLayer();
+  pen.turnOn();
+  pen.down(100, 100); pen.move(200, 150); pen.move(300, 100); pen.move(400, 160); pen.up(); // no clock: no decay
+  const { raster, peak } = picture(pen, 1000);
+  assert.ok(peak > 0.5 && peak < 0.75, 'translucent, strongest in the body: ' + peak.toFixed(2));
+  for (let k = 0; k < raster.data.length; k += 4) {
+    if (raster.data[k + 3] === 0) continue;
+    assert.deepEqual([raster.data[k], raster.data[k + 1], raster.data[k + 2]], [226, 84, 90], 'only the style\'s red, nothing dark');
+  }
+});
 
 test('what is drawn settles about a second behind the pen to a muted trace, about a fifth of full strength, and does not go away', () => {
   const pen = new PenLayer();
   pen.turnOn();
   const points = drawLoop(pen);
-  const fresh = recorder();
-  drawPen(fresh.ctx, pen.view(1000), SIZE); // the pen has just reached the end: the start of the loop is a whole decay old
-  const settled = recorder();
-  drawPen(settled.ctx, pen.view(1000 + PEN_DECAY_MS + 50), SIZE);
-  const later = recorder();
-  drawPen(later.ctx, pen.view(120_000), SIZE);
-  assert.ok(fresh.fills.length > 0 && settled.fills.length > 0, 'something is still drawn');
-  assert.ok(peak(fresh.fills) > 0.5, 'full at the pen: ' + peak(fresh.fills).toFixed(2));
-  assert.ok(Math.min(...fresh.fills.map(alphaOf)) < 0.6 * 0.3, 'and muted at the old end of the same stroke');
-  const muted = peak(settled.fills);
-  assert.ok(muted <= 0.6 * (PEN_REST + 0.03) && muted >= 0.6 * (PEN_REST - 0.06), `a settled stroke is about ${PEN_REST * 100} per cent of full: ${(muted / 0.6).toFixed(2)}`);
-  assert.ok(Math.abs(peak(later.fills) - muted) < 0.01, 'and it stays so until the answer');
+  const fresh = picture(pen, 1000); // the pen has just reached the end: the start of the loop is a whole decay old
+  const settled = picture(pen, 1000 + PEN_DECAY_MS + 50);
+  const later = picture(pen, 120_000);
+  assert.ok(fresh.peak > 0.5, 'full at the pen: ' + fresh.peak.toFixed(2));
+  const first = fresh.ribbon.pts[Math.round(fresh.ribbon.pts.length * 0.15)] as { x: number; y: number };
+  assert.ok(fresh.at(first.x, first.y) < 0.3, 'and muted at the old end of the same stroke: ' + fresh.at(first.x, first.y).toFixed(2));
+  assert.ok(settled.peak <= 0.6 * PEN_REST + 0.16 * PEN_REST + 0.02 && settled.peak >= 0.6 * PEN_REST - 0.03, `a settled stroke is about ${PEN_REST * 100} per cent of full: ${(settled.peak / 0.64).toFixed(2)}`);
+  assert.ok(Math.abs(later.peak - settled.peak) < 0.005, 'and it stays so until the answer');
   // Whatever it looks like, the main process got every point.
   const sent = pen.take();
   assert.equal(sent.reduce((n, s) => n + s.points.length, 0), points);
   assert.equal(sent.at(-1)?.done, true);
+});
+
+test('the marker is one continuous ribbon: along its line the opacity runs smoothly from the old end to the pen, with no steps or lines across it', () => {
+  const pen = new PenLayer();
+  pen.turnOn();
+  drawLoop(pen);
+  for (const now of [1000, 1300, 1700]) {
+    const { ribbon, at } = picture(pen, now);
+    const along = ribbon.pts.slice(2, -2).map((p) => at(p.x, p.y));
+    let worst = 0, dip = 0;
+    for (let i = 1; i < along.length; i++) {
+      worst = Math.max(worst, Math.abs((along[i] as number) - (along[i - 1] as number)));
+      dip = Math.max(dip, (along[i - 1] as number) - (along[i] as number)); // it never gets weaker towards the pen
+    }
+    assert.ok(worst < 0.035, `at ${now} ms no step between neighbouring points on the line: ${worst.toFixed(3)}`);
+    assert.ok(dip < 0.012, `at ${now} ms and no weaker patch (a seam) on the way: ${dip.toFixed(3)}`);
+  }
+});
+
+test('a stroke that crosses itself does not pile up into a dark bead: the stronger of the two is kept', () => {
+  const pen = new PenLayer();
+  pen.turnOn();
+  pen.down(100, 250);
+  for (let i = 1; i <= 60; i++) pen.move(100 + 8 * i + 40 * Math.sin(i / 3), 250 + 90 * Math.sin(i / 5));
+  pen.up();
+  assert.ok(picture(pen, 1000).peak < 0.75, 'no pixel stronger than the marker itself');
 });
 
 test('decay is only how it looks: it animates while the tail settles and then is still; with reduced motion the stroke stays at full strength until the answer, then fades as before', () => {
@@ -136,12 +156,8 @@ test('decay is only how it looks: it animates while the tail settles and then is
   assert.equal(pen.animating(500), true);
   assert.equal(pen.animating(200 + PEN_DECAY_MS + 1), false, 'once it has settled the picture is still');
   assert.equal(pen.animating(500, { reduceMotion: true }), false, 'no decay with reduced motion');
-  const calm = recorder();
-  drawPen(calm.ctx, pen.view(60_000, { reduceMotion: true }), SIZE);
-  assert.ok(peak(calm.fills) > 0.5, 'a minute later the whole stroke is still at full strength');
-  const decayed = recorder();
-  drawPen(decayed.ctx, pen.view(60_000), SIZE);
-  assert.ok(peak(decayed.fills) < 0.6 * 0.3, 'with decay it is muted');
+  assert.ok(picture(pen, 60_000, { reduceMotion: true }).peak > 0.5, 'a minute later the whole stroke is still at full strength');
+  assert.ok(picture(pen, 60_000).peak < 0.2, 'with decay it is muted');
   pen.fade(70_000);
   assert.ok(pen.view(70_000 + PEN_FADE_MS / 2, { reduceMotion: true }).alpha < 0.6);
   assert.equal(pen.view(70_000 + PEN_FADE_MS + 1, { reduceMotion: true }).strokes.length, 0);

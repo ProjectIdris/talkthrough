@@ -908,12 +908,6 @@ export function createSession(deps: SessionDeps) {
         points.push([p[0], p[1]]);
       }
     },
-    /** Z was pressed while the chord is held: the page takes back its last circle (and tells `stroke` so). */
-    undo(): void {
-      const a = attempt;
-      if (!a || !a.chord || penFor !== a) return;
-      deps.send(a.displayId, { kind: 'penUndo' });
-    },
     /**
      * A right click while the chord is held (`released` false) cancels the question: nothing is captured or heard, the strokes go, and
      * the person is told. The pen's window keeps the mouse until the button comes up (`released` true), so the click never reaches the app beneath.
