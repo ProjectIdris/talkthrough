@@ -543,3 +543,30 @@ test('a flow card that has to grow asks the page where to go, and is drawn where
   for (let t = 0; t < 5; t++) painter.draw(recorder(), frame.diagrams, view, t * 16);
   assert.equal(calls, 1);
 });
+
+test('the size a flow card grows to is worked out once for its layout, not on every frame; it is worked out again when a node arrives', () => {
+  const small = { x: 600, y: 700, w: 160, h: 140, title: 'Calls' };
+  const names = ['Big problem', 'Smaller problem', 'Base case: answer directly', 'Results combine back up', 'Return to the caller', 'Final answer', 'Done'];
+  const chain = (n: number) => settle(planStep(emptyFrame(), step(flow(small), ...names.slice(0, n).map((text, i) => node('n' + i, { text })), ...names.slice(1, n).map((_, i) => edge('e' + i, 'n' + i, 'n' + (i + 1), { text: 'label number ' + i })))));
+  const four = chain(6), five = chain(7);
+  let measured = 0;
+  const counting = () => {
+    const state: Record<string, unknown> = { font: '10px x' };
+    return new Proxy(state, {
+      get(t, k: string) {
+        if (k === 'measureText') return (s: string) => { measured++; return { width: s.length * 7 }; };
+        if (k in t) return t[k];
+        return () => undefined;
+      },
+      set(t, k: string, v) { t[k] = v; return true; },
+    }) as unknown as CanvasRenderingContext2D;
+  };
+  const painter = new DiagramPainter();
+  const cost = (frame: typeof four, now: number): number => { measured = 0; painter.draw(counting(), frame.diagrams, view, now); return measured; };
+  const first = cost(four, 0);
+  const second = cost(four, 16);
+  const third = cost(four, 32);
+  assert.ok(second < first / 2, `the second frame does not search again: ${first} then ${second}`);
+  assert.equal(third, second, 'and neither does the third');
+  assert.ok(cost(five, 48) > second * 2, 'a new node makes the search happen again');
+});
