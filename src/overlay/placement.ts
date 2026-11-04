@@ -280,15 +280,23 @@ export function insideAny(a: Action, rects: readonly Box[], aspect: number): boo
 }
 
 /**
- * The marks of a frame split by whether they lie on a flat diagram that is showing: those are drawn over the diagram's opaque card (the rest, under it,
- * as before), so a ring on a chart's crossing or an arrow at a bar is never hidden by the card it belongs to.
+ * The marks of a frame split by ownership: a mark that belongs to a flat diagram (written after it and inside the rectangle it was asked for; `owned` holds
+ * their ids) is drawn over the diagram's opaque card, so a ring on a chart's crossing or an arrow at a bar is never hidden by the card it belongs to.
+ * Every other mark, even one the card ends up covering, points at the page and stays under the card.
  */
-export function splitByDiagrams<T extends { mark: Action }>(marks: readonly T[], diagrams: readonly { def: { x: number; y: number; w: number; h: number }; appear: number }[], aspect: number): { under: T[]; over: T[] } {
-  const cards = diagrams.filter((d) => d.appear > 0).map((d) => ({ x: d.def.x, y: d.def.y, w: d.def.w, h: d.def.h }));
-  if (cards.length === 0) return { under: [...marks], over: [] };
+export function splitOwned<T extends { mark: { id?: string } }>(marks: readonly T[], owned: ReadonlySet<string>): { under: T[]; over: T[] } {
+  if (owned.size === 0) return { under: [...marks], over: [] };
   const under: T[] = [], over: T[] = [];
-  for (const m of marks) (insideAny(m.mark, cards, aspect) ? over : under).push(m);
+  for (const m of marks) (m.mark.id !== undefined && owned.has(m.mark.id) ? over : under).push(m);
   return { under, over };
+}
+
+/** The ids of the marks of a whole scene that belong to a flat diagram (see ownedByDiagram). */
+export function ownedMarkIds(steps: readonly { actions: readonly Action[] }[], aspect: number): Set<string> {
+  const flags = ownedByDiagram(steps, aspect);
+  const ids = new Set<string>();
+  steps.forEach((step, i) => step.actions.forEach((a, j) => { if (flags[i]![j] && 'id' in a && typeof a.id === 'string') ids.add(a.id); }));
+  return ids;
 }
 
 /**

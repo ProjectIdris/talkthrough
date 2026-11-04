@@ -6,7 +6,7 @@ import { bezierPoints, chartLayout, chartRanges, flowLayers, flowLayout, niceTic
 import type { Px } from '../src/overlay/diagram-layout.ts';
 import { DiagramPainter } from '../src/overlay/diagram-draw.ts';
 import { fadeFrame } from '../src/overlay/fade.ts';
-import { Placer, followDiagram, insideAny, ownedByDiagram, pageGrid, placeAction, splitByDiagrams } from '../src/overlay/placement.ts';
+import { Placer, followDiagram, insideAny, ownedByDiagram, ownedMarkIds, pageGrid, placeAction, splitOwned } from '../src/overlay/placement.ts';
 import { emptyFrame, evaluate, planStep, settle } from '../src/overlay/timeline.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
 
@@ -443,17 +443,19 @@ test('a stacked flow keeps every note: boxes in a tall narrow card are taller, a
   assert.ok(noted.nodes.get('n1')!.h > plain.nodes.get('n1')!.h * 1.2, `${noted.nodes.get('n1')!.h} vs ${plain.nodes.get('n1')!.h}`);
 });
 
-test('marks lying on a showing flat diagram are split off to be drawn over its card; marks elsewhere, and any mark under a diagram not yet showing, stay under', () => {
-  const ring = { mark: { op: 'circle', id: 'r', x: 540, y: 540, w: 60, h: 60 } } as { mark: Action };
-  const away = { mark: { op: 'box', id: 'b', x: 50, y: 50, w: 100, h: 100 } } as { mark: Action };
-  const showing = { def: { x: 500, y: 500, w: 300, h: 300 }, appear: 1 };
-  const split = splitByDiagrams([ring, away], [showing], 16 / 9);
-  assert.deepEqual(split.over, [ring]);
-  assert.deepEqual(split.under, [away]);
-  const notYet = splitByDiagrams([ring, away], [{ ...showing, appear: 0 }], 16 / 9);
-  assert.deepEqual(notYet.over, []);
-  assert.equal(notYet.under.length, 2);
-  assert.deepEqual(splitByDiagrams([ring], [], 16 / 9).under, [ring]);
+test('only the marks that belong to a diagram are drawn over its card: of two identical circles inside its rectangle, the one written after it, not the one written before', () => {
+  const aspect = 16 / 9;
+  const ring = (id: string) => ({ op: 'circle', id, x: 540, y: 540, w: 60, h: 60 });
+  const diagram = { op: 'diagram', id: 'd', kind: 'chart', x: 500, y: 500, w: 300, h: 300 };
+  // A ring on the page's own figure, then a chart that ends up covering it, then a ring on the chart.
+  const steps = [{ actions: [ring('page-ring'), diagram, ring('chart-ring')] }] as unknown as { actions: Action[] }[];
+  const owned = ownedMarkIds(steps, aspect);
+  assert.deepEqual([...owned], ['chart-ring']);
+  const frames = steps[0]!.actions.filter((a) => a.op === 'circle').map((mark) => ({ mark: mark as { id?: string } }));
+  const split = splitOwned(frames, owned);
+  assert.deepEqual(split.over.map((m) => m.mark.id), ['chart-ring']);
+  assert.deepEqual(split.under.map((m) => m.mark.id), ['page-ring'], 'a mark pointing at the page stays under the card that covers it');
+  assert.deepEqual(splitOwned(frames, new Set()).over, []);
 });
 
 test('a chart that is moved keeps a sensible shape: never squeezed into a strip, so it takes a smaller size or stays rather than a narrow margin', () => {
