@@ -1,4 +1,4 @@
-# Scene language v0
+# Scene language
 
 The scene language is how the model answers: a small JSON document that says what to speak and what to draw, step by step. The overlay renders it with three.js. It is data only: nothing in a scene is ever run, evaluated or parsed as HTML.
 
@@ -28,17 +28,17 @@ A scene is `{ "steps": [...] }` (an optional `"v": 1` marks the version, an opti
 
 Two layers are drawn:
 
-- **Marks** are drawn flat over the screenshot: box, circle, underline, arrow, label.
-- **The 3D panel** is one rectangle on the screen with a three.js scene inside it, which the user can drag to rotate.
+- **Screen marks** are drawn flat over the screenshot: box, circle, underline, arrow, label, note cards and image cards, and tags pinned to parts of a 3D model.
+- **The 3D model** floats over the page, lit and shadowed, and the user can drag it to rotate. It is built from a modelling vocabulary (shapes, surfaces, ready-made parts, copies) and moved with the same timed actions as everything else. The stage rectangle only says where it is fitted; there is no box around it unless `frame` is asked for.
 
 Objects stay on screen until cleared. A follow-up question continues the same scene: ids from earlier answers can still be used, and a new answer starts by clearing only if it says so.
 
 ## Numbers and units
 
 - **Screen coordinates** run 0 to 1000 across the screenshot, whatever its pixel size: `x` to the right, `y` down, `(0,0)` the top-left corner, `(1000,1000)` the bottom-right. The renderer maps them to the display.
-- **3D coordinates** are in panel units: `x` right, `y` up, `z` toward the viewer, origin at the middle of the panel. At zoom 1 the camera fits a square 12 units across inside the panel (so a wide panel shows more to the sides, and a small scene in a wide panel wants a `zoom`). It starts at `az` 0, `el` 15, looking at the middle of the panel. Angles are degrees.
+- **3D coordinates** are in model units: `x` right, `y` up, `z` toward the viewer, origin at the middle of the stage. At zoom 1 the camera fits 12 units across the shorter side of the stage (a wide stage shows more to the sides, and a small model wants a `zoom`). It starts at `az` 0, `el` 15, looking at the origin. A solid is centred on its position. Angles are degrees. The origin of the model is where the shadow falls under it, on the page.
 - **Time** is in seconds. `at` is the delay after the step starts (0 to 60). `dur` is how long a change takes (0 to 30, default 0.6). Things that appear fade in over a short fixed time.
-- **Colour** is a name (`red orange yellow green teal blue purple pink white gray black`) or `#rgb` / `#rrggbb`. The JSON Schema offers only the names.
+- **Colour** is a name (`red orange yellow green teal blue purple pink white gray black`) or `#rgb` / `#rrggbb`. In the JSON Schema it is text; the validator drops an action whose colour is neither. Solids and parts may leave it out and take the colour of their surface.
 - **Opacity** is 0 to 1.
 
 No screen size is measured along both axes at once: every screen size is a width (`w`) or height (`h`) in its own axis units, so a shape that looks round on a 16:9 screenshot needs `w` smaller than `h` (about 9/16 of it). Text height (`size`) is in y units. A renderer maps each axis separately.
@@ -51,7 +51,7 @@ Every mark and 3D object has an `id`: a letter followed by up to 31 letters, dig
 
 ## Screen marks
 
-Marks take `id`, `color` and optionally `at`.
+Marks take `id`, `color` (cards, images and pins may leave it out: the look chooses) and optionally `at`.
 
 | op | fields | |
 |---|---|---|
@@ -60,10 +60,17 @@ Marks take `id`, `color` and optionally `at`.
 | `underline` | `x y w` | a line under text; `x,y` is the left end |
 | `arrow` | `x1 y1 x2 y2` | from `x1,y1` to `x2,y2`; the head is at `x2,y2` |
 | `label` | `x y text size?` | short text, up to 80 characters; `x,y` is the top-left corner; `size` is the text height in y units (10 to 100, default 24) |
+| `card` | `x y w? title? rows? layout? to?` | a note card: a title and/or up to 6 rows of up to 60 characters; `w` is its width in x units (default 300); `layout` is `list` (default), `timeline` (rows written `when \| what`, laid along a line) or `stat` (the first row large); `to` is a screen point a curved line runs to from the card |
+| `image` | `sx sy sw sh dx dy dw caption?` | a crop of the screenshot (region `sx,sy,sw,sh`) shown as a card at `dx,dy`, `dw` wide, with an optional caption; it needs the screenshot, so it is left out where the page has none |
+| `pin` | `on point? text off?` | a tag pinned to the 3D object `on`: a dot at `point` (in the object's own space, default its middle), a leader line and the text; `off` is where the tag sits from the dot in screen units (default `[0,-90]`). It follows the object as it moves and goes when the object does |
 
-## The 3D panel
+## The 3D stage
 
-`{ "op": "panel", "x", "y", "w", "h", "at"?, "dur"? }` places the panel as a rectangle on the screenshot. Sent again, it moves or resizes. If objects are added before any `panel`, the renderer uses a default rectangle.
+`{ "op": "panel", "x", "y", "w", "h", "frame"?, "at"?, "dur"? }` places the stage as a rectangle on the screenshot: the model is fitted to it, and may reach past it. `frame` true draws a box behind the model; by default there is none. Sent again, it moves or resizes. If objects are added before any `panel`, the renderer uses a default rectangle.
+
+### Surfaces
+
+`material` is one of `plastic` (default), `metal`, `rubber`, `pcb`, `glass`, `glow`, `paper`. They are physically based surfaces lit by a room environment; `color` tints them, and an object with no colour takes the natural colour of its surface (a `pcb` is green, `rubber` near black). Solids and tubes have dark edge lines unless `edges` is false.
 
 ### Adding objects
 
@@ -71,22 +78,30 @@ Marks take `id`, `color` and optionally `at`.
 
 | shape | fields | |
 |---|---|---|
-| `box` `sphere` `cylinder` `cone` `torus` `plane` | `size` `pos`? `rot`? `color` `opacity`? | `size` is the bounding box `[x,y,z]`. A cylinder and a cone stand on `y` (diameter `x`, height `y`, cone apex up). A torus lies flat: outer diameter `x`, tube thickness `y`. A plane faces `+z` and ignores `z`. A sphere is an ellipsoid fitted to the box. |
-| `line` `arrow` | `pts` `color` `opacity`? | 2 to 24 points `[x,y,z]`; an arrow ends in a head at the last point |
-| `text` | `text` `height` `pos`? `color` | text up to 80 characters, always facing the camera |
+| `box` `sphere` `cylinder` `cone` `torus` `plane` | `size` `pos`? `rot`? `color`? `material`? `bevel`? `edges`? `opacity`? | `size` is the bounding box `[x,y,z]`. A cylinder and a cone stand on `y` (diameter `x`, height `y`, cone apex up). A torus lies flat: outer diameter `x`, tube thickness `y`. A plane faces `+z` and ignores `z`. A sphere is an ellipsoid fitted to the box. A box is slightly rounded by default; `bevel` sets the rounding in units (0 for sharp) |
+| `extrude` | `outline` `depth` `bevel`? `pos`? `rot`? `color`? `material`? | a flat outline `[[x,y],...]` (3 to 40 points, counter-clockwise, in the x,y plane) pushed out `depth` along `z` and centred on it: wings, fins, plates |
+| `lathe` | `profile` `sides`? `pos`? `rot`? `color`? `material`? | a profile `[[radius,y],...]` spun round the `y` axis: bodies, nozzles, rings, bottles. `sides` (3 to 64, default 48) makes it faceted |
+| `tube` | `pts` `radius` `flat`? `draw`? `color`? `material`? | a smooth tube through 2 to 24 points: cables, pipes, vessels. `flat` (0.05 to 1) squashes it to a ribbon whose wide side faces across the path. `draw` below 1 starts it part drawn |
+| `line` `arrow` | `pts` `color`? `draw`? `opacity`? | a thin line through the points; an arrow ends in a head at the last point |
+| `part` | `part` `size` `variant`? `n`? `pos`? `rot`? `color`? | a ready-made part fitted to the box `size`: `chip` (variant `black` or `metal`), `header` (`n` pins per row, two rows), `port` (variant `usb`, `usb3`, `ethernet`, `hdmi`, `usbc`; its opening faces `+z`), `lens` (axis `z`), `screen`, `button`, `fan` (`n` blades, axis `y`), `wheel` (`n` spokes, axis `z`) |
+| `array` | `of` `count` `step`? `turn`? | `count` copies in all of the object `of` (with everything attached to it); the original is the first. Each copy is moved `step` and turned `turn` more than the last, about the origin of the group the original sits in: a row of pins, blades round a hub. The original joins the new group `id` |
+| `text` | `text` `height` `pos`? `color` | text in the 3D scene, always facing the camera |
 | `group` | `pos`? `rot`? | an empty node |
 
-All take `parent`? (the id of a group to attach to; groups nest up to 6 deep) and `at`?. `pos` defaults to `[0,0,0]`, `rot` to `[0,0,0]`, `opacity` to 1. A child moves, turns and scales with its parent. To make something grow from its base, put it in a group at the base, offset the child by half its height, and scale the group (see `bar-chart.json`).
+All take `parent`? (the id of a group to attach to; groups nest up to 6 deep) and `at`?. `pos` defaults to `[0,0,0]`, `rot` to `[0,0,0]`, `opacity` to 1. A child moves, turns and scales with its parent. To make something grow from its base, put it in a group at the base, offset the child by half its height, and scale the group (see `bar-chart.json`). Arrays are capped at 64 copies each and 400 in a scene.
 
 ### Changing objects
 
-All take `id` and optionally `at` and `dur`. These apply to 3D objects (`move`, `turn`, `scale`) or to any object or mark (`style`, `highlight`).
+All take `id` and optionally `at` and `dur`. These apply to 3D objects (`move`, `along`, `turn`, `scale`, `explode`, `reveal`) or to any object or mark (`style`, `highlight`). `style` and `highlight` on a group reach everything inside it.
 
 | op | fields | |
 |---|---|---|
 | `move` | `to: [x,y,z]` | tween to an absolute position |
+| `along` | `pts` | move along a smooth path through the points, ending on the last |
 | `turn` | `to: [x,y,z]` | tween to absolute angles. The tween is linear, so from `[0,0,0]` to `[0,360,0]` is one full spin |
 | `scale` | `to: [x,y,z]` | tween to absolute factors; 1 is the size it was added at |
+| `explode` | `to` | spread the parts of a group outward from its origin: 0 assembled, 1 apart (up to 3). Build in the exploded state and tween to 0 to assemble |
+| `reveal` | `to` | draw a tube, line or arrow on from its start: 1 is all of it |
 | `style` | `color`? `opacity`? | tween colour and/or opacity; at least one is required |
 | `highlight` | `color`? | pulse to draw the eye; the object returns to how it was |
 
@@ -96,13 +111,13 @@ All take `id` and optionally `at` and `dur`. These apply to 3D objects (`move`, 
 |---|---|---|
 | `orbit` | `az el` | place the camera on a sphere around what it looks at: `az` in degrees (0 faces the front), `el` the height angle (-89 to 89) |
 | `zoom` | `to` | distance factor, 0.2 to 5: 1 is the default framing, 2 is twice as close |
-| `focus` | `id`? | aim at a 3D object; without `id`, back to the middle of the panel |
+| `focus` | `id`? | aim at a 3D object; without `id`, back to the origin |
 
 The user can still drag to rotate; the next camera action tweens from wherever the camera is.
 
 ### Clearing
 
-`{ "op": "clear", "target": ... }`: an id (the object and everything attached to it), or `all`, `marks` (every screen mark) or `panel` (the panel and its objects). A cleared id may be used again.
+`{ "op": "clear", "target": ... }`: an id (the object and everything attached to it), or `all`, `marks` (every screen mark, card and pin) or `panel` (the stage and its objects, with the pins on them). A cleared id may be used again.
 
 ## Escalating
 
@@ -128,6 +143,9 @@ The validator enforces these; the numbers are in `LIMITS` in `spec.ts`.
 | `say` | 400 characters |
 | `text` | 80 characters |
 | points in a path | 24 |
+| points in an outline or profile | 40 |
+| copies from arrays | 64 each, 400 in all |
+| rows on a card | 6 |
 | `escalate` | 160 characters |
 
 ## What the validator does

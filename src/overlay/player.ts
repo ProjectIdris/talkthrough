@@ -64,12 +64,15 @@ export type PlayerOptions = {
   clock?: Clock;
   /** Called when the last step of a played scene has finished. */
   onDone?: () => void;
+  /** Called each time a step's speech really starts (the voice's start event). */
+  onSpeechStart?: () => void;
 };
 
 export class Player {
   private voice: Voice;
   private clock: Clock;
   private onDone: (() => void) | undefined;
+  private onSpeechStart: (() => void) | undefined;
 
   private phase: Phase = 'idle';
   /** The Frame before the current step (or the settled world when idle). */
@@ -78,6 +81,8 @@ export class Player {
   /** The last plan, kept when idle so a drag can still move the camera and the next play starts from it. */
   private resting: StepPlan | undefined;
   private steps: readonly Step[] = [];
+  /** A turn is open: more steps may still arrive, so running out of steps is not the end. */
+  private live = false;
   private index = 0;
   private generation = 0;
 
@@ -92,6 +97,22 @@ export class Player {
     this.voice = options.voice;
     this.clock = options.clock ?? realClock;
     this.onDone = options.onDone;
+    this.onSpeechStart = options.onSpeechStart;
+  }
+
+  /** Swaps the voice (a development run with no speech). */
+  setVoice(voice: Voice): void {
+    this.voice = voice;
+  }
+
+  /**
+   * The user started a new question: stop speaking now and let nothing more be spoken. The step in
+   * progress finishes drawing; steps still queued, and any the model has yet to send, are dropped.
+   */
+  hush(): void {
+    this.voice.cancel();
+    this.live = false;
+    this.steps = this.steps.slice(0, this.index + 1);
   }
 
   /** True while a scene is playing (the caller keeps animating). */
@@ -101,20 +122,41 @@ export class Player {
 
   /** Plays a validated scene on top of what is already drawn; a scene in progress is finished off first. */
   play(scene: Scene): void {
+    this.beginTurn();
+    for (const step of scene.steps) this.pushStep(step);
+    this.endTurn();
+  }
+
+  /**
+   * Live play: opens a turn whose steps arrive one at a time with pushStep, as a model writes them.
+   * What is drawn stays; a turn in progress is finished off first.
+   */
+  beginTurn(): void {
     this.stop();
     this.frozen = undefined;
-    this.steps = scene.steps;
+    this.steps = [];
     this.index = 0;
-    if (scene.steps.length === 0) {
-      this.finishScene();
-      return;
-    }
-    this.beginStep();
+    this.live = true;
+  }
+
+  /** Adds a validated step to the open turn. The first starts at once; the rest queue behind it. */
+  pushStep(step: Step): void {
+    if (!this.live) this.beginTurn();
+    this.steps = [...this.steps, step];
+    if (this.phase === 'idle' && this.index === this.steps.length - 1) this.beginStep();
+  }
+
+  /** No more steps will come. Once the queued steps have played the scene is done. */
+  endTurn(): void {
+    if (!this.live) return;
+    this.live = false;
+    if (this.phase === 'idle' && this.index >= this.steps.length) this.finishScene();
   }
 
   /** Frame-grab mode: shows the scene as it is `t` seconds into step `step`, with no clock and no speech. */
   seek(scene: Scene, step: number, t: number): void {
     this.stop();
+    this.live = false;
     this.base = emptyFrame();
     this.resting = undefined;
     this.frozen = frameAt(scene.steps, step, t);
@@ -124,6 +166,7 @@ export class Player {
   /** Removes everything drawn and stops speaking. */
   clear(): void {
     this.stop();
+    this.live = false;
     this.base = emptyFrame();
     this.resting = undefined;
     this.frozen = undefined;
@@ -159,7 +202,8 @@ export class Player {
         this.plan = undefined;
         this.index++;
         if (this.index < this.steps.length) this.beginStep();
-        else this.finishScene();
+        else if (!this.live) this.finishScene();
+        else this.phase = 'idle';
         return this.update();
       }
       return evaluate(this.plan, t);
@@ -205,6 +249,7 @@ export class Player {
       start: (e) => {
         if (generation !== this.generation || this.speechStarted) return;
         this.startClock(this.clock.now(), e.estimatedMs);
+        this.onSpeechStart?.();
       },
       end: () => {
         if (generation !== this.generation) return;

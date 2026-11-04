@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { Vector3 } from 'three';
 import type { Scene } from '../src/scene/index.ts';
-import { PanelScene, FOV_DEGREES, FRAMING_UNITS } from '../src/overlay/scene3d.ts';
+import { PanelScene, FOV_DEGREES, FRAMING_UNITS, verticalFov } from '../src/overlay/scene3d.ts';
 import { drawMarks, lineWidth, px, snap } from '../src/overlay/marks.ts';
 import { emptyFrame, evaluate, frameAt, planStep, settle } from '../src/overlay/timeline.ts';
 import type { StepPlan } from '../src/overlay/timeline.ts';
@@ -57,6 +57,20 @@ test('the camera frames twelve units on the shorter side, orbits, zooms and foll
   // Half way between the old and new focus point.
   panel.sync({ ...moved, camera: { az: 0, el: 0, zoom: 1, focus: { key, from: { key: null, k: 1 }, k: 0.5 } } }, 1);
   assert.ok(Math.abs(panel.camera.position.x - 1.5) < 1e-6);
+});
+
+test('a wide panel sees no more than the field of view to its sides, so shapes at its edges are not skewed', () => {
+  const half = (d: number) => Math.tan((d * Math.PI) / 360);
+  for (const aspect of [1, 1.5, 2.6, 4, 6]) {
+    const v = verticalFov(aspect);
+    assert.ok(half(v) * aspect <= half(FOV_DEGREES) + 1e-9, 'wide side stays within ' + FOV_DEGREES + ' degrees at ' + aspect);
+  }
+  assert.equal(verticalFov(1), FOV_DEGREES);
+  assert.equal(verticalFov(0.5), FOV_DEGREES, 'a tall panel keeps the full angle up the tall side');
+  assert.ok(verticalFov(1000) >= 3, 'and never collapses');
+  const panel = new PanelScene();
+  panel.sync(lastFrame(sample('earth-layers.json')), 3);
+  assert.ok(Math.abs(panel.camera.fov - verticalFov(3)) < 1e-9);
 });
 
 test('every shape the language has can be built, at the size it was given', () => {

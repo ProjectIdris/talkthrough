@@ -6,33 +6,50 @@ The overlay page (`src/overlay/`) draws the scene language (see `scene-language.
 
 From back to front inside the overlay window:
 
-1. **Backdrop** (development and frame grabs only): an image shown behind everything.
-2. **The panel frame**: a rounded, translucent rectangle (a DOM element) at the 3D panel's rectangle. It is the only part of the page that takes the pointer, so the rest stays click-through.
-3. **The 3D canvas**: one WebGL canvas covering the display. The panel is a viewport on it with its own perspective camera, clipped to the frame.
-4. **The marks canvas**: a 2D canvas covering the display, drawn in device pixels.
+1. **Backdrop** (development and frame grabs only): an image shown behind everything. It is also the source of image-card crops.
+2. **The stage frame** (optional): a rounded box behind the model, only when the scene asks for `frame`. It never takes the pointer.
+3. **The 3D canvas**: one WebGL canvas covering the display. The model floats on it, lit and shadowed, over the page.
+4. **The marks canvas**: a 2D canvas covering the display, drawn in device pixels: marks, tags pinned to 3D parts, note cards, image cards.
+5. **The app's own words**: a listening cue, a thinking indicator, an offer card and a short notice (DOM, from `index.html`).
 
-Scene coordinates run 0 to 1000 across each axis of the window, which covers the display that was captured, so no other mapping is needed. Every rectangle is snapped to physical pixels, so lines stay crisp at any display scaling (the page reads `devicePixelRatio`).
+Scene coordinates run 0 to 1000 across each axis of the window, which covers the display that was captured. Every rectangle is snapped to physical pixels, so lines stay crisp at any display scaling.
 
-## What is drawn
+## The 3D look
 
-- **Marks**: a box, an oval (`circle`), an underline, an arrow and a label. They draw themselves in over 0.4 s: a box or oval traces its outline, an underline grows, an arrow's shaft extends and its head pops in, a label fades and rises. Every mark has a dark halo so it reads on light and dark pages. `highlight` thickens and glows the outline.
-- **The 3D panel**: solids, lines, arrows, camera-facing text and groups, lit by a hemisphere light and a light that travels with the camera. Translucent shells (nested spheres) draw largest first so the inner ones show through. `highlight` makes an object glow and swell briefly.
-- **Tweens** ease in and out. A tween starts from wherever its property is when it begins, so overlapping and chained actions join up.
+- **Surfaces** (`materials.ts`): physically based (roughness, metalness, a little clear coat) in a named set: plastic, metal, rubber, pcb, glass, glow, paper. A colour tints a surface.
+- **Light**: three's room environment, pre-filtered once, plus one key light; Neutral tone mapping so colours keep their identity.
+- **Shadow**: a soft shadow on the page under the model (a real shadow map on the higher tiers, and a gradient blob on every tier), on a floor just under the lowest part. The model is never clipped to the stage rectangle: the camera is given the whole display as its window (`setViewOffset`) and the render is scissored to where the model and its shadow are, so cost follows what is drawn, not the display size.
+- **Camera**: the longer side of the stage sees 35 degrees, so a wide stage does not skew the edges.
+- **Edges**: thin dark lines on solids, from the second tier up.
+- **Tiers** (`TIERS` in `materials.ts`): `low` (no multisampling, no shadow map, no edge lines, no clear coat), `mid` (the default on software rendering: multisampling, a 1024 shadow map, edges, clear coat), `high` (2048 shadow map, device pixel ratio up to 2). The page address takes `?tier=low|mid|high`; with none it picks `mid` on a software rasteriser and `high` otherwise.
+
+## Building models
+
+`geometry.ts` makes the shapes (rounded boxes, extrusions, lathes, tubes along a curve, drawn on a ring at a time); `parts.ts` builds the parts kit from the same pieces, fitted to the box a scene gives; `scene3d.ts` brings a Frame into three.js, applies explode (children sit at their position times one plus the spread), places the floor, light and shadow, and projects points of objects to the screen for pins and hit tests.
+
+## Looks
+
+`theme.ts` holds the look of tags, cards and image cards: three themes (`studio`: dark glass pills; `blueprint`: squared tags with corner ticks and elbow leaders; `paper`: light cards with a serif title and curved leaders). The scene never chooses one; the page takes `?theme=` and defaults to `studio`. Fonts are ones Windows already ships (Segoe UI Variable, Bahnschrift, Georgia).
 
 ## Time
 
-`timeline.ts` is the clock-free core. A step becomes a plan (`planStep`) that starts from the state the previous step settled in, and a plan plus a time becomes a complete frame to draw (`evaluate`). Because later steps start from the settled state, objects, ids and the camera carry across steps and across follow-up questions. Actions are applied in time order (`at`, then list order).
+`timeline.ts` is the clock-free core. A step becomes a plan (`planStep`) that starts from the state the previous step settled in, and a plan plus a time becomes a complete frame to draw (`evaluate`). Because later steps start from the settled state, objects, ids and the camera carry across steps and across follow-up questions. Actions are applied in time order (`at`, then list order). Paths (`along`) are splines, and `reveal` and `explode` are ordinary tweens.
 
 In real time (`player.ts`):
 
 - Each step is spoken through the `Voice` adapter, and the step's drawing starts when the voice's `start` event fires.
-- The step's clock is scaled to the voice's own estimate of how long it will speak, so the actions run over the utterance instead of by the assumed pace of 2.5 words a second.
-- The next step is spoken once its speech has ended and its drawing has finished.
-- A voice that never starts (none installed, or it fails) does not stall the picture: after 2.5 s, or as soon as it reports the end, the drawing plays anyway.
-- With no system voice the player paces each step by its word count with a silent voice.
-- A new scene continues the picture on screen (a follow-up); the first turn of a question clears it first.
+- The step's clock is scaled to the voice's own estimate of how long it will speak, so the actions run over the utterance.
+- The next step is spoken once its speech has ended and the step's drawing has finished.
+- A voice that never starts does not stall the picture: after 2.5 s, or as soon as it reports the end, the drawing plays anyway.
+- Steps may arrive while earlier ones play (`begin`, `step`, `end` messages): they queue. Running out of steps is not the end of the turn until `end` has come.
+- `hush` stops the speech at once and drops queued steps; the step in progress finishes drawing.
+- A new turn continues the picture on screen (a follow-up); the first turn of a question clears it first.
 
-Dragging the panel turns the camera (0.4 degrees a pixel). The drag is folded into the camera's tweens, so a camera action after it starts from where the camera is.
+## Fading
+
+When a turn has finished, the scene stays at full strength for `FADE_AFTER_MS` (set in `src/shared/ipc.ts`), then fades over 1.2 s, unless the pointer is on the model or the app's words; touching it starts the count again. A faded scene takes no clicks. It is hidden, not cleared, so a follow-up still reaches its ids; the next question or Clear removes it. `fade.ts` is the logic and is tested without a clock.
+
+Dragging the model turns the camera (0.4 degrees a pixel). The drag is folded into the camera's tweens, so a camera action after it starts from where the camera is. The pointer region is the model's own bounding rectangle, so the page around it stays clickable.
 
 ## Looking at it without the app
 
@@ -40,14 +57,14 @@ Dragging the panel turns the camera (0.4 degrees a pixel). The drag is folded in
 
 ```
 npm run build
-npx electron scripts/overlay-frames.cjs samples/scenes/bar-chart.json --out frames \
-    --steps 2:2.5,5:3.5 --backdrop samples/pages/bar-chart.svg
+npx electron scripts/overlay-frames.cjs samples/scenes/pi-camera.json --out frames \
+    --steps 0:3,4:3 --backdrop samples/pages/product.svg --theme blueprint --tier mid
 ```
 
 Offscreen windows always render at a device scale of 1; add `--hidden --dpr 2` to render in a hidden window at another scale (the PNG is then at physical size).
 
-`samples/pages/` has a backdrop for each sample, drawn to the page layout the sample's marks were written against. A follow-up is rendered after its first scene with `--after samples/scenes/earth-layers.json`.
+`samples/pages/` has backdrops drawn to the layouts the samples' marks were written against. A follow-up is rendered after its first scene with `--after samples/scenes/earth-layers.json`.
 
 ## Software rendering
 
-The renderer works without a GPU: Electron with hardware acceleration off runs WebGL on the system's software rasteriser, and scenes are kept light (a few dozen objects).
+The renderer works without a GPU: Electron with hardware acceleration off runs WebGL on the system's software rasteriser. The mid tier is meant for that; the high tier is judged on a real GPU.

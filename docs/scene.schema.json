@@ -50,19 +50,8 @@
           "description": "1 to 1000"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+          "type": "string",
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
         },
         "at": {
           "type": [
@@ -113,19 +102,8 @@
           "description": "1 to 1000"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+          "type": "string",
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
         },
         "at": {
           "type": [
@@ -172,19 +150,8 @@
           "description": "1 to 1000"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+          "type": "string",
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
         },
         "at": {
           "type": [
@@ -234,19 +201,8 @@
           "description": "0 to 1000"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+          "type": "string",
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
         },
         "at": {
           "type": [
@@ -293,19 +249,8 @@
           "description": "up to 80 characters"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+          "type": "string",
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
         },
         "size": {
           "type": [
@@ -335,6 +280,176 @@
       "additionalProperties": false,
       "description": "Short text on the screenshot; x,y is its top-left corner. size is the text height in y units (default 24)."
     },
+    "card": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "card"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "y": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "w": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "width in x units, default 300; 60 to 700"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 60 characters"
+        },
+        "rows": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "up to 6 texts of up to 60 characters"
+        },
+        "layout": {
+          "enum": [
+            "list",
+            "timeline",
+            "stat",
+            null
+          ]
+        },
+        "to": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y], each 0 to 1000"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "w",
+        "title",
+        "rows",
+        "layout",
+        "to",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A note card on the screen: a title and/or up to 6 short rows. layout: list (default), timeline (rows \"when | what\" along a line) or stat (a big first row). to: a screen point a curved line runs to from the card."
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "image"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "sx": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "sy": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "sw": {
+          "type": "number",
+          "description": "1 to 1000"
+        },
+        "sh": {
+          "type": "number",
+          "description": "1 to 1000"
+        },
+        "dx": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "dy": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "dw": {
+          "type": "number",
+          "description": "40 to 800"
+        },
+        "caption": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 60 characters"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "sx",
+        "sy",
+        "sw",
+        "sh",
+        "dx",
+        "dy",
+        "dw",
+        "caption",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A crop of the screenshot (the region sx,sy,sw,sh) shown as a card at dx,dy, dw wide, with an optional caption: to zoom in on something small."
+    },
     "panel": {
       "type": "object",
       "properties": {
@@ -359,6 +474,12 @@
           "type": "number",
           "description": "1 to 1000"
         },
+        "frame": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "at": {
           "type": [
             "number",
@@ -380,11 +501,12 @@
         "y",
         "w",
         "h",
+        "frame",
         "at",
         "dur"
       ],
       "additionalProperties": false,
-      "description": "The 3D panel: a rectangle on the screenshot where 3D objects are drawn. Sent again, it moves or resizes."
+      "description": "The 3D stage: the rectangle on the screenshot a 3D model is fitted to. The model floats over the page and may reach past the rectangle; frame true draws a box behind it. Sent again, it moves or resizes."
     },
     "addSolid": {
       "type": "object",
@@ -442,19 +564,38 @@
           "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
         },
         "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
           "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "bevel": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "rounding of the edges in units (default small); 0 to 20"
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "dark edge lines (default true)"
         },
         "opacity": {
           "type": [
@@ -480,11 +621,362 @@
         "size",
         "rot",
         "color",
+        "material",
+        "bevel",
+        "edges",
         "opacity",
         "at"
       ],
       "additionalProperties": false,
-      "description": "A solid in the panel. size is its bounding box [x,y,z]: cylinder and cone stand on y with diameter x, torus lies flat with outer diameter x and tube thickness y, plane faces +z and ignores z."
+      "description": "A solid. size is its bounding box [x,y,z]: cylinder and cone stand on y with diameter x, torus lies flat with outer diameter x and tube thickness y, plane faces +z and ignores z. A box with a bevel has rounded edges."
+    },
+    "addExtrude": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "extrude"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group to attach to"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "outline": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "3 to 40 points [x,y], each -100 to 100"
+        },
+        "depth": {
+          "type": "number",
+          "description": "0.01 to 100"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "bevel": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "rounding of the edges in units (default small); 0 to 20"
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "dark edge lines (default true)"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "outline",
+        "depth",
+        "color",
+        "material",
+        "bevel",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets."
+    },
+    "addLathe": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "lathe"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group to attach to"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "profile": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "2 to 40 points [x,y], each -100 to 100"
+        },
+        "sides": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "3 to 64"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "dark edge lines (default true)"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "profile",
+        "sides",
+        "color",
+        "material",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides (default 48) makes it faceted."
+    },
+    "addTube": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "tube"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group to attach to"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "2 to 24 points [x,y,z]"
+        },
+        "radius": {
+          "type": "number",
+          "description": "0.01 to 20"
+        },
+        "flat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.05 to 1"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "draw": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "how much is drawn at first, 0 to 1 (default 1); grow it with reveal; 0 to 1"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pts",
+        "radius",
+        "flat",
+        "color",
+        "material",
+        "draw",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A smooth tube through the points: cables, pipes, vessels. flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn."
     },
     "addPath": {
       "type": "object",
@@ -521,19 +1013,18 @@
           "description": "2 to 24 points [x,y,z]"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "draw": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "how much is drawn at first, 0 to 1 (default 1); grow it with reveal; 0 to 1"
         },
         "opacity": {
           "type": [
@@ -557,11 +1048,198 @@
         "parent",
         "pts",
         "color",
+        "draw",
         "opacity",
         "at"
       ],
       "additionalProperties": false,
-      "description": "A line through the points, or an arrow from the first to the last point."
+      "description": "A thin line through the points, or an arrow from the first to the last point."
+    },
+    "addPart": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "part"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group to attach to"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "part": {
+          "enum": [
+            "chip",
+            "header",
+            "port",
+            "lens",
+            "screen",
+            "button",
+            "fan",
+            "wheel"
+          ]
+        },
+        "variant": {
+          "enum": [
+            "black",
+            "metal",
+            "usb",
+            "usb3",
+            "ethernet",
+            "hdmi",
+            "usbc",
+            "gold",
+            null
+          ]
+        },
+        "size": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], each 0.01 to 100"
+        },
+        "n": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 64"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "part",
+        "variant",
+        "size",
+        "n",
+        "color",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A ready-made part fitted to the box size [x,y,z]: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z)."
+    },
+    "addArray": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "array"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "of": {
+          "type": "string"
+        },
+        "count": {
+          "type": "number",
+          "description": "2 to 64"
+        },
+        "step": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "turn": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "of",
+        "count",
+        "step",
+        "turn",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Copies of an existing object, count in all (the original is the first). step moves each copy [x,y,z] from the last; turn rotates each copy about the origin of the group the original sits in, which is how to put blades round a hub."
     },
     "addText": {
       "type": "object",
@@ -605,19 +1283,8 @@
           "description": "0.05 to 50"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black"
-          ]
+          "type": "string",
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
         },
         "at": {
           "type": [
@@ -639,7 +1306,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Text in the panel that always faces the camera; height is in panel units."
+      "description": "Text in the 3D scene that always faces the camera; height is in 3D units."
     },
     "addGroup": {
       "type": "object",
@@ -704,6 +1371,72 @@
       "additionalProperties": false,
       "description": "An empty node to move, turn and scale other objects together (attach them with parent)."
     },
+    "pin": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "pin"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "on": {
+          "type": "string"
+        },
+        "point": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "text": {
+          "type": "string",
+          "description": "up to 40 characters"
+        },
+        "off": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y], each -500 to 500"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "on",
+        "point",
+        "text",
+        "off",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A label pinned to a 3D object: a dot at point (in the object's own space, default its middle), a line and a tag that follow it as it moves. off is where the tag sits from the dot in screen units (default [0,-90])."
+    },
     "move": {
       "type": "object",
       "properties": {
@@ -746,6 +1479,52 @@
       ],
       "additionalProperties": false,
       "description": "Move a 3D object to an absolute position."
+    },
+    "along": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "along"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "1 to 24 points [x,y,z]"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "pts",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Move a 3D object along a smooth path through the points, ending on the last."
     },
     "turn": {
       "type": "object",
@@ -833,6 +1612,86 @@
       "additionalProperties": false,
       "description": "Scale a 3D object to absolute factors [x,y,z] (1 is the size it was added at)."
     },
+    "explode": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "explode"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "to": {
+          "type": "number",
+          "description": "0 to 3"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Spread the parts of a group outward from its origin: 0 assembled, 1 apart (up to 3). Back to 0 to assemble."
+    },
+    "reveal": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "reveal"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "to": {
+          "type": "number",
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Draw a tube, line or arrow on, from its start: to 1 is all of it."
+    },
     "style": {
       "type": "object",
       "properties": {
@@ -845,20 +1704,11 @@
           "type": "string"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black",
-            null
-          ]
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
         },
         "opacity": {
           "type": [
@@ -905,20 +1755,11 @@
           "type": "string"
         },
         "color": {
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "teal",
-            "blue",
-            "purple",
-            "pink",
-            "white",
-            "gray",
-            "black",
-            null
-          ]
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
         },
         "at": {
           "type": [
@@ -1058,7 +1899,7 @@
         "dur"
       ],
       "additionalProperties": false,
-      "description": "Aim the camera at a 3D object; without id, back at the middle of the panel."
+      "description": "Aim the camera at a 3D object; without id, back at the middle of the stage."
     },
     "clear": {
       "type": "object",
@@ -1086,7 +1927,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Remove an object or mark (and what is attached to it), or everything with \"all\", every mark with \"marks\", the panel and its objects with \"panel\"."
+      "description": "Remove an object or mark (and what is attached to it), or everything with \"all\", every mark, card and pin with \"marks\", the 3D stage and its objects with \"panel\"."
     },
     "action": {
       "anyOf": [
@@ -1106,13 +1947,34 @@
           "$ref": "#/$defs/label"
         },
         {
+          "$ref": "#/$defs/card"
+        },
+        {
+          "$ref": "#/$defs/image"
+        },
+        {
           "$ref": "#/$defs/panel"
         },
         {
           "$ref": "#/$defs/addSolid"
         },
         {
+          "$ref": "#/$defs/addExtrude"
+        },
+        {
+          "$ref": "#/$defs/addLathe"
+        },
+        {
+          "$ref": "#/$defs/addTube"
+        },
+        {
           "$ref": "#/$defs/addPath"
+        },
+        {
+          "$ref": "#/$defs/addPart"
+        },
+        {
+          "$ref": "#/$defs/addArray"
         },
         {
           "$ref": "#/$defs/addText"
@@ -1121,13 +1983,25 @@
           "$ref": "#/$defs/addGroup"
         },
         {
+          "$ref": "#/$defs/pin"
+        },
+        {
           "$ref": "#/$defs/move"
+        },
+        {
+          "$ref": "#/$defs/along"
         },
         {
           "$ref": "#/$defs/turn"
         },
         {
           "$ref": "#/$defs/scale"
+        },
+        {
+          "$ref": "#/$defs/explode"
+        },
+        {
+          "$ref": "#/$defs/reveal"
         },
         {
           "$ref": "#/$defs/style"

@@ -2,6 +2,8 @@
 // display. Scene coordinates run 0..1000 across each axis of the display; everything is snapped
 // to physical pixels so lines stay crisp at any display scaling.
 
+import { drawCard, drawImage, drawPin } from './annotations.ts';
+import type { Annotator } from './annotations.ts';
 import { rgbCss } from './timeline.ts';
 import type { MarkFrame, Rgb } from './timeline.ts';
 
@@ -188,11 +190,15 @@ function drawLabel(ctx: Ctx, m: MarkFrame, v: View, alpha: number): void {
   ctx.restore();
 }
 
-/** Clears the canvas and draws every mark in the frame, oldest first. */
-export function drawMarks(ctx: Ctx, marks: readonly MarkFrame[], view: View): void {
+/**
+ * Clears the canvas and draws every mark in the frame, oldest first. Pins, cards and image cards need an
+ * annotator (the theme, and where 3D parts fall on screen); without one they are left out.
+ */
+export function drawMarks(ctx: Ctx, marks: readonly MarkFrame[], view: View, annotator?: Annotator): void {
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   ctx.clearRect(0, 0, view.width, view.height);
   const lw = lineWidth(view);
+  let order = 0;
   for (const m of marks) {
     const alpha = Math.max(0, Math.min(1, m.opacity * m.fade));
     if (alpha <= 0.002 || m.appear <= 0) continue;
@@ -201,6 +207,15 @@ export function drawMarks(ctx: Ctx, marks: readonly MarkFrame[], view: View): vo
     drawUnderline(ctx, m, view, alpha, lw);
     drawArrow(ctx, m, view, alpha, lw);
     drawLabel(ctx, m, view, alpha);
+    const op = m.mark.op;
+    if (op === 'pin' || op === 'card' || op === 'image') {
+      if (annotator) {
+        if (op === 'pin') drawPin(ctx, m, annotator, order);
+        else if (op === 'card') drawCard(ctx, m, annotator, order);
+        else drawImage(ctx, m, annotator, order);
+      }
+      order++;
+    }
     ctx.restore();
   }
 }

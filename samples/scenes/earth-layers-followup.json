@@ -4,11 +4,11 @@
     {
       "say": "How hot is the core? Let me fade the outer layers so we can look at it.",
       "actions": [
-        { "op": "style", "id": "crust", "opacity": 0.04, "dur": 1 },
-        { "op": "style", "id": "mantle", "opacity": 0.06, "dur": 1 },
-        { "op": "style", "id": "outer", "opacity": 0.1, "dur": 1 },
+        { "op": "style", "id": "crust", "opacity": 0.12, "dur": 1 },
+        { "op": "style", "id": "mantle", "opacity": 0.2, "dur": 1 },
+        { "op": "style", "id": "outer", "opacity": 0.3, "dur": 1 },
         { "op": "focus", "id": "core", "at": 0.5, "dur": 1.5 },
-        { "op": "zoom", "to": 2.4, "at": 0.5, "dur": 1.5 }
+        { "op": "zoom", "to": 1.6, "at": 0.5, "dur": 1.5 }
       ]
     },
     {
