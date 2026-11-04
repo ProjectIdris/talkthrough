@@ -46,6 +46,8 @@ test('what each call is told: the first asks for step 1 and a plan, the next one
   assert.match(next, /Steps 1 to 2 of this answer are already drawn and spoken: \[\{"say":"One\."/);
   assert.match(next, /Write step 3 only \("The third"\)/);
   assert.match(next, /"done" to true when the plan has no step after this one/);
+  assert.match(next, /about 30 words at most/);
+  assert.match(next, /Do not mark anything an earlier step already marked/);
   assert.match(questionText({ ...request, stage: { part: 'next', n: 2, shown: [{ say: 'One.', actions: [] }], plan: ['x'] } }), /Step 1 of this answer is already drawn/);
 });
 
