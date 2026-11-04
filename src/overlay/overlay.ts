@@ -441,6 +441,32 @@ function placeExplode(frame: Frame): void {
   detailEl.style.top = `${box.y}px`;
 }
 
+/** The buttons the page shows, by the name main knows them by. */
+const buttonEls: Array<[string, HTMLElement]> = [['offer', offerButton], ['explode', explodeEl], ['cut', cutEl], ['detail', detailEl]];
+let lastButtons = '';
+/**
+ * Tells main where the buttons are, when that changes. The window is click-through and learns the pointer is over a button only
+ * from a mouse move, so a click with none before it would go to the app beneath: main lays a small window of its own over each
+ * button, and the press comes back as a 'press' message.
+ */
+function reportButtons(): void {
+  const list: Array<{ id: string; x: number; y: number; w: number; h: number }> = [];
+  for (const [id, el] of buttonEls) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) list.push({ id, x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) });
+  }
+  const text = JSON.stringify(list);
+  if (text === lastButtons) return;
+  lastButtons = text;
+  window.talkthrough.buttons(list);
+}
+
+/** A catcher over a button was pressed: do what a click on the button does (if it is still there). */
+function pressButton(id: string): void {
+  const el = buttonEls.find(([name]) => name === id)?.[1];
+  if (el && el.getBoundingClientRect().width > 0) el.click();
+}
+
 function loop(): void {
   raf = 0;
   const now = performance.now();
@@ -451,6 +477,7 @@ function loop(): void {
   draw(frame);
   if (pen.active) sendPen();
   showHud();
+  reportButtons();
   const fading = fader.armed && k < 1 && k > 0;
   if (player.active || dragging || fading || board.moving || diagramsMoving || panelScene.fitting || pen.animating(now) || pen.active) {
     request();
@@ -778,6 +805,9 @@ function applyScene(message: SceneMessage): void {
           if (detailState === 'none') detailState = 'asked'; // asked by voice: the same wait as after the button
         }
       }
+      break;
+    case 'press':
+      pressButton(message.id);
       break;
     case 'consent':
       break; // asked in a window of its own (main/consent-card.ts), which takes a click without a mouse move before it

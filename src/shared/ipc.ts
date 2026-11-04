@@ -21,6 +21,8 @@ export const CHANNEL = {
   done: 'tt:done',
   /** overlay -> main: the user clicked the escalation offer. */
   offer: 'tt:offer',
+  /** overlay -> main: where the page's buttons are now (so a catcher can be laid over each; see main/button-catchers.ts). */
+  buttons: 'tt:buttons',
   /** overlay -> main: the user clicked "More detail": ask the detail model for a richer version of the scene on screen. */
   detail: 'tt:detail',
   /** overlay -> main: a piece of a pen stroke (Stroke), streamed as the pointer moves while the pen is on. */
@@ -125,7 +127,9 @@ export type SceneMessage =
   /** A short line that fades by itself. */
   | { kind: 'notice'; text: string; level: 'info' | 'error' }
   /** The app asks whether it may act for the person (main shows a card of its own with a Yes and a No); null takes the question away. */
-  | { kind: 'consent'; text: string | null };
+  | { kind: 'consent'; text: string | null }
+  /** A catcher over one of the page's buttons was pressed (a click that came with no mouse move before it): do what the button does. */
+  | { kind: 'press'; id: string };
 
 
 /** What the hidden audio page records while the chord is held: mono, 16 kHz, floats in -1..1. */
@@ -215,6 +219,8 @@ export interface TalkthroughApi {
   done(): void;
   /** The user clicked the escalation offer. */
   offer(): void;
+  /** Where the page's buttons are (id, and a rectangle in page pixels); sent when they change. */
+  buttons(list: Array<{ id: string; x: number; y: number; w: number; h: number }>): void;
   /** The user clicked "More detail". */
   detail(): void;
   /** A piece of a pen stroke, while the pen is on. */
