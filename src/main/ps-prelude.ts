@@ -67,7 +67,7 @@ while ($true) {
     $req = $line | ConvertFrom-Json
     $id = [int]$req.id
     if ($req.op -eq 'read') { $o = Read-Controls ([int64]$req.hwnd) }
-    elseif ($req.op -eq 'nav') { $o = Invoke-Nav $req }
+    elseif ($req.op -eq 'nav' -and (Test-Path function:Invoke-Nav)) { $o = Invoke-Nav $req }
     else { $o = @{ ok = $false; why = 'bad request' } }
   } catch {
     $o = @{ ok = $false; why = 'the window would not say' }

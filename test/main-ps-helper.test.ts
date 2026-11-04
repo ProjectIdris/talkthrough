@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HELPER_SOURCE, createHelper } from '../src/main/ps-helper.ts';
+import { HELPER_ENCODED_MAX, HELPER_READ_SOURCE, HELPER_SOURCE, createHelper } from '../src/main/ps-helper.ts';
 import { PS_PRELUDE } from '../src/main/ps-prelude.ts';
 import { fakeChild } from './support/fake-helper-child.ts';
 
@@ -90,4 +90,18 @@ test('the helper looks at a window\'s class before any call to the accessibility
   const re = new RegExp(/\$browserClass = '(.*)'/.exec(prelude)![1]!);
   for (const c of ['Chrome_WidgetWin_1', 'Chrome_WidgetWin_0', 'Chrome_RenderWidgetHostHWND', 'MozillaWindowClass', 'Qt5152QWindowIcon', 'Qt623QWindowIcon', 'CefBrowserWindow']) assert.ok(re.test(c), c);
   for (const c of ['Notepad', 'CabinetWClass', 'HwndWrapper[tt.exe;;1234]', 'WindowsForms10.Window.8.app', 'ApplicationFrameWindow', '#32770']) assert.ok(!re.test(c), c);
+});
+
+test('the helper travels on the command line, which Windows limits to 32,767 characters: both forms stay under the cap', () => {
+  for (const [name, source] of [['reading only', HELPER_READ_SOURCE], ['with navigation', HELPER_SOURCE]] as const) {
+    const length = Buffer.from(source, 'utf16le').toString('base64').length;
+    assert.ok(length < HELPER_ENCODED_MAX, `${name}: ${length} characters encoded, the cap is ${HELPER_ENCODED_MAX}`);
+  }
+});
+
+test('the helper that only reads holds no verb at all: no select, expand, scroll or navigation function', () => {
+  for (const verb of ['function Invoke-Nav', 'SelectionItemPattern', 'ExpandCollapsePattern', 'ScrollPattern', '.Select(', '.Expand(', '.Scroll(']) {
+    assert.ok(!HELPER_READ_SOURCE.includes(verb), `the reading helper must not contain ${verb}`);
+  }
+  assert.ok(HELPER_SOURCE.includes('function Invoke-Nav'));
 });

@@ -144,7 +144,7 @@ test('on a window of our own the reader finds the buttons, the field and the tab
   }
 });
 
-test('a browser window is never read: the reader answers "browser" before the accessibility API is touched, and the page is left as it was', { skip: process.platform !== 'win32' || !haveElectron, timeout: 90000 }, async () => {
+test('a browser window is never read: the reader answers "browser" before the accessibility API is touched', { skip: process.platform !== 'win32' || !haveElectron, timeout: 90000 }, async () => {
   const page = await startPage();
   const helper = createHelper()!;
   try {

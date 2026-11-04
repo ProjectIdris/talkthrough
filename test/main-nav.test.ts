@@ -75,7 +75,7 @@ async function guarded(nav: Navigator, point: { x: number; y: number }, intent: 
 
 test('on a window of our own: a tab is selected, a submenu is opened, an area is scrolled; and nothing else is ever touched', { skip: !onWindows, timeout: 120000 }, async () => {
   const win = await openNavWindow();
-  const helper = createHelper()!;
+  const helper = createHelper({ nav: true })!;
   try {
     const nav = createNavigator({ hwnd: win.hwnd, helper })!;
 
@@ -144,7 +144,7 @@ test('on a window of our own: a tab is selected, a submenu is opened, an area is
 
 test('the script acts only on the very control it was shown, only in the window in front, and only when the point is a place it can see', { skip: !onWindows, timeout: 90000 }, async () => {
   const win = await openNavWindow();
-  const helper = createHelper()!;
+  const helper = createHelper({ nav: true })!;
   try {
     const nav = createNavigator({ hwnd: win.hwnd, helper })!;
     const beta = await nav.probe(win.centre('tab-beta'), { kind: 'tab' });
@@ -172,7 +172,7 @@ test('the script acts only on the very control it was shown, only in the window 
 
 test('a browser window (here an Electron page of our own) is never looked into, nor acted on: not a tab, not a link, not a scroll', { skip: !onWindows || !haveElectron, timeout: 90000 }, async () => {
   const page = await startPage();
-  const helper = createHelper()!;
+  const helper = createHelper({ nav: true })!;
   try {
     const nav = createNavigator({ hwnd: page.hwnd, helper })!;
     for (const [name, intent] of [['tab-b', { kind: 'tab' }], ['tall', { kind: 'scroll', dir: 'down' }], ['nav-docs', { kind: 'open' }], ['save', { kind: 'tab' }]] as Array<[string, NavIntent]>) {
@@ -187,5 +187,21 @@ test('a browser window (here an Electron page of our own) is never looked into, 
   } finally {
     helper.stop();
     page.stop();
+  }
+});
+
+test('a helper started without navigation answers a navigation request with nothing done, whatever it is asked', { skip: !onWindows, timeout: 90000 }, async () => {
+  const win = await openNavWindow();
+  const helper = createHelper()!;
+  try {
+    const nav = createNavigator({ hwnd: win.hwnd, helper })!;
+    const probe = await nav.probe(win.centre('tab-beta'), { kind: 'tab' });
+    assert.equal(probe.facts.ok, false);
+    assert.equal((await nav.act(win.centre('tab-beta'), { kind: 'tab' }, 'x')).acted, false);
+    await wait(400);
+    assert.deepEqual(win.events, [], 'nothing changed');
+  } finally {
+    helper.stop();
+    win.close();
   }
 });
