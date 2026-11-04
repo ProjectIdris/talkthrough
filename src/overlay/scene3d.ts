@@ -360,12 +360,13 @@ export class PanelScene {
   private apply(node: Node, o: ObjectFrame, parentSpread: number, offset?: Vec3): void {
     const pulse = o.pulse;
     const grow = 1 + 0.07 * pulse;
-    // Spread by the model's own explode, then by the person's control.
-    const at = spreadPosition(o.pos, (o.def as { explode?: Vec3 }).explode, parentSpread);
+    // Spread by the model's own explode, then by the person's control; a machine's pose stands in for the rest values.
+    const at = spreadPosition(o.pose?.pos ?? o.pos, (o.def as { explode?: Vec3 }).explode, parentSpread);
+    const rot = o.pose?.rot ?? o.rot;
     node.obj.position.set(at[0] + (offset?.[0] ?? 0), at[1] + (offset?.[1] ?? 0), at[2] + (offset?.[2] ?? 0));
-    node.obj.rotation.copy(new Euler(o.rot[0] * DEG, o.rot[1] * DEG, o.rot[2] * DEG, 'XYZ'));
+    node.obj.rotation.copy(new Euler(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'XYZ'));
     node.obj.scale.set(node.baseScale.x * o.scale[0] * grow, node.baseScale.y * o.scale[1] * grow, node.baseScale.z * o.scale[2] * grow);
-    const alpha = Math.max(0, Math.min(1, o.opacity * o.appear * o.fade));
+    const alpha = Math.max(0, Math.min(1, (o.pose?.opacity ?? o.opacity) * o.appear * o.fade));
     node.obj.visible = alpha > 0.003;
     const dark: Rgb = [o.color[0] * 0.22, o.color[1] * 0.22, o.color[2] * 0.22];
     for (const p of node.pieces) {

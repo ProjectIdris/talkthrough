@@ -1629,6 +1629,212 @@
       ],
       "additionalProperties": false
     },
+    "spin": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "spin"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "rpm": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "by": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ratio": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "rpm",
+        "by",
+        "ratio",
+        "phase",
+        "axis",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
+    "crank": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "crank"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "shaft": {
+          "type": "string"
+        },
+        "rod": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pin": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "shaft",
+        "rod",
+        "pin",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "cam": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "cam"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "by": {
+          "type": "string"
+        },
+        "lift": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "open": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "by",
+        "lift",
+        "open",
+        "phase",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "flash": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "flash"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "by": {
+          "type": "string"
+        },
+        "angle": {
+          "type": "number"
+        },
+        "span": {
+          "type": "number"
+        },
+        "cycle": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "by",
+        "angle",
+        "span",
+        "cycle",
+        "at"
+      ],
+      "additionalProperties": false
+    },
     "orbit": {
       "type": "object",
       "properties": {
@@ -1836,6 +2042,18 @@
         },
         {
           "$ref": "#/$defs/highlight"
+        },
+        {
+          "$ref": "#/$defs/spin"
+        },
+        {
+          "$ref": "#/$defs/crank"
+        },
+        {
+          "$ref": "#/$defs/cam"
+        },
+        {
+          "$ref": "#/$defs/flash"
         },
         {
           "$ref": "#/$defs/orbit"

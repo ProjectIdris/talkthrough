@@ -7,6 +7,8 @@
 // including across follow-up questions.
 
 import { PALETTE_RGB } from '../scene/colors.ts';
+import { advanceMotion, emptyMotion, poses, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
+import type { CamDef, CrankDef, FlashDef, Motion, Pose, SpinPlan } from './motion.ts';
 import { mechanismColor } from './part-colors.ts';
 import type { Rgb } from '../scene/colors.ts';
 import type { Action, AddAction, Mark, Step, Vec3 } from '../scene/types.ts';
@@ -100,6 +102,8 @@ export type ObjectFrame = {
   draw: number;
   /** How far apart its parts are pushed: 0 assembled; its children sit at pos * (1 + spread). */
   spread: number;
+  /** Where a machine has put it just now (a turning part, a piston, a valve, a glow); drawn in place of pos, rot and opacity. */
+  pose?: Pose;
 };
 
 export type Frame = {
@@ -111,11 +115,13 @@ export type Frame = {
   nextKey: number;
   /** The person's Explode control, 0 closed to 1 open, when they have used it (see explode.ts). */
   userExplode?: number;
+  /** What is turning, and how the parts are tied to it. */
+  motion: Motion;
 };
 
 export function emptyFrame(): Frame {
   return {
-    panel: null, marks: [], objects: [], nextKey: 1,
+    panel: null, marks: [], objects: [], nextKey: 1, motion: emptyMotion(),
     camera: { ...DEFAULT_CAMERA, focus: { key: null, k: 1 } },
   };
 }
@@ -204,6 +210,10 @@ export type StepPlan = {
   panels: PanelInst[];
   az: Track; el: Track; zoom: Track; focus: FocusTrack;
   pulses: Pulse[];
+  spins: SpinPlan[];
+  cranks: CrankDef[];
+  cams: CamDef[];
+  flashes: FlashDef[];
   nextKey: number;
   /** Authored seconds until the last action has finished. */
   duration: number;
@@ -236,6 +246,7 @@ export function planStep(base: Frame, step: Step): StepPlan {
     az: track([base.camera.az]), el: track([base.camera.el]), zoom: track([base.camera.zoom]),
     focus: { init: base.camera.focus.key, segs: [] },
     pulses: [], nextKey: base.nextKey, duration: 0,
+    spins: base.motion.spins.map(spinPlanFrom), cranks: [...base.motion.cranks], cams: [...base.motion.cams], flashes: [...base.motion.flashes],
   };
   for (const m of base.marks) {
     plan.marks.push({
@@ -382,6 +393,8 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       const o = lookup(plan.objs, a.id, at);
       if (!o) return;
       tweenTo(a.op === 'explode' ? o.spread : o.draw, at, dur, [a.to]);
+      // Pulled apart, a machine stops: its parts no longer fit together.
+      if (a.op === 'explode' && a.to > 0) for (const sp of plan.spins) stopSpin(sp, at, Math.max(0.3, dur));
       end(dur);
       return;
     }
@@ -407,6 +420,53 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       const hit: Array<ObjInst | MarkInst> = target ? [target, ...descendants(plan, target.key, at)] : [mark as MarkInst];
       for (const h of hit) plan.pulses.push({ key: h.key, start: at, dur: Math.max(0.2, dur), color: a.color !== undefined ? parseColor(a.color) : undefined });
       end(Math.max(0.2, dur));
+      return;
+    }
+    case 'spin': {
+      const o = lookup(plan.objs, a.id, at);
+      if (!o) return;
+      let sp = plan.spins.find((x) => x.key === o.key);
+      const axis = a.axis === 'x' ? 0 : a.axis === 'y' ? 1 : a.axis === undefined ? (sp ? sp.axis : 2) : 2;
+      if (!sp) {
+        sp = spinPlanFrom({ key: o.key, axis, angle: 0, rate: 0 });
+        plan.spins.push(sp);
+      }
+      const by = a.by !== undefined ? lookup(plan.objs, a.by, at) : undefined;
+      if (a.by !== undefined) {
+        if (!by || by.key === o.key) return;
+        setLock(sp, at, { byKey: by.key, ratio: a.ratio ?? 1, phase: a.phase ?? 0 }, axis);
+      } else {
+        setRate(sp, at, (a.rpm ?? 0) * 6, a.rpm === 0 || a.dur !== undefined ? dur : 0.8, axis);
+      }
+      end(0.2);
+      return;
+    }
+    case 'crank': {
+      const piston = lookup(plan.objs, a.id, at);
+      const shaft = lookup(plan.objs, a.shaft, at);
+      const rod = a.rod !== undefined ? lookup(plan.objs, a.rod, at) : undefined;
+      if (!piston || !shaft || (a.rod !== undefined && !rod)) return;
+      plan.cranks = plan.cranks.filter((c) => c.key !== piston.key);
+      plan.cranks.push({ key: piston.key, shaftKey: shaft.key, rodKey: rod ? rod.key : null, pin: a.pin ?? 1 });
+      end(0.2);
+      return;
+    }
+    case 'cam': {
+      const valve = lookup(plan.objs, a.id, at);
+      const cam = lookup(plan.objs, a.by, at);
+      if (!valve || !cam) return;
+      plan.cams = plan.cams.filter((c) => c.key !== valve.key);
+      plan.cams.push({ key: valve.key, byKey: cam.key, lift: a.lift, open: a.open ?? 110, phase: a.phase ?? 180 });
+      end(0.2);
+      return;
+    }
+    case 'flash': {
+      const glow = lookup(plan.objs, a.id, at);
+      const by = lookup(plan.objs, a.by, at);
+      if (!glow || !by) return;
+      plan.flashes = plan.flashes.filter((c) => c.key !== glow.key);
+      plan.flashes.push({ key: glow.key, byKey: by.key, angle: a.angle, span: a.span, cycle: a.cycle ?? 720 });
+      end(0.2);
       return;
     }
     case 'orbit': {
@@ -518,6 +578,8 @@ const asRgb = (a: number[]): Rgb => [a[0] ?? 0, a[1] ?? 0, a[2] ?? 0];
 
 /** The complete state at authored time `t` seconds into the step. Infinity settles the step. */
 export function evaluate(plan: StepPlan, t: number): Frame {
+  // A part keeps turning, so it has no angle at the end of time: settling reads it as the step's own length.
+  const spinTime = Number.isFinite(t) ? t : plan.duration;
   const marks: MarkFrame[] = [];
   const hosts = new Map<number, ObjInst>();
   for (const o of plan.objs) hosts.set(o.key, o);
@@ -550,6 +612,8 @@ export function evaluate(plan: StepPlan, t: number): Frame {
       draw: valueAt(o.draw, t)[0] ?? 1, spread: valueAt(o.spread, t)[0] ?? 0,
     });
   }
+  const motion = motionOf(plan, objects, spinTime);
+  applyPoses(objects, motion);
   let panel: Frame['panel'] = null;
   for (const p of plan.panels) {
     if (!visibleAt(p, t)) continue;
@@ -557,7 +621,7 @@ export function evaluate(plan: StepPlan, t: number): Frame {
     panel = { rect: { x: r[0] ?? 0, y: r[1] ?? 0, w: r[2] ?? 0, h: r[3] ?? 0 }, appear: appearOf(p, t), fade: fadeOf(p, t), frame: p.frame };
   }
   return {
-    panel, marks, objects, nextKey: plan.nextKey,
+    panel, marks, objects, nextKey: plan.nextKey, motion,
     camera: {
       az: valueAt(plan.az, t)[0] ?? 0, el: valueAt(plan.el, t)[0] ?? 0, zoom: valueAt(plan.zoom, t)[0] ?? 1,
       focus: focusAt(plan.focus, t),
@@ -565,9 +629,49 @@ export function evaluate(plan: StepPlan, t: number): Frame {
   };
 }
 
-/** The Frame a step ends in, which the next step starts from. */
-export function settle(plan: StepPlan): Frame {
-  return evaluate(plan, Infinity);
+/** What is turning at time `t`, and what is tied to it, limited to what is still on the stage. */
+function motionOf(plan: StepPlan, objects: readonly ObjectFrame[], t: number): Motion {
+  if (plan.spins.length + plan.cranks.length + plan.cams.length + plan.flashes.length === 0) return emptyMotion();
+  const alive = new Set(objects.map((o) => o.key));
+  const spins = spinsAt(plan.spins, t).filter((s) => alive.has(s.key));
+  const both = (a: number, b: number) => alive.has(a) && alive.has(b);
+  return {
+    spins,
+    cranks: plan.cranks.filter((c) => both(c.key, c.shaftKey) && (c.rodKey === null || alive.has(c.rodKey))),
+    cams: plan.cams.filter((c) => both(c.key, c.byKey)),
+    flashes: plan.flashes.filter((c) => both(c.key, c.byKey)),
+  };
+}
+
+function applyPoses(objects: ObjectFrame[], motion: Motion): void {
+  const placed = poses(objects, motion);
+  if (placed.size === 0) return;
+  for (const o of objects) {
+    const pose = placed.get(o.key);
+    if (pose) o.pose = pose;
+  }
+}
+
+/** The Frame a step ends in, which the next step starts from. `at` is how far into the step it really got, for what is turning. */
+export function settle(plan: StepPlan, at = Infinity): Frame {
+  const frame = evaluate(plan, Infinity);
+  if (!Number.isFinite(at) || at <= plan.duration || frame.motion.spins.length === 0) return frame;
+  return withMotion(frame, at - plan.duration);
+}
+
+/**
+ * The frame `seconds` later with the machine still running (a scene that has finished goes on turning). `from` is
+ * the motion to run on from, when it is not the frame's own.
+ */
+export function withMotion(frame: Frame, seconds: number, from: Motion = frame.motion): Frame {
+  if (from.spins.length === 0 || (seconds <= 0 && from === frame.motion)) return frame;
+  const motion = advanceMotion(from, Math.max(0, seconds));
+  const objects = frame.objects.map((o) => {
+    const { pose: _gone, ...rest } = o;
+    return rest as ObjectFrame;
+  });
+  applyPoses(objects, motion);
+  return { ...frame, objects, motion };
 }
 
 /** How far in and out the person may zoom the 3D panel: the scene language's own limits, so a wheel step never moves a scene's own zoom. */

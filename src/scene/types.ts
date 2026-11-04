@@ -86,6 +86,12 @@ export type ScaleAction = { op: 'scale'; id: string; to: Vec3 } & Timing;
 export type StyleAction = { op: 'style'; id: string; color?: Color; opacity?: number } & Timing;
 export type HighlightAction = { op: 'highlight'; id: string; color?: Color } & Timing;
 
+// Machines: parts that keep moving by themselves once started.
+export type SpinAction = { op: 'spin'; id: string; rpm?: number; by?: string; ratio?: number; phase?: number; axis?: 'x' | 'y' | 'z' } & Timing;
+export type CrankAction = { op: 'crank'; id: string; shaft: string; rod?: string; pin?: number } & At;
+export type CamAction = { op: 'cam'; id: string; by: string; lift?: number; open?: number; phase?: number } & At;
+export type FlashAction = { op: 'flash'; id: string; by: string; angle: number; span: number; cycle?: number } & At;
+
 // Camera, for the 3D panel.
 export type OrbitAction = { op: 'orbit'; az: number; el: number } & Timing;
 export type ZoomAction = { op: 'zoom'; to: number } & Timing;
@@ -97,6 +103,7 @@ export type ClearAction = { op: 'clear'; target: string } & At;
 export type Action =
   | Mark | PanelAction | AddAction
   | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | StyleAction | HighlightAction
+  | SpinAction | CrankAction | CamAction | FlashAction
   | OrbitAction | ZoomAction | FocusAction | ClearAction;
 
 export type Step = { say: string; actions: Action[] };

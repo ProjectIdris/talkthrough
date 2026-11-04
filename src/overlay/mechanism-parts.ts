@@ -12,6 +12,7 @@ import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.j
 import type { AddPart, Vec3 } from '../scene/types.ts';
 import { boxGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
+import { crankThrow, pistonPinDrop, rodEnds } from './mechanism-geometry.ts';
 import { Builder, cyl } from './parts-base.ts';
 import type { Rgb } from './timeline.ts';
 
@@ -115,9 +116,9 @@ function piston(b: Builder, def: AddPart, d: Detail): void {
   b.add(spin([[0, -sy / 2], [r * 0.92, -sy / 2], [r * 0.97, -sy / 2 + sy * 0.05], [r, -sy / 2 + sy * 0.12], [r, sy / 2 - sy * 0.03], [r * 0.9, sy / 2], [0, sy / 2]], d.curve, 0.6), 'metal', { tint: true, edges: false });
   for (const k of [0.12, 0.2, 0.28]) b.add(cyl(r * 1.012, r * 1.012, sy * 0.04, d.curve), 'metal', { color: DARK_STEEL, pos: [0, sy / 2 - sy * k, 0] });
   b.add(cyl(r * 0.62, r * 0.62, sy * 0.012, d.curve), 'metal', { color: BRIGHT, pos: [0, sy / 2 + 0.002, 0] });
-  b.add(alongZ(cyl(r * 0.2, r * 0.2, def.size[2] * 0.96, 18)), 'metal', { color: STEEL, pos: [0, -sy * 0.1, 0] });
+  b.add(alongZ(cyl(r * 0.2, r * 0.2, def.size[2] * 0.96, 18)), 'metal', { color: STEEL, pos: [0, -pistonPinDrop(def.size), 0] });
   b.anchors['crown'] = [0, sy / 2, 0];
-  b.anchors['pin'] = [0, -sy * 0.1, 0];
+  b.anchors['pin'] = [0, -pistonPinDrop(def.size), 0];
 }
 
 // ---- Connecting rod: big end, tapered shaft, small end ----------------------------------------------------
@@ -126,8 +127,7 @@ function connectingRod(b: Builder, def: AddPart, d: Detail): void {
   const [sx, sy, sz] = def.size;
   const rb = sx / 2;
   const rs = sx * 0.3;
-  const yb = -sy / 2 + rb;
-  const ys = sy / 2 - rs;
+  const { big: yb, small: ys } = rodEnds(def.size);
   b.add(slab(ringShape(rb, rb * 0.62), sz, 0.02 * sz, d), 'metal', { tint: true, pos: [0, yb, 0], edges: true });
   b.add(slab(ringShape(rs, rs * 0.55), sz * 0.8, 0.02 * sz, d), 'metal', { tint: true, pos: [0, ys, 0], edges: true });
   const shaft = new Shape();
@@ -155,7 +155,7 @@ function connectingRod(b: Builder, def: AddPart, d: Detail): void {
 function crankshaft(b: Builder, def: AddPart, d: Detail): void {
   const [sx, sy, sz] = def.size;
   const m = Math.min(sx, sy);
-  const throwR = m * 0.3;
+  const throwR = crankThrow(def.size);
   const rj = m * 0.11;
   const rp = rj * 0.92;
   const n = Math.max(1, Math.min(def.n ?? 1, 8));

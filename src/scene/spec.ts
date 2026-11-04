@@ -283,6 +283,44 @@ export const VARIANTS: readonly Variant[] = [
     fields: { id: { k: 'ref', of: 'any' }, color: { k: 'color', opt: true }, at: AT, dur: DUR },
   },
   {
+    name: 'spin', op: 'spin',
+    doc: 'Make a part turn round its own axis and keep turning, until another spin on it says otherwise. rpm is turns a minute (negative the other way; 0 stops; dur is the time to get up to speed). Or give by, another part that drives it: it then turns ratio times as far as that part (0.5 half as fast, -1 a meshed gear) and phase degrees ahead. axis is x, y or z, default z (the axis of a crankshaft, camshaft, gear and bearing; use y for a fan).',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, rpm: { k: 'num', min: -600, max: 600, opt: true },
+      by: { k: 'ref', of: 'object3d', opt: true, doc: 'the part that drives this one' },
+      ratio: { k: 'num', min: -20, max: 20, opt: true, doc: 'with by: turns per turn of that part (default 1)' },
+      phase: { k: 'num', min: -3600, max: 3600, opt: true, doc: 'with by: degrees ahead of that part' },
+      axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT, dur: DUR,
+    },
+  },
+  {
+    name: 'crank', op: 'crank',
+    doc: 'Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. Put the three in one group, the crankshaft turning with spin. pin is which throw (1 is the first).',
+    fields: {
+      id: { k: 'ref', of: 'object3d', doc: 'the piston' }, shaft: { k: 'ref', of: 'object3d', doc: 'the crankshaft' },
+      rod: { k: 'ref', of: 'object3d', opt: true, doc: 'the connecting-rod joining them' },
+      pin: { k: 'num', min: 1, max: 8, int: true, opt: true }, at: AT,
+    },
+  },
+  {
+    name: 'cam', op: 'cam',
+    doc: 'A valve (or any follower) that a spinning camshaft pushes down along y: it is down by lift while the cam nose points down at it, and back up otherwise. open is how many degrees of the turn of the cam it stays open (default 110), phase the cam angle where it is most open (default 180: the nose pointing down).',
+    fields: {
+      id: { k: 'ref', of: 'object3d', doc: 'the valve' }, by: { k: 'ref', of: 'object3d', doc: 'the camshaft' },
+      lift: { k: 'num', min: 0.01, max: 50, opt: true, doc: 'how far it moves down in units (default a fifth of its length)' },
+      open: { k: 'num', min: 10, max: 350, opt: true }, phase: { k: 'num', min: -3600, max: 3600, opt: true }, at: AT,
+    },
+  },
+  {
+    name: 'flash', op: 'flash',
+    doc: 'A glow that comes on at one point of the cycle of a turning part: the object (a small sphere for a spark, a larger one for the burn) is invisible, flares to its opacity at the crank angle given and dies away over span degrees. by is the crankshaft; angle is degrees into a cycle of cycle degrees (default 720, a four-stroke engine: 0 is the piston at the top starting the intake, 360 the top of the compression).',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, by: { k: 'ref', of: 'object3d', doc: 'the part whose turning times it' },
+      angle: { k: 'num', min: 0, max: 3600 }, span: { k: 'num', min: 1, max: 720 },
+      cycle: { k: 'num', min: 90, max: 3600, opt: true }, at: AT,
+    },
+  },
+  {
     name: 'orbit', op: 'orbit',
     doc: 'Move the camera around what it looks at: az is the angle around (0 faces the front), el the height angle.',
     fields: { az: { k: 'num', min: -360, max: 360 }, el: { k: 'num', min: -89, max: 89 }, at: AT, dur: DUR },

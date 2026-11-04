@@ -1897,6 +1897,238 @@
       "additionalProperties": false,
       "description": "Pulse an object or mark to draw the eye, optionally in a colour."
     },
+    "spin": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "spin"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "rpm": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-600 to 600"
+        },
+        "by": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the part that drives this one"
+        },
+        "ratio": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "with by: turns per turn of that part (default 1); -20 to 20"
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "with by: degrees ahead of that part; -3600 to 3600"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "rpm",
+        "by",
+        "ratio",
+        "phase",
+        "axis",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Make a part turn round its own axis and keep turning, until another spin on it says otherwise. rpm is turns a minute (negative the other way; 0 stops; dur is the time to get up to speed). Or give by, another part that drives it: it then turns ratio times as far as that part (0.5 half as fast, -1 a meshed gear) and phase degrees ahead. axis is x, y or z, default z (the axis of a crankshaft, camshaft, gear and bearing; use y for a fan)."
+    },
+    "crank": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "crank"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "description": "the piston"
+        },
+        "shaft": {
+          "type": "string",
+          "description": "the crankshaft"
+        },
+        "rod": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the connecting-rod joining them"
+        },
+        "pin": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 8"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "shaft",
+        "rod",
+        "pin",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. Put the three in one group, the crankshaft turning with spin. pin is which throw (1 is the first)."
+    },
+    "cam": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "cam"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "description": "the valve"
+        },
+        "by": {
+          "type": "string",
+          "description": "the camshaft"
+        },
+        "lift": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "how far it moves down in units (default a fifth of its length); 0.01 to 50"
+        },
+        "open": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "10 to 350"
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-3600 to 3600"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "by",
+        "lift",
+        "open",
+        "phase",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A valve (or any follower) that a spinning camshaft pushes down along y: it is down by lift while the cam nose points down at it, and back up otherwise. open is how many degrees of the turn of the cam it stays open (default 110), phase the cam angle where it is most open (default 180: the nose pointing down)."
+    },
+    "flash": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "flash"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "by": {
+          "type": "string",
+          "description": "the part whose turning times it"
+        },
+        "angle": {
+          "type": "number",
+          "description": "0 to 3600"
+        },
+        "span": {
+          "type": "number",
+          "description": "1 to 720"
+        },
+        "cycle": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "90 to 3600"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "by",
+        "angle",
+        "span",
+        "cycle",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A glow that comes on at one point of the cycle of a turning part: the object (a small sphere for a spark, a larger one for the burn) is invisible, flares to its opacity at the crank angle given and dies away over span degrees. by is the crankshaft; angle is degrees into a cycle of cycle degrees (default 720, a four-stroke engine: 0 is the piston at the top starting the intake, 360 the top of the compression)."
+    },
     "orbit": {
       "type": "object",
       "properties": {
@@ -2119,6 +2351,18 @@
         },
         {
           "$ref": "#/$defs/highlight"
+        },
+        {
+          "$ref": "#/$defs/spin"
+        },
+        {
+          "$ref": "#/$defs/crank"
+        },
+        {
+          "$ref": "#/$defs/cam"
+        },
+        {
+          "$ref": "#/$defs/flash"
         },
         {
           "$ref": "#/$defs/orbit"

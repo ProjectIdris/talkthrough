@@ -8,7 +8,9 @@
 import type { Voice } from '../adapters/voice.ts';
 import type { Scene } from '../scene/types.ts';
 import { ExplodeValue } from './explode.ts';
-import { IDLE_MAX_SECONDS, emptyFrame, estimateSpeechSeconds, evaluate, frameAt, movedCamera, planStep, settle, shiftCamera, withIdleTurn } from './timeline.ts';
+import { IDLE_MAX_SECONDS, emptyFrame, estimateSpeechSeconds, evaluate, frameAt, movedCamera, planStep, settle, shiftCamera, withIdleTurn, withMotion } from './timeline.ts';
+import { emptyMotion, freezeMotion, isMoving } from './motion.ts';
+import type { Motion } from './motion.ts';
 import type { Frame, StepPlan } from './timeline.ts';
 import type { Action, Step } from '../scene/types.ts';
 
@@ -16,6 +18,8 @@ import type { Action, Step } from '../scene/types.ts';
 export const VOICE_PATIENCE_MS = 2500;
 const MIN_SPEED = 0.6;
 const MAX_SPEED = 1.6;
+/** A machine left running when the scene is done keeps turning this long, then rests where it is. */
+const MOTION_MAX_SECONDS = 120;
 
 export type Clock = { now(): number; after(ms: number, fn: () => void): () => void };
 
@@ -81,6 +85,11 @@ export class Player {
   private plan: StepPlan | undefined;
   /** The last plan, kept when idle so a drag can still move the camera and the next play starts from it. */
   private resting: StepPlan | undefined;
+  /** What was turning when the world last came to rest, and the clock time that was: a machine goes on turning from there. */
+  private restMotion: Motion = emptyMotion();
+  private restAt = 0;
+  /** How far into the running step the clock has got (scene seconds), for the angle a machine settles at. */
+  private lastT = 0;
   private steps: readonly Step[] = [];
   /** The step still being written (its actions arrive one by one), if any, and the latest start time given to one of its actions. */
   private openIndex: number | null = null;
@@ -127,7 +136,13 @@ export class Player {
 
   /** True while a scene is playing (the caller keeps animating). */
   get active(): boolean {
-    return this.phase !== 'idle' || this.idling || this.explodeValue.moving(this.clock.now());
+    return this.phase !== 'idle' || this.idling || this.running || this.explodeValue.moving(this.clock.now());
+  }
+
+  /** True while a machine in the finished scene is turning. */
+  get running(): boolean {
+    if (this.frozen) return false;
+    return isMoving(this.restMotion) && this.clock.now() - this.restAt < MOTION_MAX_SECONDS * 1000;
   }
 
   /** True while the finished scene is turning slowly by itself. */
@@ -138,10 +153,30 @@ export class Player {
   /** Ends the idle turn where it is (the scene went out of sight, or something else takes the camera). */
   stopIdle(): void {
     if (this.idleAt === undefined) return;
-    const frame = this.resting ? settle(this.resting) : this.base;
-    this.base = withIdleTurn(frame, (this.clock.now() - this.idleAt) / 1000);
+    this.rebase(withIdleTurn(this.restFrame(), (this.clock.now() - this.idleAt) / 1000));
     this.resting = undefined;
     this.idleAt = undefined;
+  }
+
+  /** The world as it stands now with no step running: settled, and a machine in it still turning. */
+  private restFrame(): Frame {
+    const rest = this.resting ? settle(this.resting) : this.base;
+    return withMotion(rest, Math.min(MOTION_MAX_SECONDS, (this.clock.now() - this.restAt) / 1000), this.restMotion);
+  }
+
+  private rebase(frame: Frame): void {
+    this.base = frame;
+    this.restMotion = frame.motion;
+    this.restAt = this.clock.now();
+  }
+
+  /** The user took hold of the model: whatever was turning stops where it is. */
+  private freezeMachine(): void {
+    if (this.phase !== 'idle' || this.frozen) return;
+    const frame = this.restFrame();
+    if (!isMoving(frame.motion)) return;
+    this.rebase({ ...frame, motion: freezeMotion(frame.motion) });
+    this.resting = undefined;
   }
 
   /** Plays a validated scene on top of what is already drawn; a scene in progress is finished off first. */
@@ -221,7 +256,7 @@ export class Player {
   seek(scene: Scene, step: number, t: number, view?: { az?: number; el?: number; zoom?: number; explode?: number }): void {
     this.stop();
     this.live = false;
-    this.base = emptyFrame();
+    this.rebase(emptyFrame());
     this.resting = undefined;
     const frame = frameAt(scene.steps, step, t, emptyFrame(), true);
     const camera = view ? movedCamera({ az: view.az ?? frame.camera.az, el: view.el ?? frame.camera.el, zoom: view.zoom ?? frame.camera.zoom }, 0, 0) : frame.camera;
@@ -236,7 +271,7 @@ export class Player {
     this.explodeValue.reset();
     this.home = undefined;
     this.live = false;
-    this.base = emptyFrame();
+    this.rebase(emptyFrame());
     this.resting = undefined;
     this.frozen = undefined;
   }
@@ -285,6 +320,7 @@ export class Player {
 
   private moveCamera(dAz: number, dEl: number, zoomBy: number): void {
     this.stopIdle();
+    this.freezeMachine();
     if (this.frozen) {
       this.frozen = { ...this.frozen, camera: { ...this.frozen.camera, ...movedCamera(this.frozen.camera, dAz, dEl, zoomBy) } };
       return;
@@ -313,8 +349,9 @@ export class Player {
     }
     if (this.phase === 'running' && this.plan) {
       const t = ((now - this.startedAt) / 1000) * this.speed;
+      this.lastT = t;
       if (this.speechEnded && t >= this.plan.duration && this.openIndex !== this.index) {
-        this.base = settle(this.plan);
+        this.rebase(settle(this.plan, t));
         this.resting = this.plan;
         this.plan = undefined;
         this.index++;
@@ -325,8 +362,8 @@ export class Player {
       }
       return evaluate(this.plan, t);
     }
-    if (this.phase === 'waiting') return this.base;
-    const rest = this.resting ? settle(this.resting) : this.base;
+    if (this.phase === 'waiting') return withMotion(this.base, (now - this.restAt) / 1000, this.restMotion);
+    const rest = this.restFrame();
     return this.idleAt === undefined ? rest : withIdleTurn(rest, (now - this.idleAt) / 1000);
   }
 
@@ -336,10 +373,10 @@ export class Player {
     this.generation++;
     this.voice.cancel();
     if (this.plan) {
-      this.base = settle(this.plan);
+      this.rebase(settle(this.plan, this.phase === 'running' ? this.lastT : Infinity));
       this.resting = this.plan;
     } else if (this.resting) {
-      this.base = settle(this.resting);
+      this.rebase(this.restFrame());
     }
     this.plan = undefined;
     this.phase = 'idle';
@@ -388,6 +425,12 @@ export class Player {
     this.phase = 'running';
     this.startedAt = now;
     const step = this.steps[this.index] as Step;
+    // A machine kept turning while the step waited for its voice; the step's own plan goes on from where it got to.
+    if (isMoving(this.restMotion)) {
+      this.rebase(withMotion(this.base, (now - this.restAt) / 1000, this.restMotion));
+      this.plan = planStep(this.base, step);
+    }
+    this.lastT = 0;
     const authored = estimateSpeechSeconds(step.say);
     const actual = estimatedMs && estimatedMs > 0 ? estimatedMs / 1000 : authored;
     this.speed = Math.max(MIN_SPEED, Math.min(MAX_SPEED, authored / actual));

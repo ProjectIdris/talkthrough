@@ -127,6 +127,19 @@ All take `id` and optionally `at` and `dur`. These apply to 3D objects (`move`, 
 | `style` | `color`? `opacity`? | tween colour and/or opacity; at least one is required |
 | `highlight` | `color`? | pulse to draw the eye; the object returns to how it was |
 
+### Machines
+
+Parts that keep moving once started, in the x,y plane with the shafts along z (the kit's own layout). Put the parts of one machine in the same group. A machine stops when a group holding it is exploded, and when the user takes hold of the model; a finished scene leaves it running.
+
+| op | fields | |
+|---|---|---|
+| `spin` | `id` `rpm`? `by`? `ratio`? `phase`? `axis`? `dur`? | turn a part about its own axis (`z` by default; `x` or `y` for others) at `rpm` turns a minute, negative the other way, 0 to stop; it gets up to speed over `dur` (default 0.8 s). Or `by` another part: this one then turns `ratio` times as far as that one (default 1; 0.5 half as fast, -1 a meshed gear) and `phase` degrees ahead, whatever the other part is doing. One of `rpm` or `by` is needed |
+| `crank` | `id` `shaft` `rod`? `pin`? | `id` is a piston, `shaft` a crankshaft that is spinning: the piston slides along y as the crank pin goes round (the crank at 0 degrees has the pin straight up and the piston at the top), and the `rod` swings to join the pin to the piston. `pin` is which throw of a crankshaft with several (default 1). The rod's length, the crank's throw and the piston's pin come from the sizes of the parts |
+| `cam` | `id` `by` `lift`? `open`? `phase`? | `id` is a valve (or any follower), `by` a camshaft that is spinning: the valve is pushed down by `lift` (default a fifth of its length) while the cam's total angle is within `open` degrees (default 110) of `phase` (default 180, the nose pointing down), with a smooth rise and fall. Set the camshaft's `rot` to fix its timing |
+| `flash` | `id` `by` `angle` `span` `cycle`? | `id` is an object (a small sphere for a spark, a larger one for the burn) that is invisible except for `span` degrees from `angle` in each `cycle` (default 720) of the turning of `by`: it comes on quickly and dies away. For a four-stroke engine 0 degrees is the piston at the top starting the intake stroke, 360 the top of the compression, so the spark is at about 350 and the power stroke runs 360 to 540 |
+
+A turning part's own `rot` stays as the scene set it, and the angle is added to it; this is exact when the other two angles are 0. A four-stroke engine: the crankshaft `spin` at 30 rpm, each camshaft `spin` `by` the crankshaft with `ratio` 0.5, an intake camshaft with `rot` `[0,0,135]` and an exhaust one with `rot` `[0,0,-135]` (each valve then opens as its cam's nose comes round to point down at it), a `crank` for each piston, and `flash` for the spark and the burn.
+
 ### Camera
 
 | op | fields | |
