@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createChordTracker, KEY_RIGHT_CTRL, KEY_RIGHT_SHIFT, pressChord } from '../src/main/chord.ts';
 
 const LEFT_CTRL = 29;
@@ -147,6 +148,6 @@ test('nothing in the app sends key or mouse input to the system (only to its own
       else if (/\.(ts|mjs|cjs|js)$/.test(entry.name) && /\b(keyToggle|keyTap|SendInput|SendKeys|keybd_event|mouse_event)\b/.test(readFileSync(path, 'utf8'))) found.push(path);
     }
   };
-  for (const dir of ['../src', '../scripts']) walk(new URL(dir, import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+  for (const dir of ['../src', '../scripts']) walk(fileURLToPath(new URL(dir, import.meta.url)));
   assert.deepEqual(found, []);
 });
