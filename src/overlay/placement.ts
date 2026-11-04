@@ -45,6 +45,14 @@ const MIN_RUN = 4;
 const MAX_LINE_ROWS = 5;
 /** How many lines in a column make it a block of text, and how regular they must be. */
 const MIN_BLOCK_LINES = 4;
+/**
+ * Text has word spacing: along a line the gray level rises and falls again and again (letters, then a gap, then letters). A control is
+ * flat, a solid button or an outlined field with the odd label in it. At this grid size the gaps are not empty cells, only lighter ones,
+ * so a line is counted by how often its gray profile turns (a turn must be at least GAP_STEP gray levels deep); a column of lines is text
+ * only if its middle line turns at least this often per cell. Prose measures 0.2 to 0.5, a flat control 0 to 0.1, a button with a short label in it (a smooth dip) about 0.1.
+ */
+const TEXT_TURNS = 0.15;
+const GAP_STEP = 3;
 
 type TextLine = { r0: number; r1: number; c0: number; c1: number };
 
@@ -121,7 +129,9 @@ export function bodyTextOf(grid: PageGrid, ink: Float32Array = inkOf(grid)): Flo
     const steady = gaps.filter((g) => Math.abs(g - pitch) <= 1.01).length / gaps.length;
     const longest = Math.max(...column.map((l) => l.c1 - l.c0 + 1));
     const full = column.filter((l) => l.c1 - l.c0 + 1 >= 0.75 * longest).length / column.length;
-    if (steady >= 0.6 && full >= 0.6) for (const l of column) regular.add(l);
+    // Equal-width controls (a sidebar of buttons, a form of fields) are as regular as text, but have no word spacing.
+    const turns = column.map((l) => turnsOf(grid, l)).sort((a, b) => a - b);
+    if (steady >= 0.6 && full >= 0.6 && turns[Math.floor(turns.length / 2)]! >= TEXT_TURNS) for (const l of column) regular.add(l);
   }
   // Cells of lines in a regular column are prose; the ink in any other run is weighed by the run's width.
   const ramp = (share: number): number => (share > BAR_WIDTH ? 0 : Math.max(0, Math.min(1, (share - PROSE_RAMP_FROM) / (PROSE_FULL_WIDTH - PROSE_RAMP_FROM))));
@@ -133,6 +143,24 @@ export function bodyTextOf(grid: PageGrid, ink: Float32Array = inkOf(grid)): Flo
     }
   }
   return weight;
+}
+
+/** How often the gray level along a line turns (a gap between words, then the next word), per cell of its width. */
+function turnsOf(grid: PageGrid, l: TextLine): number {
+  const span = l.c1 - l.c0 + 1;
+  if (span < 3) return 0;
+  const profile: number[] = [];
+  for (let c = l.c0; c <= l.c1; c++) {
+    let sum = 0;
+    for (let r = l.r0; r <= l.r1; r++) sum += grid.gray[r * grid.cols + c] as number;
+    profile.push(sum / (l.r1 - l.r0 + 1));
+  }
+  let turns = 0;
+  for (let i = 1; i < span - 1; i++) {
+    const before = profile[i]! - profile[i - 1]!, after = profile[i + 1]! - profile[i]!;
+    if (before * after < 0 && Math.abs(before) > GAP_STEP) turns++;
+  }
+  return turns / span;
 }
 
 /** Summed-area table over a cols x rows field, for the mean of any rectangle at once. */
