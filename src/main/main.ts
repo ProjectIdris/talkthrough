@@ -25,6 +25,8 @@ import { createSamplePlayer } from './samples.ts';
 import { createSession } from './session.ts';
 import { createSettingsWindow } from './settings-window.ts';
 import { createGuideNavigation } from './guide-nav.ts';
+import { createConsentCard } from './consent-card.ts';
+import { electronCardWindow } from './consent-window.ts';
 import { createNavConsent } from './nav-consent.ts';
 import { createNavigator } from './nav.ts';
 import { createHelper } from './ps-helper.ts';
@@ -126,6 +128,14 @@ async function main(): Promise<void> {
   let session: ReturnType<typeof createSession> | null = null;
   // The person's say-so before the app acts for them (a yes first, a pause any time); only where it has hands at all.
   const navConsent = settings.guideNavigation && !options.captureImage ? createNavConsent() : undefined;
+  // Where "may I do that for you?" is asked: a window of its own, because the overlay cannot take a click that arrives without a mouse move.
+  const consentCard = navConsent
+    ? createConsentCard({
+      makeWindow: () => electronCardWindow({ hideFromCapture: !options.visibleToCapture }),
+      areaOf: (displayId) => screen.getAllDisplays().find((d) => d.id === displayId)?.workArea ?? null,
+      onAnswer: (yes) => void navConsent.answer(yes),
+    })
+    : undefined;
   const overlays = createOverlayManager({
     preload,
     page: overlayPage,
@@ -141,7 +151,6 @@ async function main(): Promise<void> {
     },
     onStroke: (displayId, stroke) => session?.stroke(displayId, stroke),
     onOffer: (displayId) => void session?.offer(displayId),
-    onConsent: (yes) => void navConsent?.answer(yes),
     ...(settings.detailRoute ? { onDetail: (displayId: number) => void session?.detail(displayId) } : {}),
     onMilestone: (m) => session?.milestone(m),
   });
@@ -259,6 +268,7 @@ async function main(): Promise<void> {
         media.release(c.grabId);
         return { screenshot: c.screenshot, grid: gridOf(c.screenshot) };
       },
+      gridOf,
       listen: (_displayId, listener) => {
         // Screen pixels from the hook, on the 0..1000 scale of the display they landed on.
         const clickOf = (p: { x: number; y: number }): Click => {
@@ -290,6 +300,11 @@ async function main(): Promise<void> {
       if (options.logSteps && message.kind === 'step') log(`step ${JSON.stringify(message.step)}`);
       if (options.logSteps && message.kind === 'step-open') log(`step-open ${JSON.stringify(message.say)}`);
       if (options.logSteps && message.kind === 'action') log(`action ${JSON.stringify(message.action)}`);
+      if (message.kind === 'consent') {
+        if (message.text === null) consentCard?.hide();
+        else consentCard?.show(displayId, message.text);
+        return;
+      }
       overlays.send(displayId, message);
     },
     log,
@@ -325,6 +340,7 @@ async function main(): Promise<void> {
     frames?.stop();
     session?.dispose();
     controlHelper?.stop();
+    consentCard?.dispose();
     overlays.setPen(null);
     overlays.dispose();
     media.dispose();

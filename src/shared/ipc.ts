@@ -21,8 +21,6 @@ export const CHANNEL = {
   done: 'tt:done',
   /** overlay -> main: the user clicked the escalation offer. */
   offer: 'tt:offer',
-  /** overlay -> main: the answer to the app asking whether it may act for the person (true: yes). */
-  consent: 'tt:consent',
   /** overlay -> main: the user clicked "More detail": ask the detail model for a richer version of the scene on screen. */
   detail: 'tt:detail',
   /** overlay -> main: a piece of a pen stroke (Stroke), streamed as the pointer moves while the pen is on. */
@@ -126,7 +124,7 @@ export type SceneMessage =
   | { kind: 'status'; status: 'hush' | 'listening' | 'working' | 'backend' | 'detail' | 'waiting' | 'checking' | 'idle' }
   /** A short line that fades by itself. */
   | { kind: 'notice'; text: string; level: 'info' | 'error' }
-  /** The app asks whether it may act for the person (a Yes and a No to click); null takes the question away. */
+  /** The app asks whether it may act for the person (main shows a card of its own with a Yes and a No); null takes the question away. */
   | { kind: 'consent'; text: string | null };
 
 
@@ -217,8 +215,6 @@ export interface TalkthroughApi {
   done(): void;
   /** The user clicked the escalation offer. */
   offer(): void;
-  /** The user answered the app's question whether it may act for them. */
-  consent(yes: boolean): void;
   /** The user clicked "More detail". */
   detail(): void;
   /** A piece of a pen stroke, while the pen is on. */

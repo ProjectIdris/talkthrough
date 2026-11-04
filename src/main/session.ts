@@ -13,6 +13,7 @@ import { isRealStroke } from '../shared/pen.ts';
 import { createGuide, guideQuestion, waitOf } from './guide.ts';
 import { parseConsent } from './nav-consent.ts';
 import type { Frame, GuideListener, GuideNavigation, GuideOptions } from './guide.ts';
+import type { Grid } from '../shared/screen-diff.ts';
 import { parseSpoken } from './phrases.ts';
 import type { Box, Point } from '../shared/pen.ts';
 
@@ -68,6 +69,8 @@ export type SessionDeps = {
    */
   guide?: {
     capture(displayId: number): Promise<Frame>;
+    /** The coarse brightness grid of a screenshot (so the guide can compare the screen with the picture the model was given). */
+    gridOf?(shot: Screenshot): Grid;
     listen(displayId: number, listener: GuideListener): () => void;
     /** Timings of the walk (when to look at the screen after a click, how long to wait); the defaults are in guide.ts. */
     options?: Partial<GuideOptions>;
@@ -393,6 +396,7 @@ export function createSession(deps: SessionDeps) {
       });
     };
     /** A step that asks for the person's click starts a walk; the steps after it are the walk's to show. */
+    const modelPicture = lastAsk?.clean;
     const startWalk = (): Guide => {
       const g: Guide = createGuide({
         displayId,
@@ -402,6 +406,8 @@ export function createSession(deps: SessionDeps) {
           deps.send(displayId, message);
         },
         capture: () => deps.guide!.capture(displayId),
+        // The picture the model was given: a move for the person is made only if the screen near it still looks like this.
+        ...(deps.guide?.gridOf && modelPicture ? { reference: () => ({ screenshot: modelPicture, grid: deps.guide!.gridOf!(modelPicture) }) } : {}),
         listen: (listener) => deps.guide!.listen(displayId, listener),
         replan: (info) => replanWalk(displayId, g, question, info),
         finish: () => deps.send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) }),
