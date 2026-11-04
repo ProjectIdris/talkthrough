@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { afterEach, beforeEach, mock, test } from 'node:test';
 import { createScriptedModel } from '../src/adapters/scripted-model.ts';
 import { SpeechToTextError } from '../src/adapters/speech-to-text.ts';
 import type { SpeechToText } from '../src/adapters/speech-to-text.ts';
@@ -11,7 +11,22 @@ import { ModelError } from '../src/adapters/model.ts';
 import type { Backend, BackendReply, BackendRequest } from '../src/adapters/backend.ts';
 
 const step = (say: string) => ({ say, actions: [{ op: 'box', id: 'b', x: 100, y: 100, w: 200, h: 100, color: 'red' }] });
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// Time in this file is the test's own. Every timer (the session's, the guide's, the scripted model's) and Date run on a mocked clock that moves
+// only when a test says (wait), so no assertion races the machine's speed; between the steps of the clock every promise chain is let run to where it waits.
+const drain = () => new Promise<void>((resolve) => setImmediate(resolve));
+const CLOCK_STEP_MS = 5;
+beforeEach(() => mock.timers.enable({ apis: ['setTimeout', 'Date'] }));
+afterEach(() => mock.timers.reset());
+/** Moves the clock on by `ms`, letting what is waiting on it run after each step. Called from a test, not from inside what the session is waiting for. */
+async function wait(ms: number): Promise<void> {
+  await drain();
+  for (let left = ms; left > 0; left -= CLOCK_STEP_MS) {
+    mock.timers.tick(Math.min(CLOCK_STEP_MS, left));
+    await drain();
+  }
+}
+/** A wait inside a fake (a microphone that takes time to close, a backend that is slow): a timer on the same clock. */
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 function rig(overrides: Partial<SessionDeps> = {}, clipMs = 1500) {
   const sent: SceneMessage[] = [];
@@ -267,7 +282,7 @@ function penMedia(stopMs: number, log: { composed: unknown[]; released: number[]
   return {
     startMic: async () => undefined,
     stopMic: async () => {
-      await wait(stopMs);
+      await pause(stopMs);
       return { samples: new Float32Array(16), sampleRate: 16000, durationMs: 1500, startLatencyMs: 100 };
     },
     abortMic: () => undefined,
@@ -413,13 +428,15 @@ const scene = (...says: string[]) => ({ steps: says.map((s) => step(s)) });
 
 test('clicking the offer sends the question, the thread and the scene on screen to the backend, shows "with the backend" while it waits, and draws what it sends back like any answer', async () => {
   const b = fakeBackend(async () => {
-    await wait(20);
+    await pause(20);
     return { scene: { steps: [{ say: 'Deeper.', actions: [{ op: 'box', id: 'deep', x: 5, y: 5, w: 10, h: 10, color: 'blue' }, { op: 'teleport', id: 'x' }] }] } };
   });
   const r = rig({ backend: b.backend, model: () => createScriptedModel([step('Partial.')], { escalate: 'needs research' }) });
   await question(r);
   r.sent.length = 0;
-  await r.session.offer(7);
+  const offered = r.session.offer(7);
+  await wait(25); // the backend takes 20 ms on the test's clock
+  await offered;
   const kinds = r.kinds();
   assert.deepEqual(kinds.slice(0, 2), ['status:backend', 'begin'], 'it says it is with the backend first');
   assert.ok(kinds.includes('step') && kinds.at(-1) === 'end');
