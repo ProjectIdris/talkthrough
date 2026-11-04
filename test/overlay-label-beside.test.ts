@@ -72,7 +72,7 @@ test('a name inside an enlargement card stays inside the card', () => {
   const image = { op: 'image', id: 'zoom', sx: 600, sy: 400, sw: 90, sh: 280, dx: 800, dy: 100, dw: 140, color: 'red' } as Action;
   placeAction(p, image, 1080);
   settleMark(p, point('a', 930, 400, 'teal'));
-  const out = settleMark(p, label('l', 940, 395, 'Right ventricle', 'teal'));
+  const out = settleMark(p, { op: 'label', id: 'l', x: 940, y: 395, text: 'Right ventricle', color: 'teal', size: 12 } as Action); // a name on a card is small
   const b = box(out);
   assert.ok(b.x >= 800 - 1 && b.x + b.w <= 940 + 1, `inside the card's width: ${JSON.stringify(b)}`);
 });
