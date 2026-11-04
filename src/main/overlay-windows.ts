@@ -62,6 +62,10 @@ export function createOverlayManager(options: OverlayOptions) {
     // Keep clicks and focus away from us, and never let the page open windows or navigate.
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', (event) => event.preventDefault());
+    // Surface the page's warnings and errors in the app log (nothing else the page prints).
+    window.webContents.on('console-message', (event) => {
+      if (event.level === 'warning' || event.level === 'error') console.error('[talkthrough] overlay page ' + event.level + ': ' + event.message);
+    });
     window.on('page-title-updated', (event) => event.preventDefault()); // keep our own title
     window.once('ready-to-show', () => {
       window.showInactive();
