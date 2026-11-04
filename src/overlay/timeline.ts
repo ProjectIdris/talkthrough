@@ -104,6 +104,8 @@ export type ObjectFrame = {
   spread: number;
   /** Where a machine has put it just now (a turning part, a piston, a valve, a glow); drawn in place of pos, rot and opacity. */
   pose?: Pose;
+  /** A plane cutting this object (and what is in it) open: everything beyond `at` along the axis (0 x, 1 y, 2 z) of the object is removed. */
+  cut?: { axis: 0 | 1 | 2; at: number };
 };
 
 export type Frame = {
@@ -115,6 +117,8 @@ export type Frame = {
   nextKey: number;
   /** The person's Explode control, 0 closed to 1 open, when they have used it (see explode.ts). */
   userExplode?: number;
+  /** The person's Cut control, 0 whole to 1 cut through the middle, when they have used it. */
+  userCut?: number;
   /** What is turning, and how the parts are tied to it. */
   motion: Motion;
 };
@@ -201,6 +205,8 @@ type MarkInst = Life & { key: number; id: string; mark: Mark; color: Track; opac
 type ObjInst = Life & {
   key: number; id: string; parentKey: number | null; def: AddAction;
   pos: Track; rot: Track; scale: Track; color: Track; opacity: Track; draw: Track; spread: Track;
+  /** The plane that cuts it open, once a `cut` has named it. */
+  cut?: { axis: 0 | 1 | 2; at: Track };
 };
 type PanelInst = Life & { rect: Track; frame: boolean };
 type Pulse = { key: number; start: number; dur: number; color: Rgb | undefined };
@@ -275,6 +281,7 @@ export function planStep(base: Frame, step: Step): StepPlan {
       key: o.key, id: o.id, parentKey: o.parentKey, def: o.def, bornAt: NEVER, diedAt: undefined,
       pos: track(o.pos), rot: track(o.rot), scale: track(o.scale), color: track(o.color), opacity: track([o.opacity]),
       draw: track([o.draw]), spread: track([o.spread]),
+      ...(o.cut ? { cut: { axis: o.cut.axis, at: track([o.cut.at]) } } : {}),
     });
   }
   if (base.panel) {
@@ -446,6 +453,16 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       end(Math.max(0.2, dur));
       return;
     }
+    case 'cut': {
+      const o = lookup(plan.objs, a.id, at);
+      if (!o) return;
+      const axis = a.axis === 'x' ? 0 : a.axis === 'y' ? 1 : 2;
+      if (!o.cut) o.cut = { axis, at: track([100]) };
+      else if (a.axis !== undefined) o.cut.axis = axis;
+      tweenTo(o.cut.at, at, dur, [a.to]);
+      end(dur);
+      return;
+    }
     case 'spin': {
       const o = lookup(plan.objs, a.id, at);
       if (!o) return;
@@ -537,6 +554,7 @@ function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number)
   if (!given.pos) fresh.pos = track(valueAt(old.pos, at));
   if (!given.rot) fresh.rot = track(valueAt(old.rot, at));
   fresh.scale = track(valueAt(old.scale, at));
+  if (old.cut && !fresh.cut) fresh.cut = { axis: old.cut.axis, at: track(valueAt(old.cut.at, at)) };
   // What hung from the old one hangs from the new, except what the new one itself hangs from (an answer can add a part and then
   // its former holder under it): that would make a loop, so it takes the old one's place in the old one's holder.
   const above = new Set<number>();
@@ -691,6 +709,7 @@ export function evaluate(plan: StepPlan, t: number): Frame {
       color: asRgb(valueAt(o.color, t)), opacity: valueAt(o.opacity, t)[0] ?? 1,
       appear: appearOf(o, t), fade: fadeOf(o, t), pulse: pulse.amount, pulseColor: pulse.color,
       draw: valueAt(o.draw, t)[0] ?? 1, spread: valueAt(o.spread, t)[0] ?? 0,
+      ...cutOf(o, t),
     });
   }
   const motion = motionOf(plan, objects, spinTime);
@@ -708,6 +727,13 @@ export function evaluate(plan: StepPlan, t: number): Frame {
       focus: focusAt(plan.focus, t),
     },
   };
+}
+
+/** The plane cutting an object open at time t, when it is within the world (100 and beyond means no cut). */
+function cutOf(o: ObjInst, t: number): { cut?: { axis: 0 | 1 | 2; at: number } } {
+  if (!o.cut) return {};
+  const at = valueAt(o.cut.at, t)[0] ?? 100;
+  return at < 99.5 ? { cut: { axis: o.cut.axis, at } } : {};
 }
 
 /** The objects with every parent before its children (a replaced object's children now hang from one made later). Stable otherwise. */

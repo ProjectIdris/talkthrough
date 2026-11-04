@@ -88,6 +88,7 @@ export type HighlightAction = { op: 'highlight'; id: string; color?: Color } & T
 
 // Machines: parts that keep moving by themselves once started.
 export type SpinAction = { op: 'spin'; id: string; rpm?: number; by?: string; ratio?: number; phase?: number; axis?: 'x' | 'y' | 'z' } & Timing;
+export type CutAction = { op: 'cut'; id: string; axis?: 'x' | 'y' | 'z'; to: number } & Timing;
 export type CrankAction = { op: 'crank'; id: string; shaft: string; rod?: string; pin?: number } & At;
 export type CamAction = { op: 'cam'; id: string; by: string; lift?: number; open?: number; phase?: number } & At;
 export type FlashAction = { op: 'flash'; id: string; by: string; angle: number; span: number; cycle?: number } & At;
@@ -103,7 +104,7 @@ export type ClearAction = { op: 'clear'; target: string } & At;
 export type Action =
   | Mark | PanelAction | AddAction
   | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | StyleAction | HighlightAction
-  | SpinAction | CrankAction | CamAction | FlashAction
+  | CutAction | SpinAction | CrankAction | CamAction | FlashAction
   | OrbitAction | ZoomAction | FocusAction | ClearAction;
 
 export type Step = { say: string; actions: Action[] };

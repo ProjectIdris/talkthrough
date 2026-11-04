@@ -77,6 +77,10 @@ A model writes coordinates without seeing the page, so the overlay moves what it
 
 Marks that are strokes (box, circle, underline, arrow) are drawn on like a pen: 0.8 to 1.2 seconds by length, the leading end feathered, and wiped off along the line when cleared. With the system's "reduce motion" setting they appear and go in one step.
 
+## Cutting a model open
+
+`cut` (and the Cut button beside Explode, which cuts the whole model through its middle from the front and puts it back) removes everything beyond a plane and caps the cut faces (`src/overlay/cutaway.ts`). The plane is a three.js clipping plane on the surfaces of the cut object and everything in it. A cap is the stencil trick, once for each closed part: its back faces add one to the stencil, its front faces take one away, and a cap is drawn on the plane where what is left is not zero, in a paler tone of the part's colour. A part that is an open surface (marked `open` in the kit builders, as the bore liner is) has no cap, since the count means nothing for it. Caps hang from the scene, not from the model, so they do not count toward its size, the framing or its outline. The renderer is made with a stencil buffer and local clipping on.
+
 ## The pen
 
 While the keys are held the main process sends `pen on` and the window takes the mouse. The page (`pen.ts`, plain state tested without a window) draws what is dragged as a red, round stroke with a faint dark outline, about half a percent of the longer side wide, and reports it with `stroke`: points on the 0 to 1000 scale, appended per stroke id, once per frame while drawing and once more when the button comes up (`done`). A click, or a twitch under 3 units, draws and reports nothing. While the pen is on the mouse never turns the model or clicks the app's own words, and the browser's own image drag is switched off (it would cancel the stroke). After `pen off` the stroke stays until the answer's first step (or the end, a notice, a clear or an idle status), then fades over 0.6 s; a new `pen on` removes it at once. It is never part of a scene, and the screenshot kept for image cards is the clean one.

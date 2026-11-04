@@ -95,7 +95,7 @@ function cylinderBlock(b: Builder, def: AddPart, d: Detail): void {
   b.add(geo, 'metal', { tint: true, edges: true });
   // The bore wall, a darker honed liner, so the hole reads as a hole.
   const liner = new CylinderGeometry(bore * 1.004, bore * 1.004, sy * 0.98, d.curve, 1, true, cut ? Math.PI : 0, cut ? Math.PI : Math.PI * 2);
-  b.add(liner, 'metal', { color: [78, 84, 96] });
+  b.add(liner, 'metal', { color: [78, 84, 96], open: true });
   if (def.variant === 'finned') {
     const n = def.n ?? 6;
     for (let i = 0; i < n; i++) {

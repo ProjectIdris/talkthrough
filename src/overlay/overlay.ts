@@ -43,6 +43,7 @@ const offerButton = byId<HTMLButtonElement>('offer-button');
 const noticeEl = byId<HTMLDivElement>('notice');
 const explodeEl = byId<HTMLButtonElement>('explode');
 const detailEl = byId<HTMLButtonElement>('detail');
+const cutEl = byId<HTMLButtonElement>('cut');
 const marksCtx = marksCanvas.getContext('2d') as CanvasRenderingContext2D;
 
 /** The quality tier: asked for in the page address, or chosen from what the graphics stack is. */
@@ -61,7 +62,8 @@ function chooseTier(): Tier {
 
 const tier = chooseTier();
 const settings = TIERS[tier];
-const renderer = new WebGLRenderer({ canvas: glCanvas, alpha: true, antialias: settings.msaa, premultipliedAlpha: true });
+const renderer = new WebGLRenderer({ canvas: glCanvas, alpha: true, antialias: settings.msaa, premultipliedAlpha: true, stencil: true });
+renderer.localClippingEnabled = true; // a model can be cut open (cutaway.ts)
 renderer.outputColorSpace = SRGBColorSpace;
 renderer.toneMapping = NeutralToneMapping;
 renderer.toneMappingExposure = 0.9;
@@ -290,7 +292,7 @@ function labelEnvironment(): { occ: Occupancy; busy?: Busy } {
   const occ = new Occupancy(view.width, view.height);
   for (const hull of panelScene.silhouette(view.width, view.height)) occ.fillConvex(hull);
   // The buttons beside the model are not for a tag to sit on.
-  for (const el of [explodeEl, detailEl]) {
+  for (const el of [explodeEl, cutEl, detailEl]) {
     if (el.style.display === 'none') continue;
     const x = parseFloat(el.style.left) || 0, y = parseFloat(el.style.top) || 0;
     const w = el.offsetWidth || 74, h = el.offsetHeight || 26;
@@ -326,14 +328,22 @@ function placeExplode(frame: Frame): void {
   if (!modelRect || !player.settled || frame.objects.length < 2 || pen.active) {
     explodeEl.style.display = 'none';
     detailEl.style.display = 'none';
+    cutEl.style.display = 'none';
     return;
   }
   explodeEl.style.display = 'block';
+  cutEl.style.display = 'block';
   const label = player.exploded ? 'Assemble' : 'Explode';
   if (explodeEl.textContent !== label) explodeEl.textContent = label;
   const box = explodeButtonBox(modelRect, view, { w: explodeEl.offsetWidth || 74, h: explodeEl.offsetHeight || 26 });
   explodeEl.style.left = `${box.x}px`;
   explodeEl.style.top = `${box.y}px`;
+  // Cut sits under Explode, at the same right edge.
+  const cutLabel = player.cut ? 'Whole' : 'Cut';
+  if (cutEl.textContent !== cutLabel) cutEl.textContent = cutLabel;
+  const ew = explodeEl.offsetWidth || 74, eh = explodeEl.offsetHeight || 26;
+  cutEl.style.left = `${box.x + ew - (cutEl.offsetWidth || 50)}px`;
+  cutEl.style.top = `${box.y + eh + 6}px`;
   // "More detail" sits to the left of Explode, once per answer, and only where a detail model is set up.
   if (!display?.detail || detailState !== 'none') {
     detailEl.style.display = 'none';
@@ -372,7 +382,7 @@ function request(): void {
   if (!raf) raf = requestAnimationFrame(loop);
 }
 
-const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl, detailEl];
+const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl, cutEl, detailEl];
 
 /** True for a moment after the pen goes off, so a button released then still ends its stroke. */
 let penEnding = false;
@@ -490,6 +500,11 @@ detailEl.addEventListener('click', () => {
   detailEl.style.display = 'none';
   hold.release();
   window.talkthrough.detail();
+  request();
+});
+cutEl.addEventListener('click', () => {
+  player.toggleCut();
+  if (fader.armed) fader.touch(performance.now());
   request();
 });
 // While the pointer is on the model the page keeps saying so; if the page goes quiet, main lets clicks through again.

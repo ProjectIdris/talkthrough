@@ -126,6 +126,7 @@ All take `id` and optionally `at` and `dur`. These apply to 3D objects (`move`, 
 | `reveal` | `to` | draw a tube, line or arrow on from its start: 1 is all of it |
 | `style` | `color`? `opacity`? | tween colour and/or opacity; at least one is required |
 | `highlight` | `color`? | pulse to draw the eye; the object returns to how it was |
+| `cut` | `axis`? `to` | cut a 3D object, usually a whole model, open with a plane so the inside shows: everything on the front side of the plane (`axis` `x`, `y` or `z`, default `z`: the side facing the viewer) is removed and each cut face is capped like a solid section. `to` is where the plane is along that axis in the object's own space (0 is the middle of the object); it moves there over `dur`, and a later `cut` moves it on. `to` 100 is past everything, which takes the cut away. Parts that are open surfaces (a liner, a pipe wall) are not capped. The person's own Cut button cuts the whole model through the middle the same way |
 
 ### Machines
 
