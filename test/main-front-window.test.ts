@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { Worker } from 'node:worker_threads';
 import { resolve } from 'node:path';
 import { createFrontWindowReader } from '../src/main/front-window.ts';
@@ -91,17 +92,33 @@ test('a reader that misses three reads in a row is stopped and a fresh one is st
 });
 
 test('an answer in between clears the count: two misses, an answer, two more misses do not replace the reader', async () => {
+  // A reader thread played by hand, so nothing depends on how fast the machine is: the three reads that are "late" are answered only when
+  // the test says, the one in between at once. A miss is a read still unanswered when its (30 ms) timer fires, and a timer set for 30 ms
+  // always fires before one set for 50 ms in the same thread.
   let launches = 0;
-  // reads: late, late, quick, late, late (late = 100 ms, the miss time being 30 ms)
-  const reader = createFrontWindowReader({ file: file('worker-flaky.mjs'), missAfterMs: 30, start: (f) => (launches++, new Worker(f, { workerData: { delays: [100, 100, 0, 100, 100] } })) });
+  const held: Array<() => void> = [];
+  let sent = 0;
+  const fake = (): Worker => {
+    const w = new EventEmitter() as unknown as Worker & EventEmitter;
+    (w as unknown as { postMessage(m: { id: number }): void }).postMessage = (m) => {
+      const n = sent++;
+      const answer = () => w.emit('message', { id: m.id, window: { title: 'Fixed window', appName: 'Fixture' } });
+      if (n === 2) queueMicrotask(answer); // the third read is answered at once
+      else held.push(answer);
+    };
+    (w as unknown as { terminate(): Promise<number> }).terminate = async () => 0;
+    return w;
+  };
+  const reader = createFrontWindowReader({ file: 'unused', missAfterMs: 30, start: () => (launches++, fake()) });
   try {
     const all: Promise<unknown>[] = [reader.read(), reader.read()];
     await sleepMs(50); // both have missed
     all.push(reader.read()); // answered at once: the count starts again
-    await sleepMs(20);
+    await all[2];
     all.push(reader.read(), reader.read());
     await sleepMs(50); // two more have missed, four in all but not three in a row
     assert.equal(launches, 1, 'not replaced');
+    for (const answer of held) answer();
     await Promise.all(all);
   } finally {
     reader.dispose();
