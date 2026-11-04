@@ -4,79 +4,83 @@
     {
       "say": "This is a single board computer. Let me build it up, so you can see what is on it.",
       "actions": [
-        { "op": "panel", "x": 330, "y": 200, "w": 640, "h": 700 },
-        { "op": "orbit", "az": 30, "el": 34, "dur": 0 },
-        { "op": "zoom", "to": 1.05, "dur": 0 },
-        { "op": "add", "shape": "group", "id": "board" },
-        { "op": "add", "shape": "box", "id": "pcb", "parent": "board", "size": [10.2, 0.18, 6.7], "color": "#17803f", "material": "pcb", "bevel": 0.3 },
-        { "op": "add", "shape": "part", "part": "header", "id": "gpio", "parent": "board", "pos": [-1, 0.59, -2.7], "size": [6.1, 1, 0.62], "n": 20, "at": 0.1 },
-        { "op": "add", "shape": "part", "part": "port", "variant": "ethernet", "id": "eth", "parent": "board", "pos": [3.95, 1, 2.1], "rot": [0, 90, 0], "size": [2.3, 1.8, 2.5], "at": 0.2 },
-        { "op": "add", "shape": "part", "part": "port", "variant": "usb3", "id": "usb3a", "parent": "board", "pos": [3.95, 0.95, -0.05], "rot": [0, 90, 0], "size": [2.1, 1.7, 2.2], "at": 0.3 },
-        { "op": "add", "shape": "part", "part": "port", "variant": "usb3", "id": "usb3b", "parent": "board", "pos": [3.95, 2.65, -0.05], "rot": [0, 90, 0], "size": [2.1, 1.7, 2.2], "at": 0.35 },
-        { "op": "add", "shape": "part", "part": "port", "variant": "usb", "id": "usb2a", "parent": "board", "pos": [3.95, 0.95, -2.25], "rot": [0, 90, 0], "size": [2.1, 1.7, 2.2], "at": 0.4 },
-        { "op": "add", "shape": "part", "part": "port", "variant": "usb", "id": "usb2b", "parent": "board", "pos": [3.95, 2.65, -2.25], "rot": [0, 90, 0], "size": [2.1, 1.7, 2.2], "at": 0.45 },
-        { "op": "add", "shape": "part", "part": "chip", "variant": "metal", "id": "soc", "parent": "board", "pos": [0.3, 0.27, 0.35], "size": [2.2, 0.36, 2.2], "at": 0.5 },
-        { "op": "add", "shape": "part", "part": "chip", "id": "ram", "parent": "board", "pos": [-2.3, 0.24, 0.5], "size": [1.5, 0.3, 1.1], "at": 0.55 },
-        { "op": "add", "shape": "part", "part": "chip", "id": "rp1", "parent": "board", "pos": [1.85, 0.24, -0.55], "size": [1.3, 0.3, 1.3], "at": 0.6 },
-        { "op": "explode", "id": "board", "to": 0.55, "dur": 0 },
-        { "op": "explode", "id": "board", "to": 0, "at": 1, "dur": 1.8 }
+        {"op": "panel", "x": 330, "y": 200, "w": 640, "h": 700},
+        {"op": "orbit", "az": 30, "el": 34, "dur": 0},
+        {"op": "zoom", "to": 1.05, "dur": 0},
+        {"op": "add", "shape": "group", "id": "board"},
+        {"op": "add", "shape": "box", "id": "pcb", "parent": "board", "size": [10.2,0.18,6.7], "color": "#17803f", "material": "pcb", "bevel": 0.3},
+        {"op": "add", "shape": "part", "part": "header", "id": "gpio", "parent": "board", "pos": [-1,0.59,-2.7], "size": [6.1,1,0.62], "n": 20, "at": 0.1},
+        {"op": "add", "shape": "part", "part": "port", "variant": "ethernet", "id": "eth", "parent": "board", "pos": [3.95,1,2.1], "rot": [0,90,0], "size": [2.3,1.8,2.5], "at": 0.2},
+        {"op": "add", "shape": "part", "part": "port", "variant": "usb3", "id": "usb3a", "parent": "board", "pos": [3.95,0.95,-0.05], "rot": [0,90,0], "size": [2.1,1.7,2.2], "at": 0.3},
+        {"op": "add", "shape": "part", "part": "port", "variant": "usb3", "id": "usb3b", "parent": "board", "pos": [3.95,2.65,-0.05], "rot": [0,90,0], "size": [2.1,1.7,2.2], "at": 0.35},
+        {"op": "add", "shape": "part", "part": "port", "variant": "usb", "id": "usb2a", "parent": "board", "pos": [3.95,0.95,-2.25], "rot": [0,90,0], "size": [2.1,1.7,2.2], "at": 0.4},
+        {"op": "add", "shape": "part", "part": "port", "variant": "usb", "id": "usb2b", "parent": "board", "pos": [3.95,2.65,-2.25], "rot": [0,90,0], "size": [2.1,1.7,2.2], "at": 0.45},
+        {"op": "add", "shape": "part", "part": "chip", "variant": "metal", "id": "soc", "parent": "board", "pos": [0.3,0.27,0.35], "size": [2.2,0.36,2.2], "at": 0.5},
+        {"op": "add", "shape": "part", "part": "chip", "id": "ram", "parent": "board", "pos": [-2.3,0.24,0.5], "size": [1.5,0.3,1.1], "at": 0.55},
+        {"op": "add", "shape": "part", "part": "chip", "id": "rp1", "parent": "board", "pos": [1.85,0.24,-0.55], "size": [1.3,0.3,1.3], "at": 0.6},
+        {"op": "explode", "id": "board", "to": 0.55, "dur": 0},
+        {"op": "explode", "id": "board", "to": 0, "at": 1, "dur": 1.8},
+        {"op": "orbit", "az": 44, "el": 32, "dur": 3.4, "at": 0.3}
       ]
     },
     {
       "say": "Along the front edge are the power and video sockets, and a small connector for a camera.",
       "actions": [
-        { "op": "add", "shape": "part", "part": "chip", "id": "pmic", "parent": "board", "pos": [-3.95, 0.22, -0.2], "size": [1, 0.26, 0.9] },
-        { "op": "add", "shape": "box", "id": "coil", "parent": "board", "pos": [-3.95, 0.29, 1.3], "size": [0.75, 0.4, 0.75], "material": "metal", "color": "#8e949f", "bevel": 0.1, "at": 0.1 },
-        { "op": "add", "shape": "array", "id": "coils", "of": "coil", "count": 3, "step": [1, 0, 0], "at": 0.1 },
-        { "op": "add", "shape": "part", "part": "port", "variant": "usbc", "id": "power", "parent": "board", "pos": [-3.9, 0.44, 3.0], "size": [1.1, 0.7, 0.7], "at": 0.3 },
-        { "op": "add", "shape": "part", "part": "port", "variant": "hdmi", "id": "hdmi", "parent": "board", "pos": [-2.5, 0.44, 3.0], "size": [1.1, 0.7, 0.7], "at": 0.4 },
-        { "op": "add", "shape": "array", "id": "hdmis", "of": "hdmi", "count": 2, "step": [1.35, 0, 0], "at": 0.4 },
-        { "op": "add", "shape": "box", "id": "socket", "parent": "board", "pos": [0.9, 0.31, 2.9], "size": [2, 0.44, 0.7], "color": "#e9e4d6", "bevel": 0.06, "at": 0.6 },
-        { "op": "add", "shape": "part", "part": "chip", "variant": "metal", "id": "wifi", "parent": "board", "pos": [-2.6, 0.25, -1.55], "size": [2, 0.32, 1.5], "at": 0.2 },
-        { "op": "add", "shape": "part", "part": "button", "id": "btn", "parent": "board", "pos": [2.2, 0.3, 2.95], "size": [0.6, 0.42, 0.6], "color": "#e8e8ee", "at": 0.5 },
-        { "op": "add", "shape": "cylinder", "id": "padf", "parent": "board", "pos": [-4.55, 0.105, 2.75], "size": [0.55, 0.03, 0.55], "material": "metal", "color": "#d8aa48", "edges": false, "at": 0.6 },
-        { "op": "add", "shape": "array", "id": "padsf", "of": "padf", "count": 2, "step": [9.1, 0, 0], "at": 0.6 },
-        { "op": "add", "shape": "cylinder", "id": "padb", "parent": "board", "pos": [-4.55, 0.105, -2.75], "size": [0.55, 0.03, 0.55], "material": "metal", "color": "#d8aa48", "edges": false, "at": 0.6 },
-        { "op": "add", "shape": "array", "id": "padsb", "of": "padb", "count": 2, "step": [9.1, 0, 0], "at": 0.6 },
-        { "op": "add", "shape": "group", "id": "latch", "parent": "board", "pos": [0.9, 0.5, 2.64], "at": 0.7 },
-        { "op": "add", "shape": "box", "id": "bar", "parent": "latch", "pos": [0, 0.04, 0.3], "size": [1.9, 0.12, 0.62], "color": "#15181f", "bevel": 0.04, "at": 0.7 }
+        {"op": "add", "shape": "part", "part": "chip", "id": "pmic", "parent": "board", "pos": [-3.95,0.22,-0.2], "size": [1,0.26,0.9]},
+        {"op": "add", "shape": "box", "id": "coil", "parent": "board", "pos": [-3.95,0.29,1.3], "size": [0.75,0.4,0.75], "material": "metal", "color": "#8e949f", "bevel": 0.1, "at": 0.1},
+        {"op": "add", "shape": "array", "id": "coils", "of": "coil", "count": 3, "step": [1,0,0], "at": 0.1},
+        {"op": "add", "shape": "part", "part": "port", "variant": "usbc", "id": "power", "parent": "board", "pos": [-3.9,0.44,3], "size": [1.1,0.7,0.7], "at": 0.3},
+        {"op": "add", "shape": "part", "part": "port", "variant": "hdmi", "id": "hdmi", "parent": "board", "pos": [-2.5,0.44,3], "size": [1.1,0.7,0.7], "at": 0.4},
+        {"op": "add", "shape": "array", "id": "hdmis", "of": "hdmi", "count": 2, "step": [1.35,0,0], "at": 0.4},
+        {"op": "add", "shape": "box", "id": "socket", "parent": "board", "pos": [0.9,0.31,2.9], "size": [2,0.44,0.7], "color": "#e9e4d6", "bevel": 0.06, "at": 0.6},
+        {"op": "add", "shape": "part", "part": "chip", "variant": "metal", "id": "wifi", "parent": "board", "pos": [-2.6,0.25,-1.55], "size": [2,0.32,1.5], "at": 0.2},
+        {"op": "add", "shape": "part", "part": "button", "id": "btn", "parent": "board", "pos": [2.2,0.3,2.95], "size": [0.6,0.42,0.6], "color": "#e8e8ee", "at": 0.5},
+        {"op": "add", "shape": "cylinder", "id": "padf", "parent": "board", "pos": [-4.55,0.105,2.75], "size": [0.55,0.03,0.55], "material": "metal", "color": "#d8aa48", "edges": false, "at": 0.6},
+        {"op": "add", "shape": "array", "id": "padsf", "of": "padf", "count": 2, "step": [9.1,0,0], "at": 0.6},
+        {"op": "add", "shape": "cylinder", "id": "padb", "parent": "board", "pos": [-4.55,0.105,-2.75], "size": [0.55,0.03,0.55], "material": "metal", "color": "#d8aa48", "edges": false, "at": 0.6},
+        {"op": "add", "shape": "array", "id": "padsb", "of": "padb", "count": 2, "step": [9.1,0,0], "at": 0.6},
+        {"op": "add", "shape": "group", "id": "latch", "parent": "board", "pos": [0.9,0.5,2.64], "at": 0.7},
+        {"op": "add", "shape": "box", "id": "bar", "parent": "latch", "pos": [0,0.04,0.3], "size": [1.9,0.12,0.62], "color": "#15181f", "bevel": 0.04, "at": 0.7},
+        {"op": "orbit", "az": 38, "el": 30, "dur": 2.6}
       ]
     },
     {
       "say": "The camera is a tiny board of its own, on a flat ribbon cable.",
       "actions": [
-        { "op": "add", "shape": "group", "id": "cable" },
-        { "op": "move", "id": "cable", "to": [0, 0.5, 1.5], "dur": 0 },
-        { "op": "add", "shape": "tube", "id": "ribbon", "parent": "cable", "pts": [[0.9, 0.4, 2.0], [0.9, 0.44, 3.4], [0.9, 1.4, 4.4], [0.9, 3.2, 4.7], [0.9, 4.9, 4.7]], "radius": 0.85, "flat": 0.06, "color": "#c9b7a3", "material": "paper", "at": 0.2 },
-        { "op": "add", "shape": "box", "id": "tip", "parent": "cable", "pos": [0.9, 0.44, 2.2], "size": [1.75, 0.12, 0.6], "color": "#2f6df0", "bevel": 0.03, "at": 0.3 },
-        { "op": "add", "shape": "box", "id": "cam", "parent": "cable", "pos": [0.9, 5.8, 4.7], "size": [2.6, 2.6, 0.16], "color": "#0f6b3d", "material": "pcb", "bevel": 0.12, "at": 0.4 },
-        { "op": "add", "shape": "part", "part": "lens", "id": "lens", "parent": "cable", "pos": [0.9, 5.9, 5.15], "size": [1.3, 1.3, 0.8], "at": 0.5 },
-        { "op": "add", "shape": "box", "id": "camsock", "parent": "cable", "pos": [0.9, 4.65, 4.62], "size": [1.7, 0.4, 0.3], "color": "#e9e4d6", "bevel": 0.05, "at": 0.5 }
+        {"op": "add", "shape": "group", "id": "cable"},
+        {"op": "move", "id": "cable", "to": [0,0.5,1.5], "dur": 0},
+        {"op": "add", "shape": "tube", "id": "ribbon", "parent": "cable", "pts": [[0.9,0.4,2],[0.9,0.44,3.4],[0.9,1.4,4.4],[0.9,3.2,4.7],[0.9,4.9,4.7]], "radius": 0.85, "flat": 0.06, "color": "#c9b7a3", "material": "paper", "at": 0.2},
+        {"op": "add", "shape": "box", "id": "tip", "parent": "cable", "pos": [0.9,0.44,2.2], "size": [1.75,0.12,0.6], "color": "#2f6df0", "bevel": 0.03, "at": 0.3},
+        {"op": "add", "shape": "box", "id": "cam", "parent": "cable", "pos": [0.9,5.8,4.7], "size": [2.6,2.6,0.16], "color": "#0f6b3d", "material": "pcb", "bevel": 0.12, "at": 0.4},
+        {"op": "add", "shape": "part", "part": "lens", "id": "lens", "parent": "cable", "pos": [0.9,5.9,5.15], "size": [1.3,1.3,0.8], "at": 0.5},
+        {"op": "add", "shape": "box", "id": "camsock", "parent": "cable", "pos": [0.9,4.65,4.62], "size": [1.7,0.4,0.3], "color": "#e9e4d6", "bevel": 0.05, "at": 0.5},
+        {"op": "orbit", "az": 30, "el": 28, "dur": 3}
       ]
     },
     {
       "say": "To connect it, lift the little latch, slide the cable in, and press the latch down again.",
       "actions": [
-        { "op": "turn", "id": "latch", "to": [-72, 0, 0], "dur": 0.7 },
-        { "op": "move", "id": "cable", "to": [0, 0, 0], "at": 1.1, "dur": 1.4 },
-        { "op": "turn", "id": "latch", "to": [0, 0, 0], "at": 2.8, "dur": 0.6 },
-        { "op": "highlight", "id": "socket", "color": "yellow", "at": 3.4, "dur": 0.9 }
+        {"op": "turn", "id": "latch", "to": [-72,0,0], "dur": 0.7},
+        {"op": "move", "id": "cable", "to": [0,0,0], "at": 1.1, "dur": 1.4},
+        {"op": "turn", "id": "latch", "to": [0,0,0], "at": 2.8, "dur": 0.6},
+        {"op": "highlight", "id": "socket", "color": "yellow", "at": 3.4, "dur": 0.9},
+        {"op": "orbit", "az": 32, "el": 28, "dur": 2.2}
       ]
     },
     {
       "say": "That end is the part that goes into the socket. Its gold contacts have to face the right way.",
       "actions": [
-        { "op": "orbit", "az": 24, "el": 24, "dur": 1.4 },
-        { "op": "pin", "id": "p-end", "on": "tip", "text": "Cable end", "off": [-60, 170] },
-        { "op": "pin", "id": "p-cam", "on": "lens", "text": "Camera", "off": [190, -20], "at": 0.5 },
-        { "op": "pin", "id": "p-soc", "on": "soc", "text": "Processor", "off": [-250, -60], "at": 0.9 },
-        { "op": "pin", "id": "p-gpio", "on": "gpio", "text": "GPIO pins", "off": [-170, -110], "at": 1.3 }
+        {"op": "orbit", "az": 24, "el": 24, "dur": 1.4},
+        {"op": "pin", "id": "p-end", "on": "tip", "text": "Cable end"},
+        {"op": "pin", "id": "p-cam", "on": "lens", "text": "Camera", "at": 0.5},
+        {"op": "pin", "id": "p-soc", "on": "soc", "text": "Processor", "at": 0.9},
+        {"op": "pin", "id": "p-gpio", "on": "gpio", "text": "GPIO pins", "at": 1.3}
       ]
     },
     {
       "say": "So the order is: latch up, cable in, latch down.",
       "actions": [
-        { "op": "card", "id": "steps", "x": 590, "y": 800, "w": 300, "title": "Fitting the cable", "rows": ["Lift the latch", "Slide the cable in until it stops", "Press the latch down"], "to": [520, 640] }
+        {"op": "card", "id": "steps", "x": 590, "y": 800, "w": 300, "title": "Fitting the cable", "rows": ["Lift the latch", "Slide the cable in until it stops", "Press the latch down"]}
       ]
     }
   ]

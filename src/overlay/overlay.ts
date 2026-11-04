@@ -11,6 +11,8 @@ import type { Voice } from '../adapters/voice.ts';
 import { createSpeechSynthesisVoice } from '../adapters/speech-synthesis-voice.ts';
 import { AutoFade, fadeFrame } from './fade.ts';
 import { HudState } from './hud.ts';
+import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
+import type { Busy } from './labels.ts';
 import { inRect, panelRect } from './layout.ts';
 import { drawMarks } from './marks.ts';
 import type { View } from './marks.ts';
@@ -19,12 +21,10 @@ import type { Tier } from './materials.ts';
 import { Player, createSilentVoice } from './player.ts';
 import { PanelScene } from './scene3d.ts';
 import type { ScreenRect } from './scene3d.ts';
-import { themeNamed } from './theme.ts';
 import type { Frame } from './timeline.ts';
 
 const DRAG_DEGREES_PER_PIXEL = 0.4;
 const params = new URLSearchParams(location.search);
-const theme = themeNamed(params.get('theme'));
 
 const byId = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const backdropEl = byId<HTMLImageElement>('backdrop');
@@ -182,9 +182,11 @@ function draw(frame: Frame): void {
     frameEl.style.display = 'none';
     panelScene.sync(frame, 1);
   }
+  board.beginFrame({ width: view.width, height: view.height, model: modelRect, dragging, now: labelClock() });
+  board.keep(new Set(frame.marks.filter((m) => m.mark.op === 'pin').map((m) => m.key)));
   drawMarks(marksCtx, frame.marks, view, {
-    theme,
     view,
+    place: (key, request) => board.place(key, request, labelEnvironment),
     project: (key, point) => panelScene.project(key, point, view.width, view.height),
     ...(cropSource() ? { source: cropSource()! } : {}),
   });
@@ -200,6 +202,38 @@ function draw(frame: Frame): void {
 function cropSource(): { image: CanvasImageSource; width: number; height: number } | undefined {
   for (const img of [shot, backdropEl]) if (img.complete && img.naturalWidth > 0) return { image: img, width: img.naturalWidth, height: img.naturalHeight };
   return undefined;
+}
+
+const board = new LabelBoard();
+// Frame grabs (seek) step a clock of their own, one thirtieth of a second a grab, so a clip's tags move at the clip's pace.
+let seekClock: number | undefined;
+const labelClock = (): number => seekClock ?? performance.now();
+let busyFor: { image: CanvasImageSource; busy: Busy } | undefined;
+
+/** How busy each part of the page is, from the screenshot (or backdrop): tags keep off its text. */
+function busyMap(): Busy | undefined {
+  const source = cropSource();
+  if (!source) return undefined;
+  if (busyFor?.image === source.image) return busyFor.busy;
+  const cols = 192, rows = 108;
+  const canvas = document.createElement('canvas');
+  canvas.width = cols;
+  canvas.height = rows;
+  const c = canvas.getContext('2d', { willReadFrequently: true });
+  if (!c) return undefined;
+  c.drawImage(source.image, 0, 0, cols, rows);
+  const data = c.getImageData(0, 0, cols, rows).data;
+  const gray = new Uint8Array(cols * rows);
+  for (let i = 0; i < gray.length; i++) gray[i] = (data[i * 4] as number) * 0.3 + (data[i * 4 + 1] as number) * 0.59 + (data[i * 4 + 2] as number) * 0.11;
+  busyFor = { image: source.image, busy: busyFromGray(gray, cols, rows, view.width, view.height) };
+  return busyFor.busy;
+}
+
+function labelEnvironment(): { occ: Occupancy; busy?: Busy } {
+  const occ = new Occupancy(view.width, view.height);
+  for (const hull of panelScene.silhouette(view.width, view.height)) occ.fillConvex(hull);
+  const busy = busyMap();
+  return busy ? { occ, busy } : { occ };
 }
 
 function showHud(): void {
@@ -228,11 +262,12 @@ function loop(): void {
   const now = performance.now();
   let frame = player.update();
   const k = fader.alpha(now);
+  if (k <= 0 && player.idling) player.stopIdle();
   if (k < 1) frame = fadeFrame(frame, k);
   draw(frame);
   showHud();
   const fading = fader.armed && k < 1 && k > 0;
-  if (player.active || dragging || fading) {
+  if (player.active || dragging || fading || board.moving) {
     request();
     return;
   }
@@ -310,6 +345,7 @@ noticeEl.addEventListener('click', () => {
 const painted = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
 function beginTurn(turn: number): void {
+  seekClock = undefined;
   fader.disarm();
   hud.newTurn();
   pendingOffer = undefined;
@@ -361,6 +397,7 @@ function handleScene(message: SceneMessage): void {
       pendingOffer = undefined;
       break;
     case 'seek':
+      seekClock = (seekClock ?? 0) + 1000 / 30;
       fader.disarm();
       player.seek(message.scene, message.step, message.t);
       draw(player.update());

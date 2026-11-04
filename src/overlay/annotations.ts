@@ -4,19 +4,22 @@
 
 import type { Vec3 } from '../scene/types.ts';
 import type { View } from './marks.ts';
-import { fontAt } from './theme.ts';
+import { THEME, fontAt } from './theme.ts';
 import type { Theme } from './theme.ts';
+import { attachPoint } from './labels.ts';
+import type { PinRequest, Placement } from './labels.ts';
 import type { MarkFrame, Rgb } from './timeline.ts';
 import { rgbCss } from './timeline.ts';
 
 
 export type Annotator = {
-  theme: Theme;
   view: View;
   /** Where a point of a 3D object is in the window. */
   project: (key: number, point: Vec3 | undefined) => { x: number; y: number; visible: boolean } | undefined;
   /** The screenshot (or backdrop) image crops are taken from. */
   source?: { image: CanvasImageSource; width: number; height: number };
+  /** Where the tag of a pin goes (stable between frames). Without it a tag sits where the author's offset says. */
+  place?: (key: number, request: PinRequest) => Placement;
 };
 
 type Ctx = CanvasRenderingContext2D;
@@ -40,9 +43,6 @@ function accentFor(m: MarkFrame, theme: Theme, order: number): Rgb {
   return theme.accents[order % theme.accents.length] as Rgb;
 }
 
-function setLetterSpacing(ctx: Ctx, px: number): void {
-  (ctx as unknown as { letterSpacing: string }).letterSpacing = `${px}px`;
-}
 
 function words(ctx: Ctx, text: string, maxWidth: number, maxLines: number): string[] {
   const out: string[] = [];
@@ -67,10 +67,8 @@ function words(ctx: Ctx, text: string, maxWidth: number, maxLines: number): stri
 
 // ---- Leaders ----------------------------------------------------------------------------------
 
-/** The points of a leader from `a` to `b`, in the theme's style, as a polyline. */
-function leaderPath(style: Theme['leader'], a: Pt, b: Pt, vertical: boolean): Pt[] {
-  if (style === 'straight') return [a, b];
-  if (style === 'elbow') return vertical ? [a, b] : [a, { x: a.x, y: b.y }, b];
+/** A gentle curve from `a` to `b` (card leaders), as a polyline. */
+function curvePath(a: Pt, b: Pt, vertical: boolean): Pt[] {
   const pts: Pt[] = [];
   const nx = -(b.y - a.y), ny = b.x - a.x;
   const len = Math.hypot(nx, ny) || 1;
@@ -108,7 +106,8 @@ function strokePartial(ctx: Ctx, pts: Pt[], fraction: number): Pt {
   return tip;
 }
 
-function drawLeader(ctx: Ctx, theme: Theme, pts: Pt[], color: Rgb, alpha: number, fraction: number): void {
+function drawLeader(ctx: Ctx, pts: Pt[], color: Rgb, alpha: number, fraction: number): void {
+  const theme = THEME;
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -116,99 +115,84 @@ function drawLeader(ctx: Ctx, theme: Theme, pts: Pt[], color: Rgb, alpha: number
   ctx.lineWidth = theme.leaderWidth + 2.2;
   ctx.globalAlpha = alpha * 0.8;
   strokePartial(ctx, pts, fraction);
-  ctx.strokeStyle = theme.id === 'paper' ? theme.line : rgbCss(color, 1);
+  ctx.strokeStyle = rgbCss(color, 1);
   ctx.lineWidth = theme.leaderWidth;
   ctx.globalAlpha = alpha;
   strokePartial(ctx, pts, fraction);
   ctx.restore();
 }
 
-function drawAnchor(ctx: Ctx, theme: Theme, p: Pt, color: Rgb, alpha: number, scale: number): void {
+function drawAnchor(ctx: Ctx, p: Pt, color: Rgb, alpha: number, scale: number): void {
   const r = 5.5 * scale;
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.shadowColor = 'rgba(0,0,0,0.45)';
   ctx.shadowBlur = 6;
-  if (theme.anchor === 'square') {
-    ctx.fillStyle = rgbCss(color, 1);
-    ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = theme.ink;
-    ctx.fillRect(p.x - r * 0.35, p.y - r * 0.35, r * 0.7, r * 0.7);
-  } else if (theme.anchor === 'disc') {
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = rgbCss(color, 1);
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, r * 0.58, 0, Math.PI * 2);
-    ctx.fill();
-  } else {
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = rgbCss(color, 1);
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, r * 0.5, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = rgbCss(color, 1);
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r * 0.5, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
 // ---- Pins -------------------------------------------------------------------------------------
+
+const easeOut = (t: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
 
 export function drawPin(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): void {
   const mk = m.mark;
   if (mk.op !== 'pin' || m.onKey === undefined) return;
   const where = a.project(m.onKey, mk.point);
   if (!where || !where.visible) return;
-  const { theme, view } = a;
+  const theme = THEME;
+  const { view } = a;
   const alpha = Math.max(0, Math.min(1, m.opacity * m.fade));
   const p = m.appear;
   const color = accentFor(m, theme, order);
   const textPx = Math.max(13, view.height * 0.0195);
-  const off = mk.off ?? [0, -90];
   const anchor = { x: snapPx(where.x, view.dpr), y: snapPx(where.y, view.dpr) };
 
   ctx.save();
   ctx.font = fontAt(theme.font, textPx);
-  setLetterSpacing(ctx, theme.letterSpacing);
   ctx.textBaseline = 'middle';
-  const label = theme.uppercase ? mk.text.toUpperCase() : mk.text;
-  const textW = ctx.measureText(label).width;
+  const textW = ctx.measureText(mk.text).width;
   const padX = textPx * 0.8, padY = textPx * 0.55;
-  const markW = theme.mark === 'dot' ? textPx * 0.9 : theme.mark === 'bar' ? textPx * 0.45 : 0;
-  const w = textW + padX * 2 + markW;
-  const h = textPx + padY * 2 + (theme.mark === 'underline' ? 3 : 0);
-  let cx = anchor.x + (off[0] / 1000) * view.width;
-  let cy = anchor.y + (off[1] / 1000) * view.height;
-  cx = Math.max(w / 2 + 6, Math.min(view.width - w / 2 - 6, cx));
-  cy = Math.max(h / 2 + 6, Math.min(view.height - h / 2 - 6, cy));
-  const tag = { x: snapPx(cx - w / 2, view.dpr), y: snapPx(cy - h / 2, view.dpr), w, h };
-  const dx = cx - anchor.x, dy = cy - anchor.y;
-  const vertical = Math.abs(dy) >= Math.abs(dx) * 0.6;
-  let attach: Pt;
-  if (vertical) attach = { x: Math.max(tag.x + 10, Math.min(tag.x + tag.w - 10, anchor.x)), y: dy < 0 ? tag.y + tag.h : tag.y };
-  else attach = { x: dx < 0 ? tag.x + tag.w : tag.x, y: tag.y + tag.h / 2 };
-  const path = leaderPath(theme.leader, anchor, attach, vertical);
+  const markW = textPx * 0.9;
+  const w = Math.ceil(textW + padX * 2 + markW);
+  const h = Math.ceil(textPx + padY * 2);
+  const hint = mk.off ? { x: (mk.off[0] / 1000) * view.width, y: (mk.off[1] / 1000) * view.height } : undefined;
+  let spot: Placement;
+  if (a.place) spot = a.place(m.key, { anchor, w, h, ...(hint ? { hint } : {}) });
+  else {
+    const off = hint ?? { x: 0, y: -90 / 1000 * view.height };
+    const cx = Math.max(w / 2 + 6, Math.min(view.width - w / 2 - 6, anchor.x + off.x));
+    const cy = Math.max(h / 2 + 6, Math.min(view.height - h / 2 - 6, anchor.y + off.y));
+    const rect = { x: cx - w / 2, y: cy - h / 2, w, h };
+    spot = { rect, attach: attachPoint(rect, anchor) };
+  }
+  const tag = { x: snapPx(spot.rect.x, view.dpr), y: snapPx(spot.rect.y, view.dpr), w, h };
 
-  const lead = Math.min(1, p / 0.55);
-  const show = Math.max(0, (p - 0.45) / 0.55);
-  drawLeader(ctx, theme, path, color, alpha, lead);
-  drawAnchor(ctx, theme, anchor, color, alpha * Math.min(1, p / 0.2), 1 + 0.5 * m.pulse);
+  // The reveal, in order: the dot pops, the leader draws on from the dot, then the tag settles in.
+  const dot = easeOut(p / 0.25);
+  const lead = easeOut((p - 0.12) / 0.5);
+  const show = easeOut((p - 0.45) / 0.55);
+  drawLeader(ctx, [anchor, spot.attach], color, alpha, lead);
+  drawAnchor(ctx, anchor, color, alpha * Math.min(1, p / 0.2), (0.5 + 0.5 * dot) * (1 + 0.5 * m.pulse));
 
   ctx.globalAlpha = alpha * show;
-  const lift = (1 - show) * 6;
-  ctx.translate(0, lift);
-  if (theme.shadow) {
-    ctx.shadowColor = 'rgba(0,0,0,0.38)';
-    ctx.shadowBlur = 16;
-    ctx.shadowOffsetY = 5;
-  }
+  const grow = 0.94 + 0.06 * show;
+  const mx = tag.x + tag.w / 2, my = tag.y + tag.h / 2;
+  ctx.translate(mx, my);
+  ctx.scale(grow, grow);
+  ctx.translate(-mx, -my);
+  ctx.shadowColor = 'rgba(0,0,0,0.38)';
+  ctx.shadowBlur = 16;
+  ctx.shadowOffsetY = 5;
   if (m.pulse > 0) {
     ctx.shadowColor = rgbCss(m.pulseColor ?? color, 0.9 * m.pulse);
     ctx.shadowBlur = 26 * m.pulse;
@@ -222,21 +206,13 @@ export function drawPin(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): vo
   ctx.lineWidth = 1;
   ctx.strokeStyle = theme.line;
   ctx.stroke();
-  const mid = tag.y + (theme.mark === 'underline' ? (tag.h - 3) / 2 : tag.h / 2);
-  if (theme.mark === 'dot') {
-    ctx.fillStyle = rgbCss(color, 1);
-    ctx.beginPath();
-    ctx.arc(tag.x + padX * 0.9, mid, textPx * 0.2, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (theme.mark === 'bar') {
-    ctx.fillStyle = rgbCss(color, 1);
-    ctx.fillRect(tag.x, tag.y, 4, tag.h);
-  } else {
-    ctx.fillStyle = rgbCss(color, 1);
-    ctx.fillRect(tag.x + padX * 0.4, tag.y + tag.h - 3.5, tag.w - padX * 0.8, 2.5);
-  }
+  const mid = tag.y + tag.h / 2;
+  ctx.fillStyle = rgbCss(color, 1);
+  ctx.beginPath();
+  ctx.arc(tag.x + padX * 0.9, mid, textPx * 0.2, 0, Math.PI * 2);
+  ctx.fill();
   ctx.fillStyle = theme.ink;
-  ctx.fillText(label, tag.x + padX + markW * (theme.mark === 'dot' ? 0.75 : 1), mid + textPx * 0.03);
+  ctx.fillText(mk.text, tag.x + padX + markW * 0.75, mid + textPx * 0.03);
   ctx.restore();
 }
 
@@ -247,7 +223,8 @@ type CardLine = { text: string; font: string; color: string; x: number; y: numbe
 export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): void {
   const mk = m.mark;
   if (mk.op !== 'card') return;
-  const { theme, view } = a;
+  const theme = THEME;
+  const { view } = a;
   const alpha = Math.max(0, Math.min(1, m.opacity * m.fade));
   const p = m.appear;
   const color = accentFor(m, theme, order);
@@ -262,7 +239,6 @@ export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): v
 
   ctx.save();
   ctx.textBaseline = 'alphabetic';
-  setLetterSpacing(ctx, 0);
   const lines: CardLine[] = [];
   const shapes: Array<() => void> = [];
   let y = pad;
@@ -271,14 +247,12 @@ export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): v
 
   if (mk.title) {
     ctx.font = fontAt(theme.titleFont, titlePx);
-    const t = theme.uppercase ? mk.title.toUpperCase() : mk.title;
-    setLetterSpacing(ctx, theme.letterSpacing);
+    const t = mk.title;
     for (const l of words(ctx, t, inner, 2)) {
       y += titlePx * 1.05;
       addText(l, fontAt(theme.titleFont, titlePx), theme.ink, pad, y);
       y += titlePx * 0.28;
     }
-    setLetterSpacing(ctx, 0);
     y += rowPx * 0.35;
   }
   if (layout === 'stat' && rows.length > 0) {
@@ -355,11 +329,9 @@ export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): v
 
   ctx.globalAlpha = alpha * Math.min(1, p * 1.5);
   ctx.translate(0, slide);
-  if (theme.shadow) {
-    ctx.shadowColor = 'rgba(0,0,0,0.35)';
-    ctx.shadowBlur = 24;
-    ctx.shadowOffsetY = 8;
-  }
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 24;
+  ctx.shadowOffsetY = 8;
   if (m.pulse > 0) {
     ctx.shadowColor = rgbCss(m.pulseColor ?? color, 0.9 * m.pulse);
     ctx.shadowBlur = 30 * m.pulse;
@@ -373,22 +345,9 @@ export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): v
   ctx.lineWidth = 1;
   ctx.strokeStyle = theme.line;
   ctx.stroke();
-  if (theme.ticks) {
-    ctx.strokeStyle = rgbCss(color, 1);
-    ctx.lineWidth = 2;
-    const t = 12;
-    for (const [cx, cy, sx, sy] of [[x, y0, 1, 1], [x + W, y0, -1, 1], [x, y0 + H, 1, -1], [x + W, y0 + H, -1, -1]] as const) {
-      ctx.beginPath();
-      ctx.moveTo(cx + sx * t, cy);
-      ctx.lineTo(cx, cy);
-      ctx.lineTo(cx, cy + sy * t);
-      ctx.stroke();
-    }
-  } else {
-    ctx.fillStyle = rgbCss(color, 1);
-    if (theme.mark === 'underline') ctx.fillRect(x + pad, y0 + H - 3, 44, 3);
-    else roundRectPath(ctx, x, y0 + 10, 4, Math.min(H - 20, titlePx * 1.6), 2), ctx.fill();
-  }
+  ctx.fillStyle = rgbCss(color, 1);
+  roundRectPath(ctx, x, y0 + 10, 4, Math.min(H - 20, titlePx * 1.6), 2);
+  ctx.fill();
   for (const s of shapes) s();
   for (const l of lines) {
     ctx.font = l.font;
@@ -403,10 +362,10 @@ export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): v
     const from = vertical
       ? { x: Math.max(x + 16, Math.min(x + W - 16, target.x)), y: target.y < top ? top : top + H }
       : { x: target.x < x ? x : x + W, y: Math.max(top + 12, Math.min(top + H - 12, target.y)) };
-    const path = leaderPath(theme.leader === 'elbow' ? 'elbow' : 'curve', from, target, vertical);
+    const path = curvePath(from, target, vertical);
     ctx.save();
-    drawLeader(ctx, theme, path, color, alpha, Math.max(0, (p - 0.3) / 0.7));
-    if (p > 0.95) drawAnchor(ctx, theme, target, color, alpha, 1);
+    drawLeader(ctx, path, color, alpha, easeOut((p - 0.3) / 0.7));
+    if (p > 0.95) drawAnchor(ctx, target, color, alpha, 1);
     ctx.restore();
   }
 }
@@ -416,7 +375,8 @@ export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): v
 export function drawImage(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): void {
   const mk = m.mark;
   if (mk.op !== 'image' || !a.source) return;
-  const { theme, view, source } = a;
+  const theme = THEME;
+  const { view, source } = a;
   const alpha = Math.max(0, Math.min(1, m.opacity * m.fade));
   const p = m.appear;
   const color = accentFor(m, theme, order);
@@ -430,11 +390,9 @@ export function drawImage(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): 
   ctx.save();
   ctx.globalAlpha = alpha * Math.min(1, p * 1.5);
   ctx.translate(0, (1 - p) * 10);
-  if (theme.shadow) {
-    ctx.shadowColor = 'rgba(0,0,0,0.4)';
-    ctx.shadowBlur = 26;
-    ctx.shadowOffsetY = 8;
-  }
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = 26;
+  ctx.shadowOffsetY = 8;
   ctx.fillStyle = theme.surface;
   roundRectPath(ctx, x, y, w + pad * 2, h + pad * 2 + cap, theme.radius + 2);
   ctx.fill();

@@ -7,7 +7,6 @@ import { drawFraction, samplePath, tubeGeometry } from '../src/overlay/geometry.
 import { AutoFade, FADE_MS, HOLD_MS, fadeFrame } from '../src/overlay/fade.ts';
 import { HudState, NOTICE_FADE_MS, NOTICE_MS } from '../src/overlay/hud.ts';
 import { drawMarks } from '../src/overlay/marks.ts';
-import { themeNamed } from '../src/overlay/theme.ts';
 import { frameAt } from '../src/overlay/timeline.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
 import type { Step } from '../src/scene/index.ts';
@@ -157,7 +156,7 @@ function recorder() {
 test('a pin is drawn at the part, with its text, and not at all when its part is out of sight', () => {
   const frame = settled({ op: 'add', shape: 'box', id: 'a', size: [1, 1, 1] }, { op: 'pin', id: 'p', on: 'a', text: 'Processor' });
   const view = { width: 1200, height: 800, dpr: 1 };
-  const annot = (visible: boolean) => ({ theme: themeNamed('studio'), view, project: () => ({ x: 300, y: 500, visible }) });
+  const annot = (visible: boolean) => ({ view, project: () => ({ x: 300, y: 500, visible }) });
   const shown = recorder();
   drawMarks(shown.ctx, frame.marks, view, annot(true));
   assert.ok(shown.calls.some((c) => c.startsWith('fillText(Processor')), shown.calls.join(' '));
@@ -174,23 +173,23 @@ test('a pin keeps its tag on the screen even when its part is at the edge', () =
   const frame = settled({ op: 'add', shape: 'box', id: 'a', size: [1, 1, 1] }, { op: 'pin', id: 'p', on: 'a', text: 'Edge', off: [400, -400] });
   const view = { width: 1000, height: 600, dpr: 1 };
   const r = recorder();
-  drawMarks(r.ctx, frame.marks, view, { theme: themeNamed('paper'), view, project: () => ({ x: 980, y: 10, visible: true }) });
+  drawMarks(r.ctx, frame.marks, view, { view, project: () => ({ x: 980, y: 10, visible: true }) });
   const text = r.calls.find((c) => c.startsWith('fillText(Edge'));
   assert.ok(text, 'drawn');
   const [x, y] = text.slice('fillText(Edge,'.length, -1).split(',').map(Number);
   assert.ok((x ?? 0) >= 0 && (x ?? 0) < 1000 && (y ?? 0) >= 0 && (y ?? 0) < 600, `${x},${y}`);
 });
 
-test('a card shows its title and every row, in any layout and any theme', () => {
+test('a card shows its title and every row, in any layout', () => {
   const view = { width: 1600, height: 900, dpr: 1 };
   for (const layout of ['list', 'timeline', 'stat']) {
-    for (const name of ['studio', 'blueprint', 'paper']) {
+    {
       const frame = frameAt([step({ op: 'card', id: 'c', x: 100, y: 100, w: 400, title: 'A dynasty', rows: ['2013 | Debut', '2016 | More', '2023 | Back'], layout, to: [900, 500] })], 0, 99);
       const r = recorder();
-      drawMarks(r.ctx, frame.marks, view, { theme: themeNamed(name), view, project: () => undefined });
+      drawMarks(r.ctx, frame.marks, view, { view, project: () => undefined });
       const texts = r.calls.filter((c) => c.startsWith('fillText(')).join(' ');
-      assert.ok(/A dynasty|A DYNASTY/.test(texts), `${layout}/${name}: the title`);
-      assert.ok(/Debut|DEBUT/.test(texts) && /Back|BACK/.test(texts), `${layout}/${name}: the rows`);
+      assert.ok(/A dynasty|A DYNASTY/.test(texts), `${layout}: the title`);
+      assert.ok(/Debut|DEBUT/.test(texts) && /Back|BACK/.test(texts), `${layout}: the rows`);
     }
   }
 });
@@ -199,13 +198,13 @@ test('an image card draws the chosen region of the screenshot, and nothing witho
   const frame = frameAt([step({ op: 'image', id: 'i', sx: 200, sy: 300, sw: 100, sh: 50, dx: 600, dy: 100, dw: 300, caption: 'Zoomed' })], 0, 99);
   const view = { width: 1000, height: 500, dpr: 1 };
   const withSource = recorder();
-  drawMarks(withSource.ctx, frame.marks, view, { theme: themeNamed('studio'), view, project: () => undefined, source: { image: {} as CanvasImageSource, width: 2000, height: 1000 } });
+  drawMarks(withSource.ctx, frame.marks, view, { view, project: () => undefined, source: { image: {} as CanvasImageSource, width: 2000, height: 1000 } });
   const draw = withSource.calls.find((c) => c.startsWith('drawImage('));
   assert.ok(draw, 'drawn');
   assert.ok(draw.startsWith('drawImage(,400,300,200,50'), `the source rectangle is the region in image pixels: ${draw}`);
   assert.ok(withSource.calls.some((c) => c.startsWith('fillText(Zoomed')));
   const without = recorder();
-  drawMarks(without.ctx, frame.marks, view, { theme: themeNamed('studio'), view, project: () => undefined });
+  drawMarks(without.ctx, frame.marks, view, { view, project: () => undefined });
   assert.ok(!without.calls.some((c) => c.startsWith('drawImage(')));
 });
 

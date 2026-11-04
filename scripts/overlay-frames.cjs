@@ -4,7 +4,7 @@
 //   npm run build
 //   (run it as `env -u ELECTRON_RUN_AS_NODE` if your shell sets that)
 //   npx electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 \
-//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--theme studio|blueprint|paper]
+//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high]
 //
 // --steps is a list of step:seconds pairs (seconds into that step; earlier steps are complete).
 // --dpr sets the display scale; offscreen windows always render at 1, so use --hidden (a hidden, non-offscreen window) for dpr other than 1.
@@ -36,8 +36,9 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2));
 const scenePath = args._[0];
-if (!scenePath || !args.out || !(args.steps || args.play)) {
+if (!scenePath || !args.out || !(args.steps || args.play || args.schedule)) {
   console.error('usage: electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 [--size WxH] [--dpr N] [--backdrop img] [--after scene.json]');
+  console.error('   or: --schedule frames.json renders every frame of a clip plan (see scripts/clip-schedule.ts) as f00001.png, f00002.png, ...');
   console.error('   or: --play [--every 2] plays the scene in real time (silently) and saves a frame every few seconds until it finishes');
   process.exit(2);
 }
@@ -58,7 +59,18 @@ app.whenReady().then(async () => {
   });
   // Offscreen windows paint at the device scale; capturePage would hand back the DIP-sized image.
   let latest = null;
-  win.webContents.on('paint', (_e, _dirty, image) => { latest = image; });
+  let painted = 0;
+  win.webContents.on('paint', (_e, _dirty, image) => { latest = image; painted++; });
+  // The next paint after now (a frame of a clip must not be the one before it).
+  const freshPaint = async () => {
+    if (args.hidden) return capture();
+    const before = painted;
+    for (let tries = 0; tries < 40 && painted === before; tries++) {
+      win.webContents.invalidate();
+      await sleep(50);
+    }
+    return latest;
+  };
   const capture = async () => {
     win.webContents.invalidate();
     await sleep(250);
@@ -73,7 +85,6 @@ app.whenReady().then(async () => {
   fs.copyFileSync(path.join(root, 'src', 'overlay', 'index.html'), path.join(root, 'dist', 'overlay', 'index.html'));
   const query = {};
   if (args.tier) query.tier = args.tier;
-  if (args.theme) query.theme = args.theme;
   await win.loadFile(path.join(root, 'dist', 'overlay', 'index.html'), { query });
   await ready;
   console.log('page devicePixelRatio:', await win.webContents.executeJavaScript('window.devicePixelRatio'));
@@ -113,6 +124,23 @@ app.whenReady().then(async () => {
       console.log('wrote', file, 'at', ((Date.now() - started) / 1000).toFixed(1) + 's', over ? '(done)' : '');
     }
     console.log(over ? 'finished after ' + ((Date.now() - started) / 1000).toFixed(1) + 's' : 'did not finish');
+    app.quit();
+    return;
+  }
+  if (args.schedule) {
+    const plan = JSON.parse(fs.readFileSync(args.schedule, 'utf8'));
+    const started = Date.now();
+    for (let i = 0; i < plan.frames.length; i++) {
+      const [step, t] = plan.frames[i];
+      const mine = ++token;
+      const done = new Promise((r) => pending.set(mine, r));
+      win.webContents.send(CHANNEL.scene, { kind: 'seek', scene, step, t, token: mine });
+      await Promise.race([done, sleep(10000).then(() => { throw new Error('no frame painted for ' + i); })]);
+      const image = await freshPaint();
+      fs.writeFileSync(path.join(args.out, 'f' + String(i + 1).padStart(5, '0') + '.png'), image.toPNG());
+      if (i % 30 === 29) console.log('frame', i + 1, 'of', plan.frames.length, ((Date.now() - started) / 1000).toFixed(0) + 's');
+    }
+    console.log('wrote', plan.frames.length, 'frames,', plan.fps, 'fps,', plan.seconds.toFixed(2), 's');
     app.quit();
     return;
   }

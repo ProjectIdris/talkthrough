@@ -350,3 +350,47 @@ test('a voice can be swapped for a development run with no speech', () => {
   assert.equal(quiet.spoken.length, 1);
   advance(1);
 });
+
+// ---- the idle turn ------------------------------------------------------------------------------
+
+const modelScene = (): Scene => scene({
+  say: 'A cube.',
+  actions: [{ op: 'panel', x: 300, y: 200, w: 400, h: 400 }, { op: 'add', shape: 'box', id: 'cube', size: [4, 4, 4] }],
+});
+
+test('after the last step the model turns slowly by itself; a drag or a new turn keeps where it got to', () => {
+  const { clock, advance } = fakeClock();
+  const player = new Player({ voice: createSilentVoice(), clock });
+  player.play(modelScene());
+  for (let i = 0; i < 80; i++) { advance(100); player.update(); }
+  assert.equal(player.active, true, 'it keeps animating while it idles');
+  const a1 = player.update().camera.az;
+  advance(4000);
+  const a2 = player.update().camera.az;
+  assert.ok(a2 > a1 + 5, `it turns: ${a1} to ${a2}`);
+  // The user takes hold: the turn stops where it is and the drag adds to it.
+  player.dragCamera(10, 0);
+  const held = player.update().camera.az;
+  assert.ok(Math.abs(held - (a2 + 10)) < 1.5, `kept ${a2} plus the drag: ${held}`);
+  advance(3000);
+  assert.equal(player.update().camera.az, held, 'and it does not go on turning');
+  assert.equal(player.active, false);
+  // A follow-up starts from the camera as it is.
+  player.play(scene({ say: 'More.', actions: [{ op: 'highlight', id: 'cube' }] }));
+  assert.ok(Math.abs(player.update().camera.az - held) < 1e-6);
+});
+
+test('a scene with no model does not turn, and a faded scene stops turning', () => {
+  const { clock, advance } = fakeClock();
+  const player = new Player({ voice: createSilentVoice(), clock });
+  player.play(scene({ say: 'A box.', actions: [box('a')] }));
+  for (let i = 0; i < 80; i++) { advance(100); player.update(); }
+  assert.equal(player.update().camera.az, 0);
+  const p2 = new Player({ voice: createSilentVoice(), clock });
+  p2.play(modelScene());
+  for (let i = 0; i < 80; i++) { advance(100); p2.update(); }
+  const az = p2.update().camera.az;
+  p2.stopIdle();
+  advance(5000);
+  assert.equal(p2.update().camera.az, az);
+});

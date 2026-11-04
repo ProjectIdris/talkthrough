@@ -593,11 +593,35 @@ export function estimateSpeechSeconds(say: string): number {
  * The Frame at `t` seconds into step `index` of a scene, earlier steps complete, starting from
  * `base` (the Frame before the scene). Used for frame grabs and by tests.
  */
-export function frameAt(steps: readonly Step[], index: number, t: number, base: Frame = emptyFrame()): Frame {
+/** `idle` adds the slow turn a finished scene does on the page, for frame grabs of a clip. */
+export function frameAt(steps: readonly Step[], index: number, t: number, base: Frame = emptyFrame(), idle = false): Frame {
   let frame = base;
   const last = Math.min(index, steps.length - 1);
   for (let i = 0; i < last; i++) frame = settle(planStep(frame, steps[i] as Step));
   const step = steps[last];
   if (!step) return frame;
-  return evaluate(planStep(frame, step), t);
+  const plan = planStep(frame, step);
+  const at = evaluate(plan, t);
+  // Past the end of the last step the model turns slowly by itself, as it does on the page.
+  return idle && index >= steps.length - 1 ? withIdleTurn(at, t - plan.duration) : at;
+}
+
+/** After the last step the camera starts to turn slowly (so a still model does not look dead), after this long a pause. */
+export const IDLE_DELAY_SECONDS = 1.5;
+const IDLE_RAMP_SECONDS = 2.5;
+const IDLE_DEGREES_PER_SECOND = 5;
+/** The idle turn runs this long at most. */
+export const IDLE_MAX_SECONDS = 40;
+
+/** How far the idle turn has got (degrees) this long after the last step finished. */
+export function idleAngle(secondsAfterEnd: number): number {
+  const u = Math.min(IDLE_MAX_SECONDS, secondsAfterEnd) - IDLE_DELAY_SECONDS;
+  if (u <= 0) return 0;
+  return IDLE_DEGREES_PER_SECOND * (u < IDLE_RAMP_SECONDS ? (u * u) / (2 * IDLE_RAMP_SECONDS) : u - IDLE_RAMP_SECONDS / 2);
+}
+
+export function withIdleTurn(frame: Frame, secondsAfterEnd: number): Frame {
+  const d = idleAngle(secondsAfterEnd);
+  if (d === 0 || !frame.panel) return frame;
+  return { ...frame, camera: { ...frame.camera, az: frame.camera.az + d } };
 }

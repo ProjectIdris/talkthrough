@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { createSceneState, validateScene } from '../src/scene/index.ts';
 import type { Scene, Step } from '../src/scene/index.ts';
 import {
-  APPEAR_SECONDS, DEFAULT_CAMERA, DEFAULT_PANEL, FADE_OUT_SECONDS, emptyFrame, estimateSpeechSeconds, evaluate, frameAt,
+  APPEAR_SECONDS, DEFAULT_CAMERA, IDLE_DELAY_SECONDS, IDLE_MAX_SECONDS, idleAngle, DEFAULT_PANEL, FADE_OUT_SECONDS, emptyFrame, estimateSpeechSeconds, evaluate, frameAt,
   parseColor, planStep, settle, shiftCamera,
 } from '../src/overlay/timeline.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
@@ -309,4 +309,13 @@ test('the stage keeps its frame flag when it moves', () => {
   const f = frameAt([step({ op: 'panel', x: 1, y: 1, w: 100, h: 100, frame: true }, { op: 'panel', x: 5, y: 5, w: 200, h: 200, at: 1, dur: 0 })], 0, 99);
   assert.equal(f.panel?.frame, true);
   assert.equal(frameAt([step({ op: 'panel', x: 1, y: 1, w: 100, h: 100 })], 0, 99).panel?.frame, false);
+});
+
+test('the idle turn waits a moment after the last step, then speeds up gently', () => {
+  assert.equal(idleAngle(0), 0);
+  assert.equal(idleAngle(IDLE_DELAY_SECONDS), 0);
+  const a = idleAngle(IDLE_DELAY_SECONDS + 1), b = idleAngle(IDLE_DELAY_SECONDS + 2), c = idleAngle(IDLE_DELAY_SECONDS + 5);
+  assert.ok(a > 0 && b > a && c > b);
+  assert.ok(b - a > a, 'it eases in');
+  assert.equal(idleAngle(1000), idleAngle(IDLE_MAX_SECONDS), 'and stops after a while');
 });

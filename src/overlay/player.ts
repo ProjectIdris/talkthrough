@@ -7,7 +7,7 @@
 
 import type { Voice } from '../adapters/voice.ts';
 import type { Scene } from '../scene/types.ts';
-import { emptyFrame, estimateSpeechSeconds, evaluate, frameAt, planStep, settle, shiftCamera } from './timeline.ts';
+import { IDLE_MAX_SECONDS, emptyFrame, estimateSpeechSeconds, evaluate, frameAt, planStep, settle, shiftCamera, withIdleTurn } from './timeline.ts';
 import type { Frame, StepPlan } from './timeline.ts';
 import type { Step } from '../scene/types.ts';
 
@@ -87,6 +87,8 @@ export class Player {
   private generation = 0;
 
   private speechStarted = false;
+  /** When the finished scene began its idle turn (clock time), if it has. */
+  private idleAt: number | undefined;
   private speechEnded = false;
   private waitingSince = 0;
   private startedAt = 0;
@@ -117,7 +119,21 @@ export class Player {
 
   /** True while a scene is playing (the caller keeps animating). */
   get active(): boolean {
-    return this.phase !== 'idle';
+    return this.phase !== 'idle' || this.idling;
+  }
+
+  /** True while the finished scene is turning slowly by itself. */
+  get idling(): boolean {
+    return this.idleAt !== undefined && (this.clock.now() - this.idleAt) / 1000 < IDLE_MAX_SECONDS + 1;
+  }
+
+  /** Ends the idle turn where it is (the scene went out of sight, or something else takes the camera). */
+  stopIdle(): void {
+    if (this.idleAt === undefined) return;
+    const frame = this.resting ? settle(this.resting) : this.base;
+    this.base = withIdleTurn(frame, (this.clock.now() - this.idleAt) / 1000);
+    this.resting = undefined;
+    this.idleAt = undefined;
   }
 
   /** Plays a validated scene on top of what is already drawn; a scene in progress is finished off first. */
@@ -159,7 +175,7 @@ export class Player {
     this.live = false;
     this.base = emptyFrame();
     this.resting = undefined;
-    this.frozen = frameAt(scene.steps, step, t);
+    this.frozen = frameAt(scene.steps, step, t, emptyFrame(), true);
     this.phase = 'idle';
   }
 
@@ -174,6 +190,7 @@ export class Player {
 
   /** A user drag of the 3D panel: moves the camera, and later camera actions start from there. */
   dragCamera(dAz: number, dEl: number): void {
+    this.stopIdle();
     if (this.frozen) {
       this.frozen = { ...this.frozen, camera: { ...this.frozen.camera, az: this.frozen.camera.az + dAz, el: Math.max(-89, Math.min(89, this.frozen.camera.el + dEl)) } };
       return;
@@ -209,10 +226,12 @@ export class Player {
       return evaluate(this.plan, t);
     }
     if (this.phase === 'waiting') return this.base;
-    return this.resting ? settle(this.resting) : this.base;
+    const rest = this.resting ? settle(this.resting) : this.base;
+    return this.idleAt === undefined ? rest : withIdleTurn(rest, (now - this.idleAt) / 1000);
   }
 
   private stop(): void {
+    this.stopIdle();
     this.generation++;
     this.voice.cancel();
     if (this.plan) {
@@ -228,6 +247,7 @@ export class Player {
   private finishScene(): void {
     this.phase = 'idle';
     this.plan = undefined;
+    if (this.base.panel) this.idleAt = this.clock.now();
     this.onDone?.();
   }
 

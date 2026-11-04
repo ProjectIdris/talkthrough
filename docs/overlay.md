@@ -29,7 +29,11 @@ Scene coordinates run 0 to 1000 across each axis of the window, which covers the
 
 ## Looks
 
-`theme.ts` holds the look of tags, cards and image cards: three themes (`studio`: dark glass pills; `blueprint`: squared tags with corner ticks and elbow leaders; `paper`: light cards with a serif title and curved leaders). The scene never chooses one; the page takes `?theme=` and defaults to `studio`. Fonts are ones Windows already ships (Segoe UI Variable, Bahnschrift, Georgia).
+`theme.ts` holds the one look of tags, cards and image cards: dark glass, a coloured dot or bar for each item, thin light lines, Windows' own fonts (Segoe UI Variable). The scene never chooses it.
+
+### Where tags go
+
+`labels.ts` places the tag of every `pin` by itself; the scene only says what is pinned to what. It is plain geometry (tested without a window): the page gives it the outline of every part of the model on screen, how busy the page underneath is (edges in the screenshot, so text counts), and the anchor of each pin. A tag is put where it overlaps neither the model, nor another tag, nor (as far as there is room) the page's own text; its leader never crosses another leader or tag, and runs over as little of the model as possible. Placed tags stay put while the model turns; only the leaders follow their parts. When the model moves a long way (a new stage, a big zoom) the tags are laid out again and glide to their new places. A scene's `off` is only a hint for the side.
 
 ## Time
 
@@ -43,6 +47,7 @@ In real time (`player.ts`):
 - A voice that never starts does not stall the picture: after 2.5 s, or as soon as it reports the end, the drawing plays anyway.
 - Steps may arrive while earlier ones play (`begin`, `step`, `end` messages): they queue. Running out of steps is not the end of the turn until `end` has come.
 - `hush` stops the speech at once and drops queued steps; the step in progress finishes drawing.
+- After the last step a model that is on screen turns slowly by itself (about 5 degrees a second after a pause, easing in) until the user takes hold of it or the scene fades; a follow-up carries on from where it got to.
 - A new turn continues the picture on screen (a follow-up); the first turn of a question clears it first.
 
 ## Fading
@@ -58,7 +63,7 @@ Dragging the model turns the camera (0.4 degrees a pixel). The drag is folded in
 ```
 npm run build
 npx electron scripts/overlay-frames.cjs samples/scenes/pi-camera.json --out frames \
-    --steps 0:3,4:3 --backdrop samples/pages/product.svg --theme blueprint --tier mid
+    --steps 0:3,4:3 --backdrop samples/pages/product.svg --tier mid
 ```
 
 Offscreen windows always render at a device scale of 1; add `--hidden --dpr 2` to render in a hidden window at another scale (the PNG is then at physical size).

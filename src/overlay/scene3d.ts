@@ -19,6 +19,8 @@ import type { Detail } from './geometry.ts';
 import { TIERS, applySurface, makeSurface } from './materials.ts';
 import type { Surface, Tier } from './materials.ts';
 import { buildPart } from './parts.ts';
+import { convexHull } from './labels.ts';
+import type { Pt } from './labels.ts';
 import type { Piece } from './parts.ts';
 import type { FocusFrame, Frame, ObjectFrame, Rgb } from './timeline.ts';
 
@@ -471,6 +473,40 @@ export class PanelScene {
     const x0 = Math.min(model.x, shadow.x), y0 = Math.min(model.y, shadow.y);
     const x1 = Math.max(model.x + model.w, shadow.x + shadow.w), y1 = Math.max(model.y + model.h, shadow.y + shadow.h);
     return { model, drawn: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } };
+  }
+
+  /**
+   * The outline of every visible part of the model on screen, in CSS pixels: the convex hull of each
+   * part's box. Tags are kept off these. Not cheap; ask when laying tags out, not every frame.
+   */
+  silhouette(width: number, height: number): Pt[][] {
+    const hulls: Pt[][] = [];
+    const corner = new Vector3();
+    for (const node of this.nodes.values()) {
+      if (!node.obj.visible || node.obj instanceof Sprite || node.path) continue;
+      for (const piece of node.pieces) {
+        const o = piece.object;
+        if (!(o instanceof Mesh) || !o.visible) continue;
+        const box = new Box3();
+        if (o instanceof InstancedMesh) box.setFromObject(o);
+        else {
+          const geo = o.geometry as BufferGeometry;
+          if (!geo.boundingBox) geo.computeBoundingBox();
+          if (!geo.boundingBox) continue;
+          o.updateWorldMatrix(true, false);
+          box.copy(geo.boundingBox).applyMatrix4(o.matrixWorld);
+        }
+        if (box.isEmpty()) continue;
+        const pts: Pt[] = [];
+        // A box rotated with its part is covered by the box of its corners, which is a little roomy and always safe.
+        for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+          corner.set(x, y, z).project(this.camera);
+          pts.push({ x: ((corner.x + 1) / 2) * width, y: ((1 - corner.y) / 2) * height });
+        }
+        hulls.push(convexHull(pts));
+      }
+    }
+    return hulls;
   }
 
   count(): number {

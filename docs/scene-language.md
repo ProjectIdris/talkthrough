@@ -62,7 +62,7 @@ Marks take `id`, `color` (cards, images and pins may leave it out: the look choo
 | `label` | `x y text size?` | short text, up to 80 characters; `x,y` is the top-left corner; `size` is the text height in y units (10 to 100, default 24) |
 | `card` | `x y w? title? rows? layout? to?` | a note card: a title and/or up to 6 rows of up to 60 characters; `w` is its width in x units (default 300); `layout` is `list` (default), `timeline` (rows written `when \| what`, laid along a line) or `stat` (the first row large); `to` is a screen point a curved line runs to from the card |
 | `image` | `sx sy sw sh dx dy dw caption?` | a crop of the screenshot (region `sx,sy,sw,sh`) shown as a card at `dx,dy`, `dw` wide, with an optional caption; it needs the screenshot, so it is left out where the page has none |
-| `pin` | `on point? text off?` | a tag pinned to the 3D object `on`: a dot at `point` (in the object's own space, default its middle), a leader line and the text; `off` is where the tag sits from the dot in screen units (default `[0,-90]`). It follows the object as it moves and goes when the object does |
+| `pin` | `on point? text off?` | a tag pinned to the 3D object `on`: a dot at `point` (in the object's own space, default its middle), a leader line and the text; `off` is only a hint for the side the tag goes to (screen units from the dot); the renderer places tags itself so they keep off the model, each other and the page's text. It follows the object as it moves and goes when the object does |
 
 ## The 3D stage
 

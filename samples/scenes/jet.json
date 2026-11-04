@@ -4,19 +4,27 @@
     {
       "say": "This is a vertical take-off jet. Let me put it together part by part.",
       "actions": [
-        { "op": "panel", "x": 180, "y": 160, "w": 700, "h": 640 },
-        { "op": "orbit", "az": -34, "el": 22, "dur": 0 },
-        { "op": "zoom", "to": 1.15, "dur": 0 },
+        { "op": "panel", "x": 330, "y": 160, "w": 640, "h": 640 },
+        { "op": "orbit", "az": -34, "el": 20, "dur": 0 },
+        { "op": "zoom", "to": 1.2, "dur": 0 },
         { "op": "add", "shape": "group", "id": "jet" },
-        { "op": "add", "shape": "lathe", "id": "body", "parent": "jet", "rot": [0, 0, -90], "pos": [0, 0, 0], "profile": [[0, 6.2], [0.3, 5.7], [0.72, 4.8], [1.0, 3.4], [1.12, 1.6], [1.14, 0], [1.1, -2], [0.98, -3.8], [0.8, -4.9], [0.74, -5.2], [0, -5.2]], "material": "plastic", "color": "#a9b0bc", "edges": false },
-        { "op": "add", "shape": "extrude", "id": "wings", "parent": "jet", "rot": [90, 0, 0], "pos": [-0.4, -0.45, 0], "outline": [[2.6, 0], [-0.6, 5.2], [-2.8, 5.2], [-2.5, 1.4], [-3.2, 0], [-2.5, -1.4], [-2.8, -5.2], [-0.6, -5.2]], "depth": 0.26, "bevel": 0.09, "color": "#8c94a2", "at": 0.15 },
-        { "op": "add", "shape": "extrude", "id": "finl", "parent": "jet", "rot": [-14, 0, 0], "pos": [-3.6, 1.1, 0.95], "outline": [[1.6, 0], [-1.4, 0], [-2.0, 2.3], [-0.2, 2.3]], "depth": 0.2, "bevel": 0.06, "color": "#7e8794", "at": 0.3 },
-        { "op": "add", "shape": "extrude", "id": "finr", "parent": "jet", "rot": [14, 0, 0], "pos": [-3.6, 1.1, -0.95], "outline": [[1.6, 0], [-1.4, 0], [-2.0, 2.3], [-0.2, 2.3]], "depth": 0.2, "bevel": 0.06, "color": "#7e8794", "at": 0.35 },
-        { "op": "add", "shape": "sphere", "id": "canopy", "parent": "jet", "pos": [2.3, 0.78, 0], "size": [3.0, 1.35, 1.45], "material": "glass", "color": "#8fb8f0", "at": 0.5 },
-        { "op": "add", "shape": "lathe", "id": "ring", "parent": "jet", "pos": [-0.4, 0.82, 0], "profile": [[1.18, 0], [1.18, 0.7], [1.0, 0.7], [1.0, 0], [1.18, 0]], "sides": 56, "material": "metal", "color": "#c9ced8", "at": 0.6 },
-        { "op": "add", "shape": "part", "part": "fan", "id": "fan", "parent": "jet", "pos": [-0.4, 1.1, 0], "size": [2, 0.4, 2], "n": 9, "at": 0.7 },
-        { "op": "add", "shape": "lathe", "id": "nozzle", "parent": "jet", "rot": [0, 0, -90], "pos": [-5.1, 0, 0], "profile": [[0.82, 0], [0.92, 0.5], [0.8, 1.3], [0.7, 1.3], [0.8, 0.5], [0.82, 0]], "sides": 40, "material": "metal", "color": "#b8bec9", "at": 0.8 },
-        { "op": "add", "shape": "sphere", "id": "ember", "parent": "jet", "pos": [-5.0, 0, 0], "size": [0.9, 0.9, 0.9], "material": "glow", "color": "#ff9a2e", "edges": false, "at": 0.9 },
+        { "op": "add", "shape": "lathe", "id": "body", "parent": "jet", "rot": [0, 0, -90], "profile": [[0, 7.0], [0.2, 6.7], [0.46, 6.1], [0.74, 5.2], [0.98, 4.0], [1.1, 2.6], [1.14, 1.0], [1.14, -1.2], [1.06, -3.0], [0.92, -4.4], [0.8, -5.2], [0.72, -5.6], [0, -5.6]], "sides": 56, "material": "plastic", "color": "#98a2b2", "edges": false },
+        { "op": "scale", "id": "body", "to": [0.86, 1, 1.5], "dur": 0 },
+        { "op": "add", "shape": "lathe", "id": "nose", "parent": "jet", "rot": [0, 0, -90], "profile": [[0, 7.0], [0.2, 6.7], [0.46, 6.1], [0.62, 5.6], [0, 5.6]], "sides": 40, "material": "rubber", "color": "#2c3038", "edges": false, "at": 0.1 },
+        { "op": "scale", "id": "nose", "to": [0.88, 1.003, 1.52], "dur": 0 },
+        { "op": "add", "shape": "extrude", "id": "wings", "parent": "jet", "rot": [90, 0, 0], "pos": [-0.2, -0.28, 0], "outline": [[2.4, 0], [-0.6, 4.4], [-2.6, 4.4], [-2.6, 3.8], [-2.5, 1.3], [-3.2, 0], [-2.5, -1.3], [-2.6, -3.8], [-2.6, -4.4], [-0.6, -4.4]], "depth": 0.24, "bevel": 0.1, "color": "#838d9c", "at": 0.15 },
+        { "op": "add", "shape": "extrude", "id": "tailplane", "parent": "jet", "rot": [90, 0, 0], "pos": [-0.1, -0.1, 0], "outline": [[-3.8, 0], [-5.2, 1.9], [-6.2, 1.9], [-6.0, 0.6], [-6.2, 0], [-6.0, -0.6], [-6.2, -1.9], [-5.2, -1.9]], "depth": 0.18, "bevel": 0.06, "color": "#7a8493", "at": 0.25 },
+        { "op": "add", "shape": "extrude", "id": "finl", "parent": "jet", "rot": [-16, 0, 0], "pos": [-0.5, 0.8, 0.95], "outline": [[-3.8, 0], [-5.6, 0], [-6.3, 1.7], [-5.3, 1.7]], "depth": 0.18, "bevel": 0.05, "color": "#7a8493", "at": 0.3 },
+        { "op": "add", "shape": "extrude", "id": "finr", "parent": "jet", "rot": [16, 0, 0], "pos": [-0.5, 0.8, -0.95], "outline": [[-3.8, 0], [-5.6, 0], [-6.3, 1.7], [-5.3, 1.7]], "depth": 0.18, "bevel": 0.05, "color": "#7a8493", "at": 0.35 },
+        { "op": "add", "shape": "box", "id": "intakel", "parent": "jet", "pos": [1.7, -0.05, 1.45], "size": [2.6, 0.95, 0.75], "bevel": 0.3, "color": "#8b95a5", "at": 0.4 },
+        { "op": "add", "shape": "box", "id": "intaker", "parent": "jet", "pos": [1.7, -0.05, -1.45], "size": [2.6, 0.95, 0.75], "bevel": 0.3, "color": "#8b95a5", "at": 0.45 },
+        { "op": "add", "shape": "box", "id": "mouthl", "parent": "jet", "pos": [3.02, -0.05, 1.45], "size": [0.1, 0.72, 0.5], "bevel": 0.05, "material": "rubber", "color": "#14171c", "edges": false, "at": 0.5 },
+        { "op": "add", "shape": "box", "id": "mouthr", "parent": "jet", "pos": [3.02, -0.05, -1.45], "size": [0.1, 0.72, 0.5], "bevel": 0.05, "material": "rubber", "color": "#14171c", "edges": false, "at": 0.5 },
+        { "op": "add", "shape": "sphere", "id": "canopy", "parent": "jet", "pos": [3.1, 0.74, 0], "size": [3.4, 1.15, 1.5], "material": "glass", "color": "#6f98d6", "at": 0.55 },
+        { "op": "add", "shape": "lathe", "id": "ring", "parent": "jet", "pos": [-0.3, 0.78, 0], "profile": [[1.0, 0], [1.0, 0.16], [0.86, 0.16], [0.86, 0], [1.0, 0]], "sides": 56, "material": "metal", "color": "#c9ced8", "at": 0.65 },
+        { "op": "add", "shape": "part", "part": "fan", "id": "fan", "parent": "jet", "pos": [-0.3, 0.82, 0], "size": [1.7, 0.3, 1.7], "n": 11, "at": 0.7 },
+        { "op": "add", "shape": "lathe", "id": "nozzle", "parent": "jet", "rot": [0, 0, -90], "pos": [-5.45, 0, 0], "profile": [[0.82, 0], [0.9, 0.5], [0.78, 1.3], [0.68, 1.3], [0.78, 0.5], [0.82, 0]], "sides": 40, "material": "metal", "color": "#a9afbb", "at": 0.8 },
+        { "op": "add", "shape": "sphere", "id": "ember", "parent": "jet", "pos": [-5.3, 0, 0], "size": [1.0, 1.0, 1.0], "material": "glow", "color": "#ff9a2e", "edges": false, "at": 0.9 },
         { "op": "explode", "id": "jet", "to": 0.9, "dur": 0 },
         { "op": "explode", "id": "jet", "to": 0, "at": 1.2, "dur": 1.8 }
       ]
@@ -24,21 +32,22 @@
     {
       "say": "The big fan behind the cockpit pushes air straight down, which lifts it off the ground.",
       "actions": [
-        { "op": "orbit", "az": -30, "el": 7, "dur": 1.4 },
+        { "op": "orbit", "az": -30, "el": 9, "dur": 1.4 },
         { "op": "turn", "id": "fan", "to": [0, 720, 0], "dur": 3.2 },
-        { "op": "add", "shape": "cone", "id": "lift", "parent": "jet", "pos": [-0.4, -2.4, 0], "size": [3.0, 2.8, 3.0], "material": "glow", "color": "#3aa0ff", "edges": false, "opacity": 0.85, "at": 0.8 },
-        { "op": "pin", "id": "p-fan", "on": "fan", "text": "Lift fan", "off": [-150, -150], "at": 0.6 },
-        { "op": "pin", "id": "p-lift", "on": "lift", "text": "Air pushed down", "off": [-40, 130], "at": 1.2 }
+        { "op": "add", "shape": "cone", "id": "lift", "parent": "jet", "pos": [-0.3, -2.4, 0], "size": [3.0, 2.8, 3.0], "material": "glow", "color": "#3aa0ff", "edges": false, "opacity": 0.8, "at": 0.8 },
+        { "op": "pin", "id": "p-fan", "on": "fan", "text": "Lift fan", "at": 0.6 },
+        { "op": "pin", "id": "p-lift", "on": "lift", "text": "Air pushed down", "at": 1.2 }
       ]
     },
     {
       "say": "At the back, the engine pushes the jet forward once it is flying.",
       "actions": [
-        { "op": "orbit", "az": -62, "el": 18, "dur": 1.6 },
+        { "op": "orbit", "az": -64, "el": 16, "dur": 1.6 },
         { "op": "highlight", "id": "nozzle", "color": "orange", "dur": 1.2 },
-        { "op": "pin", "id": "p-eng", "on": "nozzle", "text": "Engine", "off": [150, -150], "at": 0.7 },
-        { "op": "pin", "id": "p-wing", "on": "wings", "point": [-1.4, 3.4, 0], "text": "Wing", "off": [-180, 40], "at": 1.1 },
-        { "op": "pin", "id": "p-can", "on": "canopy", "text": "Cockpit", "off": [120, -120], "at": 1.4 }
+        { "op": "pin", "id": "p-eng", "on": "nozzle", "text": "Engine", "at": 0.7 },
+        { "op": "pin", "id": "p-wing", "on": "wings", "point": [-1.4, 3.4, 0], "text": "Wing", "at": 1.1 },
+        { "op": "pin", "id": "p-can", "on": "canopy", "text": "Cockpit", "at": 1.4 },
+        { "op": "pin", "id": "p-int", "on": "intakel", "text": "Air intake", "at": 1.7 }
       ]
     }
   ]
