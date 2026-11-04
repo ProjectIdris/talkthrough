@@ -101,7 +101,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  const settings = loadSettings(options.settings ?? join(app.getPath('userData'), 'settings.json'), (m) => log(`settings: ${m}`));
+  const settingsPath = options.settings ?? join(app.getPath('userData'), 'settings.json');
+  const settings = loadSettings(settingsPath, (m) => log(`settings: ${m}`));
+  log(`settings file: ${settingsPath}`);
   const samples = createSamplePlayer(join(app.getAppPath(), 'samples', 'scenes'));
   let session: ReturnType<typeof createSession> | null = null;
   const overlays = createOverlayManager({

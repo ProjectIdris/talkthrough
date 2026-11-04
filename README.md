@@ -12,7 +12,7 @@ Hold a key and ask out loud. Talkthrough looks at your screen, points at what ma
 - **Private:** nothing is stored unless you pin it.
 - **Safe:** it draws, it never runs generated code.
 
-> **Status: pre-release, Windows first.** The scene language and its validator work and are tested. The overlay, hotkey, screen capture and model connections are being built. Step-by-step guiding that waits for your click is planned. See [Status](#status) for exactly what exists today.
+> **Status: pre-release, Windows first.** The whole loop runs: hotkey, microphone, screen capture, a model on your own ChatGPT or Claude plan, the scene language and the three.js overlay. It needs a local speech recogniser you point it at (see [setup](docs/setup.md)). Step-by-step guiding that waits for your click is planned. See [Status](#status) for exactly what exists today.
 
 ## Contribute
 
@@ -36,7 +36,7 @@ npm test            # runs the tests
 npm run typecheck   # tsc --noEmit
 ```
 
-Running the app itself (`npm start`) arrives with the first release. Until then you can read and run the scene language, its validator and the adapters.
+`npm start` runs the app; see [docs/setup.md](docs/setup.md) for the settings, the model and speech.
 
 ## How it works
 
@@ -73,8 +73,10 @@ Models, voices, speech recognition and backends are adapters in `src/adapters/`,
 | --- | --- |
 | Scene language, validator, streaming parser, JSON Schema | working, tested |
 | Model, voice, speech-to-text and backend interfaces; system voice; local speech-server client | working, tested |
-| Overlay window, hotkey, screen capture, microphone | in progress |
-| Model connections (subscription CLI and API key) | in progress |
+| Overlay window, hotkey, screen capture, microphone, tray | working |
+| Models through your own Codex or Claude install, locked down to no tools | working, tested against stand-ins and live |
+| A speech recogniser that ships with the app | planned (today: a local server you point it at) |
+| Model through an API key | planned (an adapter) |
 | Guided mode that waits for your click before the next step | planned |
 | Mac and Linux | planned |
 
@@ -87,13 +89,13 @@ Nothing is kept unless you pin it. Raw screenshots are never stored. A short in-
 ## Layout
 
 ```
-src/main/       Electron main process: windows, hotkey, capture, microphone
+src/main/       Electron main process: windows, hotkey, capture, microphone, the question loop
 src/overlay/    the overlay renderer (three.js)
 src/scene/      the scene language: types, validator, step stream, JSON Schema
 src/adapters/   Model, Voice, SpeechToText and Backend interfaces and defaults
 test/           node:test tests
 scripts/        build and tooling
-docs/           the scene language specification
+docs/           setup, the scene language specification, the overlay
 samples/        hand-written example scenes
 ```
 
