@@ -102,6 +102,7 @@ test('the guide says a figure adds what the page lacks and follows what the page
     'Do not draw again what the page already has (its graph, its table, its list of steps): point at it with marks',
     'the proof the figure on the page shows (not another proof of the same theorem)',
     'Where the page does not give the content (the method of a recipe that lists only ingredients), say in the step that it is general knowledge',
+    'a step that explains such a thing draws it (a diagram, or marks that show it), it does not only speak it',
     'A label starts just to the right of its point, at the height of the point',
   ]) assert.ok(rule!.includes(part), part);
 });

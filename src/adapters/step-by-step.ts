@@ -141,7 +141,10 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
               asking = true;
               log('step 1 came with no plan and no done: asking once more, for the next step and a plan');
             }
-          } else if (wasAsking) plan = got.plan.slice(0, maxSteps - n);
+          } else if (wasAsking) {
+            plan = got.plan.slice(0, maxSteps - n);
+            if (!got.given) log(`step ${n}, asked again, came with no plan and no done either: the answer ends after step ${n}`);
+          }
           else plan = plan.slice(1);
           if (got.done || (plan.length === 0 && !asking)) break;
           if (waited && req.afterStep) {

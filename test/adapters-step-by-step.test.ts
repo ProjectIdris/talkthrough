@@ -311,9 +311,11 @@ test('a first call with neither plan nor done is asked once more, for the next s
 
 test('when the extra call has no plan and no done either the answer ends there, cleanly, and no third call is made', async () => {
   const stages: unknown[] = [];
+  const lines: string[] = [];
   const inner = unplannedInner(stages, () => JSON.stringify({ steps: [] }));
-  assert.deepEqual(says(await collect(createStepByStepModel(inner))), ['S1.', 'S2.']);
+  assert.deepEqual(says(await collect(createStepByStepModel(inner, { log: (m) => lines.push(m) }))), ['S1.', 'S2.']);
   assert.equal(stages.length, 2);
+  assert.ok(lines.some((l) => /asked again, came with no plan and no done either: the answer ends after step 2/.test(l)), lines.join('|'));
 });
 
 test('when the extra call writes no step the answer was whole: it ends without error', async () => {
