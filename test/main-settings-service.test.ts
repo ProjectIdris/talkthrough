@@ -27,7 +27,7 @@ test('with no file the form shows the defaults, including the starting list of w
     assert.equal(form.model, 'codex');
     assert.equal(form.guideNavigation, false);
     assert.equal(form.controlSnap, false);
-    assert.equal(form.splitAnswer, 'off');
+    assert.equal(form.splitAnswer, 'steps');
     assert.equal(form.hotkey, 'right-ctrl+right-shift');
     assert.deepEqual(form.captureBlocklist, [...DEFAULT_SKIP_LIST]);
     assert.equal(form.voiceServerUrl, '', 'the system voice');
@@ -50,7 +50,7 @@ test('a save is read back by the settings file loader exactly as saved, and the 
       captureBlocklist: ['my bank', 'Vault'],
       guideNavigation: true,
       controlSnap: true,
-      splitAnswer: 'steps',
+      splitAnswer: 'two',
     });
     const result = t.service.save(form);
     assert.equal(result.ok, true);
@@ -190,9 +190,25 @@ test('an older file with twoStepAnswer: true shows as "two calls", and saving a 
     assert.equal(off.ok, true);
     assert.equal('twoStepAnswer' in t.file(), false, 'the old key is gone');
     assert.equal(loadSettings(t.path).splitAnswer, 'off', 'and the loader does not read it back as on');
+    assert.equal(t.file().splitAnswer, 'off', 'off is written, since it is no longer the default');
     const steps = t.service.save({ ...form, splitAnswer: 'steps' });
     assert.equal(steps.ok, true);
     assert.equal(loadSettings(t.path).splitAnswer, 'steps');
+    assert.equal('splitAnswer' in t.file(), false, 'the default is not written');
+  } finally {
+    t.done();
+  }
+});
+
+test('a saved "off" stays off: it is written to the file, and a fresh start with no other setting reads it back as off (not as the default)', () => {
+  const t = setup();
+  try {
+    const form = t.service.read();
+    assert.equal(form.splitAnswer, 'steps');
+    assert.equal(t.service.save({ ...form, splitAnswer: 'off' }).ok, true);
+    assert.equal(t.file().splitAnswer, 'off');
+    assert.equal(loadSettings(t.path).splitAnswer, 'off');
+    assert.equal(t.service.read().splitAnswer, 'off', 'the window shows it as off');
   } finally {
     t.done();
   }

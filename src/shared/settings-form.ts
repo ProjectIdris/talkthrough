@@ -57,5 +57,5 @@ export function savedMessage(changed: ReadonlyArray<keyof SettingsForm>): { text
 export const SWITCH_WARNINGS = {
   guideNavigation: 'When a guide asks for it, Talkthrough may open a tab, open a menu or scroll for you in desktop apps (never in a browser). It asks first and you can stop it at any time.',
   controlSnap: 'Reads the buttons and tabs of the window in front (only where they are, never their text) to place marks exactly. Never in a browser.',
-  splitAnswer: 'On the Claude route, the first words come sooner. "In two calls" writes the first step alone, then the rest while you hear it; "One step at a time" writes each step in a call of its own. Each question then uses two or more calls of your Claude allowance.',
+  splitAnswer: 'On the Claude route each answer is written one step to a call, so the first words come in about three to four seconds, not six to ten; it uses several calls of your Claude allowance a question. "In two calls" writes the first step alone, then the rest while you hear it; "In one call" writes it all at once, and the first words come later.',
 } as const;
