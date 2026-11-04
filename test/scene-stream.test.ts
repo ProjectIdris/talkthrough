@@ -147,3 +147,11 @@ test('pieces: an action that is not valid JSON is an error, like a step that is 
   const stream = createStepStream({ onPiece: () => undefined });
   assert.throws(() => stream.push('{"steps":[{"say":"a","actions":[{"op":"box",,}]}]}'));
 });
+
+test('pieces: a step that repeats its say or actions key streams the first of each, so no extra part is drawn', () => {
+  const text = '{"steps":[{"say":"a","actions":[{"op":"clear","target":"all"}],"actions":[{"op":"box","id":"b","x":1,"y":1,"w":5,"h":5}],"say":"b"}]}';
+  const log: string[] = [];
+  const stream = createStepStream({ onPiece: (p) => log.push(p.type) });
+  stream.push(text);
+  assert.deepEqual(log, ['say', 'action', 'step']);
+});
