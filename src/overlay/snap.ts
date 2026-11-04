@@ -13,6 +13,9 @@
 import type { Action, Mark, Vec2 } from '../scene/types.ts';
 
 /** How far a mark may move, as a share of the shorter side of the picture: a few percent, never "far". */
+import type { BlockGrid } from './snap-blocks.ts';
+import { fitParagraph, fitTable, fitUnderline } from './snap-blocks.ts';
+
 export const MAX_MOVE = 0.07;
 
 type Cell = { x: number; y: number };
@@ -203,6 +206,16 @@ export class Snapper {
 
   /** The mark moved onto what it points at, or the mark itself when it is where it should be (or cannot be placed). */
   snapMark(m: Mark): Mark {
+    // A box that stops short of the paragraph or table it is round is made that block's own size, which may be further than a snap moves.
+    if (m.op === 'box') {
+      const block = this.fitBlock(m);
+      if (block) {
+        const next = this.refine(block);
+        return next === block || this.within(block, next) ? next : block;
+      }
+    }
+    // An underline is held to its own line of letters, which may be a long way shorter than the one written; it only ever shortens.
+    if (m.op === 'underline') return this.underline(m);
     const next = this.refine(m);
     return next === m || this.within(m, next) ? next : m;
   }
@@ -330,11 +343,35 @@ export class Snapper {
     return pts.some((q, i) => q[0] !== (m.pts[i] as Vec2)[0] || q[1] !== (m.pts[i] as Vec2)[1]) ? { ...m, pts } : m;
   }
 
-  /** An underline drops to just under the bottom of the line of letters it is at. */
+  /** The page as the block fitters read it. */
+  private get blockGrid(): BlockGrid { return { cols: this.cols, rows: this.rows, ink: this.ink, strong: this.strong }; }
+
+  /** A box round part of a table or a paragraph, as the whole block (rows or lines), or nothing when it is not one. */
+  private fitBlock(m: Extract<Mark, { op: 'box' }>): Mark | undefined {
+    if (m.rot) return undefined;
+    const x0 = m.x * this.kx, y0 = m.y * this.ky, x1 = (m.x + m.w) * this.kx, y1 = (m.y + m.h) * this.ky;
+    if (x1 - x0 < 24 || y1 - y0 < 8 || this.inkSums.mean(x0, y0, x1 - x0, y1 - y0) < 0.01) return undefined;
+    const span = fitTable(this.blockGrid, x0, y0, x1, y1) ?? fitParagraph(this.blockGrid, x0, y0, x1, y1, Math.round(0.05 * this.scale));
+    if (!span) return undefined;
+    const [, ny] = this.toUnits({ x: 0, y: span.y0 });
+    const [, my] = this.toUnits({ x: 0, y: span.y1 });
+    return { ...m, y: ny, h: round1(my - ny) };
+  }
+
+  /**
+   * An underline runs along its own line of letters only (not past the end of the text, not on into a picture beside it, and
+   * from the start of a word) and drops to just under the bottom of that line.
+   */
   private underline(m: Extract<Mark, { op: 'underline' }>): Mark {
-    const c0 = Math.max(0, Math.floor(m.x * this.kx)), c1 = Math.min(this.cols, Math.ceil((m.x + m.w) * this.kx));
-    if (c1 - c0 < 4) return m;
+    const thick = Math.round(0.05 * this.scale);
     const y0 = m.y * this.ky;
+    const run = fitUnderline(this.blockGrid, m.x * this.kx, (m.x + m.w) * this.kx, Math.round(y0), thick);
+    const withRun = (y: number): Mark => {
+      const x = run ? round1(run.x0 / this.kx) : m.x, x1 = run ? round1(run.x1 / this.kx) : m.x + m.w;
+      return x === m.x && y === m.y && round1(x1 - x) === m.w ? m : { ...m, x, y, w: round1(x1 - x) };
+    };
+    const c0 = Math.max(0, Math.floor(run ? run.x0 : m.x * this.kx)), c1 = Math.min(this.cols, Math.ceil(run ? run.x1 : (m.x + m.w) * this.kx));
+    if (c1 - c0 < 4) return m;
     const r = Math.round(0.03 * this.scale);
     const row = (y: number): number => (y < 0 || y >= this.rows ? 0 : this.inkSums.mean(c0, y, c1 - c0, 1));
     const has = (y: number): boolean => row(y) > 0.04;
@@ -347,10 +384,9 @@ export class Snapper {
         if (has(y) && !has(y + 1) && !has(y + 2)) { bottom = y; break; }
       }
     }
-    if (bottom === undefined) return m;
+    if (bottom === undefined) return withRun(m.y);
     const target = bottom + 2;
-    if (Math.abs(target - y0) <= 2) return m;
-    return { ...m, y: round1(target / this.ky) };
+    return withRun(Math.abs(target - y0) <= 2 ? m.y : round1(target / this.ky));
   }
 
   /**

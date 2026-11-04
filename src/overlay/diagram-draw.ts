@@ -6,8 +6,10 @@ import type { DiagramFrame, DiagramItemFrame } from './diagram-plan.ts';
 import { bezierPoints, chartLayout, flowGrowth, flowLayout, flowReadable, formatTick, smoothPoints, stepsLayout, timelineLayout, routeEdge } from './diagram-layout.ts';
 import type { FlowBox, Pt, Px } from './diagram-layout.ts';
 import type { View } from './marks.ts';
+import { softShadow } from './style.ts';
 import { THEME, fontAt } from './theme.ts';
 import { parseColor, rgbCss } from './timeline.ts';
+import { refine } from './style.ts';
 import type { Rgb } from './timeline.ts';
 import type { EdgeAction, NodeAction, SeriesAction, DotAction } from '../scene/types.ts';
 
@@ -75,7 +77,7 @@ function strokePartial(ctx: Ctx, pts: readonly Pt[], fraction: number): { tip: P
 }
 
 const easeOut = (t: number): number => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
-const accentOf = (color: string | undefined, index: number): Rgb => (color !== undefined ? parseColor(color) : (THEME.accents[index % THEME.accents.length] as Rgb));
+const accentOf = (color: string | undefined, index: number): Rgb => (color !== undefined ? refine(parseColor(color)) : (THEME.accents[index % THEME.accents.length] as Rgb));
 
 type Env = { ctx: Ctx; view: View; alpha: number; accent: Rgb; px: number; painter: DiagramPainter; dt: number };
 
@@ -299,13 +301,10 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.globalAlpha = a * 0.55;
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-    ctx.lineWidth = 4.4;
-    strokePartial(ctx, pts, easeOut(e.appear));
     ctx.globalAlpha = a;
+    softShadow(ctx);
     ctx.strokeStyle = rgbCss(color, 1);
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.7;
     glow(ctx, e, color);
     const { tip, angle } = strokePartial(ctx, pts, easeOut(e.appear));
     ctx.shadowBlur = 0;
@@ -657,13 +656,10 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
     ctx.clip();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.globalAlpha = a * 0.5;
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-    ctx.lineWidth = 6;
-    strokePartial(ctx, pts, easeOut(s.appear));
     ctx.globalAlpha = a;
+    softShadow(ctx);
     ctx.strokeStyle = rgbCss(color, 1);
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.2;
     glow(ctx, s, color);
     const { tip } = strokePartial(ctx, pts, easeOut(s.appear));
     ctx.restore();

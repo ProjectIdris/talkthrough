@@ -92,7 +92,7 @@ test('the geometry: tilted corners, a smooth path through its points, lengths', 
 test('strokes take time by their length; a polygon and a trace are strokes, a point appears', () => {
   const poly = strokeSeconds({ op: 'poly', id: 'p', pts: [[0, 0], [1000, 0], [1000, 1000], [0, 1000]], color: 'red' });
   const small = strokeSeconds({ op: 'poly', id: 'p', pts: [[0, 0], [10, 0], [10, 10]], color: 'red' });
-  assert.ok(poly !== undefined && small !== undefined && poly > small && poly <= 1.2 && small >= 0.8);
+  assert.ok(poly !== undefined && small !== undefined && poly > small && poly <= 1.1 && small >= 0.7);
   assert.ok(strokeSeconds({ op: 'trace', id: 't', pts: [[0, 0], [500, 500]], color: 'red' }) !== undefined);
   assert.equal(strokeSeconds({ op: 'point', id: 'q', x: 5, y: 5, color: 'red' }), undefined);
 });

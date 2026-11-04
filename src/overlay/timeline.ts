@@ -19,7 +19,7 @@ import type { Action, AddAction, Mark, Step, Vec3 } from '../scene/types.ts';
 export type { Rgb };
 export type Rect = { x: number; y: number; w: number; h: number };
 
-export const APPEAR_SECONDS = 0.4;
+export const APPEAR_SECONDS = 0.7;
 export const FADE_OUT_SECONDS = 0.3;
 export const DEFAULT_DUR = 0.6;
 export const DEFAULT_PANEL: Rect = { x: 640, y: 140, w: 340, h: 420 };
@@ -250,7 +250,7 @@ function visibleAt(l: Life, t: number): boolean {
   return l.bornAt <= t && (l.diedAt === undefined || t < l.diedAt + (l.wipe ?? FADE_OUT_SECONDS));
 }
 
-/** A box, circle, underline or arrow is drawn on like a stroke of a pen: a longer line takes longer, 0.8 to 1.2 seconds. */
+/** A box, circle, underline or arrow is drawn on like a stroke of a pen, eased: a longer line takes longer, 0.7 to 1.1 seconds. */
 export const STROKE_WIPE_SECONDS = 0.5;
 export function strokeSeconds(mark: Mark): number | undefined {
   let length: number;
@@ -263,7 +263,7 @@ export function strokeSeconds(mark: Mark): number | undefined {
     case 'trace': length = pathLength(smoothPath(mark.pts, 3)); break;
     default: return undefined;
   }
-  return Math.max(0.8, Math.min(1.2, 0.7 + length / 3000));
+  return Math.max(0.7, Math.min(1.1, 0.6 + length / 3500));
 }
 
 // ---- Planning -------------------------------------------------------------------------------

@@ -42,13 +42,13 @@ test('marks draw in over the appear time, at their own offset', () => {
   assert.equal(plan.duration, 1 + APPEAR_SECONDS);
 });
 
-test('a box, circle, underline or arrow is drawn on like a pen stroke: 0.8 to 1.2 seconds, longer for a longer line, and wiped off along its length', () => {
+test('a box, circle, underline or arrow is drawn on like a pen stroke: 0.7 to 1.1 seconds, longer for a longer line, and wiped off along its length', () => {
   const small = planStep(emptyFrame(), step({ op: 'underline', id: 'u', x: 10, y: 10, w: 40, color: 'red' }));
   const big = planStep(emptyFrame(), step({ op: 'box', id: 'b', x: 10, y: 10, w: 800, h: 600, color: 'red' }));
-  near(small.duration, 0.8, 0.02);
-  near(big.duration, 1.2);
+  near(small.duration, 0.7, 0.02);
+  near(big.duration, 1.1);
   assert.ok((evaluate(big, 0.6).marks[0]?.appear ?? 0) < 1 && (evaluate(big, 0.6).marks[0]?.appear ?? 0) > 0.2);
-  assert.equal(evaluate(big, 1.2).marks[0]?.appear, 1);
+  assert.equal(evaluate(big, 1.1).marks[0]?.appear, 1);
   const wiping = planStep(settle(big), step({ op: 'clear', target: 'b' }));
   const half = evaluate(wiping, STROKE_WIPE_SECONDS / 2).marks[0]?.fade ?? -1;
   assert.ok(half > 0.2 && half < 0.8, String(half));

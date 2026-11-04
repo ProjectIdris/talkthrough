@@ -9,6 +9,7 @@ import type { Theme } from './theme.ts';
 import { attachPoint } from './labels.ts';
 import type { PinRequest, Placement } from './labels.ts';
 import type { MarkFrame, Rgb } from './timeline.ts';
+import { softShadow } from './style.ts';
 import { rgbCss } from './timeline.ts';
 
 
@@ -113,10 +114,7 @@ function drawLeader(ctx: Ctx, pts: Pt[], color: Rgb, alpha: number, fraction: nu
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  ctx.strokeStyle = 'rgba(0,0,0,0.38)';
-  ctx.lineWidth = theme.leaderWidth + 2.2;
-  ctx.globalAlpha = alpha * 0.8;
-  strokePartial(ctx, pts, fraction);
+  softShadow(ctx);
   ctx.strokeStyle = rgbCss(color, 1);
   ctx.lineWidth = theme.leaderWidth;
   ctx.globalAlpha = alpha;

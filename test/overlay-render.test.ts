@@ -130,8 +130,8 @@ test('marks sit on physical pixels at any display scaling', () => {
   }
   assert.equal(px(500, 1920, 1), 960);
   assert.equal(px(1000, 1080, 2), 1080);
-  assert.equal(lineWidth({ width: 1920, height: 1080, dpr: 1 }), 5);
-  assert.equal(lineWidth({ width: 800, height: 400, dpr: 1 }), 3);
+  assert.equal(lineWidth({ width: 1920, height: 1080, dpr: 1 }), 3);
+  assert.equal(lineWidth({ width: 800, height: 400, dpr: 1 }), 2);
 });
 
 test('every mark of every sample draws, hidden and fully faded ones draw nothing', () => {
@@ -180,7 +180,7 @@ test('a stroke mark is drawn along like a pen: the end of it feathers, a finishe
   const view = { width: 1920, height: 1080, dpr: 1 };
   const done = strokeRecorder();
   drawMarks(done.ctx, frame(5).marks, view);
-  assert.equal(done.strokes.length, 2, 'a halo and the line, whole');
+  assert.equal(done.strokes.length, 1, 'one hairline, whole (the shadow is soft, there is no halo pass)');
   const part = strokeRecorder();
   const partial = frame(0.4).marks;
   assert.ok((partial[0]?.appear ?? 1) < 1);
@@ -188,21 +188,21 @@ test('a stroke mark is drawn along like a pen: the end of it feathers, a finishe
   const main = part.strokes.filter((s) => alphaOf(s.style) > 0 && !s.style.startsWith('rgba(0,0,0'));
   assert.ok(main.length >= 6, `the drawn part is a body and feathered bands, got ${main.length}`);
   const alphas = main.map((s) => alphaOf(s.style));
-  assert.ok(alphas[0] === 1 && alphas[alphas.length - 1]! < 0.3 && alphas.every((a, i) => i === 0 || a <= alphas[i - 1]! + 1e-9), alphas.join(' '));
+  assert.ok(Math.abs(alphas[0]! - 0.9) < 1e-9 && alphas[alphas.length - 1]! < 0.3 && alphas.every((a, i) => i === 0 || a <= alphas[i - 1]! + 1e-9), alphas.join(' '));
   // the bands run on from each other along the line
   const ends = main.map((s) => -s.offset + (s.dash[0] ?? 0));
-  assert.ok(Math.max(...ends) < 600 && Math.max(...ends) > 100, ends.join(' '));
+  assert.ok(Math.max(...ends) < 1152 && Math.max(...ends) > 100, ends.join(' '));
   const still = strokeRecorder();
   drawMarks(still.ctx, partial, view, undefined, { reduceMotion: true });
-  assert.equal(still.strokes.length, 2, 'with reduced motion the line is whole from the start');
+  assert.equal(still.strokes.length, 1, 'with reduced motion the line is whole from the start');
 });
 
 test('a box is drawn where the scene says, across the whole display', () => {
   const frame = frameAt([{ say: '', actions: [{ op: 'box', id: 'b', x: 500, y: 250, w: 100, h: 500, color: 'red' }] }], 0, 5);
   const { ctx, calls } = recordingContext();
   drawMarks(ctx, frame.marks, { width: 2000, height: 1000, dpr: 1 });
-  // The rounded corner path starts at x + radius on the top edge: 1000 + 8, 250.
-  assert.ok(calls.includes('moveTo(1008,250)'), calls.slice(0, 12).join(' '));
+  // The rounded corner path starts at x + radius on the top edge: 1000 + 6, 250.
+  assert.ok(calls.includes('moveTo(1006,250)'), calls.slice(0, 12).join(' '));
   assert.ok(calls.some((c) => c.startsWith('arcTo(1200,250,1200,750')), 'right edge is at 1200, bottom at 750');
 });
 
