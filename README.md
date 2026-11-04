@@ -8,8 +8,6 @@ Hold a key and ask out loud. Talkthrough looks at your screen, points at what ma
 
 *A hand-written example scene (no model): how a pin tumbler lock opens. Live answers are drawn the same way, over whatever is on your screen.*
 
-The [demo reel](docs/media/talkthrough-reel.mp4) (about 40 seconds) shows answers from a real model replayed over the pages they were asked about: a timeline, a flow, a chart, an outline round a tilted square, a running engine and a guided walk.
-
 - **Works in any app or website:** no tutorial in another window.
 - **Open source (MIT).** You choose how it runs your model (see [Choose how it runs your model](#choose-how-it-runs-your-model)).
 - **Private:** in normal use Talkthrough itself writes nothing about your screen or questions to disk (saving an answer to come back to is planned).
