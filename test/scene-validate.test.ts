@@ -359,3 +359,27 @@ test('a detail state knows the ids on screen: they can be named without being wr
   assert.equal(onScreen.replaceable, undefined, 'the scene on screen is left as it was');
   assert.ok(onScreen.ids.has('a') && !onScreen.ids.has('b'));
 });
+
+test('a detail pass may swap any 3D object for another kind of 3D object, but a mark, pin or text only for its own kind', () => {
+  const onScreen = createSceneState();
+  validateScene(scene(
+    cube('plain'), // a solid
+    { op: 'add', shape: 'cylinder', id: 'pipe', size: [1, 1, 1] },
+    group('holder'),
+    { op: 'add', shape: 'text', id: 'words', text: 'Hi', height: 1, color: 'blue' },
+    { op: 'pin', id: 'p', on: 'plain', text: 'A' },
+  ), onScreen);
+  const detail = createDetailState(onScreen);
+  startTurn(detail);
+  const r = validateScene(scene(
+    { op: 'add', shape: 'part', part: 'gear', id: 'plain', size: [1, 1, 1] }, // solid -> kit part (a group)
+    { op: 'add', shape: 'tube', id: 'pipe', pts: [[0, 0, 0], [0, 1, 0]], radius: 0.1 }, // solid -> tube (a path)
+    cube('holder'), // group -> solid
+    cube('words'), // text -> solid: refused
+    { op: 'add', shape: 'text', id: 'p', text: 'Pin', height: 1, color: 'blue' }, // pin -> text: refused
+  ), detail);
+  assert.deepEqual(actionsOf(r).map((a) => (a as { id?: string }).id), ['plain', 'pipe', 'holder']);
+  assert.equal(detail.ids.get('plain'), 'group');
+  assert.equal(detail.ids.get('pipe'), 'path');
+  assert.equal(detail.ids.get('words'), 'text');
+});

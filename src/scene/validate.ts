@@ -18,7 +18,7 @@ export type SceneState = {
   copies: number;
   /**
    * Ids that were on screen before this answer and may be written again (a detail pass writes a richer version of the
-   * scene with the same ids). Writing one again, with the same kind of object, replaces it: the id is then in use like
+   * scene with the same ids). Writing one again, as a 3D object for a 3D object (or a mark, pin or text for its own kind), replaces it: the id is then in use like
    * any other and cannot be written a third time. Ids named but never written again stay valid to refer to.
    */
   replaceable?: Set<string>;
@@ -318,10 +318,10 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   }
   if (variant.creates) {
     const id = out.id as string;
-    // An id from the scene already on screen, written again: it must be the same kind of thing, and replaces the old one.
+    // An id from the scene already on screen, written again, replaces the old one: any 3D object for any other (a box for a kit part, a cylinder for a tube), a mark, pin or text only for its own kind.
     const replacing = state.replaceable?.has(id) === true;
-    if (replacing && state.ids.get(id) !== variant.creates) {
-      note(notes, 'dropped', path, `"${id}" is already on screen as a different kind of object`);
+    if (replacing && !swappable(state.ids.get(id), variant.creates)) {
+      note(notes, 'dropped', path, `"${id}" is already on screen as something that cannot be swapped for this`);
       return null;
     }
     if (!replacing && state.ids.size >= LIMITS.maxObjects) {
@@ -337,6 +337,13 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     applyClear(state, out.target as string);
   }
   return out as Action;
+}
+
+const SOLID_KINDS: ReadonlySet<string | undefined> = new Set(['solid', 'path', 'group']);
+
+/** Whether an object of kind `now` may be replaced by one of kind `next`: any swap among 3D objects, the same kind for the rest. */
+function swappable(now: string | undefined, next: string): boolean {
+  return now === next || (SOLID_KINDS.has(now) && SOLID_KINDS.has(next));
 }
 
 /** What a live step tells its caller as the step is written. */
