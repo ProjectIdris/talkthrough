@@ -7,7 +7,13 @@
 // targets.json: [{ "name": "wiki-search", "url": "https://...", "question": "Where do I search?",
 //                  "selector": "#searchInput", "waitMs": 2500, "hideSelectors": ["#banner"] }]
 // A page whose target has no stable selector gives "rect": [x, y, w, h] in pixels instead.
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, dialog } = require('electron');
+// A development tool must never pop an error dialog on the user's screen: log and leave.
+dialog.showErrorBox = () => undefined;
+process.on('uncaughtException', (error) => {
+  console.error(error);
+  app.exit(1);
+});
 const { mkdirSync, readFileSync, writeFileSync } = require('node:fs');
 const { join } = require('node:path');
 

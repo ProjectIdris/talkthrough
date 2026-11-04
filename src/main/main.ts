@@ -1,4 +1,4 @@
-import { app, nativeImage, screen } from 'electron';
+import { app, dialog, nativeImage, screen } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { uIOhook, UiohookKey } from 'uiohook-napi';
@@ -18,6 +18,16 @@ import { createSamplePlayer } from './samples.ts';
 import { createSession } from './session.ts';
 import { loadSettings } from './settings.ts';
 import { createTray } from './tray.ts';
+
+// Nothing in this process may ever pop an error dialog on the user's screen: log it and leave.
+dialog.showErrorBox = () => undefined;
+process.on('uncaughtException', (error) => {
+  console.error('[talkthrough] uncaught error:', error);
+  app.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[talkthrough] unhandled rejection:', reason);
+});
 
 const options = parseArgs(process.argv.slice(1));
 
