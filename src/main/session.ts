@@ -5,8 +5,8 @@ import type { Model, ModelOutput, ThreadTurn, Usage } from '../adapters/model.ts
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
-import { createSceneState, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
-import type { SceneState, Step } from '../scene/index.ts';
+import { beginLiveStep, createSceneState, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
+import type { LiveStep, SceneState, Step } from '../scene/index.ts';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
 import { isRealStroke } from '../shared/pen.ts';
@@ -293,11 +293,41 @@ export function createSession(deps: SessionDeps) {
     };
     let escalate: string | undefined;
     let failure: unknown;
+    // A step written piece by piece (the model's own stream) is drawn as it arrives: its words open it on the
+    // page, each action is checked against the scene on arrival and sent at once, and the step is closed when
+    // the whole step comes. A step that arrives whole (the backend, a replay) is checked and sent in one go.
+    let live: LiveStep | null = null;
+    const newLive = (): LiveStep => beginLiveStep(state, {
+      open: (say) => {
+        open();
+        r.firstStepMs ??= since();
+        deps.send(displayId, { kind: 'step-open', say });
+      },
+      action: (action) => deps.send(displayId, { kind: 'action', action }),
+    });
+    const closeLive = (): void => {
+      if (!live) return;
+      const done = live.finish();
+      live = null;
+      if (done.issues.length > 0) deps.log(`validator: ${done.issues.length} notes on step ${shown.length + 1}`);
+      deps.send(displayId, { kind: 'step-close' });
+      if (done.step) shown.push(done.step);
+    };
     try {
       for await (const out of source.stream()) {
         if (out.type !== 'usage') r.firstPieceMs ??= since();
         if (controller.signal.aborted) break;
-        if (out.type === 'step') {
+        if (out.type === 'say') {
+          live ??= newLive();
+          live.say(out.say);
+        } else if (out.type === 'action') {
+          live ??= newLive();
+          live.action(out.action);
+        } else if (out.type === 'step') {
+          if (live) {
+            closeLive();
+            continue;
+          }
           const checked = validateStep(out.step, state);
           if (checked.issues.length > 0) deps.log(`validator: ${checked.issues.length} notes on step ${shown.length + 1}`);
           if (!checked.step) continue;
@@ -307,7 +337,7 @@ export function createSession(deps: SessionDeps) {
           deps.send(displayId, { kind: 'step', step: checked.step });
         } else if (out.type === 'usage') {
           r.tokens = out.usage;
-        } else {
+        } else if (out.type === 'escalate') {
           escalate = validateEscalate(out.reason).escalate;
         }
       }
@@ -315,6 +345,13 @@ export function createSession(deps: SessionDeps) {
       failure = error;
     }
     if (controller.signal.aborted) return;
+    if (live) {
+      // The stream ended or broke in the middle of a step: close it on the page so nothing hangs half drawn.
+      if (failure) {
+        live = null;
+        deps.send(displayId, { kind: 'step-close' });
+      } else closeLive();
+    }
     if (failure) {
       const code = failure instanceof ModelError ? failure.code : 'failed';
       r.error = `${source.kind}: ${code}: ${failure instanceof Error ? failure.message : String(failure)}`;
@@ -450,7 +487,7 @@ export function createSession(deps: SessionDeps) {
         : {
           kind: 'model',
           label: model.id,
-          stream: () => model.ask({ question, screenshot: seen, ...(focus ? { focus } : {}), thread, schema: sceneSchemaLean, signal: controller.signal }),
+          stream: () => model.ask({ question, screenshot: seen, ...(focus ? { focus } : {}), thread, schema: sceneSchemaLean, pieces: true, signal: controller.signal }),
         };
       asked = !toBackend;
       await answer(a.displayId, controller, r, since, asking, source, false);

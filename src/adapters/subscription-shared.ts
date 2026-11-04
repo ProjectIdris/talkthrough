@@ -4,7 +4,9 @@
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { sceneGuide } from '../scene/guide.ts';
-import type { ModelRequest } from './model.ts';
+import { createStepStream } from '../scene/stream.ts';
+import type { StepPiece } from '../scene/stream.ts';
+import type { ModelOutput, ModelRequest } from './model.ts';
 
 /** A queue a producer pushes into and a consumer reads as an async iterator. */
 export class AsyncQueue<T> {
@@ -176,4 +178,40 @@ export function questionText(request: ModelRequest): string {
   }
   parts.push(`The user's question, transcribed from speech (it may contain recognition errors): ${JSON.stringify(request.question)}`);
   return parts.join('\n\n');
+}
+
+/** A step stream whose results are model outputs: the steps, and when `pieces` is on, each say and action before its step. */
+export type OutputStream = {
+  /** Feed the next chunk of text; returns what that chunk completed, in order. Throws on text that is not a scene. */
+  push(chunk: string): ModelOutput[];
+  /** Whether each say and action is returned as it closes (default off: only steps). */
+  pieces: boolean;
+  readonly escalate: string | undefined;
+  readonly complete: boolean;
+  end(): void;
+};
+
+export function createOutputStream(pieces = false): OutputStream {
+  const seen: StepPiece[] = [];
+  const stream = createStepStream({ onPiece: (p) => seen.push(p) });
+  const out: OutputStream = {
+    pieces,
+    push(chunk) {
+      try {
+        stream.push(chunk);
+      } finally {
+        // What closed before an error is dropped with it: the error ends the answer.
+      }
+      const got = seen.splice(0);
+      return out.pieces ? got : got.filter((p) => p.type === 'step');
+    },
+    get escalate() {
+      return stream.escalate;
+    },
+    get complete() {
+      return stream.complete;
+    },
+    end: () => stream.end(),
+  };
+  return out;
 }

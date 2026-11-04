@@ -179,6 +179,10 @@ A valid scene comes back deep-equal to what went in.
 
 `createStepStream()` takes the model's JSON text in chunks of any size (`push(chunk)`) and returns each step as soon as its closing brace arrives, ready for `validateStep`. Everything before the opening brace and after the closing one (code fences, chatter, even stray quotes) is ignored. It throws on mismatched brackets or a step that is not valid JSON, and `end()` throws if the text stopped early; steps already returned are still good.
 
+**Pieces.** `createStepStream({ onPiece })` also reports, in order, each step's `say` text the moment its string closes, each action the moment its object closes, and then the step itself (`{type:'say'}`, `{type:'action'}`, `{type:'step'}`). A step is still the boundary; the pieces let a step be drawn while it is being written.
+
+`beginLiveStep(state, { open(say), action(action) })` validates a step that way: `say(raw)` for the words, `action(raw)` for each action, `finish()` at the end of the step. Each action is checked on arrival, against the ids the scene already holds and under the same limits as a whole step (24 actions a step, the per-turn caps, id collisions), so what is drawn as it streams is exactly what `validateStep` would keep (`validateStep` is built on it). An action that names an object not seen yet (an array before the object it copies, a pin before its part) is held for up to six more actions, then dropped with its reason; an action that arrives before the words waits for them.
+
 ## The JSON Schema
 
 `docs/scene.schema.json` is plain JSON Schema (`type`, `properties`, `required`, `additionalProperties: false`, `items`, `enum`, `anyOf`, `$defs`/`$ref`). Every property is required and optional ones are nullable, so it fits the strict structured-output modes of providers that take JSON Schema; it uses no range, length, pattern or format keywords (ranges are in the descriptions and enforced by the validator). The root is `{ "steps": [...] }`.

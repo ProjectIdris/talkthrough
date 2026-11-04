@@ -436,6 +436,18 @@ function handleScene(message: SceneMessage): void {
       hud.stopWorking();
       player.pushStep(message.step);
       break;
+    case 'step-open':
+      pen.fade(labelClock());
+      fader.disarm();
+      hud.stopWorking();
+      player.openStep(message.say);
+      break;
+    case 'action':
+      player.addAction(message.action);
+      break;
+    case 'step-close':
+      player.closeStep();
+      break;
     case 'end':
       pen.fade(labelClock());
       hud.stopWorking();

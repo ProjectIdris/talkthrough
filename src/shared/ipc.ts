@@ -2,7 +2,7 @@
 // (src/scene) before it sends it; the renderer draws what it is given and nothing else.
 // The preload script exposes `window.talkthrough` (TalkthroughApi) to the overlay page.
 
-import type { Scene, Step } from '../scene/types.ts';
+import type { Action, Scene, Step } from '../scene/types.ts';
 
 export const CHANNEL = {
   /** main -> overlay: which display this overlay covers. Sent after `ready`, and again if it changes. */
@@ -82,6 +82,15 @@ export type SceneMessage =
   | { kind: 'pen'; on: boolean }
   | { kind: 'begin'; turn: number }
   | { kind: 'step'; step: Step }
+  /**
+   * A step arriving piece by piece, as the model writes it: `step-open` brings its words (spoken at once, and
+   * the step's clock starts with them), each `action` is one validated action to add to the open step (drawn
+   * the moment it arrives, with its own build-in motion), and `step-close` says the step is whole. The step
+   * is the unit of timing: the next step starts only once this one is closed, spoken and drawn.
+   */
+  | { kind: 'step-open'; say: string }
+  | { kind: 'action'; action: Action }
+  | { kind: 'step-close' }
   | { kind: 'end'; escalate?: string }
   /**
    * hush: the chord was made, stop any speech still going now (marks stay; no cue);

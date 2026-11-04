@@ -21,6 +21,8 @@ export type ModelRequest = {
    * on the 0..1000 scale of the whole screenshot. Marks still use the scale of the whole screenshot.
    */
   focus?: { crop: Screenshot; box: { x: number; y: number; w: number; h: number } };
+  /** Also yield each step's say text and each of its actions as they are written, before the step (see ModelOutput). Default off. */
+  pieces?: boolean;
   /** Aborting drops the request: the stream ends and no more steps are yielded. */
   signal?: AbortSignal;
 };
@@ -38,9 +40,11 @@ export type Usage = {
 
 /**
  * What a model yields: raw (unvalidated) steps as they complete, then at most one escalation, and, when
- * the provider reports it, the token usage of the question (last, after the answer).
+ * the provider reports it, the token usage of the question (last, after the answer). When the request asks
+ * for `pieces`, each step's words ('say') and each of its actions ('action') come as they are written, before
+ * the step itself, which stays the boundary of the step.
  */
-export type ModelOutput = { type: 'step'; step: unknown } | { type: 'escalate'; reason: unknown } | { type: 'usage'; usage: Usage };
+export type ModelOutput = { type: 'step'; step: unknown } | { type: 'say'; say: string } | { type: 'action'; action: unknown } | { type: 'escalate'; reason: unknown } | { type: 'usage'; usage: Usage };
 
 /**
  * A vision model that answers with scene steps.

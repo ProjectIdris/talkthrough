@@ -9,7 +9,7 @@ import type { Voice } from '../adapters/voice.ts';
 import type { Scene } from '../scene/types.ts';
 import { IDLE_MAX_SECONDS, emptyFrame, estimateSpeechSeconds, evaluate, frameAt, planStep, settle, shiftCamera, withIdleTurn } from './timeline.ts';
 import type { Frame, StepPlan } from './timeline.ts';
-import type { Step } from '../scene/types.ts';
+import type { Action, Step } from '../scene/types.ts';
 
 /** If a voice neither starts nor ends within this long, the step plays anyway. */
 export const VOICE_PATIENCE_MS = 2500;
@@ -81,6 +81,9 @@ export class Player {
   /** The last plan, kept when idle so a drag can still move the camera and the next play starts from it. */
   private resting: StepPlan | undefined;
   private steps: readonly Step[] = [];
+  /** The step still being written (its actions arrive one by one), if any, and the latest start time given to one of its actions. */
+  private openIndex: number | null = null;
+  private openLastAt = 0;
   /** A turn is open: more steps may still arrive, so running out of steps is not the end. */
   private live = false;
   private index = 0;
@@ -114,6 +117,7 @@ export class Player {
   hush(): void {
     this.voice.cancel();
     this.live = false;
+    this.openIndex = null;
     this.steps = this.steps.slice(0, this.index + 1);
   }
 
@@ -151,6 +155,7 @@ export class Player {
     this.stop();
     this.frozen = undefined;
     this.steps = [];
+    this.openIndex = null;
     this.index = 0;
     this.live = true;
   }
@@ -162,9 +167,46 @@ export class Player {
     if (this.phase === 'idle' && this.index === this.steps.length - 1) this.beginStep();
   }
 
+  /**
+   * Opens a step whose actions will arrive one by one (addAction), closed with closeStep. Its words are spoken
+   * as soon as it is the step in turn, so speech starts without waiting for the drawing.
+   */
+  openStep(say: string): void {
+    if (!this.live) this.beginTurn();
+    this.steps = [...this.steps, { say, actions: [] }];
+    this.openIndex = this.steps.length - 1;
+    this.openLastAt = 0;
+    if (this.phase === 'idle' && this.index === this.steps.length - 1) this.beginStep();
+  }
+
+  /**
+   * Adds a validated action to the open step. In the step being played it starts now, or at its own `at` if that
+   * is later, so a part drawn as the model writes it appears as it arrives and an exploded model assembles in view.
+   * Actions keep the order they arrive in.
+   */
+  addAction(action: Action): void {
+    const i = this.openIndex;
+    const step = i === null ? undefined : this.steps[i];
+    if (i === null || !step) return;
+    let at = Math.max(0, action.at ?? 0);
+    if (i === this.index && this.phase === 'running') at = Math.max(at, ((this.clock.now() - this.startedAt) / 1000) * this.speed);
+    at = Math.max(at, this.openLastAt);
+    this.openLastAt = at;
+    const next: Step = { say: step.say, actions: [...step.actions, { ...action, at } as Action] };
+    this.steps = this.steps.map((s, j) => (j === i ? next : s));
+    // The plan of the step in progress is made again with the new action in it; what was already planned keeps its times.
+    if (i === this.index && (this.phase === 'running' || this.phase === 'waiting')) this.plan = planStep(this.base, next);
+  }
+
+  /** The open step is whole. */
+  closeStep(): void {
+    this.openIndex = null;
+  }
+
   /** No more steps will come. Once the queued steps have played the scene is done. */
   endTurn(): void {
     if (!this.live) return;
+    this.openIndex = null;
     this.live = false;
     if (this.phase === 'idle' && this.index >= this.steps.length) this.finishScene();
   }
@@ -213,7 +255,7 @@ export class Player {
     }
     if (this.phase === 'running' && this.plan) {
       const t = ((now - this.startedAt) / 1000) * this.speed;
-      if (this.speechEnded && t >= this.plan.duration) {
+      if (this.speechEnded && t >= this.plan.duration && this.openIndex !== this.index) {
         this.base = settle(this.plan);
         this.resting = this.plan;
         this.plan = undefined;
@@ -232,6 +274,7 @@ export class Player {
 
   private stop(): void {
     this.stopIdle();
+    this.openIndex = null;
     this.generation++;
     this.voice.cancel();
     if (this.plan) {
