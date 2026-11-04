@@ -87,6 +87,22 @@ export function flowLayout(ids: readonly string[], edges: readonly FlowEdge[], a
   return lay;
 }
 
+/** Whether every node of a layout is at least this big (pixels). */
+export function flowReadable(lay: FlowLayout, least: { w: number; h: number }): boolean {
+  for (const b of lay.nodes.values()) if (b.w < least.w - 0.5 || b.h < least.h - 0.5) return false;
+  return true;
+}
+
+/**
+ * How many times larger a flow's card has to be for its nodes to be readable: the least factor from 1 (in steps of 5%) up to `limit`
+ * for which `readableAt` says so, or undefined when none does: a card that would be large and still unreadable only covers the page,
+ * so it is left as it was.
+ */
+export function flowGrowth(readableAt: (factor: number) => boolean, limit: number): number | undefined {
+  for (let f = 1; f < limit; f *= 1.05) if (readableAt(f)) return f;
+  return readableAt(limit) ? limit : undefined;
+}
+
 /** How far the loop-back curves and their labels run past the area (pixels), on the side they swing out to. */
 function loopOvershoot(lay: FlowLayout, edges: readonly FlowEdge[], area: Px, options: FlowOptions): number {
   const lh = options.labelH ?? 0;
