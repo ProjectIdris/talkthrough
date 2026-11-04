@@ -419,7 +419,7 @@ function textInBox(ctx: Ctx, text: string, note: string | undefined, b: Px, base
     const wide = lines.every((l) => ctx.measureText(l).width <= innerW);
     return { lines, noteLines, notePx, ok: wide && lines.length * px * 1.2 + noteLines.length * notePx * 1.2 <= b.h - 6 };
   };
-  let px = Math.max(9, Math.min(basePx * 1.14, b.h * 0.38));
+  let px = Math.max(9, Math.min(basePx * 1.08, b.h * 0.37));
   let fit = fitAt(px, 2);
   for (; !fit.ok && px > 9; ) {
     px = Math.max(9, px - 1);
