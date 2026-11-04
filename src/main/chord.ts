@@ -57,6 +57,25 @@ export type ChordTracker = {
   reset(): void;
 };
 
+/**
+ * Development checks: makes the chord (both keys down, held, both up) by feeding the tracker itself, the way the key hook does, so nothing is
+ * sent to the system (a press made through the operating system reaches whatever window the person is using, and a run that ends mid-hold
+ * leaves the keys down). Gives the release back, so a run that ends can call it at once.
+ */
+export function pressChord(tracker: Pick<ChordTracker, 'keyDown' | 'keyUp'>, keys: ChordKeys, holdMs: number, later: (fn: () => void, ms: number) => unknown = setTimeout): () => void {
+  let released = false;
+  const release = (): void => {
+    if (released) return;
+    released = true;
+    tracker.keyUp(keys.second);
+    tracker.keyUp(keys.lead);
+  };
+  tracker.keyDown(keys.lead);
+  tracker.keyDown(keys.second);
+  later(release, holdMs);
+  return release;
+}
+
 export function createChordTracker(events: ChordEvents, keys: ChordKeys = parseHotkey(DEFAULT_HOTKEY)!): ChordTracker {
   let leadDown = false;
   let secondDown = false;

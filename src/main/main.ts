@@ -1,7 +1,6 @@
 import { app, dialog, safeStorage, screen, shell } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { uIOhook } from 'uiohook-napi';
 import { parseArgs } from './args.ts';
 import { createHttpBackend } from '../adapters/backend.ts';
 import { createClaudeModel } from '../adapters/claude-model.ts';
@@ -19,7 +18,7 @@ import { runGrab } from './grab.ts';
 import { gridOf } from './frame-grid.ts';
 import type { Click } from './guide.ts';
 import { startHotkey, watchGuideInput } from './hotkey.ts';
-import { parseHotkey } from './chord.ts';
+import { parseHotkey, pressChord } from './chord.ts';
 import { createFrontWindowReader } from './front-window.ts';
 import { createSkipCheck } from './skip-list.ts';
 import { createSettingsService } from './settings-service.ts';
@@ -461,14 +460,10 @@ async function main(): Promise<void> {
 
   if (options.playSample) playSample(screen.getPrimaryDisplay().id);
   if (options.selfChord) {
-    // Check only: press and release the chord through the hook itself, once.
+    // Check only: make the chord by feeding the app's own chord tracker, the path the key hook calls; nothing is sent to the system.
     const press = (holdMs: number) => {
-      uIOhook.keyToggle(chord.lead, 'down');
-      uIOhook.keyToggle(chord.second, 'down');
-      setTimeout(() => {
-        uIOhook.keyToggle(chord.second, 'up');
-        uIOhook.keyToggle(chord.lead, 'up');
-      }, holdMs);
+      if (hotkey) pressChord(hotkey.tracker, chord, holdMs);
+      else log('self-chord: the key hook is not running, so there is no chord tracker to feed');
     };
     // One press per question asked for (two by default); a further press would stop an answer still arriving.
     const presses = options.detailAfter !== undefined ? 1 : options.exitAfterChord || 2;
