@@ -7,11 +7,16 @@ export type Pt = { x: number; y: number };
 // ---- Flow ----------------------------------------------------------------------------------------
 
 export type FlowEdge = { id: string; from: string; to: string };
+/** A node's box, the layer it is in and, when a long chain is wrapped into rows, its row and whether that row runs right to left. */
+export type FlowBox = Px & { layer: number; row?: number; rev?: boolean };
+
 export type FlowLayout = {
   /** Layers run left to right ("right") or top to bottom ("down"), chosen from the shape of the area and the graph. */
   dir: 'right' | 'down';
   layers: number;
-  nodes: Map<string, Px & { layer: number }>;
+  /** Rows a long chain of single nodes is wrapped into (1 when it is not): each row runs the opposite way to the one above it. */
+  rows: number;
+  nodes: Map<string, FlowBox>;
   /** A cubic curve for each edge (an edge between unknown nodes is left out). */
   edges: Map<string, Route>;
 };
@@ -64,7 +69,7 @@ export type FlowOptions = {
 };
 
 export function flowLayout(ids: readonly string[], edges: readonly FlowEdge[], area: Px, options: FlowOptions): FlowLayout {
-  const empty: FlowLayout = { dir: 'right', layers: 0, nodes: new Map(), edges: new Map() };
+  const empty: FlowLayout = { dir: 'right', layers: 0, rows: 1, nodes: new Map(), edges: new Map() };
   if (ids.length === 0) return empty;
   const known = new Set(ids);
   const used = edges.filter((e) => known.has(e.from) && known.has(e.to) && e.from !== e.to);
@@ -102,37 +107,70 @@ export function flowLayout(ids: readonly string[], edges: readonly FlowEdge[], a
     dir === 'right'
       ? { w: Math.min(options.maxBox.w, lw > 0 ? cell - Math.max(lw + 18, cell * 0.3) : cell * 0.66), h: Math.min(options.maxBox.h, slot * 0.7) }
       : { w: Math.min(options.maxBox.w, slot * 0.9), h: Math.min(options.maxBox.h, lh > 0 ? cell - Math.max(lh + 12, cell * 0.3) : cell * 0.6) };
-  // Which way to run: the one that leaves the nodes larger (a node is about 2.4 times as wide as tall).
-  const fit = (dir: 'right' | 'down'): number => {
-    const box = boxFor(dir, (dir === 'right' ? inner.w : inner.h) / count, (dir === 'right' ? inner.h : inner.w) / widest);
+  // Which way to run: the one that leaves the nodes larger (a node is about 2.4 times as wide as tall). A chain of single nodes
+  // may also be wrapped into two or three rows (each running back the way the last came, so the arrow between rows is short);
+  // that is chosen only when it makes the nodes clearly larger, so a long chain in a small card does not shrink its text to nothing.
+  const fit = (dir: 'right' | 'down', rows = 1): number => {
+    const perRow = Math.ceil(count / rows);
+    const box = dir === 'right' ? boxFor('right', inner.w / perRow, inner.h / rows / widest) : boxFor('down', inner.h / count, inner.w / widest);
     return Math.max(0, Math.min(box.w / 2.4, box.h));
   };
   const right = fit('right'), down = fit('down');
   const dir: 'right' | 'down' = right > down * 1.001 || (Math.abs(right - down) <= down * 0.001 && inner.w >= inner.h) ? 'right' : 'down';
-  const along = dir === 'right' ? inner.w : inner.h, across = dir === 'right' ? inner.h : inner.w;
-  const cell = along / count;
-  const nodes = new Map<string, Px & { layer: number }>();
+  let rows = 1;
+  if (widest === 1 && count >= 4 && dir === 'right') {
+    let best = fit('right', 1);
+    for (const r of [2, 3]) {
+      if (Math.ceil(count / r) < 2) break;
+      const f = fit('right', r);
+      if (f > best * 1.15) { best = f; rows = r; }
+    }
+  }
+  const wrapped = rows > 1;
+  const dirOut: 'right' | 'down' = wrapped ? 'right' : dir;
+  const along = dirOut === 'right' ? inner.w : inner.h, across = dirOut === 'right' ? inner.h : inner.w;
+  const perRow = wrapped ? Math.ceil(count / rows) : count;
+  const cell = along / perRow;
+  const nodes = new Map<string, FlowBox>();
   columns.forEach((col, li) => {
-    const slot = across / col.length;
+    const row = wrapped ? Math.floor(li / perRow) : 0;
+    const rev = wrapped && row % 2 === 1;
+    const slotLen = wrapped ? across / rows : across;
+    const slot = slotLen / col.length;
+    const place = wrapped ? (rev ? perRow - 1 - (li % perRow) : li % perRow) : li;
     col.forEach((id, j) => {
-      const a = (li + 0.5) * cell, c = (j + 0.5) * slot;
-      const { w, h } = boxFor(dir, cell, slot);
-      const cx = dir === 'right' ? inner.x + a : inner.x + c, cy = dir === 'right' ? inner.y + c : inner.y + a;
-      nodes.set(id, { x: cx - w / 2, y: cy - h / 2, w, h, layer: li });
+      const a = (place + 0.5) * cell, c = (wrapped ? row * slotLen : 0) + (j + 0.5) * slot;
+      const { w, h } = boxFor(dirOut, cell, slot);
+      const cx = dirOut === 'right' ? inner.x + a : inner.x + c, cy = dirOut === 'right' ? inner.y + c : inner.y + a;
+      nodes.set(id, { x: cx - w / 2, y: cy - h / 2, w, h, layer: li, ...(wrapped ? { row, rev } : {}) });
     });
   });
   const routes: FlowLayout['edges'] = new Map();
-  for (const e of used) routes.set(e.id, routeEdge(dir, nodes.get(e.from)!, nodes.get(e.to)!));
-  return { dir, layers: count, nodes, edges: routes };
+  for (const e of used) routes.set(e.id, routeEdge(dirOut, nodes.get(e.from)!, nodes.get(e.to)!));
+  return { dir: dirOut, layers: count, rows, nodes, edges: routes };
 }
 
 export type Route = { a: Pt; b: Pt; c: Pt; d: Pt; mid: Pt };
 
 /** The curve of an edge between two node rectangles: out of the side the layers run from, in at the side they run to; a back edge goes round the bottom (or right). */
-export function routeEdge(dir: 'right' | 'down', s: Px & { layer: number }, t: Px & { layer: number }): Route {
+export function routeEdge(dir: 'right' | 'down', s: FlowBox, t: FlowBox): Route {
   const forwardEdge = s.layer < t.layer;
   let a: Pt, d: Pt, c: Pt, b: Pt;
-  if (dir === 'right') {
+  if (dir === 'right' && forwardEdge && s.row !== undefined && t.row !== undefined && t.row !== s.row) {
+    // Into the next row of a wrapped chain: straight down (the row turns round at its end).
+    a = { x: s.x + s.w / 2, y: s.y + s.h };
+    d = { x: t.x + t.w / 2, y: t.y };
+    const k = Math.max(14, (d.y - a.y) * 0.45);
+    b = { x: a.x, y: a.y + k };
+    c = { x: d.x, y: d.y - k };
+  } else if (dir === 'right' && forwardEdge && s.rev && s.row === t.row) {
+    // Along a row that runs right to left.
+    a = { x: s.x, y: s.y + s.h / 2 };
+    d = { x: t.x + t.w, y: t.y + t.h / 2 };
+    const k = Math.max(20, (a.x - d.x) * 0.45);
+    b = { x: a.x - k, y: a.y };
+    c = { x: d.x + k, y: d.y };
+  } else if (dir === 'right') {
     if (forwardEdge) {
       a = { x: s.x + s.w, y: s.y + s.h / 2 };
       d = { x: t.x, y: t.y + t.h / 2 };

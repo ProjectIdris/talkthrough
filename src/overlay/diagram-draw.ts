@@ -4,7 +4,7 @@
 
 import type { DiagramFrame, DiagramItemFrame } from './diagram-plan.ts';
 import { bezierPoints, chartLayout, flowLayout, formatTick, smoothPoints, stepsLayout, timelineLayout, routeEdge } from './diagram-layout.ts';
-import type { Pt, Px } from './diagram-layout.ts';
+import type { FlowBox, Pt, Px } from './diagram-layout.ts';
 import type { View } from './marks.ts';
 import { THEME, fontAt } from './theme.ts';
 import { parseColor, rgbCss } from './timeline.ts';
@@ -198,10 +198,10 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
   ctx.font = fontAt(theme.font, env.px * 0.78);
   const labelW = Math.max(0, ...edges.map((e) => (e.def.text ? ctx.measureText(e.def.text).width + 12 : 0)));
   const lay = flowLayout(nodes.map((n) => n.id), edges.map((e) => ({ id: e.id, from: e.def.from, to: e.def.to })), area, { maxBox, pad, labelW, labelH: labelW > 0 ? env.px * 1.55 : 0 });
-  const boxes = new Map<string, Px & { layer: number }>();
+  const boxes = new Map<string, FlowBox>();
   for (const n of nodes) {
     const t = lay.nodes.get(n.id);
-    if (t) boxes.set(n.id, { ...painter.ease(`${d.key}:${n.key}`, t, env.dt, seen), layer: t.layer });
+    if (t) boxes.set(n.id, { ...painter.ease(`${d.key}:${n.key}`, t, env.dt, seen), layer: t.layer, ...(t.row !== undefined ? { row: t.row, ...(t.rev ? { rev: true } : {}) } : {}) });
   }
   // Edges first, so a node sits over the end of its own arrows.
   edges.forEach((e, k) => {

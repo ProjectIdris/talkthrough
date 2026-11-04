@@ -283,3 +283,34 @@ test('every kind of diagram draws its text, an unborn piece is not drawn, and a 
   assert.ok(settled, 'it gets there');
   assert.equal(p2.draw(sink, [], view, 5000), false);
 });
+
+test('a long chain in a small card wraps into rows (each runs back the way the last came) so its boxes stay large; short or branching flows are left in one row', () => {
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+  const chain = ids.slice(1).map((to, i) => ({ id: `e${i}`, from: ids[i]!, to }));
+  const card: Px = { x: 0, y: 0, w: 540, h: 260 };
+  const lay = flowLayout(ids, chain, card, opts);
+  assert.equal(lay.dir, 'right');
+  assert.ok(lay.rows >= 2, `rows ${lay.rows}`);
+  const boxes = [...lay.nodes.values()];
+  for (const b of boxes) assert.ok(b.x >= card.x && b.y >= card.y && b.x + b.w <= card.x + card.w && b.y + b.h <= card.y + card.h, JSON.stringify(b));
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) assert.ok(!overlap(boxes[i]!, boxes[j]!), `${i} ${j}`);
+  const flat = flowLayout(ids, chain, { x: 0, y: 0, w: 5000, h: 260 }, opts);
+  assert.equal(flat.rows, 1, 'a wide card keeps one row');
+  const minWide = Math.min(...boxes.map((b) => b.w));
+  assert.ok(minWide >= 70, `wrapped boxes are at least 70 wide, got ${minWide}`);
+  // The second row runs the other way, and the arrow between rows is a short drop.
+  const perRow = Math.ceil(ids.length / lay.rows);
+  const last = lay.nodes.get(ids[perRow - 1]!)!, first = lay.nodes.get(ids[perRow]!)!;
+  assert.equal(last.row, 0);
+  assert.equal(first.row, 1);
+  assert.ok(Math.abs((last.x + last.w / 2) - (first.x + first.w / 2)) < 1, 'the row turns round under its last box');
+  const drop = lay.edges.get(`e${perRow - 1}`)!;
+  assert.ok(drop.d.y > drop.a.y && Math.abs(drop.d.x - drop.a.x) < 1, 'straight down');
+  const back = lay.edges.get(`e${perRow}`)!;
+  assert.ok(back.d.x < back.a.x, 'along the second row the arrow runs leftwards');
+  assert.ok(lay.nodes.get(ids[perRow]!)!.x > lay.nodes.get(ids[perRow + 1]!)!.x, 'the second row is written right to left');
+  // Not wrapped: three nodes, or a graph that branches.
+  assert.equal(flowLayout(['a', 'b', 'c'], chain.slice(0, 2), card, opts).rows, 1);
+  const fork = [{ id: '1', from: 'a', to: 'b' }, { id: '2', from: 'a', to: 'c' }, { id: '3', from: 'b', to: 'd' }, { id: '4', from: 'c', to: 'd' }, { id: '5', from: 'd', to: 'e' }, { id: '6', from: 'e', to: 'f' }, { id: '7', from: 'f', to: 'g' }];
+  assert.equal(flowLayout(ids, fork, card, opts).rows, 1);
+});
