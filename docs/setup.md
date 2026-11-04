@@ -7,7 +7,7 @@ npm install
 npm start        # builds, then starts the app in the tray
 ```
 
-Hold **Right Ctrl + Right Shift**, ask out loud, let go. The overlay answers on the screen you were looking at. The tray icon has *Play a sample scene*, *Clear the overlay* and *Quit*.
+Hold **Right Ctrl + Right Shift** (or the two keys you chose in *Settings*), ask out loud, let go. The overlay answers on the screen you were looking at. The tray icon has *Settings…*, *Play a sample scene*, *Clear the overlay* and *Quit*.
 
 ### Building the installer
 
@@ -38,7 +38,9 @@ Talkthrough needs two things outside itself: a way to hear you and a model.
 
 ## Settings
 
-A JSON file, `%APPDATA%\talkthrough\settings.json` (the app logs the exact path when it starts). Every key is optional.
+Open **Settings…** from the tray icon. One window has the route and model, the detail route, the voice (the system voice, or a voice server's address), the speech recogniser's address, the two keys held to ask, the windows to skip, the two switches (*let a guide act for me*, *place marks on real controls*; both off until you turn them on, each with a line saying what it does) and the API key. Saving writes the file below, through the same checks as the file: a value that does not pass (an http voice address that is not on this computer, two keys that are the same) is not saved, and the window says why. Changes take effect when Talkthrough restarts; the window has a button for that.
+
+The window writes a JSON file, `%APPDATA%\talkthrough\settings.json` (the app logs the exact path when it starts), which you can also edit by hand. Every key is optional; a key left at its default is not written.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
@@ -59,6 +61,8 @@ A JSON file, `%APPDATA%\talkthrough\settings.json` (the app logs the exact path 
 | `openaiServiceTier` | Optional service tier for the API-key route (`"fast"` costs more) | none |
 | `openaiBaseUrl` | Optional API address, https only (or a loopback address) | OpenAI's |
 | `codexCommand`, `claudeCommand` | Full path of the tool, if it is not on `PATH` | found on `PATH` |
+| `hotkey` | The two keys held to ask, as `first+second`, from `right-ctrl`, `right-shift`, `right-alt`, `left-ctrl`, `left-shift`, `left-alt`. Holding the first alone opens the microphone early. The left-hand keys are used by many shortcuts. Read at start | `"right-ctrl+right-shift"` |
+| `captureBlocklist` | Words naming windows never to look at: if the window in front has one in its app name, program file or title (any case), holding the keys does nothing: nothing is recorded, captured or sent, and the overlay says so. Only the window in front is checked. An empty list `[]` turns it off | `["1Password", "Bitwarden", "KeePass", "LastPass", "Dashlane", "Proton Pass"]` |
 | `micWindowMs` | How long Right Ctrl may be held alone before the early microphone and screen grab are dropped | `1000` |
 | `screenshotEdge` | Longer side of the screenshot sent to the model, in pixels | `1280` |
 | `effort` | Reasoning effort asked of the model | `"low"` |
@@ -74,7 +78,7 @@ Talkthrough sends your screenshot and question to a model you choose. Set `model
 
 1. **`"codex"`: your own locally installed Codex CLI**, signed in by you. The app runs `codex app-server` itself with a read-only sandbox, no approvals, its tool features off and an empty working folder, and ends the question if anything tries to use a tool.
 2. **`"claude"`: your own Claude Code**, signed in by you. The app runs it in print mode with no tools, no MCP servers, no slash commands and no settings files, and refuses to go on if its first message lists anything else.
-3. **`"openai"`: an API key.** The app calls the OpenAI Responses API directly, streamed, with strict structured outputs and nothing stored on the provider's side. Choose *API key…* from the tray menu and paste your key: it is stored encrypted for your Windows account (Electron's `safeStorage`; nothing is saved if that is unavailable; this protects it from other users and from copies of the disk, not from other programs running as you, which can decrypt it the same way), is only ever sent to the API address as a header, and is never logged. Costs are billed to your account by the provider.
+3. **`"openai"`: an API key.** The app calls the OpenAI Responses API directly, streamed, with strict structured outputs and nothing stored on the provider's side. Choose *Settings…* from the tray menu and paste your key: it is stored encrypted for your Windows account (Electron's `safeStorage`; nothing is saved if that is unavailable; this protects it from other users and from copies of the disk, not from other programs running as you, which can decrypt it the same way), is only ever sent to the API address as a header, and is never logged. Costs are billed to your account by the provider.
 
 For the first two, Talkthrough only starts the tool you already have; it never reads or stores your sign-in. If your Codex setup lists tool servers (MCP), the app switches each one off for the process it starts; the list is read when that process starts, so a server added later is switched off at the next start. **Check your provider's terms for automated use before you pick one.** To use something else, write a `Model` adapter (`src/adapters/model.ts`).
 
