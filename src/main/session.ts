@@ -52,8 +52,13 @@ export type SessionDeps = {
   log(line: string): void;
   /** Checks only: put the question text in the log. Off by default, so a spoken question never reaches the console. */
   logText?: boolean;
-  /** How long Right Ctrl may be held alone before the early microphone and capture are dropped. */
+  /** How long the first key of the chord may be held alone before the early microphone and capture are dropped. */
   micWindowMs: number;
+  /**
+   * The entry of the person's list of windows to skip that the window in front matches, or null. A press while it matches does
+   * nothing: no microphone, no screen grab. Absent: no list.
+   */
+  skipped?(): string | null;
   /** Epoch milliseconds. */
   now?(): number;
   /** Waits this long (default: a timer). Checks give it a clock of their own so a wait cannot race the test. */
@@ -245,6 +250,7 @@ export function createSession(deps: SessionDeps) {
   /** Right Ctrl went down first: open the microphone and start the screen grab now. */
   function arm(): void {
     if (attempt) dropAttempt('a new press began');
+    if (deps.skipped?.()) return; // nothing is opened for a window on the list; start() says so
     begin(true);
   }
 
@@ -254,6 +260,13 @@ export function createSession(deps: SessionDeps) {
 
   /** Both keys are down. */
   function start(): void {
+    if (deps.skipped?.()) {
+      // The window in front is on the person's list: nothing is recorded or captured, and they are told.
+      if (attempt) dropAttempt('the window in front is on the list to skip');
+      deps.log('press ignored: the window in front is on the list of windows to skip');
+      notice(deps.pointerDisplayId(), 'Not looking at this window: it is on your list of windows to skip.');
+      return;
+    }
     // A request still running is let go: its status (working, with the backend) must not outlive the press.
     const supersedes = asking !== null;
     asking?.abort();
@@ -296,6 +309,13 @@ export function createSession(deps: SessionDeps) {
   function stop(): void {
     const a = attempt;
     if (!a || !a.chord) return;
+    if (deps.skipped?.()) {
+      // The person moved to a window on the list while holding the keys: what was grabbed before is thrown away.
+      dropAttempt('the window in front is on the list to skip');
+      penOff(a.displayId);
+      notice(a.displayId, 'Not looking at this window: it is on your list of windows to skip.');
+      return;
+    }
     attempt = null;
     releasedAt = now();
     penOff(a.displayId);

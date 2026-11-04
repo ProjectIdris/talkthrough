@@ -1,0 +1,167 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createSettingsService, formFromSettings } from '../src/main/settings-service.ts';
+import { DEFAULT_SETTINGS, loadSettings } from '../src/main/settings.ts';
+import { DEFAULT_SKIP_LIST } from '../src/main/skip-list.ts';
+import type { SettingsForm } from '../src/shared/settings-form.ts';
+
+function setup(initial?: unknown) {
+  const dir = mkdtempSync(join(tmpdir(), 'tt-settings-'));
+  const path = join(dir, 'settings.json');
+  if (initial !== undefined) writeFileSync(path, typeof initial === 'string' ? initial : JSON.stringify(initial));
+  const warnings: string[] = [];
+  const service = createSettingsService({ path, warn: (m) => warnings.push(m) });
+  return { dir, path, service, warnings, file: () => JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>, done: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
+const withForm = (base: SettingsForm, change: Partial<SettingsForm>): SettingsForm => ({ ...base, ...change });
+
+test('with no file the form shows the defaults, including the starting list of windows to skip, and the switches are off', () => {
+  const t = setup();
+  try {
+    const form = t.service.read();
+    assert.deepEqual(form, formFromSettings(DEFAULT_SETTINGS));
+    assert.equal(form.model, 'codex');
+    assert.equal(form.guideNavigation, false);
+    assert.equal(form.controlSnap, false);
+    assert.equal(form.hotkey, 'right-ctrl+right-shift');
+    assert.deepEqual(form.captureBlocklist, [...DEFAULT_SKIP_LIST]);
+    assert.equal(form.voiceServerUrl, '', 'the system voice');
+  } finally {
+    t.done();
+  }
+});
+
+test('a save is read back by the settings file loader exactly as saved, and the file says only what was chosen', () => {
+  const t = setup();
+  try {
+    const form = withForm(t.service.read(), {
+      model: 'claude',
+      claudeModel: 'claude-sonnet-5-5',
+      detailRoute: 'codex',
+      voiceServerUrl: 'http://127.0.0.1:8000/speak',
+      voiceServerVoice: 'warm',
+      speechServerUrl: 'http://127.0.0.1:8001',
+      hotkey: 'right-ctrl+right-alt',
+      captureBlocklist: ['my bank', 'Vault'],
+      guideNavigation: true,
+      controlSnap: true,
+    });
+    const result = t.service.save(form);
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.changed, true);
+    const loaded = loadSettings(t.path);
+    assert.deepEqual(formFromSettings(loaded), form);
+    assert.deepEqual(Object.keys(t.file()).sort(), ['captureBlocklist', 'claudeModel', 'controlSnap', 'detailRoute', 'guideNavigation', 'hotkey', 'model', 'speechServerUrl', 'voiceServerUrl', 'voiceServerVoice']);
+    assert.deepEqual(readdirSync(t.dir), ['settings.json'], 'no half-written file is left');
+  } finally {
+    t.done();
+  }
+});
+
+test('what is the default is not written; going back to the system voice, no detail pass and the starting list removes the keys again', () => {
+  const t = setup();
+  try {
+    const base = t.service.read();
+    t.service.save(withForm(base, { voiceServerUrl: 'https://voice.example/speak', detailRoute: 'claude', captureBlocklist: ['x1'] }));
+    assert.ok('voiceServerUrl' in t.file() && 'captureBlocklist' in t.file());
+    const back = t.service.save(base);
+    assert.equal(back.ok, true);
+    assert.deepEqual(t.file(), {});
+    // an emptied list is a choice, and is kept as one
+    t.service.save(withForm(base, { captureBlocklist: [] }));
+    assert.deepEqual(t.file(), { captureBlocklist: [] });
+    assert.deepEqual(t.service.read().captureBlocklist, []);
+  } finally {
+    t.done();
+  }
+});
+
+test('the rest of the file is left as it was: other keys, and keys the window does not edit', () => {
+  const t = setup({ effort: 'high', claudeCommand: 'C:/tools/claude.exe', backendUrl: 'https://backend.example', somethingNew: { a: 1 }, guideNavigation: true });
+  try {
+    const result = t.service.save(withForm(t.service.read(), { guideNavigation: false, model: 'openai' }));
+    assert.equal(result.ok, true);
+    assert.deepEqual(t.file(), { effort: 'high', claudeCommand: 'C:/tools/claude.exe', backendUrl: 'https://backend.example', somethingNew: { a: 1 }, model: 'openai' });
+  } finally {
+    t.done();
+  }
+});
+
+test('a value the checks refuse is not saved: the file is untouched and the reason is in plain words', () => {
+  const t = setup({ model: 'claude' });
+  try {
+    const before = readFileSync(t.path, 'utf8');
+    const base = t.service.read();
+    const cases: Array<[Partial<SettingsForm>, RegExp]> = [
+      [{ voiceServerUrl: 'http://example.com/speak' }, /voice server address must start with https/],
+      [{ hotkey: 'right-ctrl+right-ctrl' }, /two different keys/],
+      [{ hotkey: 'right-ctrl+a' }, /two different keys/],
+      [{ captureBlocklist: ['ok', 'x'] }, /"x" is too short/],
+    ];
+    for (const [change, why] of cases) {
+      const result = t.service.save(withForm(base, change));
+      assert.equal(result.ok, false, JSON.stringify(change));
+      assert.ok(!result.ok && result.messages.some((m) => why.test(m)), `${JSON.stringify(change)}: ${!result.ok && result.messages.join(' | ')}`);
+      assert.equal(readFileSync(t.path, 'utf8'), before, 'untouched');
+    }
+    const tooLong = t.service.save(withForm(base, { voiceServerVoice: 'v'.repeat(81) }));
+    assert.equal(tooLong.ok, false, 'a value the loader would quietly drop is refused, not saved as something else');
+    assert.equal(readFileSync(t.path, 'utf8'), before);
+  } finally {
+    t.done();
+  }
+});
+
+test('a form that is not a form, or lacks a field, or has one of the wrong kind, is refused', () => {
+  const t = setup();
+  try {
+    const base = t.service.read();
+    for (const bad of [null, 'text', [], { ...base, model: undefined }, { ...base, codexFast: 'yes' }, { ...base, captureBlocklist: 'one' }, { ...base, captureBlocklist: [1] }]) {
+      const result = t.service.save(bad);
+      assert.equal(result.ok, false, JSON.stringify(bad));
+    }
+    assert.equal(existsSync(t.path), false, 'nothing was written');
+  } finally {
+    t.done();
+  }
+});
+
+test('a complaint the file already had is not this save\'s to fix; a new one is', () => {
+  const t = setup({ backendUrl: 'http://example.com' });
+  try {
+    const base = t.service.read();
+    const fine = t.service.save(withForm(base, { codexFast: true }));
+    assert.equal(fine.ok, true, 'the old bad backend address does not stop an unrelated save');
+    assert.equal(t.file().backendUrl, 'http://example.com', 'and it is left as it was');
+    const worse = t.service.save(withForm(base, { codexFast: true, voiceServerUrl: 'http://example.com' }));
+    assert.equal(worse.ok, false);
+  } finally {
+    t.done();
+  }
+});
+
+test('a settings file that cannot be read is kept aside before it is replaced', () => {
+  const t = setup('{ not json');
+  try {
+    const result = t.service.save(withForm(t.service.read(), { codexFast: true }));
+    assert.equal(result.ok, true);
+    assert.equal(readFileSync(`${t.path}.unreadable`, 'utf8'), '{ not json');
+    assert.deepEqual(t.file(), { codexFast: true });
+  } finally {
+    t.done();
+  }
+});
+
+test('saving what is already saved says nothing changed', () => {
+  const t = setup({ model: 'claude' });
+  try {
+    const again = t.service.save(t.service.read());
+    assert.equal(again.ok && again.changed, false);
+  } finally {
+    t.done();
+  }
+});

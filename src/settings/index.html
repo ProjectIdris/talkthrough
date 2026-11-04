@@ -5,23 +5,121 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'">
 <title>Talkthrough settings</title>
 <style>
-  body { font: 14px system-ui, sans-serif; margin: 20px; color: #1b2430; }
-  h1 { font-size: 16px; margin: 0 0 10px; }
-  p { margin: 0 0 12px; line-height: 1.45; color: #46515f; }
-  input { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 4px 0 10px; }
-  button { font: inherit; padding: 6px 14px; margin-right: 8px; }
-  #state { font-weight: 600; color: #1b2430; }
-  #message { min-height: 1.4em; color: #a33; }
+  html, body { margin: 0; color-scheme: dark; background: #111622; color: #eef3fb; font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 22px 22px 30px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 0 0 8px; letter-spacing: 0.01em; }
+  .lead { margin: 0 0 16px; color: #aab6c8; }
+  section { border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 12px; padding: 14px 16px 12px; margin: 0 0 14px; background: rgba(255, 255, 255, 0.03); }
+  p { margin: 0 0 10px; color: #aab6c8; }
+  p.warn { color: #ffd9a0; }
+  label { display: block; margin: 0 0 4px; font-weight: 600; }
+  label.inline { display: flex; align-items: flex-start; gap: 8px; font-weight: 600; margin: 0 0 2px; }
+  label.inline input { margin-top: 3px; }
+  input[type=text], input[type=password], select, textarea {
+    width: 100%; box-sizing: border-box; padding: 7px 9px; margin: 0 0 10px; font: inherit; color: #eef3fb;
+    background: #0b0f19; border: 1px solid rgba(255, 255, 255, 0.24); border-radius: 8px;
+  }
+  textarea { min-height: 96px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #7cc4ff; outline-offset: 0; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .row > * { flex: 1; }
+  .row span { flex: none; color: #aab6c8; }
+  button { font: inherit; font-weight: 650; padding: 7px 16px; margin: 0 8px 0 0; border: 0; border-radius: 9px; color: #eef3fb; background: rgba(255, 255, 255, 0.14); cursor: pointer; }
+  button:hover { background: rgba(255, 255, 255, 0.24); }
+  button.primary { color: #0d1320; background: #7cc4ff; }
+  button.primary:hover { background: #a3d6ff; }
+  .hide { display: none; }
+  #state { font-weight: 600; color: #eef3fb; }
+  #messages { margin: 0 0 10px; padding: 0 0 0 18px; color: #ff9d9d; }
+  #saved { color: #a8e6b0; margin: 0 0 10px; }
+  .hint { font-size: 12.5px; margin: -4px 0 10px; }
 </style>
 </head>
 <body>
-<h1>API key</h1>
-<p>Used only to call the model API you choose (<code>"model": "openai"</code> in the settings file). It is stored encrypted for your Windows account and never shown again or written to a log.</p>
-<p id="state">&nbsp;</p>
-<label for="key">Paste a key</label>
-<input id="key" type="password" autocomplete="off" spellcheck="false">
-<button id="save">Save</button><button id="remove">Remove</button><button id="close">Close</button>
-<p id="message"></p>
+<main>
+<h1>Talkthrough settings</h1>
+<p class="lead">Saved to your settings file. Changes take effect when Talkthrough is restarted.</p>
+
+<section>
+  <h2>How it thinks</h2>
+  <label for="model">Where the model runs</label>
+  <select id="model">
+    <option value="codex">Your Codex command-line tool</option>
+    <option value="claude">Your Claude Code</option>
+    <option value="openai">An OpenAI API key</option>
+  </select>
+  <div data-route="codex"><label for="codexModel">Model</label><input type="text" id="codexModel" autocomplete="off" spellcheck="false">
+    <label class="inline"><input type="checkbox" id="codexFast">Fast mode</label><p class="hint">Answers sooner and uses more of your Codex allowance.</p></div>
+  <div data-route="claude"><label for="claudeModel">Model</label><input type="text" id="claudeModel" autocomplete="off" spellcheck="false"></div>
+  <div data-route="openai"><label for="openaiModel">Model</label><input type="text" id="openaiModel" autocomplete="off" spellcheck="false"></div>
+  <div id="keybox" class="hide">
+    <label for="key">API key</label>
+    <p id="state">&nbsp;</p>
+    <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a key">
+    <button id="savekey" type="button">Save key</button><button id="removekey" type="button">Remove key</button>
+    <p class="hint">Stored encrypted for your Windows account. It is never shown again and never written to a log.</p>
+    <p id="keymessage" class="warn"></p>
+  </div>
+</section>
+
+<section>
+  <h2>More detail</h2>
+  <label for="detailRoute">Route for the richer version</label>
+  <select id="detailRoute">
+    <option value="">Off</option>
+    <option value="codex">Codex</option>
+    <option value="claude">Claude Code</option>
+    <option value="openai">OpenAI API key</option>
+  </select>
+  <div id="detailbox" class="hide"><label for="detailModel">Model (empty: a stronger default for that route)</label><input type="text" id="detailModel" autocomplete="off" spellcheck="false"></div>
+  <p class="hint">When you ask for more detail, a stronger model redraws what is on screen in finer detail. It uses more of your allowance and only runs when you ask.</p>
+</section>
+
+<section>
+  <h2>Voice</h2>
+  <label class="inline"><input type="radio" name="voice" id="voiceSystem" value="system">The system voice</label>
+  <label class="inline"><input type="radio" name="voice" id="voiceServer" value="server">A voice server on this computer or on https</label>
+  <div id="voicebox" class="hide" style="margin-top:8px">
+    <label for="voiceServerUrl">Address</label><input type="text" id="voiceServerUrl" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8000/speak">
+    <label for="voiceServerVoice">Voice name (optional)</label><input type="text" id="voiceServerVoice" autocomplete="off" spellcheck="false">
+    <p class="hint">The words of each spoken step are sent to this address, and nothing else. If it is down or slow, the system voice speaks instead.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Hearing</h2>
+  <label for="speechServerUrl">Speech recogniser address</label>
+  <input type="text" id="speechServerUrl" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8001">
+  <p class="hint">Where your question is turned into text. Your recording is sent there, so it should be on this computer. Empty: Talkthrough cannot hear questions yet.</p>
+</section>
+
+<section>
+  <h2>Hold to ask</h2>
+  <div class="row"><select id="hotkeyA" aria-label="First key"></select><span>and</span><select id="hotkeyB" aria-label="Second key"></select></div>
+  <p class="hint">Hold both keys together while you speak. Holding the first one alone gets the microphone ready sooner. The left-hand keys are used by many shortcuts, so the right-hand ones are safer.</p>
+</section>
+
+<section>
+  <h2>Windows to skip</h2>
+  <label for="captureBlocklist">One name per line</label>
+  <textarea id="captureBlocklist" spellcheck="false"></textarea>
+  <p class="hint">If the window in front has one of these words in its app name or title, holding the keys does nothing: nothing is recorded, captured or sent. Only the window in front is checked. The list starts with some password managers.</p>
+</section>
+
+<section>
+  <h2>Things it may do for you</h2>
+  <p class="hint" style="margin-top:0">Both are off until you turn them on.</p>
+  <label class="inline"><input type="checkbox" id="guideNavigation">Let a guide act for me</label>
+  <p class="hint" id="warnNav"></p>
+  <label class="inline"><input type="checkbox" id="controlSnap">Place marks on real controls</label>
+  <p class="hint" id="warnSnap"></p>
+</section>
+
+<ul id="messages" class="hide"></ul>
+<p id="saved" class="hide"></p>
+<button id="save" class="primary" type="button">Save</button><button id="restart" type="button" class="hide">Restart now</button><button id="close" type="button">Close</button>
+</main>
 <script src="./settings.js"></script>
 </body>
 </html>
