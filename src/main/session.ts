@@ -5,7 +5,7 @@ import type { Model, ModelOutput, ThreadTurn, Usage } from '../adapters/model.ts
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
-import { beginLiveStep, createSceneState, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
+import { beginLiveStep, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
 import type { LiveStep, SceneState, Step } from '../scene/index.ts';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
@@ -76,6 +76,8 @@ export type QuestionReport = {
   tokens?: Usage;
   /** The person circled something with the pen and the model was shown it. */
   circled?: boolean;
+  /** How well the answer built in order (1: everything came after what it refers to); see orderScore. */
+  order?: { score: number; refs: number; early: number; missing: number };
   escalate?: string;
   error?: string;
 };
@@ -281,6 +283,7 @@ export function createSession(deps: SessionDeps) {
     }
     const turn = thread.length + 1;
     const picture = lastAsk?.clean;
+    const known = [...state.ids.keys()];
     startTurn(state);
     deps.log(`question heard (turn ${turn}, ${source.label}${deps.logText ? `): ${JSON.stringify(question)}` : ')'}`);
 
@@ -297,6 +300,9 @@ export function createSession(deps: SessionDeps) {
     // page, each action is checked against the scene on arrival and sent at once, and the step is closed when
     // the whole step comes. A step that arrives whole (the backend, a replay) is checked and sent in one go.
     let live: LiveStep | null = null;
+    // The answer as the model wrote it, to score the order it built in.
+    const written: Array<{ actions: unknown[] }> = [];
+    let writing: unknown[] | null = null;
     const newLive = (): LiveStep => beginLiveStep(state, {
       open: (say) => {
         open();
@@ -320,14 +326,19 @@ export function createSession(deps: SessionDeps) {
         if (out.type === 'say') {
           live ??= newLive();
           live.say(out.say);
+          if (!writing) written.push({ actions: (writing = []) });
         } else if (out.type === 'action') {
           live ??= newLive();
           live.action(out.action);
+          if (!writing) written.push({ actions: (writing = []) });
+          writing.push(out.action);
         } else if (out.type === 'step') {
           if (live) {
+            writing = null;
             closeLive();
             continue;
           }
+          written.push(out.step as { actions: unknown[] });
           const checked = validateStep(out.step, state);
           if (checked.issues.length > 0) deps.log(`validator: ${checked.issues.length} notes on step ${shown.length + 1}`);
           if (!checked.step) continue;
@@ -359,6 +370,11 @@ export function createSession(deps: SessionDeps) {
       return notice(displayId, failure instanceof ModelError && code === 'auth' && failure.message === NO_KEY_MESSAGE ? 'No API key is set. Open the tray menu and choose API key.' : source.kind === 'backend' ? backendMessage(code) : modelMessage(code), 'error');
     }
     r.steps = shown.length;
+    if (written.length > 0) {
+      const o = orderScore(written, known);
+      r.order = { score: Math.round(o.score * 100) / 100, refs: o.refs, early: o.early, missing: o.missing };
+      if (o.examples.length > 0) deps.log(`order: ${o.examples.join('; ')}`);
+    }
     if (escalate) r.escalate = escalate;
     r.endMs = since();
     if (shown.length === 0 && !escalate) {
