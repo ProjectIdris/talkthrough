@@ -168,3 +168,14 @@ test('what the model is told: approximate marks, the kind of each, and the order
   assert.match(two, /1\. circled[\s\S]*2\. underlined/);
   assert.match(two, /numbered in red/);
 });
+
+test('a circle gone round once and a bit more (1.2 to 2 turns, from any start) is that one circle, not open and not a half', () => {
+  for (const turns of [1.05, 1.2, 1.3, 1.5, 1.75, 2]) {
+    for (const from of [0.5, 2.0, 4.0]) {
+      const s = readShape([loop(500, 500, 80, 60, turns, from)], ASPECT);
+      assert.equal(s.kind, 'circle', `${turns} turns from ${from}`);
+      assert.notEqual(s.open, true, `${turns} turns from ${from}: closed`);
+      assert.ok(s.subject.w >= 0.8 * 160 && s.subject.w <= 1.25 * 161 && s.subject.h >= 0.8 * 120 && s.subject.h <= 1.25 * 121, `${turns} turns from ${from}: ${JSON.stringify(s.subject)}`);
+    }
+  }
+});

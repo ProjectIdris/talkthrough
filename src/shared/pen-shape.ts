@@ -115,10 +115,11 @@ function circleSubject(strokes: ReadonlyArray<ReadonlyArray<Point>>, aspect: num
   for (const pts of paths) {
     const t = turns(pts);
     // One box per full turn of the path.
-    let acc = 0, from = 0;
+    let acc = 0, from = 0, full = 0;
     t.forEach((d, i) => {
       acc += d;
       if (Math.abs(acc) >= TWO_PI * 0.92) {
+        full++;
         loops.push(boxOf(pts.slice(from, i + 3), aspect));
         from = i + 1;
         acc = 0;
@@ -126,10 +127,13 @@ function circleSubject(strokes: ReadonlyArray<ReadonlyArray<Point>>, aspect: num
     });
     turned += t.reduce((s, d) => s + Math.abs(d), 0);
     const rest = pts.slice(from);
-    if (loops.length === 0 || rest.length > 6 && Math.abs(acc) > ARC_FROM) loops.push(boxOf(rest.length >= 2 ? rest : pts, aspect));
+    // What is left after the full turns is a loop of its own only when it is nearly a turn; a stroke that went round once and a bit more
+    // (1.3 or 1.5 turns, a circle closed with an overshoot) is that one turn, not a turn and a half circle. With no full turn the arc is the
+    // circle (an unfinished one).
+    if (full === 0 ? (loops.length === 0 || (rest.length > 6 && Math.abs(acc) > ARC_FROM)) : (rest.length > 6 && Math.abs(acc) >= TWO_PI * 0.75)) loops.push(boxOf(rest.length >= 2 ? rest : pts, aspect));
     const diag = Math.hypot(boxOf(pts, aspect).w * aspect, boxOf(pts, aspect).h);
     const first = pts[0] as V, last = pts[pts.length - 1] as V;
-    if (Math.hypot(last.x - first.x, last.y - first.y) > 0.3 * diag) open = true;
+    if (full === 0 && Math.hypot(last.x - first.x, last.y - first.y) > 0.3 * diag) open = true;
   }
   const all = strokeBounds(strokes as ReadonlyArray<ReadonlyArray<Point>>) as Box;
   let subject: Box;
