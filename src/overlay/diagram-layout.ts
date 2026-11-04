@@ -118,7 +118,9 @@ export function flowLayout(ids: readonly string[], edges: readonly FlowEdge[], a
   const right = fit('right'), down = fit('down');
   const dir: 'right' | 'down' = right > down * 1.001 || (Math.abs(right - down) <= down * 0.001 && inner.w >= inner.h) ? 'right' : 'down';
   let rows = 1;
-  if (widest === 1 && count >= 4 && dir === 'right') {
+  // A loop back (an edge that goes to a layer no later than its own) runs round the outside of one row: a wrapped chain has no room for it.
+  const loops = used.some((e) => (layer.get(e.to) ?? 0) <= (layer.get(e.from) ?? 0));
+  if (widest === 1 && count >= 4 && dir === 'right' && !loops) {
     let best = fit('right', 1);
     for (const r of [2, 3]) {
       if (Math.ceil(count / r) < 2) break;

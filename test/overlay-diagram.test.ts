@@ -370,3 +370,13 @@ test('a list of steps asked for more width than it can use is placed at the widt
   const ring = followDiagram(roomy, { op: 'circle', id: 'r', x: 700, y: 700, w: 40, h: 40, color: 'red' } as Action, 16 / 9);
   assert.ok(ring, 'a mark in the rectangle that was asked for (800 wide) belongs to it');
 });
+
+test('a chain with a loop back to its start is not wrapped into rows (the loop runs round the outside of one row)', () => {
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+  const chain = ids.slice(1).map((to, i) => ({ id: `e${i}`, from: ids[i]!, to }));
+  const card: Px = { x: 0, y: 0, w: 540, h: 260 };
+  assert.ok(flowLayout(ids, chain, card, opts).rows >= 2, 'the same chain without the loop wraps');
+  const looped = flowLayout(ids, [...chain, { id: 'back', from: 'g', to: 'a' }], card, opts);
+  assert.equal(looped.rows, 1);
+  assert.ok([...looped.nodes.values()].every((b) => b.row === undefined));
+});
