@@ -314,7 +314,7 @@ test('a part can carry other parts: the child follows its parent when the parent
     const scene = new PanelScene();
     scene.sync(f, 1);
     const child = scene.nodeOf(keyOf(f, 'pin')) as Object3D;
-    assert.equal(child.parent, scene.nodeOf(keyOf(f, 'plug')), 'a box holds a child like a group does');
+    assert.ok(child.parent === scene.nodeOf(keyOf(f, 'plug')), 'a box holds a child like a group does'); // never assert.equal on three.js objects: a failing one prints the whole scene graph
     return child.getWorldPosition(new Vector3()).toArray();
   };
   assert.deepEqual(at(0), [0, 2, 0]);

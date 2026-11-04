@@ -74,6 +74,12 @@ type Node = {
 
 type AddMesh = (geo: BufferGeometry, surface: string | undefined, edges: boolean) => Mesh;
 
+/** True when `a` is `b` or sits above it: adding `a` under `b` would make a loop, which hangs every walk of the scene. */
+function isAncestor(a: Object3D, b: Object3D): boolean {
+  for (let o: Object3D | null = b; o; o = o.parent) if (o === a) return true;
+  return false;
+}
+
 export class PanelScene {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(FOV_DEGREES, 1, 0.3, 1500);
@@ -332,6 +338,9 @@ export class PanelScene {
             : def.material === 'glass' ? 90 : 0;
           node.obj.traverse((c: Object3D) => { c.renderOrder = c instanceof Sprite ? 999 : order; });
         }
+        // A part whose parent was swapped for a richer one (an object added again under its id) moves to the new parent.
+        const holder = o.parentKey !== null ? this.nodes.get(o.parentKey)?.obj : undefined;
+        if (holder && node.obj.parent !== holder && !isAncestor(node.obj, holder)) holder.add(node.obj);
         this.apply(node, o, o.parentKey !== null ? spreads.get(o.parentKey) ?? 0 : 0, with_?.get(o.key));
       }
     };

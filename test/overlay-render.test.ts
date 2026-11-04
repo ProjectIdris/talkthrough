@@ -23,7 +23,7 @@ test('the 3D scene mirrors a frame: parents hold children, transforms are applie
   const body = world(panel, frame, 'bar1-body');
   // The bar grows from its base: a group at the floor, its body offset by half a unit and scaled 2.1 tall.
   assert.ok(Math.abs(body.x - -3.6) < 1e-6 && Math.abs(body.y - (-3 + 0.5 * 2.1)) < 1e-6, body.toArray().join());
-  assert.equal(panel.nodeOf(keyOf(frame, 'bar1-body'))?.parent, panel.nodeOf(keyOf(frame, 'bar1')));
+  assert.ok(panel.nodeOf(keyOf(frame, 'bar1-body'))?.parent === panel.nodeOf(keyOf(frame, 'bar1')), 'the body hangs from its bar'); // a boolean: a failing assert.equal would print the whole scene graph
 
   const before = panel.count();
   const cleared = settle(planStep(frame, { say: '', actions: [{ op: 'clear', target: 'bar1' }] }));

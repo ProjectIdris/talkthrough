@@ -347,6 +347,11 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
         onKey = host.key;
       }
       const grow = strokeSeconds(a);
+      const was = lookup(plan.marks, a.id, at);
+      if (was) {
+        was.diedAt = at;
+        was.wipe = was.wipe ?? REPLACE_SECONDS;
+      }
       plan.marks.push({
         key: plan.nextKey++, id: a.id, mark: a, bornAt: at, diedAt: undefined,
         color: track(parseColor(color)), opacity: track([1]), tinted: color !== undefined,
@@ -378,8 +383,9 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       }
       const parent = 'parent' in a && a.parent !== undefined ? lookup(plan.objs, a.parent, at) : undefined;
       const given = (a as { color?: string }).color;
-      plan.objs.push({
-        key: plan.nextKey++, id: a.id, parentKey: parent ? parent.key : null, def: a,
+      const replaced = lookup(plan.objs, a.id, at);
+      const fresh: ObjInst = {
+        key: plan.nextKey++, id: a.id, parentKey: parent ? parent.key : replaced ? replaced.parentKey : null, def: a,
         bornAt: at, diedAt: undefined,
         pos: track('pos' in a && a.pos ? a.pos : [0, 0, 0]),
         rot: track('rot' in a && a.rot ? a.rot : [0, 0, 0]),
@@ -387,8 +393,10 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
         color: track(given !== undefined ? parseColor(given) : defaultColor(a)),
         opacity: track([('opacity' in a && a.opacity !== undefined) ? a.opacity : 1]),
         draw: track([('draw' in a && a.draw !== undefined) ? a.draw : 1]), spread: track([0]),
-      });
-      end(APPEAR_SECONDS);
+      };
+      if (replaced) replaceObject(plan, replaced, fresh, at);
+      else plan.objs.push(fresh);
+      end(replaced ? REPLACE_SECONDS : APPEAR_SECONDS);
       return;
     }
     case 'move': case 'turn': case 'scale': {
@@ -513,6 +521,43 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
   }
 }
 
+/** Seconds an object that is added again under the id of one already there takes to swap in, the old one fading as the new comes up. */
+export const REPLACE_SECONDS = 0.6;
+
+/**
+ * An `add` for an id that is already on the stage replaces that object in place (a richer model of the same part):
+ * the old one fades out as the new one fades in, what hung from the old one (parts, pins) goes on hanging from the new,
+ * and what was turning stays turning. Anything the answer does not mention is left alone.
+ */
+function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number): void {
+  old.diedAt = at;
+  old.wipe = REPLACE_SECONDS;
+  fresh.grow = REPLACE_SECONDS;
+  fresh.spread = track(valueAt(old.spread, at));
+  // What hung from the old one hangs from the new, except what the new one itself hangs from (an answer can add a part and then
+  // its former holder under it): that would make a loop, so it takes the old one's place in the old one's holder.
+  const above = new Set<number>();
+  for (let k: number | null = fresh.parentKey; k !== null && !above.has(k); ) {
+    above.add(k);
+    k = plan.objs.find((o) => o.key === k)?.parentKey ?? null;
+  }
+  for (const o of plan.objs) {
+    if (o.parentKey === old.key && aliveAt(o, at)) o.parentKey = above.has(o.key) ? old.parentKey : fresh.key;
+  }
+  for (const m of plan.marks) if (m.onKey === old.key && aliveAt(m, at)) m.onKey = fresh.key;
+  const to = (k: number): number => (k === old.key ? fresh.key : k);
+  for (const sp of plan.spins) {
+    if (sp.key === old.key) sp.key = fresh.key;
+    if (sp.lock) sp.lock.byKey = to(sp.lock.byKey);
+  }
+  plan.cranks = plan.cranks.map((c) => ({ ...c, key: to(c.key), shaftKey: to(c.shaftKey), rodKey: c.rodKey === null ? null : to(c.rodKey) }));
+  plan.cams = plan.cams.map((c) => ({ ...c, key: to(c.key), byKey: to(c.byKey) }));
+  plan.flashes = plan.flashes.map((c) => ({ ...c, key: to(c.key), byKey: to(c.byKey) }));
+  // The new one sits where the old one was in the list, so parents still come before their children.
+  plan.objs.splice(plan.objs.indexOf(old) + 1, 0, fresh);
+  plan.duration = Math.max(plan.duration, at + REPLACE_SECONDS);
+}
+
 /** Makes the copies of an array: the original joins a new group, and each further copy sits in a pivot that carries the step and turn. */
 function addArray(plan: StepPlan, a: Extract<AddAction, { shape: 'array' }>, at: number): void {
   const of = lookup(plan.objs, a.of, at);
@@ -619,7 +664,7 @@ export function evaluate(plan: StepPlan, t: number): Frame {
     });
   }
   const objects: ObjectFrame[] = [];
-  for (const o of plan.objs) {
+  for (const o of parentsFirst(plan.objs)) {
     if (!visibleAt(o, t)) continue;
     const pulse = pulseFor(plan, o.key, t);
     objects.push({
@@ -645,6 +690,24 @@ export function evaluate(plan: StepPlan, t: number): Frame {
       focus: focusAt(plan.focus, t),
     },
   };
+}
+
+/** The objects with every parent before its children (a replaced object's children now hang from one made later). Stable otherwise. */
+function parentsFirst(objs: readonly ObjInst[]): readonly ObjInst[] {
+  const index = new Map<number, number>();
+  objs.forEach((o, i) => index.set(o.key, i));
+  if (objs.every((o, i) => o.parentKey === null || (index.get(o.parentKey) ?? -1) < i)) return objs;
+  const out: ObjInst[] = [];
+  const done = new Set<number>();
+  const visit = (o: ObjInst, depth: number): void => {
+    if (done.has(o.key)) return;
+    done.add(o.key);
+    const parent = o.parentKey !== null && depth < 64 ? objs[index.get(o.parentKey) ?? -1] : undefined;
+    if (parent) visit(parent, depth + 1);
+    out.push(o);
+  };
+  for (const o of objs) visit(o, 0);
+  return out;
 }
 
 /** What is turning at time `t`, and what is tied to it, limited to what is still on the stage. */
