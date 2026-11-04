@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { createScriptedModel } from '../src/adapters/scripted-model.ts';
 import { SpeechToTextError } from '../src/adapters/speech-to-text.ts';
 import type { SpeechToText } from '../src/adapters/speech-to-text.ts';
-import { createSession } from '../src/main/session.ts';
+import { createSession, STROKE_TAIL_MS, STROKE_TAIL_STEP_MS } from '../src/main/session.ts';
 import type { SessionDeps } from '../src/main/session.ts';
 import type { SceneMessage } from '../src/shared/ipc.ts';
 import type { ModelRequest } from '../src/adapters/model.ts';
@@ -280,29 +280,82 @@ function penMedia(stopMs: number, log: { composed: unknown[]; released: number[]
   };
 }
 
-test('the tail of a stroke still counts: a piece after release but before the microphone closes, and the last piece of an open stroke within a short grace; later ones do not', async () => {
+/** A clock of the test's own: waits resolve only when the test says, so nothing here races real time. */
+function controlledWaits() {
+  const pending: Array<{ ms: number; resolve: () => void }> = [];
+  let asked = 0;
+  const drain = () => new Promise<void>((resolve) => setImmediate(resolve)); // lets every promise chain run to where it waits
+  return {
+    sleep: (ms: number) => new Promise<void>((resolve) => { asked += ms; pending.push({ ms, resolve }); }),
+    /** Lets the waits that are pending end (one step each), and the work that was waiting on them run. */
+    async tick() {
+      for (const w of pending.splice(0)) w.resolve();
+      await drain();
+    },
+    drain,
+    get asked() { return asked; },
+    get waiting() { return pending.length; },
+  };
+}
+
+/** The media of a pen question whose microphone closes when the test says. */
+function gatedMedia(log: { composed: unknown[]; released: number[] }): { media: SessionDeps['media']; closeMic: () => void } {
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => (open = resolve));
+  const media = penMedia(0, log);
+  return { media: { ...media, stopMic: async () => { await gate; return { samples: new Float32Array(16), sampleRate: 16000 as const, durationMs: 1500, startLatencyMs: 100 }; } }, closeMic: open };
+}
+
+test('the tail of a stroke still counts: a piece after release but before the microphone closes, and the last piece of an open stroke within the grace; later ones do not', async () => {
+  // A piece after release, before the microphone has closed, and the last piece after it closed but within the grace.
   const log = { composed: [] as unknown[], released: [] as number[] };
-  const r = rig({ media: penMedia(40, log) });
+  const waits = controlledWaits();
+  const g = gatedMedia(log);
+  const r = rig({ media: g.media, sleep: waits.sleep });
   r.session.arm();
   r.session.start();
   r.session.stroke(7, { id: 1, points: [[100, 100], [300, 120]], done: false });
   r.session.stop();
-  r.session.stroke(7, { id: 1, points: [[400, 300]], done: false }); // after release, before stopMic resolves
-  await wait(50); // stopMic is done: the stroke is still open, so the snapshot waits for its last piece
+  r.session.stroke(7, { id: 1, points: [[400, 300]], done: false }); // after release, before the microphone has closed
+  g.closeMic();
+  await waits.drain();
+  assert.equal(waits.waiting, 1, 'the microphone is closed and the stroke is still open: the snapshot waits for its last piece');
+  assert.equal(log.composed.length, 0);
   r.session.stroke(7, { id: 1, points: [[500, 500]], done: true });
-  await wait(100);
+  await waits.tick();
   assert.deepEqual(log.composed[0], [[[100, 100], [300, 120], [400, 300], [500, 500]]]);
 
-  // an open stroke whose last piece never comes is cut after the grace, and a piece after that is dropped
-  const log2 = { composed: [] as unknown[], released: [] as number[] };
-  const q = rig({ media: penMedia(0, log2) });
-  q.session.arm();
-  q.session.start();
-  q.session.stroke(7, { id: 1, points: [[100, 100], [400, 400]], done: false });
-  q.session.stop();
-  await wait(300);
-  q.session.stroke(7, { id: 1, points: [[900, 900]], done: true });
-  assert.deepEqual(log2.composed[0], [[[100, 100], [400, 400]]]);
+  // The grace is fifteen steps of ten milliseconds, 150 in all (a number that is changed on purpose, here too): a last piece in the last step still counts, one after it is dropped.
+  assert.equal(STROKE_TAIL_MS, 150);
+  assert.equal(STROKE_TAIL_STEP_MS, 10);
+  const steps = 15;
+  for (const [lateBy, counted] of [[steps - 1, true], [steps, false]] as const) {
+    const log2 = { composed: [] as unknown[], released: [] as number[] };
+    const w = controlledWaits();
+    const m = gatedMedia(log2);
+    const q = rig({ media: m.media, sleep: w.sleep });
+    q.session.arm();
+    q.session.start();
+    q.session.stroke(7, { id: 1, points: [[100, 100], [400, 400]], done: false });
+    q.session.stop();
+    m.closeMic();
+    await w.drain();
+    for (let i = 0; i < lateBy; i++) {
+      assert.equal(log2.composed.length, 0, `still waiting after ${i} steps`);
+      await w.tick();
+    }
+    if (counted) {
+      q.session.stroke(7, { id: 1, points: [[900, 900]], done: true }); // the last piece, in the last step
+      await w.tick();
+      assert.deepEqual(log2.composed[0], [[[100, 100], [400, 400], [900, 900]]], 'a last piece within the grace counts');
+    } else {
+      assert.deepEqual(log2.composed[0], [[[100, 100], [400, 400]]], 'the stroke is cut when the grace has run out');
+      q.session.stroke(7, { id: 1, points: [[900, 900]], done: true });
+      await w.drain();
+      assert.equal(log2.composed.length, 1, 'and a piece after that is dropped');
+      assert.equal(w.asked, 150, 'the grace is 150 ms of waiting, in all');
+    }
+  }
 });
 
 test('the full-resolution frame is released when the question ends, however it ends', async () => {
