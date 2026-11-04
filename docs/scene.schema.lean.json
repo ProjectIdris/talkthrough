@@ -996,6 +996,7 @@
             "glass",
             "glow",
             "paper",
+            "tissue",
             null
           ]
         },
@@ -1108,6 +1109,7 @@
             "glass",
             "glow",
             "paper",
+            "tissue",
             null
           ]
         },
@@ -1224,6 +1226,7 @@
             "glass",
             "glow",
             "paper",
+            "tissue",
             null
           ]
         },
@@ -1258,6 +1261,119 @@
         "color",
         "material",
         "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "addBlob": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "blob"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "sizes": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "soft": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "pts",
+        "sizes",
+        "soft",
+        "color",
+        "material",
         "opacity",
         "at"
       ],
@@ -1303,6 +1419,18 @@
             "null"
           ]
         },
+        "swell": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
         "color": {
           "type": [
             "string",
@@ -1318,6 +1446,7 @@
             "glass",
             "glow",
             "paper",
+            "tissue",
             null
           ]
         },
@@ -1348,6 +1477,7 @@
         "pts",
         "radius",
         "flat",
+        "swell",
         "color",
         "material",
         "draw",
@@ -2602,6 +2732,9 @@
         },
         {
           "$ref": "#/$defs/addLathe"
+        },
+        {
+          "$ref": "#/$defs/addBlob"
         },
         {
           "$ref": "#/$defs/addTube"
