@@ -15,7 +15,7 @@ export type OrderScore = {
   early: number;
   /** References to an object the answer never makes and the scene did not already hold. */
   missing: number;
-  /** References to an object the answer made in time but of the wrong kind: a parent that is not a group, a 3D target that is a mark. */
+  /** References to an object the answer made in time but of the wrong kind: a parent that is a mark, pin or text, a 3D target that is a mark. */
   wrong: number;
   /** The share of references in order and of the right kind: 1 when every one is (or there are none). */
   score: number;
@@ -35,7 +35,7 @@ function variantOf(raw: object): Variant | undefined {
 }
 
 /** The id an action makes, and the ids it refers to, by what the spec says each field is. */
-type Read = { makes?: string; kind?: ObjectKind; refs: Array<{ id: string; needs: 'group' | 'object3d' | 'any' }>; op: string };
+type Read = { makes?: string; kind?: ObjectKind; refs: Array<{ id: string; needs: 'holder' | 'object3d' | 'any' }>; op: string };
 
 function readAction(raw: unknown): Read | undefined {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined;
@@ -47,7 +47,7 @@ function readAction(raw: unknown): Read | undefined {
     const v = own(raw, name);
     if (typeof v !== 'string') continue;
     if (field.k === 'newId') out.makes = v;
-    else if (field.k === 'parent') out.refs.push({ id: v, needs: 'group' });
+    else if (field.k === 'parent') out.refs.push({ id: v, needs: 'holder' });
     else if (field.k === 'ref') out.refs.push({ id: v, needs: field.of === 'object3d' ? 'object3d' : 'any' });
     else if (field.k === 'target' && !(RESERVED_IDS as readonly string[]).includes(v)) out.refs.push({ id: v, needs: 'any' });
   }
@@ -81,7 +81,7 @@ export function orderScore(steps: readonly Raw[], known: Iterable<string> = []):
       };
       if (made.has(ref)) {
         const kind = made.get(ref);
-        const fits = kind === undefined || needs === 'any' || (needs === 'group' ? kind === 'group' : kind !== 'mark' && kind !== 'pin');
+        const fits = kind === undefined || needs === 'any' || (needs === 'holder' ? kind !== 'mark' && kind !== 'pin' && kind !== 'text' : kind !== 'mark' && kind !== 'pin');
         if (!fits) {
           result.wrong++;
           note();

@@ -88,7 +88,7 @@ Marks take `id`, `color` (cards, images and pins may leave it out: the look choo
 | `text` | `text` `height` `pos`? `color` | text in the 3D scene, always facing the camera |
 | `group` | `pos`? `rot`? | an empty node |
 
-All take `parent`? (the id of a group to attach to; groups nest up to 6 deep) and `at`?. `pos` defaults to `[0,0,0]`, `rot` to `[0,0,0]`, `opacity` to 1. A child moves, turns and scales with its parent. To make something grow from its base, put it in a group at the base, offset the child by half its height, and scale the group (see `bar-chart.json`). Arrays are capped at 64 copies each and 400 in a scene.
+All take `parent`? (the id of a group, or of a part or shape, to attach to; they nest up to 6 deep, and a mark, a pin or a text cannot be a parent) and `at`?. `pos` defaults to `[0,0,0]`, `rot` to `[0,0,0]`, `opacity` to 1. A child moves, turns and scales with its parent. To make something grow from its base, put it in a group at the base, offset the child by half its height, and scale the group (see `bar-chart.json`). Arrays are capped at 64 copies each and 400 in a scene.
 
 ### Changing objects
 

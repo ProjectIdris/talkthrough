@@ -304,3 +304,19 @@ test('the cue follows a question: listening while held, thinking from release un
   hud.stopWorking(); // end of turn
   assert.equal(hud.view(0).status, 'idle');
 });
+
+test('a part can carry other parts: the child follows its parent when the parent is moved', () => {
+  const at = (px: number) => {
+    const f = settled(
+      { op: 'add', shape: 'box', id: 'plug', pos: [px, 0, 0], size: [2, 2, 2] },
+      { op: 'add', shape: 'cylinder', id: 'pin', parent: 'plug', pos: [0, 2, 0], size: [1, 1, 1] },
+    );
+    const scene = new PanelScene();
+    scene.sync(f, 1);
+    const child = scene.nodeOf(keyOf(f, 'pin')) as Object3D;
+    assert.equal(child.parent, scene.nodeOf(keyOf(f, 'plug')), 'a box holds a child like a group does');
+    return child.getWorldPosition(new Vector3()).toArray();
+  };
+  assert.deepEqual(at(0), [0, 2, 0]);
+  assert.deepEqual(at(3), [3, 2, 0]);
+});

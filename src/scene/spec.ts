@@ -79,7 +79,7 @@ const DUR: Field = { k: 'num', min: 0, max: 30, opt: true, doc: 'seconds the cha
 const COLOR: Field = { k: 'color' };
 const COLOR_OPT: Field = { k: 'color', opt: true };
 const OPACITY: Field = { k: 'num', min: 0, max: 1, opt: true };
-const PARENT: Field = { k: 'parent', opt: true, doc: 'id of a group to attach to' };
+const PARENT: Field = { k: 'parent', opt: true, doc: 'id of a group, or of a part or shape, to attach to (it carries this along)' };
 const POS: Field = { k: 'vec3', ...WORLD, opt: true, doc: '[x,y,z], default [0,0,0]' };
 const ROT: Field = { k: 'vec3', min: -3600, max: 3600, opt: true, doc: 'degrees [x,y,z]' };
 

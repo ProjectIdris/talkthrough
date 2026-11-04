@@ -37,13 +37,13 @@ test('a reference to something the answer never makes counts as missing, unless 
   assert.deepEqual([withHistory.refs, withHistory.early, withHistory.missing], [1, 0, 1], 'an object from an earlier turn is not part of this answer\'s order');
 });
 
-test('a parent that is not a group, or a pin target that is a mark, is the wrong kind even when it came first', () => {
+test('a part is a fine parent; a mark as a parent, or a pin target that is a mark, is the wrong kind even when it came first', () => {
   const r = orderScore(steps(
-    [part('plug'), part('pin1', 'plug'), { op: 'box', id: 'm', x: 1, y: 1, w: 5, h: 5, color: 'red' }, { op: 'pin', id: 't', on: 'm', text: 'Mark' }, group('g'), part('ok', 'g')],
+    [part('plug'), part('pin1', 'plug'), { op: 'box', id: 'm', x: 1, y: 1, w: 5, h: 5, color: 'red' }, part('x', 'm'), { op: 'pin', id: 't', on: 'm', text: 'Mark' }, group('g'), part('ok', 'g')],
   ));
-  assert.deepEqual([r.refs, r.early, r.missing, r.wrong], [3, 0, 0, 2]);
-  assert.ok(Math.abs(r.score - 1 / 3) < 1e-9);
-  assert.deepEqual(r.examples, ['add pin1 -> plug', 'pin t -> m']);
+  assert.deepEqual([r.refs, r.early, r.missing, r.wrong], [4, 0, 0, 2]);
+  assert.ok(Math.abs(r.score - 1 / 2) < 1e-9);
+  assert.deepEqual(r.examples, ['add x -> m', 'pin t -> m']);
 });
 
 test('reserved clear targets and screen marks are not references; odd input does not throw', () => {

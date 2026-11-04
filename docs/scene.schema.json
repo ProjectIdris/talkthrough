@@ -534,7 +534,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group to attach to"
+          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
         },
         "pos": {
           "type": [
@@ -651,7 +651,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group to attach to"
+          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
         },
         "pos": {
           "type": [
@@ -776,7 +776,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group to attach to"
+          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
         },
         "pos": {
           "type": [
@@ -896,7 +896,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group to attach to"
+          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
         },
         "pts": {
           "type": "array",
@@ -1000,7 +1000,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group to attach to"
+          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
         },
         "pts": {
           "type": "array",
@@ -1076,7 +1076,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group to attach to"
+          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
         },
         "pos": {
           "type": [
@@ -1262,7 +1262,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group to attach to"
+          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
         },
         "pos": {
           "type": [
@@ -1329,7 +1329,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group to attach to"
+          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
         },
         "pos": {
           "type": [
