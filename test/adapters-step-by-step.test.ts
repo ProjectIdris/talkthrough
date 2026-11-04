@@ -4,9 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { createClaudeModel } from '../src/adapters/claude-model.ts';
 import { ModelError } from '../src/adapters/model.ts';
 import type { Model, ModelOutput, ModelRequest } from '../src/adapters/model.ts';
-import { questionText } from '../src/adapters/subscription-shared.ts';
+import { questionText, SHORT_OPENER } from '../src/adapters/subscription-shared.ts';
 import { createStepByStepModel } from '../src/adapters/step-by-step.ts';
-import { sceneSchemaChain, sceneSchemaLean } from '../src/scene/index.ts';
+import { sceneGuide, sceneSchemaChain, sceneSchemaLean } from '../src/scene/index.ts';
 
 const fakeClaude = fileURLToPath(new URL('./support/fake-claude.mjs', import.meta.url));
 const request: ModelRequest = {
@@ -350,6 +350,7 @@ test('the extra call is told what it is for: whole answer = no step and done, ot
   assert.ok(!/The plan for the rest/.test(t));
 });
 
+
 /** A model that writes the next of a few scripted raw answers on each call and keeps the requests it was given. */
 function scripted(raws: string[]): { inner: Model; asked: ModelRequest[] } {
   const asked: ModelRequest[] = [];
@@ -419,4 +420,28 @@ test('with the card where the enlargement is drawn, points are told to go on the
   assert.match(text, /fills the card from x 500 to 900 and from y 108 to 508/);
   assert.ok(text.includes('x = 500 + u * 400, y = 108 + v * 400'), text);
   assert.match(text, /never beside it or on the sea/);
+});
+
+test('every spoken sentence is told to open short, in the guide (the one-call answer) and in each step prompt, and the 30-word cap stays', () => {
+  const rule = sceneGuide.split('\n').find((l) => l.startsWith('- The say of every explanation step opens with a short first sentence'));
+  assert.ok(rule, 'a rule of its own in the guide');
+  assert.match(rule, /about 8 words or 50 characters at most/);
+  assert.match(rule, /The cap on the whole say stays/);
+  const opener = /short first sentence, about 8 words or 50 characters at most, and then the rest/;
+  const steps = [
+    { part: 'first', plan: true } as const,
+    { part: 'first' } as const,
+    { part: 'next', n: 2, shown: [{ say: 'One.', actions: [] }], plan: ['Two'] } as const,
+    { part: 'rest' } as const,
+  ];
+  for (const stage of steps) {
+    const text = questionText({ ...request, stage });
+    assert.match(text, opener, `stage ${JSON.stringify(stage)}`);
+    assert.match(text, /about 30 words/, 'the cap is still there');
+  }
+  assert.equal(SHORT_OPENER.length < 200 && opener.test(SHORT_OPENER), true);
+  // said once in a call's own text, and the first-step sentence stays whole: the opener comes after it
+  for (const stage of steps) assert.equal(questionText({ ...request, stage }).split(SHORT_OPENER).length - 1, 1, `once in ${JSON.stringify(stage)}`);
+  assert.match(questionText({ ...request, stage: { part: 'first', plan: true } }), /: what the page is and what the question is about, not a label. Open the sentence with a short first sentence/);
+
 });
