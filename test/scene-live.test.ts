@@ -86,7 +86,7 @@ test('a held action is given up after a few more actions, not kept for the whole
   assert.ok(done.issues.some((i) => i.message.includes('unknown id "late"')));
 });
 
-test('actions that arrive before the words wait for them; a step with no words opens empty at the end', () => {
+test('actions that arrive before the words wait for them; a step that never gets its words is dropped, as a whole one is', () => {
   const a = rig();
   a.live.action(box('a'));
   assert.deepEqual(a.events, []);
@@ -96,8 +96,10 @@ test('actions that arrive before the words wait for them; a step with no words o
   const b = rig();
   b.live.action(box('x'));
   const done = b.live.finish();
-  assert.deepEqual(b.events, ['open:', 'box:x']);
-  assert.equal(done.step?.say, '');
+  assert.deepEqual(b.events, [], 'nothing was drawn');
+  assert.equal(done.step, null);
+  assert.ok(done.issues.some((i) => i.message === 'say must be text'));
+  assert.equal(validateStep({ actions: [box('x')] }, createSceneState()).step, null, 'the same as the whole step');
 });
 
 test('the per-step cap holds as actions arrive, and a repeated id is a collision as at the step boundary', () => {

@@ -451,7 +451,11 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
     },
     finish() {
       if (refused) return { step: null, issues: notes };
-      if (!said) open('');
+      if (!said) {
+        // A step that never got its words is dropped, as a whole step without them is; early actions are never drawn.
+        note(notes, 'dropped', path, 'say must be text');
+        return { step: null, issues: notes };
+      }
       retryHeld(true);
       if (spoken === '' && kept.length === 0) {
         note(notes, 'dropped', path, 'step has nothing to say or show');

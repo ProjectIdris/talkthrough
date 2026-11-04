@@ -69,6 +69,8 @@ export function createStepStream(options: StepStreamOptions = {}): StepStream {
   let sayRaw = '';
   let inAct = false;
   let act = '';
+  let sawSay = false; // a step repeating its say or actions key: the first one is the one streamed
+  let sawActions = false;
 
   function push(chunk: string): unknown[] {
     const out: unknown[] = [];
@@ -90,7 +92,10 @@ export function createStepStream(options: StepStreamOptions = {}): StepStream {
             capture = false;
             expectValue = false;
           } else if (inElem && stack.length === stepsDepth + 1) {
-            if (saying) onPiece?.({ type: 'say', say: unquote(sayRaw) });
+            if (saying) {
+              onPiece?.({ type: 'say', say: unquote(sayRaw) });
+              sawSay = true;
+            }
             if (!stepExpectValue) stepKey = stepKeyBuf;
             saying = false;
             stepExpectValue = false;
@@ -105,7 +110,7 @@ export function createStepStream(options: StepStreamOptions = {}): StepStream {
         capture = stack.length === 1 && expectValue && rootKey === 'escalate';
         valRaw = '';
         stepKeyBuf = '';
-        saying = onPiece !== undefined && inElem && stack.length === stepsDepth + 1 && stepExpectValue && stepKey === 'say';
+        saying = onPiece !== undefined && !sawSay && inElem && stack.length === stepsDepth + 1 && stepExpectValue && stepKey === 'say';
         sayRaw = '';
       } else if (c === '{' || c === '[') {
         if (stack.length === 0) {
@@ -119,8 +124,10 @@ export function createStepStream(options: StepStreamOptions = {}): StepStream {
           from = i;
           stepKey = '';
           stepExpectValue = false;
+          sawSay = false;
+          sawActions = false;
         }
-        if (onPiece && c === '{' && inElem && stack.length === stepsDepth + 2 && stepKey === 'actions') {
+        if (onPiece && c === '{' && inElem && stack.length === stepsDepth + 2 && stepKey === 'actions' && !sawActions) {
           inAct = true;
           act = '';
           actFrom = i;
@@ -151,6 +158,7 @@ export function createStepStream(options: StepStreamOptions = {}): StepStream {
           }
           onPiece?.({ type: 'action', action: parsed });
         }
+        if (inElem && stack.length === stepsDepth + 1 && c === ']' && stepKey === 'actions') sawActions = true;
         if (inElem && stack.length === stepsDepth) {
           const text = elem + chunk.slice(from, i + 1);
           inElem = false;
