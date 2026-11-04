@@ -4,9 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { createClaudeModel } from '../src/adapters/claude-model.ts';
 import { ModelError } from '../src/adapters/model.ts';
 import type { Model, ModelOutput, ModelRequest } from '../src/adapters/model.ts';
-import { questionText } from '../src/adapters/subscription-shared.ts';
+import { questionText, SHORT_OPENER } from '../src/adapters/subscription-shared.ts';
 import { createStepByStepModel } from '../src/adapters/step-by-step.ts';
-import { sceneSchemaChain, sceneSchemaLean } from '../src/scene/index.ts';
+import { sceneGuide, sceneSchemaChain, sceneSchemaLean } from '../src/scene/index.ts';
 
 const fakeClaude = fileURLToPath(new URL('./support/fake-claude.mjs', import.meta.url));
 const request: ModelRequest = {
@@ -348,4 +348,24 @@ test('the extra call is told what it is for: whole answer = no step and done, ot
   assert.match(t, /The first call gave no plan\. If the answer is already whole, write no step/);
   assert.match(t, /Set "plan" to the titles/);
   assert.ok(!/The plan for the rest/.test(t));
+});
+
+test('every spoken sentence is told to open short, in the guide (the one-call answer) and in each step prompt, and the 30-word cap stays', () => {
+  const rule = sceneGuide.split('\n').find((l) => l.startsWith('- The say of every step opens with a short first sentence'));
+  assert.ok(rule, 'a rule of its own in the guide');
+  assert.match(rule, /about 8 words or 50 characters at most/);
+  assert.match(rule, /The cap on the whole say stays/);
+  const opener = /short first sentence, about 8 words or 50 characters at most, and then the rest/;
+  const steps = [
+    { part: 'first', plan: true } as const,
+    { part: 'first' } as const,
+    { part: 'next', n: 2, shown: [{ say: 'One.', actions: [] }], plan: ['Two'] } as const,
+    { part: 'rest' } as const,
+  ];
+  for (const stage of steps) {
+    const text = questionText({ ...request, stage });
+    assert.match(text, opener, `stage ${JSON.stringify(stage)}`);
+    assert.match(text, /about 30 words/, 'the cap is still there');
+  }
+  assert.equal(SHORT_OPENER.length < 200 && opener.test(SHORT_OPENER), true);
 });

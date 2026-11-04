@@ -158,6 +158,9 @@ export function systemPrompt(): string {
   ].join('\n\n');
 }
 
+/** Every spoken sentence opens short: a voice that speaks sentence by sentence starts as soon as the first one is made. */
+export const SHORT_OPENER = 'Open the sentence with a short first sentence, about 8 words or 50 characters at most, and then the rest (the voice starts on the first sentence as soon as it is made).';
+
 /** The text that goes with the screenshot: the question, and the earlier turns if this is a follow-up. */
 export function questionText(request: ModelRequest): string {
   const parts: string[] = [];
@@ -194,7 +197,7 @@ export function stageText(stage: NonNullable<ModelRequest['stage']>): string {
     const walk = stage.shown.some(endsOnClick);
     const length = walk
       ? `This is a how-do-I walk: one move a step, each in one short sentence and with its own mark and wait. ${stage.n === 2 ? 'Step 2 draws the checklist (a steps diagram, as the walk rule describes) and then the second move with its mark and wait;' : 'The checklist is already drawn: write the next move with its mark and wait;'} the last step has no mark or wait and says they are done.`
-      : 'Its sentence is about 30 words at most, because it is spoken while the next step is written.';
+      : `Its sentence is about 30 words at most, because it is spoken while the next step is written. ${SHORT_OPENER}`;
     if (stage.unplanned) {
       return [
         `${stage.n === 2 ? 'Step 1 of this answer is' : `Steps 1 to ${stage.n - 1} of this answer are`} already drawn and spoken: ${JSON.stringify(stage.shown)}`,
@@ -209,14 +212,14 @@ export function stageText(stage: NonNullable<ModelRequest['stage']>): string {
     ].join('\n\n');
   }
   if (stage.part === 'first' && stage.plan) {
-    return `Write only step 1 now, as the rules describe it, and nothing after it: the later steps are written separately, one to a call. Its sentence is about 30 words long (it is spoken while the next step is written): what the page is and what the question is about, not a label. In a how-do-I walk, step 1 is the first move (its mark and wait) and nothing else, with a short sentence: the checklist is drawn in step 2. Also set "plan" to the titles, in a few words each, of the steps that follow it (at most 4; in a how-do-I walk one title for each move still to do, up to 5; null or empty when step 1 is the whole answer); for a question that asks to explain, one of the planned steps is the flat diagram or the 3D model the rules call for, as the rules say an explain question is answered; when the parts of a small picture are the point (a fifth of the screen width or less), the first planned step is its enlargement (an image card, as the rule on naming says) and the steps after it name its parts on that card; and "done" to false (true when step 1 is the whole answer).`;
+    return `Write only step 1 now, as the rules describe it, and nothing after it: the later steps are written separately, one to a call. Its sentence is about 30 words long (it is spoken while the next step is written); ${SHORT_OPENER} what the page is and what the question is about, not a label. In a how-do-I walk, step 1 is the first move (its mark and wait) and nothing else, with a short sentence: the checklist is drawn in step 2. Also set "plan" to the titles, in a few words each, of the steps that follow it (at most 4; in a how-do-I walk one title for each move still to do, up to 5; null or empty when step 1 is the whole answer); for a question that asks to explain, one of the planned steps is the flat diagram or the 3D model the rules call for, as the rules say an explain question is answered; when the parts of a small picture are the point (a fifth of the screen width or less), the first planned step is its enlargement (an image card, as the rule on naming says) and the steps after it name its parts on that card; and "done" to false (true when step 1 is the whole answer).`;
   }
   if (stage.part === 'first') {
-    return 'Write only step 1 now, as the rules describe it, and nothing after it: the later steps are written separately. Its sentence is about 30 words long (it is spoken while the rest is written): what the page is and what the question is about, not a label. In a how-do-I walk, step 1 is the first move (its mark and wait) and nothing else, with a short sentence: the checklist is drawn in step 2.';
+    return 'Write only step 1 now, as the rules describe it, and nothing after it: the later steps are written separately. Its sentence is about 30 words long (it is spoken while the rest is written); ' + SHORT_OPENER + ' what the page is and what the question is about, not a label. In a how-do-I walk, step 1 is the first move (its mark and wait) and nothing else, with a short sentence: the checklist is drawn in step 2.';
   }
   if (stage.first === undefined) {
     return [
-      'Step 1 of this answer is being written separately, at the same time as you write: a sentence of about 30 words on what the page is and what the question is about, and one or two marks on the part of the screen the question is about. Do not write it, do not repeat what it says, and do not mark that part again.',
+      'Step 1 of this answer is being written separately, at the same time as you write: a sentence of about 30 words (' + SHORT_OPENER + ') on what the page is and what the question is about, and one or two marks on the part of the screen the question is about. Do not write it, do not repeat what it says, and do not mark that part again.',
       REST_RULES,
     ].join('\n\n');
   }
@@ -235,7 +238,7 @@ const REST_MARKS =
 const REST_GROUNDING = 'A figure adds what the page lacks and follows what the page shows: never draw again what the page already has, take the content from the page (the proof its own figure shows, the steps it lists), and where the page has none say that it is general knowledge. What the page only says in words (a rearrangement, a process) a step draws and does not only speak.';
 
 const REST_RULES =
-  'Write the rest of the answer, from step 2 onward, in the same JSON. If step 1 asks for a click, this is a how-do-I walk: your first step draws the checklist (a steps diagram, as the walk rule describes) and then the second move with its mark and wait; later steps are one move each, in one short sentence with its own mark and wait, as many as the task needs (up to five more steps, six in all), ending with a step that says they are done. Otherwise write at most three more steps, each about 30 words, and keep the plan short. Do not write step 1 again (its ids stay valid and can be used again) and do not say again what it said: carry on from it. The rule that step 1 is short is for step 1 only, so the steps you write may build the model or diagram the rules describe. ' + REST_MARKS + ' ' + REST_GROUNDING + ' Set "escalate" to null.';
+  'Write the rest of the answer, from step 2 onward, in the same JSON. If step 1 asks for a click, this is a how-do-I walk: your first step draws the checklist (a steps diagram, as the walk rule describes) and then the second move with its mark and wait; later steps are one move each, in one short sentence with its own mark and wait, as many as the task needs (up to five more steps, six in all), ending with a step that says they are done. Otherwise write at most three more steps, each about 30 words, and keep the plan short. Do not write step 1 again (its ids stay valid and can be used again) and do not say again what it said: carry on from it. The rule that step 1 is short is for step 1 only, so the steps you write may build the model or diagram the rules describe. ' + REST_MARKS + ' ' + REST_GROUNDING + ' ' + SHORT_OPENER + ' Set "escalate" to null.';
 
 /** The most of the scene on screen a detail pass is shown; a longer one is cut at a step, with a note. */
 const DETAIL_SCENE_CHARS = 24000;
