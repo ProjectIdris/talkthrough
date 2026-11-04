@@ -3,6 +3,10 @@
 // so each should answer well inside the speech of the step before it. Wraps any model whose answers carry `plan` and `done` (the
 // scene schema for it is sceneSchemaChain); it makes one call per step, so it is a setting, and off unless the person turns it on.
 //
+// A step that ends on a wait for the person's click (a how-do-I walk) holds the chain: the next call is made only after the click, from the
+// screen as it is then (the request's `afterStep` answers with it), so a step is never positioned on a screen the model has not seen. A step
+// that does not wait is followed at once by the next call, as in an explanation. Without `afterStep` the chain never holds.
+//
 // A call after the first that fails ends the answer there (what was shown stays) with one line in the log; a failure of the first call
 // fails the question. Whatever a call writes after its one step is dropped. Ending the question aborts the call in progress.
 
@@ -14,6 +18,12 @@ export type StepByStepOptions = {
   /** The most steps an answer may have (the plan is cut to fit). */
   maxSteps?: number;
 };
+
+/** A step that ends on a wait for the person's click. */
+function endsOnWait(step: unknown): boolean {
+  const actions = (step as { actions?: unknown }).actions;
+  return Array.isArray(actions) && actions.some((a) => typeof a === 'object' && a !== null && (a as { op?: unknown }).op === 'wait');
+}
 
 /** `plan` and `done` from a call's raw text, when it is a scene that has them. */
 function planAndDone(raw: string): { plan: string[]; done: boolean } {
@@ -46,6 +56,10 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
       const usages: Usage[] = [];
       const shown: unknown[] = [];
       let plan: string[] = [];
+      let screenshot = req.screenshot;
+      let fresh = false;
+      let waits = 0;
+      const { focus, ...plain } = req;
       try {
         for (let n = 1; n <= maxSteps; n++) {
           const began = Date.now();
@@ -53,9 +67,10 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
           let firstAt = 0;
           let sawStep = false;
           let escalated = false;
-          const stage: NonNullable<ModelRequest['stage']> = n === 1 ? { part: 'first', plan: true } : { part: 'next', n, shown: [...shown], plan };
+          let waited = false;
+          const stage: NonNullable<ModelRequest['stage']> = n === 1 ? { part: 'first', plan: true } : { part: 'next', n, shown: [...shown], plan, ...(fresh ? { fresh: true as const } : {}) };
           try {
-            for await (const out of inner.ask({ ...req, stage, signal: link.signal, onRaw: (text: string) => void (raw = text) })) {
+            for await (const out of inner.ask({ ...(fresh ? plain : req), screenshot, stage, signal: link.signal, onRaw: (text: string) => void (raw = text) })) {
               if (out.type === 'usage') {
                 usages.push(out.usage);
                 continue;
@@ -65,6 +80,8 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
               if (out.type === 'step') {
                 sawStep = true;
                 shown.push(out.step);
+                waited = endsOnWait(out.step);
+                if (waited) waits++;
               }
               if (out.type === 'escalate') escalated = true;
               yield out;
@@ -82,6 +99,20 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
           if (n === 1) plan = got.plan.slice(0, maxSteps - 1);
           else plan = plan.slice(1);
           if (got.done || plan.length === 0) break;
+          if (waited && req.afterStep) {
+            const held = Date.now();
+            const gone = new Promise<'stop'>((resolve) => link.signal.addEventListener('abort', () => resolve('stop'), { once: true }));
+            const after = await Promise.race([req.afterStep({ waits, signal: link.signal }), gone]);
+            if (after === 'stop' || link.signal.aborted) {
+              log(`step ${n} waited for the click, then the walk was over or replaced: no more calls`);
+              break;
+            }
+            if (after !== 'go') {
+              screenshot = after.screenshot;
+              fresh = true;
+              log(`step ${n + 1}: held ${Date.now() - held} ms for the click, then asked from the screen as it is now`);
+            }
+          }
         }
         if (usages.length > 0) {
           if (usages.length > 1) log(`${usages.length} calls, tokens (input/cached/output): ${usages.map((u) => `${u.input}/${u.cached}/${u.output}`).join(' then ')}`);

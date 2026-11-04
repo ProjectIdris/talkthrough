@@ -187,6 +187,7 @@ export function stageText(stage: NonNullable<ModelRequest['stage']>): string {
   if (stage.part === 'next') {
     return [
       `${stage.n === 2 ? 'Step 1 of this answer is' : `Steps 1 to ${stage.n - 1} of this answer are`} already drawn and spoken: ${JSON.stringify(stage.shown)}`,
+      ...(stage.fresh ? ['The picture is the screen as it is now, after the person followed the last step: take every position from it, not from where the earlier steps pointed.'] : []),
       `The plan for the rest, one title a step: ${JSON.stringify(stage.plan)}.`,
       `Write step ${stage.n} only (${JSON.stringify(stage.plan[0] ?? '')}), and nothing after it: the later steps are written separately. Carry on from what was said and drawn: do not say it again and do not repeat its marks (its ids stay valid). The rule that step 1 is short is for step 1 only. ${REST_MARKS} If the steps so far end with a wait for a click this is a how-do-I walk: step 2 draws the checklist (a steps diagram, as the walk rule describes) and then the second move with its mark and wait, later steps are one move each with their mark and wait, and the last has none and says they are done. Set "plan" to null, set "done" to true when the plan has no step after this one and to false when it has, and set "escalate" to null.`,
     ].join('\n\n');

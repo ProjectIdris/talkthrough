@@ -1,7 +1,7 @@
 import type { Backend } from '../adapters/backend.ts';
 import { ModelError } from '../adapters/model.ts';
 import { NO_KEY_MESSAGE } from '../adapters/openai-model.ts';
-import type { Model, ModelOutput, ThreadTurn, Usage } from '../adapters/model.ts';
+import type { Model, ModelOutput, ModelRequest, ThreadTurn, Usage } from '../adapters/model.ts';
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
@@ -162,7 +162,15 @@ type Attempt = {
 /** Where an answer's steps come from: the model, or the backend. */
 type Guide = ReturnType<typeof createGuide>;
 
-type Source = { kind: 'model' | 'backend'; label: string; stream(): AsyncIterable<ModelOutput>; /** A line to show instead, when the source answered with text only. */ message?(): string | undefined };
+type Source = {
+  kind: 'model' | 'backend';
+  label: string;
+  stream(): AsyncIterable<ModelOutput>;
+  /** A line to show instead, when the source answered with text only. */
+  message?(): string | undefined;
+  /** True when the walk's plan was replaced while this source's answer was held for a click: it must not tell the guide that its steps are over. */
+  superseded?(): boolean;
+};
 
 export function createSession(deps: SessionDeps) {
   /** Checks only (logText): each answer's raw text goes in the log, so a garbled one can be read afterwards. Otherwise nothing is asked for. */
@@ -580,7 +588,9 @@ export function createSession(deps: SessionDeps) {
       r.error = `the ${source.kind} gave nothing to show`;
       return notice(displayId, detail ? "I couldn't add more detail this time." : "I couldn't work out an answer to that. Try asking another way?");
     }
-    if (walk) walk.streamEnded(); // the walk sends the end when its last step has been shown
+    if (walk) {
+      if (!source.superseded?.()) walk.streamEnded(); // the walk sends the end when its last step has been shown
+    }
     else {
       open();
       deps.send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) });
@@ -598,6 +608,40 @@ export function createSession(deps: SessionDeps) {
     if (lastAsk) lastAsk.reason = detail ? undefined : escalate;
   }
 
+  /** The page is given the screen as it is now, and its controls are read again (the screen changed under the person's click). */
+  function lookAgain(displayId: number, question: string, picture: Screenshot, signal: AbortSignal, why: string): void {
+    lastAsk = { question, screenshot: picture, clean: picture };
+    deps.send(displayId, { kind: 'screenshot', url: `data:${picture.mime};base64,${picture.base64}` });
+    if (deps.controls) {
+      // Late is fine, see begin.
+      void deps.controls.read(displayId, signal).then((read) => {
+        deps.log(`controls: ${read.boxes.length} read in ${read.ms} ms${read.why ? ` (${read.why})` : ''} (${why})`);
+        if (!signal.aborted && read.boxes.length > 0) deps.send(displayId, { kind: 'controls', boxes: read.boxes });
+      }, () => undefined);
+    }
+  }
+
+  /**
+   * For an answer written one step to a call: after a step that waits for the person's click, the next step is asked for only once they
+   * have followed it and the screen has changed, from the screen as it is then. `base` is how many waiting steps the walk had followed
+   * before this answer began (a new plan starts counting afresh). If the walk ends or its plan is replaced first, the answer stops.
+   */
+  function walkHold(displayId: number, question: string, base: () => number): { afterStep: NonNullable<ModelRequest['afterStep']>; superseded(): boolean } {
+    let replaced = false;
+    const afterStep: NonNullable<ModelRequest['afterStep']> = async ({ waits, signal }) => {
+      const g = walking?.guide;
+      if (!g || !deps.guide) return 'go';
+      const frame = await g.whenFollowed(base() + waits, signal);
+      if (!frame) {
+        if (g.active && !signal.aborted) replaced = true;
+        return 'stop';
+      }
+      lookAgain(displayId, question, frame.screenshot, signal, 'next step');
+      return { screenshot: frame.screenshot };
+    };
+    return { afterStep, superseded: () => replaced };
+  }
+
   /**
    * The person clicked away from where a guide step pointed and the screen changed: the plan was made for a screen that is
    * gone. The model is asked again from the screen as it is now, told what has happened so far; its steps go to the walk.
@@ -613,20 +657,15 @@ export function createSession(deps: SessionDeps) {
     const r: QuestionReport = { model: model.id, question: '', steps: 0 };
     const started = now();
     const picture = info.frame.screenshot;
-    lastAsk = { question, screenshot: picture, clean: picture };
-    deps.send(displayId, { kind: 'screenshot', url: `data:${picture.mime};base64,${picture.base64}` });
-    if (deps.controls) {
-      // The screen changed under the person's click: read the controls of what is there now (late is fine, see begin).
-      void deps.controls.read(displayId, controller.signal).then((read) => {
-        deps.log(`controls: ${read.boxes.length} read in ${read.ms} ms${read.why ? ` (${read.why})` : ''} (new plan)`);
-        if (!controller.signal.aborted && read.boxes.length > 0) deps.send(displayId, { kind: 'controls', boxes: read.boxes });
-      }, () => undefined);
-    }
+    lookAgain(displayId, question, picture, controller.signal, 'new plan');
     const before = thread.length;
+    const base = g.followed;
+    const hold = walkHold(displayId, question, () => base);
     const source: Source = {
       kind: 'model',
       label: model.id,
-      stream: () => model.ask({ question: guideQuestion(question, info), screenshot: picture, thread, schema: sceneSchemaLean, pieces: true, signal: controller.signal }),
+      stream: () => model.ask({ question: guideQuestion(question, info), screenshot: picture, thread, schema: sceneSchemaLean, pieces: true, afterStep: hold.afterStep, signal: controller.signal }),
+      superseded: hold.superseded,
     };
     await answer(displayId, controller, r, () => now() - started, question, source, true, false, g);
     deps.log(`guide: new plan ${JSON.stringify(deps.logText ? r : { ...r, question: '(not logged)' })}`);
@@ -800,12 +839,14 @@ export function createSession(deps: SessionDeps) {
         });
       }
 
+      const hold = walkHold(a.displayId, asking, () => 0);
       const source: Source = toBackend
         ? backendSource(a.displayId, 'spoken', asking, seen, undefined, controller.signal)
         : {
           kind: 'model',
           label: model.id,
-          stream: () => model.ask({ question, screenshot: seen, ...(focus ? { focus } : {}), thread, schema: sceneSchemaLean, pieces: true, ...rawLog(), signal: controller.signal }),
+          stream: () => model.ask({ question, screenshot: seen, ...(focus ? { focus } : {}), thread, schema: sceneSchemaLean, pieces: true, ...rawLog(), afterStep: hold.afterStep, signal: controller.signal }),
+          superseded: hold.superseded,
         };
       asked = !toBackend;
       await answer(a.displayId, controller, r, since, asking, source, false);

@@ -180,3 +180,85 @@ test('a call that says done ends the answer even when the plan still has titles 
   assert.deepEqual(says(await collect(createStepByStepModel(inner))), ['S1.', 'S2.']);
   assert.equal(calls, 2);
 });
+
+// A walk: steps that end on a wait for the person's click hold the chain until the click, and the next call is made from the screen as it is then.
+const waitStep = (say: string) => ({ say, actions: [{ op: 'wait', for: 'click' }] });
+const fresh = { mime: 'image/png' as const, base64: 'NEW', width: 4, height: 4 };
+
+function walkInner(log: string[], seen: Array<{ shot: string; stage: unknown }>, waiting: (n: number) => boolean): Model {
+  return {
+    id: 'stub',
+    async *ask(req) {
+      const n = req.stage?.part === 'next' ? req.stage.n : 1;
+      log.push(`start${n}`);
+      seen.push({ shot: req.screenshot.base64, stage: req.stage });
+      yield { type: 'step', step: waiting(n) ? waitStep(`S${n}.`) : { say: `S${n}.`, actions: [] } };
+      req.onRaw?.(JSON.stringify({ steps: [], plan: n === 1 ? ['b', 'c'] : null, done: n >= 3 }));
+    },
+  };
+}
+
+test('a step that ends on a wait holds the next call until the click, which is then asked from the screen as it is after it', async () => {
+  const log: string[] = [];
+  const seen: Array<{ shot: string; stage: unknown }> = [];
+  const asked: number[] = [];
+  const afterStep: ModelRequest['afterStep'] = async ({ waits }) => {
+    asked.push(waits);
+    log.push('hold');
+    await wait(60);
+    log.push('click');
+    return { screenshot: fresh };
+  };
+  const out = await collect(createStepByStepModel(walkInner(log, seen, (n) => n <= 2)), { afterStep });
+  assert.deepEqual(says(out), ['S1.', 'S2.', 'S3.']);
+  assert.deepEqual(log, ['start1', 'hold', 'click', 'start2', 'hold', 'click', 'start3'], 'each call after a waiting step starts only after the click');
+  assert.deepEqual(asked, [1, 2], 'the number of waiting steps so far');
+  assert.deepEqual(seen.map((s) => s.shot), ['AAAA', 'NEW', 'NEW']);
+  assert.equal((seen[1]!.stage as { fresh?: boolean }).fresh, true);
+  assert.equal((seen[0]!.stage as { fresh?: boolean }).fresh, undefined);
+  assert.match(questionText({ ...request, stage: seen[1]!.stage as NonNullable<ModelRequest['stage']> }), /the screen as it is now, after the person followed the last step/);
+});
+
+test('a step that does not wait is followed at once, even with a hold set up; "go" carries on with the picture it had', async () => {
+  const log: string[] = [];
+  const seen: Array<{ shot: string; stage: unknown }> = [];
+  let held = 0;
+  const afterStep: ModelRequest['afterStep'] = async () => {
+    held++;
+    return 'go';
+  };
+  const out = await collect(createStepByStepModel(walkInner(log, seen, (n) => n === 2)), { afterStep });
+  assert.deepEqual(says(out), ['S1.', 'S2.', 'S3.']);
+  assert.equal(held, 1, 'only the step that waits holds');
+  assert.deepEqual(seen.map((s) => s.shot), ['AAAA', 'AAAA', 'AAAA']);
+  assert.equal((seen[2]!.stage as { fresh?: boolean }).fresh, undefined);
+});
+
+test('the walk is over or replaced while the chain is held: no more calls, and no error', async () => {
+  const log: string[] = [];
+  const lines: string[] = [];
+  const out = await collect(createStepByStepModel(walkInner(log, [], () => true), { log: (m) => lines.push(m) }), { afterStep: async () => 'stop' });
+  assert.deepEqual(says(out), ['S1.']);
+  assert.deepEqual(log, ['start1']);
+  assert.ok(lines.some((l) => /then the walk was over or replaced/.test(l)));
+});
+
+test('aborting the question while the chain is held lets go of the hold, ends the stream and makes no further call', async () => {
+  const log: string[] = [];
+  let heldSignal: AbortSignal | undefined;
+  const controller = new AbortController();
+  const afterStep: ModelRequest['afterStep'] = ({ signal }) => {
+    heldSignal = signal;
+    return new Promise(() => undefined); // never answers
+  };
+  const iterator = createStepByStepModel(walkInner(log, [], () => true)).ask({ ...request, afterStep, signal: controller.signal })[Symbol.asyncIterator]();
+  assert.equal((await iterator.next()).done, false);
+  const pending = iterator.next(); // the chain is now held
+  await wait(30);
+  assert.ok(heldSignal && !heldSignal.aborted);
+  controller.abort();
+  assert.equal((await pending).done, true, 'the stream ends');
+  assert.ok(heldSignal.aborted);
+  await wait(30);
+  assert.deepEqual(log, ['start1'], 'no second call');
+});
