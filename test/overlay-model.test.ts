@@ -287,3 +287,16 @@ test('the thinking indicator, the offer and the notice come and go as they shoul
   hud.reset();
   assert.deepEqual(hud.view(0), { status: 'idle', offer: null, notice: null });
 });
+
+test('the cue follows a question: listening while held, thinking from release until the first step, then nothing', () => {
+  const hud = new HudState();
+  hud.setStatus('listening'); // chord held (a hush does not touch the cue)
+  hud.setStatus('working'); // released, the question is on its way
+  assert.equal(hud.view(0).status, 'working');
+  hud.newTurn(); // begin of the turn arrives
+  assert.equal(hud.view(0).status, 'working', 'still thinking until a step is on screen');
+  hud.stopWorking(); // first step
+  assert.equal(hud.view(0).status, 'idle');
+  hud.stopWorking(); // end of turn
+  assert.equal(hud.view(0).status, 'idle');
+});

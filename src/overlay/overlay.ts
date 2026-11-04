@@ -88,6 +88,8 @@ function chooseVoice(): Voice {
 }
 
 const hud = new HudState();
+/** The screenshot being explained, held in memory only: replaced by the next one, dropped on clear. */
+const shot = new Image();
 const fader = new AutoFade(FADE_AFTER_MS);
 const milestones = { mark: true, word: true };
 let pendingOffer: string | undefined;
@@ -184,9 +186,7 @@ function draw(frame: Frame): void {
     theme,
     view,
     project: (key, point) => panelScene.project(key, point, view.width, view.height),
-    ...(backdropEl.complete && backdropEl.naturalWidth > 0
-      ? { source: { image: backdropEl, width: backdropEl.naturalWidth, height: backdropEl.naturalHeight } }
-      : {}),
+    ...(cropSource() ? { source: cropSource()! } : {}),
   });
   if (!modelRect) setInteractive(hudHover);
 
@@ -194,6 +194,12 @@ function draw(frame: Frame): void {
     milestones.mark = true;
     milestone('first-mark');
   }
+}
+
+/** The image crops are taken from: the screenshot the model was given, else the development backdrop. */
+function cropSource(): { image: CanvasImageSource; width: number; height: number } | undefined {
+  for (const img of [shot, backdropEl]) if (img.complete && img.naturalWidth > 0) return { image: img, width: img.naturalWidth, height: img.naturalHeight };
+  return undefined;
 }
 
 function showHud(): void {
@@ -321,6 +327,10 @@ function handleScene(message: SceneMessage): void {
       milestones.word = true;
       player.play(message.scene);
       break;
+    case 'screenshot':
+      shot.onload = () => request();
+      shot.src = message.url;
+      break;
     case 'begin':
       beginTurn(message.turn);
       player.beginTurn();
@@ -344,6 +354,7 @@ function handleScene(message: SceneMessage): void {
       hud.showNotice(message.text, message.level, performance.now());
       break;
     case 'clear':
+      shot.removeAttribute('src');
       player.clear();
       fader.disarm();
       hud.reset();

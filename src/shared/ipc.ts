@@ -63,6 +63,12 @@ export type SceneMessage =
    * each `step` is one validated step to append (the first starts at once, the rest queue behind it), and
    * `end` says no more steps are coming; `escalate` (validated text) is offered once the last step is done.
    */
+  /**
+   * The image being explained (a data URL of the screenshot the model was given), sent just before a
+   * live turn's first step, for actions that crop a region of it. Held in memory by the page and replaced
+   * by the next one; never written anywhere.
+   */
+  | { kind: 'screenshot'; url: string }
   | { kind: 'begin'; turn: number }
   | { kind: 'step'; step: Step }
   | { kind: 'end'; escalate?: string }
