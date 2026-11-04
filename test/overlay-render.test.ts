@@ -5,10 +5,12 @@ import { Vector3 } from 'three';
 import type { Scene } from '../src/scene/index.ts';
 import { PanelScene, FOV_DEGREES, FRAMING_UNITS } from '../src/overlay/scene3d.ts';
 import { drawMarks, lineWidth, px, snap } from '../src/overlay/marks.ts';
-import { emptyFrame, frameAt, planStep, settle } from '../src/overlay/timeline.ts';
+import { emptyFrame, evaluate, frameAt, planStep, settle } from '../src/overlay/timeline.ts';
+import type { StepPlan } from '../src/overlay/timeline.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
 
 const sample = (name: string): Scene => JSON.parse(readFileSync(new URL(`../samples/scenes/${name}`, import.meta.url), 'utf8')) as Scene;
+const frameAtPlan = (plan: StepPlan, t: number) => evaluate(plan, t);
 const lastFrame = (s: Scene, base?: Frame) => frameAt(s.steps, s.steps.length - 1, 999, base);
 const keyOf = (f: Frame, id: string) => f.objects.find((o) => o.id === id)?.key ?? -1;
 const world = (p: PanelScene, f: Frame, id: string) => p.nodeOf(keyOf(f, id))?.getWorldPosition(new Vector3()) ?? new Vector3(NaN, NaN, NaN);
@@ -136,4 +138,21 @@ test('a box is drawn where the scene says, across the whole display', () => {
   // The rounded corner path starts at x + radius on the top edge: 1000 + 8, 250.
   assert.ok(calls.includes('moveTo(1008,250)'), calls.slice(0, 12).join(' '));
   assert.ok(calls.some((c) => c.startsWith('arcTo(1200,250,1200,750')), 'right edge is at 1200, bottom at 750');
+});
+
+test('a panel that is gone, or too faint to see, has no rectangle and so cannot take clicks', async () => {
+  const { panelRect, inRect } = await import('../src/overlay/layout.ts');
+  const view = { width: 1920, height: 1080, dpr: 1.25 };
+  const shown = frameAt([{ say: '', actions: [{ op: 'panel', x: 100, y: 200, w: 300, h: 400 }] }], 0, 5);
+  const rect = panelRect(shown.panel, view);
+  assert.ok(rect);
+  assert.deepEqual([rect.x, rect.y, rect.w, rect.h], [192, 216, 576, 432]);
+  assert.ok(inRect(rect, 200, 300) && !inRect(rect, 100, 300) && !inRect(rect, 200, 700));
+  assert.equal(panelRect(null, view), undefined);
+  // Just born: not yet visible. Fading out after a clear: visible, then gone.
+  const plan = planStep(emptyFrame(), { say: '', actions: [{ op: 'panel', x: 100, y: 200, w: 300, h: 400 }, { op: 'clear', target: 'panel', at: 1 }] });
+  assert.equal(panelRect(frameAtPlan(plan, 0).panel, view), undefined, 'appear is 0 at birth');
+  assert.ok(panelRect(frameAtPlan(plan, 0.9).panel, view));
+  assert.equal(panelRect(frameAtPlan(plan, 1.4).panel, view), undefined, 'gone once faded out');
+  assert.equal(inRect(undefined, 1, 1), false);
 });

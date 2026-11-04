@@ -6,7 +6,8 @@ import { SRGBColorSpace, WebGLRenderer } from 'three';
 import type { DisplayInfo, SceneMessage } from '../shared/ipc.ts';
 import type { Voice } from '../adapters/voice.ts';
 import { createSpeechSynthesisVoice } from '../adapters/speech-synthesis-voice.ts';
-import { drawMarks, snap } from './marks.ts';
+import { inRect, panelRect } from './layout.ts';
+import { drawMarks } from './marks.ts';
 import type { View } from './marks.ts';
 import { Player, createSilentVoice } from './player.ts';
 import { PanelScene } from './scene3d.ts';
@@ -35,23 +36,14 @@ const panelScene = new PanelScene({
   },
 });
 
-/** Speaks with the system voice when it has one, otherwise paces steps silently. */
+/**
+ * Speaks with the system voice, or paces steps silently where there is no speech synthesis at all.
+ * The voice list is empty when the page starts and fills after the first utterance, so it is not
+ * a test of whether speaking works; a voice that never answers is covered by the player's patience.
+ */
 function chooseVoice(): Voice {
-  const silent = createSilentVoice();
-  let real: Voice | undefined;
-  const pick = (): Voice => {
-    if (typeof speechSynthesis === 'undefined' || speechSynthesis.getVoices().length === 0) return silent;
-    real ??= createSpeechSynthesisVoice();
-    return real;
-  };
-  return {
-    id: 'auto',
-    speak: (text, listener) => pick().speak(text, listener),
-    cancel() {
-      silent.cancel();
-      real?.cancel();
-    },
-  };
+  if (typeof speechSynthesis === 'undefined') return createSilentVoice();
+  return createSpeechSynthesisVoice();
 }
 
 const player = new Player({ voice: chooseVoice(), onDone: () => window.talkthrough.done() });
@@ -82,16 +74,12 @@ function resize(): void {
 function draw(frame: Frame): void {
   renderer.setScissorTest(false);
   renderer.clear();
-  if (frame.panel) {
-    // The panel's rectangle, snapped to physical pixels so the DOM frame and the viewport agree.
-    const r = frame.panel.rect;
-    const x = snap((r.x / 1000) * view.width, view.dpr);
-    const y = snap((r.y / 1000) * view.height, view.dpr);
-    const w = Math.max(8, snap((r.w / 1000) * view.width, view.dpr));
-    const h = Math.max(8, snap((r.h / 1000) * view.height, view.dpr));
-    panelPx = { x, y, w, h };
-    const alpha = Math.max(0, Math.min(1, frame.panel.appear * frame.panel.fade));
-    panelEl.style.display = alpha > 0.003 ? 'block' : 'none';
+  // The panel's rectangle, snapped to physical pixels so the DOM frame and the viewport agree.
+  const rect = panelRect(frame.panel, view);
+  if (rect) {
+    const { x, y, w, h, alpha } = rect;
+    panelPx = rect;
+    panelEl.style.display = 'block';
     panelEl.style.left = `${x}px`;
     panelEl.style.top = `${y}px`;
     panelEl.style.width = `${w}px`;
@@ -105,6 +93,7 @@ function draw(frame: Frame): void {
     renderer.setScissorTest(true);
     renderer.render(panelScene.scene, panelScene.camera);
   } else {
+    // No panel, or one too faint to see: nothing here may take the pointer.
     panelPx = undefined;
     panelEl.style.display = 'none';
     panelScene.sync(frame, 1);
@@ -130,8 +119,7 @@ function setInteractive(over: boolean): void {
 }
 
 function overPanel(x: number, y: number): boolean {
-  const p = panelPx;
-  return !!p && x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h;
+  return inRect(panelPx, x, y);
 }
 
 document.addEventListener('mousemove', (e) => {
