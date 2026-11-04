@@ -282,3 +282,68 @@ test('a walk lifts the cap: one move a step with its own mark and wait, no word 
   assert.ok(!/about 30 words at most/.test(third));
   assert.match(questionText({ ...request, stage: { part: 'first', plan: true } }), /in a how-do-I walk one title for each move still to do, up to 5/);
 });
+
+// A first call that writes no plan and no done (it has been seen to: the answer then stopped after step 1, silently).
+function unplannedInner(stages: unknown[], raws: (n: number) => string, writes: (n: number) => boolean = () => true): Model {
+  return {
+    id: 'stub',
+    async *ask(req) {
+      stages.push(req.stage);
+      const n = req.stage?.part === 'next' ? req.stage.n : 1;
+      if (writes(n)) yield { type: 'step', step: { say: `S${n}.`, actions: [] } };
+      req.onRaw?.(raws(n));
+    },
+  };
+}
+
+test('a first call with neither plan nor done is asked once more, for the next step and a plan, and the chain goes on from that plan', async () => {
+  const stages: unknown[] = [];
+  const lines: string[] = [];
+  const inner = unplannedInner(stages, (n) => (n === 1 ? JSON.stringify({ steps: [] }) : n === 2 ? JSON.stringify({ steps: [], plan: ['Three'], done: false }) : JSON.stringify({ steps: [], plan: null, done: true })));
+  assert.deepEqual(says(await collect(createStepByStepModel(inner, { log: (m) => lines.push(m) }))), ['S1.', 'S2.', 'S3.']);
+  assert.equal(stages.length, 3);
+  assert.deepEqual((stages[1] as { unplanned?: boolean; plan: string[] }).plan, []);
+  assert.equal((stages[1] as { unplanned?: boolean }).unplanned, true);
+  assert.equal((stages[2] as { unplanned?: boolean }).unplanned, undefined);
+  assert.deepEqual((stages[2] as { plan: string[] }).plan, ['Three']);
+  assert.ok(lines.some((l) => /no plan and no done: asking once more/.test(l)), lines.join('|'));
+});
+
+test('when the extra call has no plan and no done either the answer ends there, cleanly, and no third call is made', async () => {
+  const stages: unknown[] = [];
+  const inner = unplannedInner(stages, () => JSON.stringify({ steps: [] }));
+  assert.deepEqual(says(await collect(createStepByStepModel(inner))), ['S1.', 'S2.']);
+  assert.equal(stages.length, 2);
+});
+
+test('when the extra call writes no step the answer was whole: it ends without error', async () => {
+  const stages: unknown[] = [];
+  const inner = unplannedInner(stages, (n) => (n === 1 ? JSON.stringify({ steps: [] }) : JSON.stringify({ steps: [], plan: null, done: true })), (n) => n === 1);
+  assert.deepEqual(says(await collect(createStepByStepModel(inner))), ['S1.']);
+  assert.equal(stages.length, 2);
+});
+
+test('a plan of null or a done of true is an answer, not a missing one: no extra call', async () => {
+  for (const raw of [{ steps: [], plan: null, done: null }, { steps: [], done: true }, { steps: [], plan: [] }]) {
+    const stages: unknown[] = [];
+    assert.deepEqual(says(await collect(createStepByStepModel(unplannedInner(stages, () => JSON.stringify(raw))))), ['S1.']);
+    assert.equal(stages.length, 1, JSON.stringify(raw));
+  }
+});
+
+test('a scene the model closed right after its steps and then went on writing the plan after is read: the plan is not lost', async () => {
+  const stages: unknown[] = [];
+  const closed = '{"steps": [{"say":"S1.","actions":[]}]}, "plan": ["Two", "Three"], "done": false, "escalate": null}';
+  const inner = unplannedInner(stages, (n) => (n === 1 ? closed : JSON.stringify({ steps: [], plan: null, done: n >= 3 })));
+  assert.deepEqual(says(await collect(createStepByStepModel(inner))), ['S1.', 'S2.', 'S3.']);
+  assert.equal((stages[1] as { unplanned?: boolean }).unplanned, undefined, 'the plan was read, so nothing was missing');
+  assert.deepEqual((stages[1] as { plan: string[] }).plan, ['Two', 'Three']);
+});
+
+test('the extra call is told what it is for: whole answer = no step and done, otherwise one step and a plan', () => {
+  const t = questionText({ ...request, stage: { part: 'next', n: 2, shown: [{ say: 'One.', actions: [] }], plan: [], unplanned: true } });
+  assert.match(t, /Step 1 of this answer is already drawn/);
+  assert.match(t, /The first call gave no plan\. If the answer is already whole, write no step/);
+  assert.match(t, /Set "plan" to the titles/);
+  assert.ok(!/The plan for the rest/.test(t));
+});

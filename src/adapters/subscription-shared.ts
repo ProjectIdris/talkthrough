@@ -195,6 +195,12 @@ export function stageText(stage: NonNullable<ModelRequest['stage']>): string {
     const length = walk
       ? `This is a how-do-I walk: one move a step, each in one short sentence and with its own mark and wait. ${stage.n === 2 ? 'Step 2 draws the checklist (a steps diagram, as the walk rule describes) and then the second move with its mark and wait;' : 'The checklist is already drawn: write the next move with its mark and wait;'} the last step has no mark or wait and says they are done.`
       : 'Its sentence is about 30 words at most, because it is spoken while the next step is written.';
+    if (stage.unplanned) {
+      return [
+        `${stage.n === 2 ? 'Step 1 of this answer is' : `Steps 1 to ${stage.n - 1} of this answer are`} already drawn and spoken: ${JSON.stringify(stage.shown)}`,
+        `The first call gave no plan. If the answer is already whole, write no step ("steps": []) and set "done" to true. Otherwise write step ${stage.n} only, and nothing after it (the later steps are written separately): carry on from what was said and drawn, do not say it again (its ids stay valid). ${length} ${REST_MARKS} ${REST_GROUNDING} Set "plan" to the titles, a few words each, of the steps after it (at most 3; null when it is the last), set "done" to true when it is the last and to false when it is not, and set "escalate" to null.`,
+      ].join('\n\n');
+    }
     return [
       `${stage.n === 2 ? 'Step 1 of this answer is' : `Steps 1 to ${stage.n - 1} of this answer are`} already drawn and spoken: ${JSON.stringify(stage.shown)}`,
       ...(stage.fresh ? ['The picture is the screen as it is now, after the person followed the last step: take every position from it, not from where the earlier steps pointed.'] : []),

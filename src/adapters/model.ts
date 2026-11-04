@@ -32,7 +32,7 @@ export type ModelRequest = {
    * One half of a quick answer written in two calls (see two-step.ts). `first`: write step 1 and nothing after it. `rest`: step 1 is
    * already drawn and spoken (given raw, or, when `first` is absent, being written at the same time by the other call); write the steps after it. Absent: the whole answer. Not used with `detail`.
    */
-  stage?: { part: 'first'; plan?: true } | { part: 'rest'; first?: unknown } | { part: 'next'; /** The number of the step to write (2 or more). */ n: number; /** The steps written so far, raw. */ shown: readonly unknown[]; /** The titles of the steps still to come, the next one first. */ plan: readonly string[]; /** The picture is the screen as it is now, after the person followed the step before (not the one the earlier steps were made from). */ fresh?: true };
+  stage?: { part: 'first'; plan?: true } | { part: 'rest'; first?: unknown } | { part: 'next'; /** The number of the step to write (2 or more). */ n: number; /** The steps written so far, raw. */ shown: readonly unknown[]; /** The titles of the steps still to come, the next one first. */ plan: readonly string[]; /** The first call gave no plan: this one is asked whether the answer goes on (a step, and a plan for the rest) or is whole (no step, done). */ unplanned?: true; /** The picture is the screen as it is now, after the person followed the step before (not the one the earlier steps were made from). */ fresh?: true };
   /** Also yield each step's say text and each of its actions as they are written, before the step (see ModelOutput). Default off. */
   pieces?: boolean;
   /** Called once with the model's whole raw text when its answer ends or turns out not to be a scene (a check run's log). Default off. */
