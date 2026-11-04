@@ -171,7 +171,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Line under text; x,y is its left end, w its length."
+      "description": "Line under text; x,y is its left end, w its length. y is just under the bottom of the letters, not the top of the text line."
     },
     "arrow": {
       "type": "object",

@@ -111,7 +111,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'underline', op: 'underline', creates: 'mark',
-    doc: 'Line under text; x,y is its left end, w its length.',
+    doc: 'Line under text; x,y is its left end, w its length. y is just under the bottom of the letters, not the top of the text line.',
     fields: { id: { k: 'newId' }, x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN }, w: { k: 'num', ...SPAN }, color: COLOR, at: AT },
   },
   {

@@ -23,6 +23,7 @@ test('a detail request shows the scene on screen and asks for a richer version w
   assert.ok(text.includes('same ids') || text.includes('Keep every id'));
   assert.ok(text.includes('is spoken in this pass'), 'the words are not spoken');
   assert.ok(text.includes('how does this work'), 'and the question it was about');
+  assert.ok(text.includes('stays running') && text.includes('crank each piston'), 'a running machine keeps running');
   assert.ok(text.includes('at the end of the scene'), 'objects are written where they end up, so the swap does not jump back');
 });
 

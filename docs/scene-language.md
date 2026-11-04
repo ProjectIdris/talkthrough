@@ -57,7 +57,7 @@ Marks take `id`, `color` (cards, images and pins may leave it out: the look choo
 |---|---|---|
 | `box` | `x y w h` | rectangle outline; `x,y` is the top-left corner |
 | `circle` | `x y w h` | circle or oval drawn inside the box (same fields as `box`) |
-| `underline` | `x y w` | a line under text; `x,y` is the left end |
+| `underline` | `x y w` | a line under text; `x,y` is the left end (`y` just under the bottom of the letters) |
 | `arrow` | `x1 y1 x2 y2` | from `x1,y1` to `x2,y2`; the head is at `x2,y2` |
 | `label` | `x y text size?` | short text, up to 80 characters; `x,y` is the top-left corner; `size` is the text height in y units (10 to 100, default 24) |
 | `card` | `x y w? title? rows? layout? to?` | a note card: a title and/or up to 6 rows of up to 60 characters; `w` is its width in x units (default 300); `layout` is `list` (default), `timeline` (rows written `when \| what`, laid along a line) or `stat` (the first row large); `to` is a screen point a curved line runs to from the card |

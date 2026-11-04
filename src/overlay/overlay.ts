@@ -48,20 +48,30 @@ const cutEl = byId<HTMLButtonElement>('cut');
 const marksCtx = marksCanvas.getContext('2d') as CanvasRenderingContext2D;
 
 /** The quality tier: asked for in the page address, or chosen from what the graphics stack is. */
+/** The name the graphics stack gives its renderer ('' when it will not say or there is no WebGL). */
+function graphicsName(): string {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl');
+    const info = gl?.getExtension('WEBGL_debug_renderer_info');
+    return info && gl ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
+  } catch {
+    return '';
+  }
+}
+
 function chooseTier(): Tier {
   const asked = params.get('tier');
   if (asked === 'low' || asked === 'mid' || asked === 'high') return asked;
   try {
-    const gl = document.createElement('canvas').getContext('webgl');
-    const info = gl?.getExtension('WEBGL_debug_renderer_info');
-    const name = info && gl ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
-    return /swiftshader|basic render|llvmpipe|software/i.test(name) ? 'mid' : 'high';
+    return /swiftshader|basic render|llvmpipe|software/i.test(graphicsName()) ? 'mid' : 'high';
   } catch {
     return 'low';
   }
 }
 
 const tier = chooseTier();
+// Said once, for the app log of a check run: which tier, on what graphics, and whether the finishing pass is on.
+console.info(`talkthrough: overlay tier ${tier} on ${graphicsName() || 'an unnamed renderer'}`);
 const settings = TIERS[tier];
 const renderer = new WebGLRenderer({ canvas: glCanvas, alpha: true, antialias: settings.msaa, premultipliedAlpha: true, stencil: true });
 renderer.localClippingEnabled = true; // a model can be cut open (cutaway.ts)
@@ -92,8 +102,10 @@ const panelScene = new PanelScene({
 if (tier === 'high') {
   try {
     finishing = new Finishing(renderer, panelScene.scene, panelScene.camera);
+    console.info('talkthrough: high tier finishing pass on');
   } catch {
     finishing = undefined; // the plain render is the fallback
+    console.info('talkthrough: high tier finishing pass unavailable, drawing plainly');
   }
 }
 
