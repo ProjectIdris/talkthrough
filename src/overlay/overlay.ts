@@ -32,7 +32,7 @@ import type { View } from './marks.ts';
 import { TIERS } from './materials.ts';
 import { Finishing } from './post.ts';
 import type { Tier } from './materials.ts';
-import { PenLayer, drawPen } from './pen.ts';
+import { PenLayer, drawPen, routePenPointer, undoPlace } from './pen.ts';
 import { Player, createSilentVoice } from './player.ts';
 import { PanelScene } from './scene3d.ts';
 import type { ScreenRect } from './scene3d.ts';
@@ -54,6 +54,7 @@ const noticeEl = byId<HTMLDivElement>('notice');
 const explodeEl = byId<HTMLButtonElement>('explode');
 const detailEl = byId<HTMLButtonElement>('detail');
 const cutEl = byId<HTMLButtonElement>('cut');
+const undoEl = byId<HTMLButtonElement>('undo');
 const marksCtx = marksCanvas.getContext('2d') as CanvasRenderingContext2D;
 
 /** The quality tier: asked for in the page address, or chosen from what the graphics stack is. */
@@ -273,7 +274,8 @@ function draw(frame: Frame): void {
   // The flat diagrams go over the marks' canvas in free space; a piece moved by a later arrival glides, which wants frames until it is there.
   diagramsMoving = frame.diagrams.length > 0 && diagramPainter.draw(marksCtx, frame.diagrams, view, labelClock());
   if (over.length > 0) drawMarks(marksCtx, over, view, annotator, { reduceMotion: reduceMotion.matches, append: true });
-  drawPen(marksCtx, pen.view(labelClock()), view);
+  drawPen(marksCtx, pen.view(labelClock(), { reduceMotion: reduceMotion.matches }), view);
+  syncUndo();
   if (pointerX >= 0) hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY))); // a button can fade under a resting pointer
   hold.model(modelRect);
 
@@ -303,6 +305,8 @@ const diagramPainter = new DiagramPainter({
 });
 let diagramsMoving = false;
 const pen = new PenLayer();
+/** The question was cancelled with a right click and the button is still down: nothing the mouse does now reaches the page. */
+let cancelling = false;
 // Frame grabs (seek) step a clock of their own, one thirtieth of a second a grab, so a clip's tags move at the clip's pace.
 let seekClock: number | undefined;
 const labelClock = (): number => seekClock ?? performance.now();
@@ -512,7 +516,7 @@ function loop(): void {
   showHud();
   reportButtons();
   const fading = fader.armed && k < 1 && k > 0;
-  if (player.active || dragging || fading || board.moving || diagramsMoving || panelScene.fitting || pen.animating(now) || pen.active) {
+  if (player.active || dragging || fading || board.moving || diagramsMoving || panelScene.fitting || pen.animating(labelClock(), { reduceMotion: reduceMotion.matches }) || pen.active) {
     request();
     return;
   }
@@ -565,13 +569,56 @@ function sendPen(): void {
 }
 // A press on the page must never start the browser's own drag of an image or text: it would cancel the pen's stroke.
 document.addEventListener('dragstart', (e) => e.preventDefault());
+/** Shows the Undo button beside the last circle while the chord is held and a circle is there to take back; hides it otherwise (and while one is being drawn). */
+function syncUndo(): void {
+  const box = pen.canUndo && !pen.drawing && !cancelling ? pen.lastBox() : undefined;
+  if (!box) {
+    if (undoEl.style.display !== 'none') undoEl.style.display = 'none';
+    return;
+  }
+  undoEl.style.display = 'block';
+  const at = undoPlace(box, view, { w: undoEl.offsetWidth || 70, h: undoEl.offsetHeight || 30 });
+  undoEl.style.left = `${Math.round(at.x)}px`;
+  undoEl.style.top = `${Math.round(at.y)}px`;
+}
+/** Takes back the last circle (the Undo button), and tells the main process to drop it. */
+function undoCircle(): void {
+  if (!pen.undo()) return;
+  sendPen();
+  request();
+}
+undoEl.addEventListener('click', (e) => {
+  e.stopPropagation();
+  undoCircle();
+});
+// No menu of the page's own, and no other button, ever acts while the pen is on or has just been cancelled.
+document.addEventListener('contextmenu', (e) => {
+  if (pen.active || cancelling || penEnding) e.preventDefault();
+});
 document.addEventListener('pointerdown', (e) => {
+  if (cancelling) {
+    e.preventDefault();
+    return;
+  }
   if (pen.active) {
     // While the chord is held the mouse draws; it never turns the model or clicks the app's own words.
-    if (e.button !== 0) return;
+    const route = routePenPointer({ button: e.button, onUndo: e.target instanceof Node && undoEl.contains(e.target) });
+    if (route.consume) e.preventDefault();
+    if (route.act === 'cancel') {
+      // A right click: the whole question is cancelled. The drawing goes at once; the window keeps the mouse until the button is up.
+      cancelling = true;
+      pen.cancel();
+      if (penPointer !== undefined && document.documentElement.hasPointerCapture(penPointer)) document.documentElement.releasePointerCapture(penPointer);
+      penPointer = undefined;
+      undoEl.style.display = 'none';
+      window.talkthrough.cancel(false);
+      request();
+      return;
+    }
+    if (route.act !== 'draw') return;
     document.documentElement.setPointerCapture(e.pointerId);
     penPointer = e.pointerId;
-    pen.down(...toScale(e));
+    pen.down(...toScale(e), labelClock());
     request();
     return;
   }
@@ -586,7 +633,7 @@ document.addEventListener('pointerdown', (e) => {
 });
 document.addEventListener('pointermove', (e) => {
   if (pen.active) {
-    pen.move(...toScale(e));
+    pen.move(...toScale(e), labelClock());
     request();
     return;
   }
@@ -596,6 +643,14 @@ document.addEventListener('pointermove', (e) => {
   request();
 });
 const endDrag = (e: PointerEvent): void => {
+  if (cancelling) {
+    if (e.button === 2) {
+      cancelling = false;
+      window.talkthrough.cancel(true);
+    }
+    e.preventDefault();
+    return;
+  }
   if (pen.active || penEnding) {
     endPenStroke();
     return;
@@ -776,6 +831,7 @@ function applyScene(message: SceneMessage): void {
     case 'pen':
       if (message.on) {
         penEnding = false;
+        cancelling = false;
         pen.turnOn();
       } else {
         pen.turnOff();

@@ -167,6 +167,7 @@ async function main(): Promise<void> {
       askDetail();
     },
     onStroke: (displayId, stroke) => session?.stroke(displayId, stroke),
+    onCancel: (displayId, released) => session?.cancelQuestion(displayId, released),
     onOffer: (displayId) => void session?.offer(displayId),
     ...(settings.detailRoute ? { onDetail: (displayId: number) => void session?.detail(displayId) } : {}),
     onMilestone: (m) => session?.milestone(m),

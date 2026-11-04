@@ -16,4 +16,5 @@ contextBridge.exposeInMainWorld('talkthrough', {
   detail: () => undefined,
   milestone: (m) => ipcRenderer.send('tt:milestone', m),
   stroke: (stroke) => ipcRenderer.send('tt:stroke', stroke),
+  cancel: (released) => ipcRenderer.send('tt:cancel', released === true),
 });

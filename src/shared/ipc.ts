@@ -35,6 +35,8 @@ export const CHANNEL = {
   voiceEvent: 'tt:voice-event',
   /** overlay -> main: a piece of a pen stroke (Stroke), streamed as the pointer moves while the pen is on. */
   stroke: 'tt:stroke',
+  /** overlay -> main: the person right-clicked while the pen was on (`false`: the question is cancelled) and later let the button go (`true`). */
+  cancel: 'tt:cancel',
   /** overlay -> main: a Milestone, for latency measurement (the first mark drawn or word spoken of a live turn). */
   milestone: 'tt:milestone',
 } as const;
@@ -43,7 +45,7 @@ export const CHANNEL = {
 export type SeekView = { az?: number; el?: number; zoom?: number; explode?: number };
 
 /** Part of one pen stroke: points are appended per id; coordinates run 0..1000 across the whole overlay window. */
-export type Stroke = { id: number; points: Array<[number, number]>; done: boolean };
+export type Stroke = { id: number; points: Array<[number, number]>; done: boolean; /** The stroke `id` was taken back (undo): drop it, with its points, from what is sent to the model. */ removed?: true };
 
 /** A scene finished and, after this long with no new question, the page fades it out by itself. */
 export const FADE_AFTER_MS = 12_000;
@@ -250,6 +252,8 @@ export interface TalkthroughApi {
   detail(): void;
   /** A piece of a pen stroke, while the pen is on. */
   stroke(stroke: Stroke): void;
+  /** A right click while the pen is on cancels the question (`released` false); `true` when the button comes up again, so the click never reaches the app underneath. */
+  cancel(released: boolean): void;
   /** The first mark drawn or first word spoken of a live turn (for latency measurement). */
   milestone(milestone: Milestone): void;
 }

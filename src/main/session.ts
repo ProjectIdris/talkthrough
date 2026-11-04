@@ -193,6 +193,19 @@ export function createSession(deps: SessionDeps) {
   let releasedAt = 0;
   /** The press whose pen strokes still count: the one held now, and for a moment after release. */
   let penFor: Attempt | null = null;
+  /**
+   * After a right click cancelled the question: the pen's window keeps the mouse until the button comes up (or this long has passed), so
+   * the release never reaches the window underneath, where it could open a menu.
+   */
+  let cancelHold: { displayId: number; timer: ReturnType<typeof setTimeout> } | null = null;
+  const CANCEL_HOLD_MS = 2000;
+  const endCancelHold = (): void => {
+    if (!cancelHold) return;
+    clearTimeout(cancelHold.timer);
+    const { displayId } = cancelHold;
+    cancelHold = null;
+    penOff(displayId);
+  };
 
   /** The full-resolution frame of a press is not needed once its question is over. */
   function releaseFrame(a: Attempt): void {
@@ -318,6 +331,10 @@ export function createSession(deps: SessionDeps) {
     const supersedes = asking !== null;
     asking?.abort();
     const a = attempt && !attempt.chord ? attempt : (attempt && dropAttempt('a new press began'), begin(false));
+    if (cancelHold) {
+      clearTimeout(cancelHold.timer);
+      cancelHold = null;
+    }
     if (a.timer) clearTimeout(a.timer);
     a.timer = null;
     a.chord = true;
@@ -872,6 +889,12 @@ export function createSession(deps: SessionDeps) {
     stroke(displayId: number, piece: Stroke): void {
       const a = penFor;
       if (!a || a.displayId !== displayId || !Number.isFinite(piece.id)) return;
+      // A circle taken back (undo): it is not part of the question any more, so not of the picture, the crop or the numbering.
+      if (piece.removed === true) {
+        a.strokes.delete(piece.id);
+        a.open.delete(piece.id);
+        return;
+      }
       let points = a.strokes.get(piece.id);
       if (!points) {
         if (a.strokes.size >= 20) return;
@@ -884,6 +907,23 @@ export function createSession(deps: SessionDeps) {
         if (points.length >= 5000) break;
         points.push([p[0], p[1]]);
       }
+    },
+    /**
+     * A right click while the chord is held (`released` false) cancels the question: nothing is captured or heard, the strokes go, and
+     * the person is told. The pen's window keeps the mouse until the button comes up (`released` true), so the click never reaches the app beneath.
+     */
+    cancelQuestion(displayId: number, released: boolean): void {
+      if (released) {
+        if (cancelHold?.displayId === displayId) endCancelHold();
+        return;
+      }
+      const a = attempt;
+      if (!a || !a.chord || a.displayId !== displayId) return;
+      dropAttempt('the question was cancelled with a right click');
+      penFor = null;
+      deps.log('question cancelled with a right click');
+      notice(displayId, 'Cancelled.');
+      cancelHold = { displayId, timer: setTimeout(endCancelHold, CANCEL_HOLD_MS) };
     },
     /** The page finished playing a scene. */
     done(): void {
@@ -949,6 +989,7 @@ export function createSession(deps: SessionDeps) {
       asking?.abort();
       if (attempt?.timer) clearTimeout(attempt.timer);
       if (attempt?.chord) penOff(attempt.displayId);
+      endCancelHold();
       attempt = null;
     },
   };

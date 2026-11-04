@@ -1040,3 +1040,91 @@ test('guide mode, one step to a call: a wait the validator drops makes a plain s
   assert.ok(says.includes('That is all.'), `step 3 follows at once, with no second click: ${says.join(' | ')}`);
   assert.equal(w.sent.filter((m) => m.kind === 'end').length, 1, 'and the walk ends');
 });
+
+const noStrokeMedia = (compose: Array<unknown>): SessionDeps['media'] => ({
+  startMic: async () => undefined,
+  stopMic: async () => ({ samples: new Float32Array(16), sampleRate: 16000, durationMs: 1500, startLatencyMs: 100 }),
+  abortMic: () => undefined,
+  capture: async () => ({ screenshot: shotOf('CLEAN'), ms: 5, grabId: 9 }),
+  compose: async (_grab, strokes) => (compose.push(strokes), { screenshot: shotOf('MARKED'), crop: shotOf('CROP', 40, 40), box: { x: 250, y: 250, w: 250, h: 250 } }),
+});
+
+test('a circle taken back is not in the picture, the crop or the numbering: only the circles left are composed, and none left means the plain screenshot', async () => {
+  const model = spy();
+  let composed: unknown[] = [];
+  const r = rig({ model: model.model, media: noStrokeMedia(composed) });
+  const second: Array<[number, number]> = [[600, 600], [800, 600], [800, 800], [600, 800], [600, 600]];
+  r.session.arm();
+  r.session.start();
+  r.session.stroke(7, { id: 1, points: circle, done: true });
+  r.session.stroke(7, { id: 2, points: second.slice(0, 2), done: false });
+  r.session.stroke(7, { id: 2, points: second.slice(2), done: true });
+  r.session.stroke(7, { id: 2, points: [], done: true, removed: true });
+  r.session.stop();
+  await wait(60);
+  assert.deepEqual(composed, [[circle]], 'the second circle was taken back');
+  composed = [];
+  const again = rig({ model: model.model, media: noStrokeMedia(composed) });
+  again.session.arm();
+  again.session.start();
+  again.session.stroke(7, { id: 1, points: circle, done: true });
+  again.session.stroke(7, { id: 1, points: [], done: true, removed: true });
+  again.session.stroke(7, { id: 5, points: [], done: true, removed: true }); // one never sent: nothing to take back, nothing breaks
+  again.session.stop();
+  await wait(60);
+  assert.equal(composed.length, 0, 'no circle left: nothing is drawn on the picture');
+  assert.equal(model.asked.at(-1)?.screenshot.base64, 'CLEAN');
+  assert.equal(model.asked.at(-1)?.focus, undefined);
+});
+
+test('a right click while the chord is held cancels the question: nothing is heard or asked, the page is told, and the mouse stays with the pen until the button is up', async () => {
+  const model = spy();
+  const lines: string[] = [];
+  const r = rig({ model: model.model, log: (l) => void lines.push(l) });
+  r.session.arm();
+  r.session.start();
+  r.session.stroke(7, { id: 1, points: circle, done: true });
+  r.session.cancelQuestion(7, false);
+  assert.ok(r.calls.includes('abortMic'), 'the microphone is let go');
+  assert.deepEqual(r.sent.filter((m) => m.kind === 'notice'), [{ kind: 'notice', text: 'Cancelled.', level: 'info' }]);
+  assert.deepEqual(r.pens, [7], 'the window still has the mouse: the release of the right button must not reach the app beneath');
+  r.session.cancelQuestion(7, true);
+  assert.deepEqual(r.pens, [7, null], 'the button is up: the mouse goes back');
+  r.session.stop(); // the keys come up afterwards
+  await wait(200);
+  assert.equal(model.asked.length, 0, 'no question was asked');
+  assert.equal(r.reports(), 0);
+  assert.ok(lines.some((l) => l.includes('cancelled')));
+});
+
+test('after a right click the mouse is given back after a short while even if the button never comes up, and a new press in between keeps it', async () => {
+  const r = rig({ media: noStrokeMedia([]) });
+  r.session.arm();
+  r.session.start();
+  r.session.cancelQuestion(7, false);
+  await wait(2100);
+  assert.deepEqual(r.pens, [7, null]);
+  const q = rig({ media: noStrokeMedia([]) });
+  q.session.arm();
+  q.session.start();
+  q.session.cancelQuestion(7, false);
+  q.session.stop();
+  q.session.arm();
+  q.session.start(); // a new press while the old hold is running
+  await wait(2100);
+  assert.deepEqual(q.pens, [7, 7], 'the new press has the pen; the old hold does not take the mouse away from it');
+});
+
+test('a right click on another display, with the chord not held, or its release with nothing cancelled: nothing happens', async () => {
+  const r = rig({ media: noStrokeMedia([]) });
+  r.session.cancelQuestion(7, false); // nothing is held
+  r.session.cancelQuestion(7, true);
+  r.session.arm();
+  r.session.start();
+  r.session.cancelQuestion(8, false); // another display
+  assert.deepEqual(r.pens, [7]);
+  assert.equal(r.sent.some((m) => m.kind === 'notice'), false);
+  r.session.stop();
+  await wait(60);
+  assert.ok(r.sent.some((m) => m.kind === 'step' || m.kind === 'begin'), 'the question goes on as usual');
+});
