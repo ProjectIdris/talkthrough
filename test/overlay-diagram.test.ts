@@ -342,3 +342,31 @@ test('a mark written inside the rectangle a diagram was asked for goes with the 
   placeAction(placer, { op: 'clear', target: 'f' } as Action, 1080);
   assert.equal(followDiagram(placer, ring, 16 / 9), undefined);
 });
+
+test('with no blank place the size asked for, a diagram becomes taller and narrower to sit in a margin rather than over the text', () => {
+  const COLS = 192, ROWS = 108;
+  const gray = new Uint8Array(COLS * ROWS);
+  // Text fills the middle of the page (columns 25% to 75%); the margins either side are blank.
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) gray[r * COLS + c] = c > COLS * 0.25 && c < COLS * 0.75 && r > 6 && r % 4 < 2 && (c * 7 + r * 13) % 11 !== 0 ? 40 : 238;
+  const placer = new Placer(pageGrid(gray, COLS, ROWS), { aspect: 16 / 9 });
+  const placed = placeAction(placer, { op: 'diagram', id: 'p', kind: 'steps', x: 300, y: 500, w: 420, h: 300 } as Action, 1080) as { x: number; y: number; w: number; h: number };
+  const text = { x: 250, y: 60, w: 500, h: 940 };
+  assert.ok(!overlap(placed, text), `off the text: ${JSON.stringify(placed)}`);
+  assert.ok(placed.w < 420 && placed.w >= 150, `narrower: ${placed.w}`);
+  assert.ok(placed.h > 300, `and taller: ${placed.h}`);
+  assert.ok(placed.w * placed.h >= 420 * 300 * 0.7, 'with most of the area it asked for');
+  // A blank place the size asked for is still taken as asked.
+  const roomy = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(238), COLS, ROWS), { aspect: 16 / 9 });
+  const asked = placeAction(roomy, { op: 'diagram', id: 'q', kind: 'steps', x: 300, y: 500, w: 420, h: 300 } as Action, 1080);
+  assert.equal((asked as { w: number }).w, 420);
+});
+
+test('a list of steps asked for more width than it can use is placed at the width it can, so it fits a margin; a mark inside what was asked still goes with it', () => {
+  const COLS = 192, ROWS = 108;
+  const roomy = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(238), COLS, ROWS), { aspect: 16 / 9 });
+  const placed = placeAction(roomy, { op: 'diagram', id: 's', kind: 'steps', x: 100, y: 600, w: 800, h: 320 } as Action, 1080) as { w: number; h: number };
+  assert.equal(placed.w, 440);
+  assert.equal(placed.h, 320);
+  const ring = followDiagram(roomy, { op: 'circle', id: 'r', x: 700, y: 700, w: 40, h: 40, color: 'red' } as Action, 16 / 9);
+  assert.ok(ring, 'a mark in the rectangle that was asked for (800 wide) belongs to it');
+});

@@ -123,18 +123,18 @@ export class Placer {
     return this.edge.mean(box);
   }
 
-  private cost(box: Box, from: Box, scale: number, keepOut: readonly Box[]): number {
+  private cost(box: Box, from: Box, scale: number, keepOut: readonly Box[], extra = 0): number {
     const area = box.w * box.h;
     const padded = { x: box.x - 6, y: box.y - 10, w: box.w + 12, h: box.h + 20 };
     let c = this.edge.mean(box) * 6 + this.ink.mean(padded) * 30;
     for (const r of keepOut) c += (overlap(box, r) / area) * 5;
     const dx = (box.x + box.w / 2 - (from.x + from.w / 2)) * this.aspect, dy = box.y + box.h / 2 - (from.y + from.h / 2);
     c += (Math.hypot(dx, dy) / 1000) * 1.0;
-    c += (1 - scale) * 1.2;
+    c += (1 - scale) * 1.2 + extra;
     return c;
   }
 
-  private search(want: Box, scales: readonly number[], keepOut: readonly Box[]): Box {
+  private search(want: Box, scales: readonly number[], keepOut: readonly Box[], shapes: readonly number[] = [1], minW = 0): Box {
     const inside = (b: Box): Box => ({
       x: clamp(b.x, this.margin, 1000 - this.margin - b.w), y: clamp(b.y, this.margin, 1000 - this.margin - b.h), w: b.w, h: b.h,
     });
@@ -148,14 +148,19 @@ export class Placer {
     let bestCost = homeCost;
     const step = 20;
     for (const scale of scales) {
-      const w = want.w * scale, h = want.h * scale;
-      for (let y = this.margin; y + h <= 1000 - this.margin + 0.01; y += step) {
-        for (let x = this.margin; x + w <= 1000 - this.margin + 0.01; x += step) {
-          const box = { x, y, w, h };
-          const c = this.cost(box, want, scale, keepOut);
-          if (c < bestCost - 1e-9) {
-            best = box;
-            bestCost = c;
+      // A shape other than the one asked for (narrower and taller, the same area) fits a margin or a gap between columns; it costs a little.
+      for (const shape of shapes) {
+        const w = want.w * scale * shape, h = want.h * scale / shape;
+        if (shape !== 1 && (w < minW || h > 1000 - 2 * this.margin)) continue;
+        const extra = Math.abs(Math.log(shape)) * 0.5;
+        for (let y = this.margin; y + h <= 1000 - this.margin + 0.01; y += step) {
+          for (let x = this.margin; x + w <= 1000 - this.margin + 0.01; x += step) {
+            const box = { x, y, w, h };
+            const c = this.cost(box, want, scale, keepOut, extra);
+            if (c < bestCost - 1e-9) {
+              best = box;
+              bestCost = c;
+            }
           }
         }
       }
@@ -182,12 +187,13 @@ export class Placer {
   }
 
   /** Where a flat diagram goes: like a card, but it may also be a little smaller, down to three quarters (its drawing scales to its rectangle, and its small print needs the room). */
-  diagram(want: Box, id: string): Box {
+  diagram(want: Box, id: string, asked: Box = want): Box {
     const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...(this.stage ? [this.stage] : [])];
     // What the answer points at is what the diagram explains: keeping off it counts for three times as much as it does for a card.
-    const placed = this.search(want, [1, 0.88, 0.76], [...keepOut, ...this.reserved, ...this.reserved]);
+    // It may also be taller and narrower (down to 0.6 of the width), to fit a margin or the gap beside a column of text instead of covering the text.
+    const placed = this.search(want, [1, 0.88, 0.76], [...keepOut, ...this.reserved, ...this.reserved], [1, 0.8, 0.65, 0.55], 150);
     this.cards.set(id, placed);
-    this.homes.set(id, { from: want, to: placed });
+    this.homes.set(id, { from: asked, to: placed });
     return placed;
   }
 
@@ -290,6 +296,9 @@ export function reserveMarks(placer: Placer, actions: readonly Action[], aspect:
   }
 }
 
+/** The most room (units) a kind of flat diagram uses to good effect; asked for more, it is placed at this size. */
+const DIAGRAM_MAX: Partial<Record<string, { w: number; h: number }>> = { steps: { w: 440, h: 760 }, chart: { w: 520, h: 520 } };
+
 /** The action with its stage or card moved off the page's text; any other action comes back as it was. */
 export function placeAction(placer: Placer, a: Action, screenHeight: number): Action {
   if (a.op === 'panel') {
@@ -302,8 +311,11 @@ export function placeAction(placer: Placer, a: Action, screenHeight: number): Ac
     return box.x === a.x && box.y === a.y ? a : { ...a, x: Math.round(box.x), y: Math.round(box.y) };
   }
   if (a.op === 'diagram') {
-    // A diagram is kept off the page's text like a card, and out of the stage and the other cards.
-    const box = placer.diagram({ x: a.x, y: a.y, w: a.w, h: a.h }, a.id);
+    // A diagram is kept off the page's text like a card, and out of the stage and the other cards. A list of steps or a chart
+    // asked for more room than it can use is placed at the size it can (its drawing scales to the rectangle), so it fits a margin.
+    const cap = DIAGRAM_MAX[a.kind];
+    const want = { x: a.x, y: a.y, w: cap ? Math.min(a.w, cap.w) : a.w, h: cap ? Math.min(a.h, cap.h) : a.h };
+    const box = placer.diagram(want, a.id, { x: a.x, y: a.y, w: a.w, h: a.h });
     return box.x === a.x && box.y === a.y && box.w === a.w && box.h === a.h ? a : { ...a, ...round(box) };
   }
   if (a.op === 'image') {
