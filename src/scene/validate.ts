@@ -1,0 +1,328 @@
+// The scene validator: the only way a scene from a model reaches the renderer.
+// It reads data and builds fresh objects from known fields. It never evaluates, imports,
+// or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
+
+import { ID_PATTERN, LIMITS, PALETTE, RESERVED_IDS, VARIANTS } from './spec.ts';
+import type { Field, ObjectKind, Variant } from './spec.ts';
+import type { Action, Issue, IssueKind, Scene, Step } from './types.ts';
+
+/** What the scene holds so far. Keep one per session and pass it to every turn so follow-ups reach earlier ids. */
+export type SceneState = {
+  ids: Map<string, ObjectKind>;
+  parents: Map<string, string | undefined>;
+  depth: Map<string, number>;
+  turnSteps: number;
+  turnActions: number;
+};
+
+export type StepResult = { step: Step | null; issues: Issue[] };
+export type SceneResult = { ok: boolean; scene: Scene | null; issues: Issue[] };
+
+const MAX_ISSUES = 100;
+const MAX_STRING_SCAN = 10_000;
+const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+// Control characters, zero-width and bidirectional-override characters.
+const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
+
+export function createSceneState(): SceneState {
+  return { ids: new Map(), parents: new Map(), depth: new Map(), turnSteps: 0, turnActions: 0 };
+}
+
+/** Call at the start of each question's answer: the per-turn caps count from zero again. */
+export function startTurn(state: SceneState): void {
+  state.turnSteps = 0;
+  state.turnActions = 0;
+}
+
+type Notes = Issue[];
+
+function note(notes: Notes, kind: IssueKind, path: string, message: string): void {
+  if (notes.length < MAX_ISSUES) notes.push({ kind, path, message });
+  else if (notes.length === MAX_ISSUES) notes.push({ kind: 'trimmed', path: '', message: 'more issues not listed' });
+}
+
+function isObject(v: unknown): v is object {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/** An own data property's value; getters and inherited properties are never read. */
+function own(o: object, key: string): unknown {
+  const d = Object.getOwnPropertyDescriptor(o, key);
+  return d && 'value' in d ? d.value : undefined;
+}
+
+function ownKeys(o: object): string[] {
+  return Object.keys(o);
+}
+
+type Parsed = { ok: true; value: unknown } | { ok: false; why: string };
+const bad = (why: string): Parsed => ({ ok: false, why });
+const good = (value: unknown): Parsed => ({ ok: true, value });
+
+function clampNum(n: number, min: number, max: number, path: string, notes: Notes): number {
+  if (n < min || n > max) {
+    const c = Math.min(max, Math.max(min, n));
+    note(notes, 'clamped', path, `${n} clamped to ${c}`);
+    return c;
+  }
+  return n;
+}
+
+function cleanText(v: string, min: number, max: number, path: string, notes: Notes): Parsed {
+  let s = (v.length > MAX_STRING_SCAN ? v.slice(0, MAX_STRING_SCAN) : v).replace(/[\r\n\t]+/g, ' ').replace(INVISIBLE, '').replace(/ {2,}/g, ' ').trim();
+  if (s.length > max) {
+    let cut = s.slice(0, max);
+    const last = cut.charCodeAt(cut.length - 1);
+    if (last >= 0xd800 && last <= 0xdbff) cut = cut.slice(0, -1);
+    s = cut.trimEnd();
+    note(notes, 'trimmed', path, `text cut to ${max} characters`);
+  }
+  return s.length < min ? bad('text is empty') : good(s);
+}
+
+function parseVec3(v: unknown, min: number, max: number, path: string, notes: Notes): Parsed {
+  if (!Array.isArray(v) || v.length !== 3) return bad('expected 3 numbers');
+  const out: number[] = [];
+  for (let i = 0; i < 3; i++) {
+    const n = v[i];
+    if (typeof n !== 'number' || !Number.isFinite(n)) return bad('expected 3 finite numbers');
+    out.push(clampNum(n, min, max, `${path}[${i}]`, notes));
+  }
+  return good(out);
+}
+
+function parseField(f: Field, v: unknown, path: string, state: SceneState, notes: Notes): Parsed {
+  switch (f.k) {
+    case 'num':
+      if (typeof v !== 'number' || !Number.isFinite(v)) return bad('expected a finite number');
+      return good(clampNum(v, f.min, f.max, path, notes));
+    case 'str':
+      return typeof v === 'string' ? cleanText(v, f.min, f.max, path, notes) : bad('expected text');
+    case 'color':
+      if (typeof v === 'string' && ((PALETTE as readonly string[]).includes(v) || HEX.test(v))) return good(v);
+      return bad('unknown colour');
+    case 'enum':
+      return typeof v === 'string' && f.values.includes(v) ? good(v) : bad(`expected one of ${f.values.join(', ')}`);
+    case 'newId':
+      if (typeof v !== 'string' || !ID_PATTERN.test(v)) return bad('not a valid id');
+      if ((RESERVED_IDS as readonly string[]).includes(v)) return bad(`"${v}" is reserved`);
+      return state.ids.has(v) ? bad(`id "${v}" is already in use`) : good(v);
+    case 'ref': {
+      if (typeof v !== 'string') return bad('expected an id');
+      const kind = state.ids.get(v);
+      if (!kind) return bad(`unknown id "${v}"`);
+      return f.of === 'object3d' && kind === 'mark' ? bad(`"${v}" is a screen mark, not a 3D object`) : good(v);
+    }
+    case 'parent': {
+      if (typeof v !== 'string') return bad('expected a group id');
+      if (state.ids.get(v) !== 'group') return bad(`"${v}" is not a known group`);
+      return (state.depth.get(v) ?? 0) + 1 > LIMITS.maxDepth ? bad('groups nested too deep') : good(v);
+    }
+    case 'target':
+      if (typeof v !== 'string') return bad('expected an id or all, marks, panel');
+      return (RESERVED_IDS as readonly string[]).includes(v) || state.ids.has(v) ? good(v) : bad(`unknown id "${v}"`);
+    case 'vec3':
+      return parseVec3(v, f.min, f.max, path, notes);
+    case 'pts': {
+      if (!Array.isArray(v) || v.length < f.min) return bad(`expected at least ${f.min} points`);
+      const src = v.length > f.max ? v.slice(0, f.max) : v;
+      if (v.length > f.max) note(notes, 'trimmed', path, `points cut to ${f.max}`);
+      const out: unknown[] = [];
+      for (let i = 0; i < src.length; i++) {
+        const p = parseVec3(src[i], f.lo, f.hi, `${path}[${i}]`, notes);
+        if (!p.ok) return bad(`point ${i}: ${p.why}`);
+        out.push(p.value);
+      }
+      return good(out);
+    }
+  }
+}
+
+function pickVariant(raw: object): Variant | string {
+  const op = own(raw, 'op');
+  if (typeof op !== 'string') return 'missing op';
+  const candidates = VARIANTS.filter((v) => v.op === op);
+  if (candidates.length === 0) return `unknown action "${op.slice(0, 40)}"`;
+  const only = candidates[0];
+  if (candidates.length === 1 && only && !only.shapes) return only;
+  const shape = own(raw, 'shape');
+  const hit = typeof shape === 'string' ? candidates.find((v) => v.shapes?.includes(shape)) : undefined;
+  return hit ?? `unknown shape for "${op}"`;
+}
+
+function removeWithDescendants(state: SceneState, id: string): void {
+  const doomed = new Set([id]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const [child, parent] of state.parents) {
+      if (parent !== undefined && doomed.has(parent) && !doomed.has(child)) {
+        doomed.add(child);
+        grew = true;
+      }
+    }
+  }
+  for (const d of doomed) {
+    state.ids.delete(d);
+    state.parents.delete(d);
+    state.depth.delete(d);
+  }
+}
+
+function applyClear(state: SceneState, target: string): void {
+  if (target === 'all') {
+    state.ids.clear(); state.parents.clear(); state.depth.clear();
+  } else if (target === 'marks' || target === 'panel') {
+    const wantMark = target === 'marks';
+    for (const [id, kind] of [...state.ids]) {
+      if ((kind === 'mark') === wantMark) removeWithDescendants(state, id);
+    }
+  } else {
+    removeWithDescendants(state, target);
+  }
+}
+
+/** Validates one action against the state; on success the state has absorbed its effect. */
+function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes): Action | null {
+  if (!isObject(raw)) {
+    note(notes, 'dropped', path, 'action is not an object');
+    return null;
+  }
+  const variant = pickVariant(raw);
+  if (typeof variant === 'string') {
+    note(notes, 'dropped', path, variant);
+    return null;
+  }
+  const out: Record<string, unknown> = { op: variant.op };
+  for (const [name, f] of Object.entries(variant.fields)) {
+    const v = own(raw, name);
+    const optional = 'opt' in f && f.opt === true;
+    if (v === undefined || v === null) {
+      if (!optional) {
+        note(notes, 'dropped', path, `missing ${name}`);
+        return null;
+      }
+      continue;
+    }
+    const p = parseField(f, v, `${path}.${name}`, state, notes);
+    if (!p.ok) {
+      note(notes, 'dropped', path, `${name}: ${p.why}`);
+      return null;
+    }
+    out[name] = p.value;
+  }
+  for (const key of ownKeys(raw)) {
+    if (key !== 'op' && !(key in variant.fields)) note(notes, 'trimmed', `${path}.${key.slice(0, 40)}`, 'unknown field ignored');
+  }
+  if (variant.name === 'style' && out.color === undefined && out.opacity === undefined) {
+    note(notes, 'dropped', path, 'style needs a colour or an opacity');
+    return null;
+  }
+  if (variant.creates) {
+    if (state.ids.size >= LIMITS.maxObjects) {
+      note(notes, 'dropped', path, `scene already holds ${LIMITS.maxObjects} objects`);
+      return null;
+    }
+    const id = out.id as string;
+    const parent = out.parent as string | undefined;
+    state.ids.set(id, variant.creates);
+    state.parents.set(id, parent);
+    state.depth.set(id, parent === undefined ? 1 : (state.depth.get(parent) ?? 0) + 1);
+  } else if (variant.op === 'clear') {
+    applyClear(state, out.target as string);
+  }
+  return out as Action;
+}
+
+export function validateStep(raw: unknown, state: SceneState, index: number = state.turnSteps): StepResult {
+  const notes: Notes = [];
+  const path = `steps[${index}]`;
+  state.turnSteps++;
+  if (state.turnSteps > LIMITS.maxSteps) {
+    note(notes, 'dropped', path, `more than ${LIMITS.maxSteps} steps in one turn (a new question needs startTurn)`);
+    return { step: null, issues: notes };
+  }
+  if (!isObject(raw)) {
+    note(notes, 'dropped', path, 'step is not an object');
+    return { step: null, issues: notes };
+  }
+  const say = own(raw, 'say');
+  const list = own(raw, 'actions');
+  if (typeof say !== 'string') {
+    note(notes, 'dropped', path, 'say must be text');
+    return { step: null, issues: notes };
+  }
+  if (!Array.isArray(list)) {
+    note(notes, 'dropped', path, 'actions must be a list');
+    return { step: null, issues: notes };
+  }
+  for (const key of ownKeys(raw)) {
+    if (key !== 'say' && key !== 'actions') note(notes, 'trimmed', `${path}.${key.slice(0, 40)}`, 'unknown field ignored');
+  }
+  const spoken = cleanText(say, 0, LIMITS.maxSay, `${path}.say`, notes);
+  const actions: Action[] = [];
+  const count = Math.min(list.length, LIMITS.maxActionsPerStep);
+  if (list.length > count) note(notes, 'trimmed', `${path}.actions`, `actions cut to ${LIMITS.maxActionsPerStep}`);
+  for (let i = 0; i < count; i++) {
+    if (state.turnActions >= LIMITS.maxActionsPerTurn) {
+      note(notes, 'dropped', `${path}.actions[${i}]`, `more than ${LIMITS.maxActionsPerTurn} actions in one turn`);
+      break;
+    }
+    state.turnActions++;
+    const a = validateAction(list[i], state, `${path}.actions[${i}]`, notes);
+    if (a) actions.push(a);
+  }
+  const text = spoken.ok ? (spoken.value as string) : '';
+  if (text === '' && actions.length === 0) {
+    note(notes, 'dropped', path, 'step has nothing to say or show');
+    return { step: null, issues: notes };
+  }
+  return { step: { say: text, actions }, issues: notes };
+}
+
+/** The reason text of an `escalate` field, cleaned and cut to length, or undefined when there is none worth keeping. */
+export function validateEscalate(raw: unknown): { escalate: string | undefined; issues: Issue[] } {
+  const notes: Notes = [];
+  if (raw === undefined || raw === null) return { escalate: undefined, issues: notes };
+  if (typeof raw !== 'string') {
+    note(notes, 'dropped', 'escalate', 'escalate must be text');
+    return { escalate: undefined, issues: notes };
+  }
+  const p = cleanText(raw, 1, LIMITS.maxEscalate, 'escalate', notes);
+  if (!p.ok) note(notes, 'dropped', 'escalate', 'escalate is empty');
+  return { escalate: p.ok ? (p.value as string) : undefined, issues: notes };
+}
+
+/** Validates a whole scene (one turn). ok is false only when the scene is not usable at all. */
+export function validateScene(raw: unknown, state: SceneState = createSceneState()): SceneResult {
+  const notes: Notes = [];
+  if (!isObject(raw)) {
+    note(notes, 'dropped', '', 'scene is not an object');
+    return { ok: false, scene: null, issues: notes };
+  }
+  const v = own(raw, 'v');
+  if (v !== undefined && v !== null && v !== 1) {
+    note(notes, 'dropped', 'v', 'unsupported scene version');
+    return { ok: false, scene: null, issues: notes };
+  }
+  const list = own(raw, 'steps');
+  if (!Array.isArray(list)) {
+    note(notes, 'dropped', 'steps', 'steps must be a list');
+    return { ok: false, scene: null, issues: notes };
+  }
+  for (const key of ownKeys(raw)) {
+    if (key !== 'v' && key !== 'steps' && key !== 'escalate') note(notes, 'trimmed', key.slice(0, 40), 'unknown field ignored');
+  }
+  startTurn(state);
+  const steps: Step[] = [];
+  const count = Math.min(list.length, LIMITS.maxSteps + 1);
+  for (let i = 0; i < count; i++) {
+    const r = validateStep(list[i], state, i);
+    for (const issue of r.issues) note(notes, issue.kind, issue.path, issue.message);
+    if (r.step) steps.push(r.step);
+  }
+  const esc = validateEscalate(own(raw, 'escalate'));
+  for (const issue of esc.issues) note(notes, issue.kind, issue.path, issue.message);
+  const scene: Scene = v === 1 ? { v: 1, steps } : { steps };
+  if (esc.escalate !== undefined) scene.escalate = esc.escalate;
+  return { ok: true, scene, issues: notes };
+}

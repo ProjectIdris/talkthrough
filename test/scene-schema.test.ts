@@ -1,0 +1,78 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { createSceneState, sceneGuide, sceneGuideExample, sceneSchema, sceneSchemaLean, validateScene, VARIANTS } from '../src/scene/index.ts';
+import { check, strictProblems } from './support/json-schema.ts';
+
+const samplesDir = new URL('../samples/scenes/', import.meta.url);
+const schema = sceneSchema as Record<string, unknown>;
+
+test('the schema keeps to what strict structured-output modes accept', () => {
+  assert.deepEqual(strictProblems(schema), []);
+});
+
+test('the lean schema is the same structure without descriptions, and just as strict', () => {
+  assert.deepEqual(strictProblems(sceneSchemaLean as Record<string, unknown>), []);
+  const text = JSON.stringify(sceneSchemaLean);
+  assert.ok(!text.includes('"description"'));
+  assert.ok(text.length < JSON.stringify(sceneSchema).length * 0.7);
+  const strip = (v: unknown): unknown => Array.isArray(v) ? v.map(strip)
+    : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'description').map(([k, x]) => [k, strip(x)])) : v;
+  assert.deepEqual(sceneSchemaLean, strip(sceneSchema));
+});
+
+test('the guide names every action and its example is a valid scene', () => {
+  for (const v of VARIANTS) assert.ok(sceneGuide.includes(`- ${v.op} {`), v.op);
+  const r = validateScene(sceneGuideExample, createSceneState());
+  assert.deepEqual(r.issues, []);
+  assert.deepEqual(r.scene, sceneGuideExample);
+});
+
+test('the strict-mode linter catches what it is meant to catch', () => {
+  const open = { type: 'object', properties: { a: { type: 'number', minimum: 1 } }, required: [] };
+  const problems = strictProblems(open);
+  assert.ok(problems.some((p) => p.includes('not closed')));
+  assert.ok(problems.some((p) => p.includes('not required')));
+  assert.ok(problems.some((p) => p.includes('minimum')));
+});
+
+test('every action variant is offered to the model', () => {
+  const defs = schema.$defs as Record<string, unknown>;
+  const offered = ((defs.action as { anyOf: { $ref: string }[] }).anyOf).map((b) => b.$ref.replace('#/$defs/', ''));
+  assert.deepEqual(offered, VARIANTS.map((v) => v.name));
+  for (const name of offered) assert.ok(defs[name], name);
+});
+
+test('every sample scene conforms to the schema (nullable fields may be left out)', () => {
+  for (const name of readdirSync(samplesDir).filter((f) => f.endsWith('.json'))) {
+    const raw = JSON.parse(readFileSync(new URL(name, samplesDir), 'utf8')) as Record<string, unknown>;
+    const { v: _version, ...body } = raw; // the schema asks the model for steps only
+    assert.deepEqual(check(schema, schema, body, '$', true), [], name);
+  }
+});
+
+test('the schema refuses what the validator would also drop', () => {
+  const step = (action: unknown) => ({ steps: [{ say: 'x', actions: [action] }], escalate: null });
+  const ok = { op: 'box', id: 'a', x: 1, y: 1, w: 1, h: 1, color: 'red', at: null };
+  assert.deepEqual(check(schema, schema, step(ok)), []);
+  assert.notDeepEqual(check(schema, schema, step({ ...ok, op: 'eval' })), []);
+  assert.notDeepEqual(check(schema, schema, step({ ...ok, color: 'javascript:1' })), []);
+  assert.notDeepEqual(check(schema, schema, step({ ...ok, onclick: 'x' })), []);
+  assert.notDeepEqual(check(schema, schema, step({ ...ok, x: '1' })), []);
+  const { at: _at, ...withoutNull } = ok;
+  assert.notDeepEqual(check(schema, schema, step(withoutNull)), []);
+});
+
+test('escalate is a nullable text at the root, and the model may leave steps empty', () => {
+  assert.deepEqual(check(schema, schema, { steps: [], escalate: 'too deep for a quick look' }), []);
+  assert.deepEqual(check(schema, schema, { steps: [], escalate: null }), []);
+  assert.notDeepEqual(check(schema, schema, { steps: [], escalate: 5 }), []);
+  assert.notDeepEqual(check(schema, schema, { steps: [] }), []);
+});
+
+test('the schema files in docs are what this code builds', () => {
+  for (const [file, built] of [['scene.schema.json', sceneSchema], ['scene.schema.lean.json', sceneSchemaLean]] as const) {
+    const onDisk = JSON.parse(readFileSync(new URL(`../docs/${file}`, import.meta.url), 'utf8'));
+    assert.deepEqual(onDisk, JSON.parse(JSON.stringify(built)), `run: node scripts/build-schema.ts (${file})`);
+  }
+});

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "The setting you want is in this menu, but working out why the build fails needs a closer look than I can give here.",
+      "actions": [
+        { "op": "box", "id": "menu", "x": 20, "y": 40, "w": 160, "h": 60, "color": "blue" },
+        { "op": "label", "id": "menu-note", "x": 20, "y": 110, "text": "Settings are here", "color": "blue", "at": 0.8 }
+      ]
+    }
+  ],
+  "escalate": "Finding the cause of this build failure needs a deeper read of the log than a quick look allows"
+}

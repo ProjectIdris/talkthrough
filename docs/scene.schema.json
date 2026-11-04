@@ -1,0 +1,1174 @@
+{
+  "type": "object",
+  "description": "An explanation in steps. Screen coordinates run 0 to 1000 across the screenshot, x to the right, y down.",
+  "properties": {
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    },
+    "escalate": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Set when the question is beyond what you can answer well here, so a slower, deeper helper can be offered: a short reason, up to 160 characters. steps may then be empty. Otherwise null."
+    }
+  },
+  "required": [
+    "steps",
+    "escalate"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "box": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "box"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "y": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "w": {
+          "type": "number",
+          "description": "1 to 1000"
+        },
+        "h": {
+          "type": "number",
+          "description": "1 to 1000"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "w",
+        "h",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Rectangle outline on the screenshot; x,y is the top-left corner."
+    },
+    "circle": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "circle"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "y": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "w": {
+          "type": "number",
+          "description": "1 to 1000"
+        },
+        "h": {
+          "type": "number",
+          "description": "1 to 1000"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "w",
+        "h",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Circle or oval outline drawn inside the box x,y,w,h (x,y is the top-left corner)."
+    },
+    "underline": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "underline"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "y": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "w": {
+          "type": "number",
+          "description": "1 to 1000"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "w",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Line under text; x,y is its left end, w its length."
+    },
+    "arrow": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "arrow"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x1": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "y1": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "x2": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "y2": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Arrow on the screenshot from x1,y1 to x2,y2 (the head is at x2,y2)."
+    },
+    "label": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "label"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "y": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "text": {
+          "type": "string",
+          "description": "up to 80 characters"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "size": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "10 to 100"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "text",
+        "color",
+        "size",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Short text on the screenshot; x,y is its top-left corner. size is the text height in y units (default 24)."
+    },
+    "panel": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "panel"
+          ]
+        },
+        "x": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "y": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "w": {
+          "type": "number",
+          "description": "1 to 1000"
+        },
+        "h": {
+          "type": "number",
+          "description": "1 to 1000"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "x",
+        "y",
+        "w",
+        "h",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "The 3D panel: a rectangle on the screenshot where 3D objects are drawn. Sent again, it moves or resizes."
+    },
+    "addSolid": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "box",
+            "sphere",
+            "cylinder",
+            "cone",
+            "torus",
+            "plane"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group to attach to"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "size": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], each 0.01 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "size",
+        "rot",
+        "color",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A solid in the panel. size is its bounding box [x,y,z]: cylinder and cone stand on y with diameter x, torus lies flat with outer diameter x and tube thickness y, plane faces +z and ignores z."
+    },
+    "addPath": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "line",
+            "arrow"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group to attach to"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "2 to 24 points [x,y,z]"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pts",
+        "color",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A line through the points, or an arrow from the first to the last point."
+    },
+    "addText": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "text"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group to attach to"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "text": {
+          "type": "string",
+          "description": "up to 80 characters"
+        },
+        "height": {
+          "type": "number",
+          "description": "0.05 to 50"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "text",
+        "height",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Text in the panel that always faces the camera; height is in panel units."
+    },
+    "addGroup": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "group"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group to attach to"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "An empty node to move, turn and scale other objects together (attach them with parent)."
+    },
+    "move": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "move"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], each -100 to 100"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Move a 3D object to an absolute position."
+    },
+    "turn": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "turn"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], each -3600 to 3600"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Turn a 3D object to absolute angles in degrees; from [0,0,0], [0,360,0] is one full spin."
+    },
+    "scale": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "scale"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], each 0.01 to 100"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Scale a 3D object to absolute factors [x,y,z] (1 is the size it was added at)."
+    },
+    "style": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "style"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black",
+            null
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "color",
+        "opacity",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Change the colour and/or opacity of any object or mark; at least one of them."
+    },
+    "highlight": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "highlight"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "color",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Pulse an object or mark to draw the eye, optionally in a colour."
+    },
+    "orbit": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "orbit"
+          ]
+        },
+        "az": {
+          "type": "number",
+          "description": "-360 to 360"
+        },
+        "el": {
+          "type": "number",
+          "description": "-89 to 89"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "az",
+        "el",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Move the camera around what it looks at: az is the angle around (0 faces the front), el the height angle."
+    },
+    "zoom": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "zoom"
+          ]
+        },
+        "to": {
+          "type": "number",
+          "description": "0.2 to 5"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Camera distance factor: 1 is the default framing, 2 is twice as close."
+    },
+    "focus": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "focus"
+          ]
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Aim the camera at a 3D object; without id, back at the middle of the panel."
+    },
+    "clear": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "clear"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "description": "an id, or \"all\", \"marks\" or \"panel\""
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "target",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Remove an object or mark (and what is attached to it), or everything with \"all\", every mark with \"marks\", the panel and its objects with \"panel\"."
+    },
+    "action": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/box"
+        },
+        {
+          "$ref": "#/$defs/circle"
+        },
+        {
+          "$ref": "#/$defs/underline"
+        },
+        {
+          "$ref": "#/$defs/arrow"
+        },
+        {
+          "$ref": "#/$defs/label"
+        },
+        {
+          "$ref": "#/$defs/panel"
+        },
+        {
+          "$ref": "#/$defs/addSolid"
+        },
+        {
+          "$ref": "#/$defs/addPath"
+        },
+        {
+          "$ref": "#/$defs/addText"
+        },
+        {
+          "$ref": "#/$defs/addGroup"
+        },
+        {
+          "$ref": "#/$defs/move"
+        },
+        {
+          "$ref": "#/$defs/turn"
+        },
+        {
+          "$ref": "#/$defs/scale"
+        },
+        {
+          "$ref": "#/$defs/style"
+        },
+        {
+          "$ref": "#/$defs/highlight"
+        },
+        {
+          "$ref": "#/$defs/orbit"
+        },
+        {
+          "$ref": "#/$defs/zoom"
+        },
+        {
+          "$ref": "#/$defs/focus"
+        },
+        {
+          "$ref": "#/$defs/clear"
+        }
+      ]
+    },
+    "step": {
+      "type": "object",
+      "description": "What is said and what appears while it is said. At most 24 actions.",
+      "properties": {
+        "say": {
+          "type": "string",
+          "description": "The words spoken for this step, up to 400 characters"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/action"
+          }
+        }
+      },
+      "required": [
+        "say",
+        "actions"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

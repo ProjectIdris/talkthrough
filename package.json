@@ -1,0 +1,29 @@
+{
+  "name": "talkthrough",
+  "version": "0.0.0",
+  "description": "An AI that talks you through anything on your screen, and draws as it talks.",
+  "keywords": ["screen assistant", "overlay", "ai", "three.js", "electron"],
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "dist/main/main.cjs",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && electron .",
+    "test": "node --test \"test/*.test.ts\""
+  },
+  "dependencies": {
+    "electron": "45.2.2",
+    "get-windows": "10.0.0",
+    "three": "0.187.0",
+    "uiohook-napi": "1.5.5"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "How hot is the core? Let me fade the outer layers so we can look at it.",
+      "actions": [
+        { "op": "style", "id": "crust", "opacity": 0.04, "dur": 1 },
+        { "op": "style", "id": "mantle", "opacity": 0.06, "dur": 1 },
+        { "op": "style", "id": "outer", "opacity": 0.1, "dur": 1 },
+        { "op": "focus", "id": "core", "at": 0.5, "dur": 1.5 },
+        { "op": "zoom", "to": 2.4, "at": 0.5, "dur": 1.5 }
+      ]
+    },
+    {
+      "say": "About five thousand to six thousand degrees Celsius, roughly the surface of the Sun. It stays solid only because of the enormous pressure.",
+      "actions": [
+        { "op": "highlight", "id": "core", "color": "red", "dur": 1.5 },
+        { "op": "label", "id": "heat", "x": 620, "y": 660, "text": "About 5,000 to 6,000 C", "color": "red", "at": 0.5 }
+      ]
+    },
+    {
+      "say": "That is the inner core. Let me put the other layers back.",
+      "actions": [
+        { "op": "clear", "target": "heat" },
+        { "op": "focus", "dur": 1.2 },
+        { "op": "zoom", "to": 0.85, "dur": 1.2 },
+        { "op": "style", "id": "crust", "opacity": 0.25, "at": 0.6 },
+        { "op": "style", "id": "mantle", "opacity": 0.35, "at": 0.6 },
+        { "op": "style", "id": "outer", "opacity": 0.55, "at": 0.6 }
+      ]
+    }
+  ]
+}

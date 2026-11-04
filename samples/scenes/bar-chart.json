@@ -1,0 +1,66 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "This page shows quarterly revenue as a bar chart. Let me point out what matters.",
+      "actions": [
+        { "op": "box", "id": "chart", "x": 80, "y": 180, "w": 480, "h": 440, "color": "blue" },
+        { "op": "label", "id": "chart-name", "x": 80, "y": 130, "text": "Revenue by quarter", "color": "blue", "at": 0.8 }
+      ]
+    },
+    {
+      "say": "The last bar is the tallest, by a wide margin. Q4 is where the year really took off.",
+      "actions": [
+        { "op": "circle", "id": "q4-ring", "x": 420, "y": 240, "w": 100, "h": 180, "color": "red" },
+        { "op": "arrow", "id": "q4-arrow", "x1": 600, "y1": 250, "x2": 545, "y2": 300, "color": "red", "at": 0.6 },
+        { "op": "label", "id": "q4-note", "x": 570, "y": 205, "text": "Q4: the peak", "color": "red", "at": 0.6 }
+      ]
+    },
+    {
+      "say": "Let me rebuild the chart in 3D so you can turn it. First a floor, then the first quarter.",
+      "actions": [
+        { "op": "panel", "x": 620, "y": 180, "w": 360, "h": 440 },
+        { "op": "add", "shape": "plane", "id": "floor", "pos": [0, -2, 0], "size": [10, 5, 1], "rot": [-90, 0, 0], "color": "gray", "opacity": 0.5, "at": 0.3 },
+        { "op": "add", "shape": "group", "id": "bar1", "pos": [-3.6, -2, 0], "at": 1.2 },
+        { "op": "add", "shape": "box", "id": "bar1-body", "parent": "bar1", "pos": [0, 0.5, 0], "size": [1.5, 1, 1.5], "color": "teal", "at": 1.2 },
+        { "op": "scale", "id": "bar1", "to": [1, 0.01, 1], "dur": 0, "at": 1.2 },
+        { "op": "scale", "id": "bar1", "to": [1, 2.1, 1], "dur": 1, "at": 1.5 },
+        { "op": "add", "shape": "text", "id": "bar1-text", "pos": [-3.6, 0.5, 0], "text": "Q1: 2.1", "height": 0.6, "color": "white", "at": 2.6 }
+      ]
+    },
+    {
+      "say": "The second quarter grows to three point four. Then a small dip in the third, at three.",
+      "actions": [
+        { "op": "add", "shape": "group", "id": "bar2", "pos": [-1.2, -2, 0] },
+        { "op": "add", "shape": "box", "id": "bar2-body", "parent": "bar2", "pos": [0, 0.5, 0], "size": [1.5, 1, 1.5], "color": "teal" },
+        { "op": "scale", "id": "bar2", "to": [1, 0.01, 1], "dur": 0 },
+        { "op": "scale", "id": "bar2", "to": [1, 3.4, 1], "dur": 1, "at": 0.3 },
+        { "op": "add", "shape": "text", "id": "bar2-text", "pos": [-1.2, 1.9, 0], "text": "Q2: 3.4", "height": 0.6, "color": "white", "at": 1.4 },
+        { "op": "add", "shape": "group", "id": "bar3", "pos": [1.2, -2, 0], "at": 3 },
+        { "op": "add", "shape": "box", "id": "bar3-body", "parent": "bar3", "pos": [0, 0.5, 0], "size": [1.5, 1, 1.5], "color": "teal", "at": 3 },
+        { "op": "scale", "id": "bar3", "to": [1, 0.01, 1], "dur": 0, "at": 3 },
+        { "op": "scale", "id": "bar3", "to": [1, 3, 1], "dur": 1, "at": 3.3 },
+        { "op": "add", "shape": "text", "id": "bar3-text", "pos": [1.2, 1.5, 0], "text": "Q3: 3.0", "height": 0.6, "color": "white", "at": 4.4 }
+      ]
+    },
+    {
+      "say": "And the fourth quarter, five point two. Nearly double the second.",
+      "actions": [
+        { "op": "add", "shape": "group", "id": "bar4", "pos": [3.6, -2, 0] },
+        { "op": "add", "shape": "box", "id": "bar4-body", "parent": "bar4", "pos": [0, 0.5, 0], "size": [1.5, 1, 1.5], "color": "orange" },
+        { "op": "scale", "id": "bar4", "to": [1, 0.01, 1], "dur": 0 },
+        { "op": "scale", "id": "bar4", "to": [1, 5.2, 1], "dur": 1.4, "at": 0.3 },
+        { "op": "add", "shape": "text", "id": "bar4-text", "pos": [3.6, 3.7, 0], "text": "Q4: 5.2", "height": 0.7, "color": "orange", "at": 1.7 },
+        { "op": "highlight", "id": "bar4-body", "at": 1.8, "dur": 1.2 }
+      ]
+    },
+    {
+      "say": "Drag the model to look at it from the side. The gap between the last bar and the rest is the story of this chart.",
+      "actions": [
+        { "op": "orbit", "az": 35, "el": 20, "dur": 2.5 },
+        { "op": "zoom", "to": 1.15, "dur": 2.5 },
+        { "op": "underline", "id": "takeaway", "x": 80, "y": 650, "w": 480, "color": "green", "at": 2 }
+      ]
+    }
+  ]
+}

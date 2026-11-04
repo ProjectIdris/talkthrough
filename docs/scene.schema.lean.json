@@ -1,0 +1,1077 @@
+{
+  "type": "object",
+  "properties": {
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    },
+    "escalate": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "steps",
+    "escalate"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "box": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "box"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "w",
+        "h",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "circle": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "circle"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "w",
+        "h",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "underline": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "underline"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "w",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "arrow": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "arrow"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x1": {
+          "type": "number"
+        },
+        "y1": {
+          "type": "number"
+        },
+        "x2": {
+          "type": "number"
+        },
+        "y2": {
+          "type": "number"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "label": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "label"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "size": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "text",
+        "color",
+        "size",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "panel": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "panel"
+          ]
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "x",
+        "y",
+        "w",
+        "h",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
+    "addSolid": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "box",
+            "sphere",
+            "cylinder",
+            "cone",
+            "torus",
+            "plane"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "size": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "size",
+        "rot",
+        "color",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "addPath": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "line",
+            "arrow"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pts",
+        "color",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "addText": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "text"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "text": {
+          "type": "string"
+        },
+        "height": {
+          "type": "number"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "text",
+        "height",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "addGroup": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "group"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "move": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "move"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
+    "turn": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "turn"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
+    "scale": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "scale"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
+    "style": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "style"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black",
+            null
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "color",
+        "opacity",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
+    "highlight": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "highlight"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "color": {
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "white",
+            "gray",
+            "black",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "color",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
+    "orbit": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "orbit"
+          ]
+        },
+        "az": {
+          "type": "number"
+        },
+        "el": {
+          "type": "number"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "az",
+        "el",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
+    "zoom": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "zoom"
+          ]
+        },
+        "to": {
+          "type": "number"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "to",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
+    "focus": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "focus"
+          ]
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
+    "clear": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "clear"
+          ]
+        },
+        "target": {
+          "type": "string"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "target",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "action": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/box"
+        },
+        {
+          "$ref": "#/$defs/circle"
+        },
+        {
+          "$ref": "#/$defs/underline"
+        },
+        {
+          "$ref": "#/$defs/arrow"
+        },
+        {
+          "$ref": "#/$defs/label"
+        },
+        {
+          "$ref": "#/$defs/panel"
+        },
+        {
+          "$ref": "#/$defs/addSolid"
+        },
+        {
+          "$ref": "#/$defs/addPath"
+        },
+        {
+          "$ref": "#/$defs/addText"
+        },
+        {
+          "$ref": "#/$defs/addGroup"
+        },
+        {
+          "$ref": "#/$defs/move"
+        },
+        {
+          "$ref": "#/$defs/turn"
+        },
+        {
+          "$ref": "#/$defs/scale"
+        },
+        {
+          "$ref": "#/$defs/style"
+        },
+        {
+          "$ref": "#/$defs/highlight"
+        },
+        {
+          "$ref": "#/$defs/orbit"
+        },
+        {
+          "$ref": "#/$defs/zoom"
+        },
+        {
+          "$ref": "#/$defs/focus"
+        },
+        {
+          "$ref": "#/$defs/clear"
+        }
+      ]
+    },
+    "step": {
+      "type": "object",
+      "properties": {
+        "say": {
+          "type": "string"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/action"
+          }
+        }
+      },
+      "required": [
+        "say",
+        "actions"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

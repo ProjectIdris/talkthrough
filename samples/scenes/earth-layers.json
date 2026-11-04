@@ -1,0 +1,59 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "This article is about what the Earth is made of. The picture on the left shows the planet cut open.",
+      "actions": [
+        { "op": "box", "id": "picture", "x": 60, "y": 130, "w": 520, "h": 340, "color": "blue" },
+        { "op": "label", "id": "picture-name", "x": 620, "y": 140, "text": "Earth, cut open", "color": "blue", "at": 0.6 },
+        { "op": "arrow", "id": "picture-arrow", "x1": 690, "y1": 190, "x2": 590, "y2": 260, "color": "blue", "at": 0.6 }
+      ]
+    },
+    {
+      "say": "There are four main layers. I will build them from the middle outwards, so you can turn the model and look inside.",
+      "actions": [
+        { "op": "panel", "x": 620, "y": 220, "w": 360, "h": 420 },
+        { "op": "add", "shape": "group", "id": "earth", "pos": [0, 0, 0], "at": 0.3 }
+      ]
+    },
+    {
+      "say": "At the very centre is the inner core: solid iron, as hot as the surface of the Sun.",
+      "actions": [
+        { "op": "add", "shape": "sphere", "id": "core", "parent": "earth", "size": [2, 2, 2], "color": "yellow" },
+        { "op": "highlight", "id": "core", "at": 0.8, "dur": 1 },
+        { "op": "add", "shape": "text", "id": "core-name", "pos": [0, -4.8, 0], "text": "Inner core", "height": 0.6, "color": "yellow", "at": 0.6 },
+        { "op": "underline", "id": "core-line", "x": 80, "y": 560, "w": 300, "color": "yellow", "at": 1 }
+      ]
+    },
+    {
+      "say": "Around it is the outer core, liquid metal, flowing slowly. Those currents are what make Earth's magnetic field.",
+      "actions": [
+        { "op": "add", "shape": "sphere", "id": "outer", "parent": "earth", "size": [4, 4, 4], "color": "orange", "opacity": 0.55 },
+        { "op": "style", "id": "core-name", "color": "orange", "at": 0.6 },
+        { "op": "turn", "id": "earth", "to": [0, 120, 0], "at": 0.5, "dur": 3 }
+      ]
+    },
+    {
+      "say": "Then the mantle, the thickest layer. It is solid rock, but over millions of years it creeps like very thick syrup.",
+      "actions": [
+        { "op": "add", "shape": "sphere", "id": "mantle", "parent": "earth", "size": [7, 7, 7], "color": "red", "opacity": 0.35 },
+        { "op": "zoom", "to": 0.85, "dur": 1.2 },
+        { "op": "turn", "id": "earth", "to": [0, 240, 0], "at": 0.3, "dur": 3.5 }
+      ]
+    },
+    {
+      "say": "And the crust on the outside, thin as the skin of an apple. Everything we have ever built sits on it.",
+      "actions": [
+        { "op": "add", "shape": "sphere", "id": "crust", "parent": "earth", "size": [7.6, 7.6, 7.6], "color": "teal", "opacity": 0.25 },
+        { "op": "turn", "id": "earth", "to": [0, 360, 0], "at": 0.3, "dur": 3.5 },
+        { "op": "orbit", "az": 30, "el": 20, "at": 1, "dur": 2.5 }
+      ]
+    },
+    {
+      "say": "Drag the model to turn it yourself, and ask me about any layer.",
+      "actions": [
+        { "op": "style", "id": "core-name", "color": "white", "dur": 0.3 }
+      ]
+    }
+  ]
+}
