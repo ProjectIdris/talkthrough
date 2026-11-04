@@ -14,6 +14,7 @@ import { AutoFade, fadeFrame } from './fade.ts';
 import { HudState } from './hud.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
+import { PageMemory } from './page-memory.ts';
 import { Placer, pageGrid, placeAction, reserveMarks } from './placement.ts';
 import { snapActions } from './snap.ts';
 import type { Snapper } from './snap.ts';
@@ -285,13 +286,18 @@ const pen = new PenLayer();
 // Frame grabs (seek) step a clock of their own, one thirtieth of a second a grab, so a clip's tags move at the clip's pace.
 let seekClock: number | undefined;
 const labelClock = (): number => seekClock ?? performance.now();
-let busyFor: { image: CanvasImageSource; busy: Busy; grid: PageGrid } | undefined;
+// The screenshot element is reused for every capture, so what is worked out from the page is kept per picture and
+// dropped when a new one arrives (handleScene), not told apart by the element.
+const pageMemory = new PageMemory();
 
-/** A small gray picture of the screenshot (or backdrop), kept for as long as it is the same image. */
+/** A small gray picture of the screenshot (or backdrop), kept for as long as it is the same picture. */
 function pageFor(): { busy: Busy; grid: PageGrid } | undefined {
   const source = cropSource();
   if (!source) return undefined;
-  if (busyFor?.image === source.image) return busyFor;
+  return pageMemory.recall('page', source.image, '', () => grayPage(source));
+}
+
+function grayPage(source: { image: CanvasImageSource; width: number; height: number }): { busy: Busy; grid: PageGrid } | undefined {
   const cols = 192, rows = 108;
   // Shrunk in halves, so thin text blurs into a tone instead of being skipped over by a single big step.
   let from: CanvasImageSource = source.image;
@@ -318,32 +324,26 @@ function pageFor(): { busy: Busy; grid: PageGrid } | undefined {
   const data = c.getImageData(0, 0, cols, rows).data;
   const gray = new Uint8Array(cols * rows);
   for (let i = 0; i < gray.length; i++) gray[i] = (data[i * 4] as number) * 0.3 + (data[i * 4 + 1] as number) * 0.59 + (data[i * 4 + 2] as number) * 0.11;
-  busyFor = { image: source.image, busy: busyFromGray(gray, cols, rows, view.width, view.height), grid: pageGrid(gray, cols, rows) };
-  return busyFor;
+  return { busy: busyFromGray(gray, cols, rows, view.width, view.height), grid: pageGrid(gray, cols, rows) };
 }
 
 /** How busy each part of the page is, from the screenshot (or backdrop): tags keep off its text. */
 const busyMap = (): Busy | undefined => pageFor()?.busy;
 
 /** Where the stage and the cards go on this page (placement.ts); there is none without a picture of the page. */
-let placerFor: { image: CanvasImageSource; aspect: number; placer: Placer } | undefined;
 function placer(): Placer | undefined {
   const page = pageFor();
   const source = cropSource();
   if (!page || !source) return undefined;
   const aspect = view.width / view.height;
-  if (placerFor?.image === source.image && placerFor.aspect === aspect) return placerFor.placer;
-  placerFor = { image: source.image, aspect, placer: new Placer(page.grid, { aspect }) };
-  return placerFor.placer;
+  return pageMemory.recall('placer', source.image, String(aspect), () => new Placer(page.grid, { aspect }));
 }
 
 /** The page's edges and corners, for putting marks on what they point at (snap.ts); kept for as long as the picture is the same. */
-let snapFor: { image: CanvasImageSource; snapper: Snapper | undefined } | undefined;
 function snapper(): Snapper | undefined {
   const source = cropSource();
   if (!source) return undefined;
-  if (snapFor?.image !== source.image) snapFor = { image: source.image, snapper: snapperFor(source.image, source.width, source.height) };
-  return snapFor.snapper;
+  return pageMemory.recall('snapper', source.image, '', () => snapperFor(source.image, source.width, source.height));
 }
 
 /** Marks moved onto the page's own lines, corners and figures; each move is said once in the app log (a check run reads it). */
@@ -641,6 +641,8 @@ function waitForPage(image: HTMLImageElement): void {
   const release = (): void => {
     if (!pageDecoding) return;
     pageDecoding = false;
+    // Worked out now, while the model is still thinking, not when the first mark is due.
+    if (image.complete && image.naturalWidth > 0) { placer(); snapper(); }
     for (const held of heldScene.splice(0)) handleScene(held);
   };
   void image.decode().then(release, release);
@@ -650,6 +652,7 @@ function waitForPage(image: HTMLImageElement): void {
 function handleScene(message: SceneMessage): void {
   if (message.kind === 'screenshot') {
     shot.onload = () => request();
+    pageMemory.renew(); // the same element holds every capture: what was worked out from the last one is out of date
     shot.src = message.url;
     waitForPage(shot);
     return;
