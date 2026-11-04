@@ -47,7 +47,9 @@ test('what each call is told: the first asks for step 1 and a plan, the next one
   assert.match(next, /Write step 3 only \("The third"\)/);
   assert.match(next, /"done" to true when the plan has no step after this one/);
   assert.match(next, /about 30 words at most/);
-  assert.match(next, /Do not mark anything an earlier step already marked/);
+  assert.match(next, /do not draw a second mark on something an earlier step marked and that is still on the page \(a different part inside it is a new mark\)/);
+  assert.match(next, /every move has its own mark and wait, even where an earlier move's mark was/);
+  assert.ok(!/how-do-I walk: one move a step/.test(next), 'an explanation is not told it is a walk');
   assert.match(questionText({ ...request, stage: { part: 'next', n: 2, shown: [{ say: 'One.', actions: [] }], plan: ['x'] } }), /Step 1 of this answer is already drawn/);
 });
 
@@ -263,4 +265,19 @@ test('aborting the question while the chain is held lets go of the hold, ends th
   assert.ok(heldSignal.aborted);
   await wait(30);
   assert.deepEqual(log, ['start1'], 'no second call');
+});
+
+const walkSteps = [{ say: 'Click A.', actions: [{ op: 'wait', for: 'click' }] }, { say: 'Click B.', actions: [{ op: 'wait', for: 'click' }] }];
+
+test('a walk lifts the cap: one move a step with its own mark and wait, no word limit, and from step 3 the checklist is already drawn', () => {
+  const second = questionText({ ...request, stage: { part: 'next', n: 2, shown: [walkSteps[0]], plan: ['B'] } });
+  assert.match(second, /This is a how-do-I walk: one move a step/);
+  assert.match(second, /Step 2 draws the checklist/);
+  assert.ok(!/about 30 words at most/.test(second));
+  const third = questionText({ ...request, stage: { part: 'next', n: 3, shown: walkSteps, plan: ['C'] } });
+  assert.match(third, /This is a how-do-I walk: one move a step/);
+  assert.match(third, /The checklist is already drawn: write the next move/);
+  assert.ok(!/step 2 draws the checklist/i.test(third), 'the checklist is not drawn again');
+  assert.ok(!/about 30 words at most/.test(third));
+  assert.match(questionText({ ...request, stage: { part: 'first', plan: true } }), /in a how-do-I walk one title for each move still to do, up to 5/);
 });
