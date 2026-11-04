@@ -232,8 +232,9 @@ async function main(): Promise<void> {
         uIOhook.keyToggle(UiohookKey.CtrlRight, 'up');
       }, holdMs);
     };
-    setTimeout(() => press(options.chordHoldMs), 2500);
-    setTimeout(() => press(options.chordHoldMs), 2500 + options.chordHoldMs + 4000);
+    // One press per question asked for (two by default); a further press would stop an answer still arriving.
+    const presses = options.exitAfterChord || 2;
+    for (let i = 0; i < presses; i++) setTimeout(() => press(options.chordHoldMs), 2500 + i * (options.chordHoldMs + 6000));
   }
   if (options.maxSeconds) setTimeout(quit, options.maxSeconds * 1000);
 }
