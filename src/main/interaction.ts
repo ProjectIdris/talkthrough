@@ -55,3 +55,41 @@ export function createClickGuard(options: ClickGuardOptions) {
     },
   };
 }
+
+/** What decides whether the E key is ours: one overlay window's state. */
+export type KeyState = { engaged: boolean; held: boolean; penOn: boolean; alive: boolean };
+
+/**
+ * The E key (it opens and closes a model) is taken from the whole system only while the person has pressed on the
+ * model, the pointer is still on it (the click lease is held), the pen is off and the window is alive: in every other
+ * state it belongs to whatever they are typing into. The window itself never takes the keyboard.
+ */
+export function keyWanted(states: Iterable<KeyState>): boolean {
+  for (const s of states) if (s.engaged && s.held && !s.penOn && s.alive) return true;
+  return false;
+}
+
+export type KeyHoldOptions = {
+  accelerator: string;
+  /** Registers a system-wide key; false when another program already owns it. */
+  register: (accelerator: string, onKey: () => void) => boolean;
+  unregister: (accelerator: string) => void;
+  onKey: () => void;
+};
+
+/** Holds the key while it is wanted and gives it back the moment it is not (call `want` whenever anything that decides it changes). */
+export function createKeyHold(options: KeyHoldOptions) {
+  let registered = false;
+  return {
+    want(on: boolean): void {
+      if (on && !registered) registered = options.register(options.accelerator, options.onKey);
+      else if (!on && registered) {
+        registered = false; // whatever unregister does, it is not ours any more
+        options.unregister(options.accelerator);
+      }
+    },
+    get held(): boolean {
+      return registered;
+    },
+  };
+}

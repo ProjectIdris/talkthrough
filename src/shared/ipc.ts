@@ -96,6 +96,8 @@ export type SceneMessage =
   | { kind: 'step-open'; say: string }
   | { kind: 'action'; action: Action }
   | { kind: 'step-close' }
+  /** The person pressed E while the pointer is on the model they pressed on: open or close it. */
+  | { kind: 'toggle-explode' }
   | { kind: 'end'; escalate?: string }
   /**
    * hush: the chord was made, stop any speech still going now (marks stay; no cue);

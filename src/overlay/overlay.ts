@@ -425,12 +425,6 @@ const toggleExplode = (): void => {
 };
 explodeEl.addEventListener('pointerdown', () => window.talkthrough.engage(true));
 explodeEl.addEventListener('click', toggleExplode);
-document.addEventListener('keydown', (e) => {
-  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || (e.key !== 'e' && e.key !== 'E')) return;
-  if (pen.active || !hold.over || !modelRect || !player.settled) return;
-  e.preventDefault();
-  toggleExplode();
-});
 // While the pointer is on the model the page keeps saying so; if the page goes quiet, main lets clicks through again.
 // The buttons come and go under a resting pointer, and the model can fade or be cleared there, so each beat looks again.
 setInterval(() => {
@@ -509,6 +503,10 @@ function handleScene(message: SceneMessage): void {
       break;
     case 'step-close':
       player.closeStep();
+      break;
+    case 'toggle-explode':
+      // E, pressed while the pointer is on the model the person pressed on (main holds the key only then).
+      if (!pen.active && hold.over && modelRect && player.settled) toggleExplode();
       break;
     case 'end':
       pen.fade(labelClock());
