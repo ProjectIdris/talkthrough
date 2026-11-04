@@ -2,7 +2,7 @@ import { BrowserWindow, ipcMain, screen } from 'electron';
 import type { Display, IpcMainEvent } from 'electron';
 import { CHANNEL } from '../shared/ipc.ts';
 import type { DisplayInfo, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
-import { ignoreMouse } from './interaction.ts';
+import { createClickGuard, ignoreMouse } from './interaction.ts';
 
 /** A stroke piece sent just after the pen went off (the last points of a drag) still counts for this long. */
 const PEN_GRACE_MS = 500;
@@ -30,7 +30,7 @@ export type OverlayOptions = {
   onOffer?: (displayId: number) => void;
 };
 
-type Overlay = { window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; pen: boolean; penOffAt: number };
+type Overlay = { window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; pen: boolean; penOffAt: number; guard: ReturnType<typeof createClickGuard> };
 
 /**
  * One overlay window per display: transparent, frameless, always on top, off the taskbar, never
@@ -89,8 +89,22 @@ export function createOverlayManager(options: OverlayOptions) {
       window.setBounds(display.bounds);
     });
     void window.loadFile(options.page);
-    overlays.set(display.id, { window, display, ready: false, queue: [], pageWantsClicks: false, pen: false, penOffAt: 0 });
-    window.on('closed', () => overlays.delete(display.id));
+    const overlay: Overlay = {
+      window, display, ready: false, queue: [], pageWantsClicks: false, pen: false, penOffAt: 0,
+      // The page repeats "the pointer is over the model" while it is true; if it goes quiet, the window lets clicks through again.
+      guard: createClickGuard({
+        onExpire: () => {
+          overlay.pageWantsClicks = false;
+          releaseKeyboard(overlay);
+          applyMouse(overlay);
+        },
+      }),
+    };
+    overlays.set(display.id, overlay);
+    window.on('closed', () => {
+      overlay.guard.release();
+      overlays.delete(display.id);
+    });
   }
 
   function find(event: IpcMainEvent): Overlay | undefined {
@@ -114,7 +128,22 @@ export function createOverlayManager(options: OverlayOptions) {
     const overlay = find(event);
     if (!overlay || typeof over !== 'boolean') return;
     overlay.pageWantsClicks = over;
+    if (over) overlay.guard.grant();
+    else {
+      overlay.guard.release();
+      releaseKeyboard(overlay);
+    }
     applyMouse(overlay);
+  });
+  // The user pressed on the model: the window takes the keyboard so a key (E explodes it) reaches the page. Only while
+  // the pointer is on the model and the pen is off; anything else, or the pointer leaving, gives the keyboard back.
+  ipcMain.on(CHANNEL.engage, (event, on: unknown) => {
+    const overlay = find(event);
+    if (!overlay || typeof on !== 'boolean') return;
+    if (on && overlay.guard.held && !overlay.pen) {
+      overlay.window.setFocusable(true);
+      overlay.window.focus();
+    } else releaseKeyboard(overlay);
   });
   ipcMain.on(CHANNEL.stroke, (event, stroke: unknown) => {
     const overlay = find(event);
@@ -140,6 +169,19 @@ export function createOverlayManager(options: OverlayOptions) {
     const overlay = find(event);
     if (overlay) options.onOffer?.(overlay.display.id);
   });
+
+  /** Back to never taking the keyboard (the overlay is not focusable unless the user is pressing on the model). */
+  function releaseKeyboard(overlay: Overlay): void {
+    const w = overlay.window;
+    if (w.isDestroyed() || !w.isFocusable()) return;
+    // Windows does not give focus back by itself when a window stops being focusable: step aside first, so whatever was
+    // beneath takes the keyboard again, then make the window unfocusable.
+    try {
+      if (w.isFocused()) w.blur();
+    } finally {
+      w.setFocusable(false);
+    }
+  }
 
   function applyMouse(overlay: Overlay): void {
     if (ignoreMouse(overlay.pageWantsClicks, overlay.pen)) overlay.window.setIgnoreMouseEvents(true, { forward: true });
@@ -190,7 +232,10 @@ export function createOverlayManager(options: OverlayOptions) {
         overlay.pen = on;
         // One window failing must never leave another one holding the mouse.
         try {
-          if (!overlay.window.isDestroyed()) applyMouse(overlay);
+          if (!overlay.window.isDestroyed()) {
+            if (on) releaseKeyboard(overlay); // the pen draws on the screen; it never needs the keyboard
+            applyMouse(overlay);
+          }
         } catch (error) {
           console.error('[talkthrough] pen:', error instanceof Error ? error.message : String(error));
         }

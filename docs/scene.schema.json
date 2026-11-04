@@ -536,6 +536,16 @@
           ],
           "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
         },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
+        },
         "pos": {
           "type": [
             "array",
@@ -617,6 +627,7 @@
         "shape",
         "id",
         "parent",
+        "explode",
         "pos",
         "size",
         "rot",
@@ -652,6 +663,16 @@
             "null"
           ],
           "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
         },
         "pos": {
           "type": [
@@ -741,6 +762,7 @@
         "shape",
         "id",
         "parent",
+        "explode",
         "pos",
         "rot",
         "outline",
@@ -777,6 +799,16 @@
             "null"
           ],
           "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
         },
         "pos": {
           "type": [
@@ -862,6 +894,7 @@
         "shape",
         "id",
         "parent",
+        "explode",
         "pos",
         "rot",
         "profile",
@@ -897,6 +930,16 @@
             "null"
           ],
           "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
         },
         "pts": {
           "type": "array",
@@ -966,6 +1009,7 @@
         "shape",
         "id",
         "parent",
+        "explode",
         "pts",
         "radius",
         "flat",
@@ -1001,6 +1045,16 @@
             "null"
           ],
           "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
         },
         "pts": {
           "type": "array",
@@ -1046,6 +1100,7 @@
         "shape",
         "id",
         "parent",
+        "explode",
         "pts",
         "color",
         "draw",
@@ -1077,6 +1132,16 @@
             "null"
           ],
           "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
         },
         "pos": {
           "type": [
@@ -1164,6 +1229,7 @@
         "shape",
         "id",
         "parent",
+        "explode",
         "pos",
         "rot",
         "part",
@@ -1264,6 +1330,16 @@
           ],
           "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
         },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
+        },
         "pos": {
           "type": [
             "array",
@@ -1299,6 +1375,7 @@
         "shape",
         "id",
         "parent",
+        "explode",
         "pos",
         "text",
         "height",
@@ -1330,6 +1407,16 @@
             "null"
           ],
           "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
         },
         "pos": {
           "type": [
@@ -1364,6 +1451,7 @@
         "shape",
         "id",
         "parent",
+        "explode",
         "pos",
         "rot",
         "at"
@@ -1650,7 +1738,7 @@
         "dur"
       ],
       "additionalProperties": false,
-      "description": "Spread the parts of a group outward from its origin: 0 assembled, 1 apart (up to 3). Back to 0 to assemble."
+      "description": "Spread the parts of a group outward from its origin: 0 assembled, 1 apart (up to 3). A part that has its own explode offset moves by that offset times the spread instead. Back to 0 to assemble."
     },
     "reveal": {
       "type": "object",

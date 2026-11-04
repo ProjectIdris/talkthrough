@@ -11,8 +11,10 @@ export const CHANNEL = {
   scene: 'tt:scene',
   /** overlay -> main: the page has loaded and wants its DisplayInfo. */
   ready: 'tt:ready',
-  /** overlay -> main: boolean, the pointer is over something the user can drag (the 3D panel). */
+  /** overlay -> main: boolean, the pointer is over something the user can drag (the 3D panel). Repeated while true; if it stops, main lets clicks through again. */
   interactive: 'tt:interactive',
+  /** overlay -> main: boolean, the user pressed on the 3D model (true: take the keyboard, so a key such as E reaches it) or let go of it (false). */
+  engage: 'tt:engage',
   /** overlay -> main: the token of a `seek` whose frame is now painted. */
   rendered: 'tt:rendered',
   /** overlay -> main: the played scene has finished (all steps spoken and drawn). */
@@ -24,6 +26,9 @@ export const CHANNEL = {
   /** overlay -> main: a Milestone, for latency measurement (the first mark drawn or word spoken of a live turn). */
   milestone: 'tt:milestone',
 } as const;
+
+/** A frame grab can show the model as a person has left it: turned, zoomed or opened. Camera angles in degrees, explode 0 closed to 1 open; any left out stay as the scene has them. */
+export type SeekView = { az?: number; el?: number; zoom?: number; explode?: number };
 
 /** Part of one pen stroke: points are appended per id; coordinates run 0..1000 across the whole overlay window. */
 export type Stroke = { id: number; points: Array<[number, number]>; done: boolean };
@@ -62,7 +67,7 @@ export type SceneMessage =
    * Frame grabs: stop the clock and draw the scene as it is `t` seconds into step `step`
    * (earlier steps complete), with no speech. Once painted, answer with `rendered(token)`.
    */
-  | { kind: 'seek'; scene: Scene; step: number; t: number; token: number }
+  | { kind: 'seek'; scene: Scene; step: number; t: number; token: number; view?: SeekView }
   /**
    * Live turns, while a model is still writing. `begin` starts a turn (1 = fresh scene, later = continues),
    * each `step` is one validated step to append (the first starts at once, the rest queue behind it), and
@@ -183,6 +188,8 @@ export interface TalkthroughApi {
   onScene(listener: (message: SceneMessage) => void): void;
   /** True while the pointer is over the draggable 3D panel; main stops clicks passing through. */
   setInteractive(over: boolean): void;
+  /** True after the user presses on the 3D model, so the window takes the keyboard; false when they leave it. */
+  engage(on: boolean): void;
   rendered(token: number): void;
   done(): void;
   /** The user clicked the escalation offer. */

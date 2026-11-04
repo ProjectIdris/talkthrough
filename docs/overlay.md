@@ -25,7 +25,7 @@ Scene coordinates run 0 to 1000 across each axis of the window, which covers the
 
 ## Building models
 
-`geometry.ts` makes the shapes (rounded boxes, extrusions, lathes, tubes along a curve, drawn on a ring at a time); `parts.ts` builds the parts kit from the same pieces, fitted to the box a scene gives; `scene3d.ts` brings a Frame into three.js, applies explode (children sit at their position times one plus the spread), places the floor, light and shadow, and projects points of objects to the screen for pins and hit tests.
+`geometry.ts` makes the shapes (rounded boxes, extrusions, lathes, tubes along a curve, drawn on a ring at a time); `parts.ts` builds the parts kit from the same pieces, fitted to the box a scene gives; `scene3d.ts` brings a Frame into three.js, applies explode (children sit at their position times one plus the spread, or at position plus their own `explode` offset times the spread), places the floor, light and shadow, and projects points of objects to the screen for pins and hit tests.
 
 ## Looks
 
@@ -55,7 +55,19 @@ In real time (`player.ts`):
 
 When a turn has finished, the scene stays at full strength for `FADE_AFTER_MS` (set in `src/shared/ipc.ts`), then fades over 1.2 s, unless the pointer is on the model or the app's words; touching it starts the count again. A faded scene takes no clicks. It is hidden, not cleared, so a follow-up still reaches its ids; the next question or Clear removes it. `fade.ts` is the logic and is tested without a clock.
 
-Dragging the model turns the camera (0.4 degrees a pixel). The drag is folded into the camera's tweens, so a camera action after it starts from where the camera is. The pointer region is the model's own bounding rectangle, so the page around it stays clickable.
+## Turning, zooming and opening the finished model
+
+Once a model's steps are done (nothing is playing or being written), the person can handle it. The pointer region is the model's screen bounds plus a 28 px margin (`orbit.ts`), so a thin part is easy to catch and the page around it stays clickable; the page tells the main process `setInteractive(true)` only there, and click-through comes back the moment the pointer leaves (the drag's end is in a `finally`, so a thrown error cannot leave the window solid).
+
+- **Drag** turns the camera (0.4 degrees a pixel). The drag is folded into the camera's tweens, so a camera action after it starts from where the camera is. The slow idle turn stops while it is held.
+- **Wheel** zooms (`wheelFactor`: a gentle step, clamped, mouse wheels and touchpads alike), within the scene language's own zoom limits (0.2 to 5), so the first wheel step never moves a scene's own zoom.
+- **Double click** puts the camera back where the scene left it and closes the model.
+- **Explode / Assemble** (a small dark button at the model's top-right corner; tags keep off it) and the **E** key while the pointer is over the model open the parts outward and close them again, easing over 0.9 s either way. A part with its own `explode` offset moves along it; the rest move away from the middle of the parts around them, further the deeper they are (`explode.ts`, tested without a window); the distance grows ever more slowly past 6 units so a tower under its head does not leave the picture. The camera stands back by how far the opened model reaches beyond the closed one. Tags and their leaders follow the parts and keep the no-crossing layout.
+- The window is never focusable, so E needs the keyboard: pressing on the model (or the button) makes the window focusable and takes focus (`engage`), and leaving the model, the pen, or a timeout gives it back (the window steps aside with `blur()` first, so whatever was beneath takes the keyboard again). This needs one real check on a desktop; the frame grabs cannot press keys.
+
+The main process also keeps a lease on "solid": the page repeats `setInteractive(true)` every 3 s while the pointer is over the model, and if that stops (page hung, pointer lost without a word) the window goes back to click-through after 8 s (`createClickGuard`, tested with fake timers). The page's side of it is `createHold` (`orbit.ts`): it works out "solid" from where the pointer is and where the model is, and does so again on every beat, so a model that fades or is cleared under a resting pointer lets go at once (or at the next beat for a button), and a beat never renews a claim that no longer holds. While the pen is on the window takes the mouse whatever the page says, as before.
+
+Frame grabs can show these states without a pointer: `--steps step:t:az:el:zoom:explode` (leave a field empty to keep the scene's value), for example `--steps 7:20:55:22:1.2:1`.
 
 ## The pen
 

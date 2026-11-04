@@ -107,6 +107,8 @@ export type Frame = {
   objects: ObjectFrame[];
   camera: { az: number; el: number; zoom: number; focus: FocusFrame };
   nextKey: number;
+  /** The person's Explode control, 0 closed to 1 open, when they have used it (see explode.ts). */
+  userExplode?: number;
 };
 
 export function emptyFrame(): Frame {
@@ -566,18 +568,34 @@ export function settle(plan: StepPlan): Frame {
   return evaluate(plan, Infinity);
 }
 
-/** Moves the camera by a user drag: every orbit in the step shifts with it, so later camera actions start from where the camera is. */
-export function shiftCamera(plan: StepPlan, dAz: number, dEl: number): void {
-  const shift = (tr: Track, d: number, lo: number, hi: number) => {
-    const f = (x: number | undefined) => Math.max(lo, Math.min(hi, (x ?? 0) + d));
+/** How far in and out the person may zoom the 3D panel: the scene language's own limits, so a wheel step never moves a scene's own zoom. */
+export const ZOOM_MIN = 0.2;
+export const ZOOM_MAX = 5;
+
+/** The camera after a user change: az and el moved by degrees, zoom multiplied, el and zoom kept in range. */
+export function movedCamera(camera: { az: number; el: number; zoom: number }, dAz: number, dEl: number, zoomBy = 1): { az: number; el: number; zoom: number } {
+  return {
+    az: camera.az + dAz,
+    el: Math.max(-89, Math.min(89, camera.el + dEl)),
+    zoom: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, camera.zoom * zoomBy)),
+  };
+}
+
+/**
+ * Moves the camera by a user drag or zoom: every orbit and zoom in the step shifts with it, so later camera
+ * actions start from where the camera is. `zoomBy` multiplies the zoom.
+ */
+export function shiftCamera(plan: StepPlan, dAz: number, dEl: number, zoomBy = 1): void {
+  const shift = (tr: Track, f: (x: number | undefined) => number) => {
     tr.init = [f(tr.init[0])];
     for (const s of tr.segs) {
       s.from = [f(s.from[0])];
       s.to = [f(s.to[0])];
     }
   };
-  shift(plan.az, dAz, -Infinity, Infinity);
-  shift(plan.el, dEl, -89, 89);
+  shift(plan.az, (x) => (x ?? 0) + dAz);
+  shift(plan.el, (x) => Math.max(-89, Math.min(89, (x ?? 0) + dEl)));
+  if (zoomBy !== 1) shift(plan.zoom, (x) => Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, (x ?? 1) * zoomBy)));
 }
 
 /** Seconds a step's speech is assumed to take when no voice reports it. */

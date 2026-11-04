@@ -88,7 +88,9 @@ Marks take `id`, `color` (cards, images and pins may leave it out: the look choo
 | `text` | `text` `height` `pos`? `color` | text in the 3D scene, always facing the camera |
 | `group` | `pos`? `rot`? | an empty node |
 
-All take `parent`? (the id of a group, or of a part or shape, to attach to; they nest up to 6 deep, and a mark, a pin or a text cannot be a parent) and `at`?. `pos` defaults to `[0,0,0]`, `rot` to `[0,0,0]`, `opacity` to 1. A child moves, turns and scales with its parent. To make something grow from its base, put it in a group at the base, offset the child by half its height, and scale the group (see `bar-chart.json`). Arrays are capped at 64 copies each and 400 in a scene.
+All take `parent`? (the id of a group, or of a part or shape, to attach to; they nest up to 6 deep, and a mark, a pin or a text cannot be a parent), `explode`? (see below) and `at`?. `pos` defaults to `[0,0,0]`, `rot` to `[0,0,0]`, `opacity` to 1. A child moves, turns and scales with its parent. To make something grow from its base, put it in a group at the base, offset the child by half its height, and scale the group (see `bar-chart.json`). Arrays are capped at 64 copies each and 400 in a scene.
+
+`explode` is `[x,y,z]`, where the part goes when its group is exploded all the way (spread 1), in the units of the group it is in (capped at 100 either way). Without it a part moves outward from the group's origin. The same offset is where the part goes when the person opens the finished model with the Explode control (see the overlay notes); a part with none moves away from the middle of the parts around it instead. Give it where the real assembly comes apart (pins up, a shaft out the back); leave it off when outward is fine. The lean schema (`scene.schema.lean.json`, what the live models are asked for) leaves `explode` out, because every optional field there costs the model an explicit `null` on every part; the validator and the full schema accept it.
 
 ### Changing objects
 

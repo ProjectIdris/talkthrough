@@ -7,7 +7,8 @@
 
 import type { Voice } from '../adapters/voice.ts';
 import type { Scene } from '../scene/types.ts';
-import { IDLE_MAX_SECONDS, emptyFrame, estimateSpeechSeconds, evaluate, frameAt, planStep, settle, shiftCamera, withIdleTurn } from './timeline.ts';
+import { ExplodeValue } from './explode.ts';
+import { IDLE_MAX_SECONDS, emptyFrame, estimateSpeechSeconds, evaluate, frameAt, movedCamera, planStep, settle, shiftCamera, withIdleTurn } from './timeline.ts';
 import type { Frame, StepPlan } from './timeline.ts';
 import type { Action, Step } from '../scene/types.ts';
 
@@ -97,6 +98,9 @@ export class Player {
   private startedAt = 0;
   private speed = 1;
   private frozen: Frame | undefined;
+  /** The person's Explode control, and the camera the finished scene ended with (what a double click returns to). */
+  private readonly explodeValue = new ExplodeValue();
+  private home: Frame['camera'] | undefined;
 
   constructor(options: PlayerOptions) {
     this.voice = options.voice;
@@ -123,7 +127,7 @@ export class Player {
 
   /** True while a scene is playing (the caller keeps animating). */
   get active(): boolean {
-    return this.phase !== 'idle' || this.idling;
+    return this.phase !== 'idle' || this.idling || this.explodeValue.moving(this.clock.now());
   }
 
   /** True while the finished scene is turning slowly by itself. */
@@ -153,6 +157,8 @@ export class Player {
    */
   beginTurn(): void {
     this.stop();
+    this.explodeValue.reset();
+    this.home = undefined;
     this.frozen = undefined;
     this.steps = [];
     this.openIndex = null;
@@ -211,19 +217,24 @@ export class Player {
     if (this.phase === 'idle' && this.index >= this.steps.length) this.finishScene();
   }
 
-  /** Frame-grab mode: shows the scene as it is `t` seconds into step `step`, with no clock and no speech. */
-  seek(scene: Scene, step: number, t: number): void {
+  /** Frame-grab mode: shows the scene as it is `t` seconds into step `step`, with no clock and no speech. `view` turns, zooms or opens the model as a person could. */
+  seek(scene: Scene, step: number, t: number, view?: { az?: number; el?: number; zoom?: number; explode?: number }): void {
     this.stop();
     this.live = false;
     this.base = emptyFrame();
     this.resting = undefined;
-    this.frozen = frameAt(scene.steps, step, t, emptyFrame(), true);
+    const frame = frameAt(scene.steps, step, t, emptyFrame(), true);
+    const camera = view ? movedCamera({ az: view.az ?? frame.camera.az, el: view.el ?? frame.camera.el, zoom: view.zoom ?? frame.camera.zoom }, 0, 0) : frame.camera;
+    this.frozen = { ...frame, camera: { ...frame.camera, ...camera } };
+    this.explodeValue.jump(view?.explode ?? 0);
     this.phase = 'idle';
   }
 
   /** Removes everything drawn and stops speaking. */
   clear(): void {
     this.stop();
+    this.explodeValue.reset();
+    this.home = undefined;
     this.live = false;
     this.base = emptyFrame();
     this.resting = undefined;
@@ -232,20 +243,67 @@ export class Player {
 
   /** A user drag of the 3D panel: moves the camera, and later camera actions start from there. */
   dragCamera(dAz: number, dEl: number): void {
+    this.moveCamera(dAz, dEl, 1);
+  }
+
+  /** A user zoom of the 3D panel (the wheel): multiplies the zoom, within limits. */
+  zoomCamera(factor: number): void {
+    if (!(factor > 0) || factor === 1) return;
+    this.moveCamera(0, 0, factor);
+  }
+
+  /** A double click: the camera goes back to where the scene left it, and the model closes up. */
+  resetCamera(): void {
+    this.explodeValue.set(false, this.clock.now());
+    const home = this.home;
+    if (!home) return;
+    this.stopIdle();
+    const now = this.frameNow().camera;
+    this.moveCamera(home.az - now.az, home.el - now.el, home.zoom / Math.max(1e-6, now.zoom));
+  }
+
+  /** The Explode control: opens the model, or closes it again. */
+  toggleExplode(): void {
+    this.explodeValue.toggle(this.clock.now());
+  }
+
+  /** Opens (true) or closes the model by the person's control. */
+  setExplode(open: boolean): void {
+    this.explodeValue.set(open, this.clock.now());
+  }
+
+  /** True when the model is open or opening by the person's control. */
+  get exploded(): boolean {
+    return this.explodeValue.open;
+  }
+
+  /** True once a finished model could be turned, zoomed or exploded (no step is being played or written). */
+  get settled(): boolean {
+    if (this.frozen) return this.frozen.panel !== null;
+    return this.phase === 'idle' && !this.live && this.openIndex === null && this.base.panel !== null;
+  }
+
+  private moveCamera(dAz: number, dEl: number, zoomBy: number): void {
     this.stopIdle();
     if (this.frozen) {
-      this.frozen = { ...this.frozen, camera: { ...this.frozen.camera, az: this.frozen.camera.az + dAz, el: Math.max(-89, Math.min(89, this.frozen.camera.el + dEl)) } };
+      this.frozen = { ...this.frozen, camera: { ...this.frozen.camera, ...movedCamera(this.frozen.camera, dAz, dEl, zoomBy) } };
       return;
     }
     const plan = this.plan ?? this.resting;
-    if (plan) shiftCamera(plan, dAz, dEl);
+    if (plan) shiftCamera(plan, dAz, dEl, zoomBy);
     if (!plan || this.phase === 'waiting') {
-      this.base = { ...this.base, camera: { ...this.base.camera, az: this.base.camera.az + dAz, el: Math.max(-89, Math.min(89, this.base.camera.el + dEl)) } };
+      this.base = { ...this.base, camera: { ...this.base.camera, ...movedCamera(this.base.camera, dAz, dEl, zoomBy) } };
     }
   }
 
   /** Advances the state machine and returns what to draw now. */
   update(): Frame {
+    const frame = this.frameNow();
+    const open = this.explodeValue.value(this.clock.now());
+    return open > 0.0005 ? { ...frame, userExplode: open } : frame;
+  }
+
+  private frameNow(): Frame {
     if (this.frozen) return this.frozen;
     const now = this.clock.now();
     if (this.phase === 'waiting' && now - this.waitingSince > VOICE_PATIENCE_MS) {
@@ -263,7 +321,7 @@ export class Player {
         if (this.index < this.steps.length) this.beginStep();
         else if (!this.live) this.finishScene();
         else this.phase = 'idle';
-        return this.update();
+        return this.frameNow();
       }
       return evaluate(this.plan, t);
     }
@@ -290,6 +348,7 @@ export class Player {
   private finishScene(): void {
     this.phase = 'idle';
     this.plan = undefined;
+    this.home = { ...this.base.camera };
     if (this.base.panel) this.idleAt = this.clock.now();
     this.onDone?.();
   }

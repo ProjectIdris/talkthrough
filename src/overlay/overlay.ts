@@ -13,7 +13,8 @@ import { AutoFade, fadeFrame } from './fade.ts';
 import { HudState } from './hud.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import type { Busy } from './labels.ts';
-import { inRect, panelRect } from './layout.ts';
+import { panelRect } from './layout.ts';
+import { createHold, explodeButtonBox, overModel, wheelFactor } from './orbit.ts';
 import { drawMarks } from './marks.ts';
 import type { View } from './marks.ts';
 import { TIERS } from './materials.ts';
@@ -37,6 +38,7 @@ const offerEl = byId<HTMLDivElement>('offer');
 const offerText = byId<HTMLSpanElement>('offer-text');
 const offerButton = byId<HTMLButtonElement>('offer-button');
 const noticeEl = byId<HTMLDivElement>('notice');
+const explodeEl = byId<HTMLButtonElement>('explode');
 const marksCtx = marksCanvas.getContext('2d') as CanvasRenderingContext2D;
 
 /** The quality tier: asked for in the page address, or chosen from what the graphics stack is. */
@@ -122,7 +124,9 @@ let display: DisplayInfo | undefined;
 let view: View = { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 };
 /** Where the model is on screen (for the pointer), and the stage's frame when it has one. */
 let modelRect: ScreenRect | undefined;
-let interactive = false;
+// Whether the window is solid for the pointer (orbit.ts): worked out from where the pointer is and where the model is.
+const hold = createHold((over) => window.talkthrough.setInteractive(over));
+let pointerX = -1, pointerY = -1;
 let dragging = false;
 let raf = 0;
 let wake: ReturnType<typeof setTimeout> | undefined;
@@ -183,6 +187,7 @@ function draw(frame: Frame): void {
     frameEl.style.display = 'none';
     panelScene.sync(frame, 1);
   }
+  placeExplode(frame);
   board.beginFrame({ width: view.width, height: view.height, model: modelRect, dragging, now: labelClock() });
   board.keep(new Set(frame.marks.filter((m) => m.mark.op === 'pin').map((m) => m.key)));
   drawMarks(marksCtx, frame.marks, view, {
@@ -192,7 +197,8 @@ function draw(frame: Frame): void {
     ...(cropSource() ? { source: cropSource()! } : {}),
   });
   drawPen(marksCtx, pen.view(labelClock()), view);
-  if (!modelRect) setInteractive(hudHover);
+  if (pointerX >= 0) hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY))); // a button can fade under a resting pointer
+  hold.model(modelRect);
 
   if (!milestones.mark && (frame.marks.some((m) => m.appear > 0) || frame.objects.some((o) => o.appear > 0))) {
     milestones.mark = true;
@@ -235,6 +241,12 @@ function busyMap(): Busy | undefined {
 function labelEnvironment(): { occ: Occupancy; busy?: Busy } {
   const occ = new Occupancy(view.width, view.height);
   for (const hull of panelScene.silhouette(view.width, view.height)) occ.fillConvex(hull);
+  // The Explode button is not for a tag to sit on.
+  if (explodeEl.style.display !== 'none') {
+    const x = parseFloat(explodeEl.style.left) || 0, y = parseFloat(explodeEl.style.top) || 0;
+    const w = explodeEl.offsetWidth || 74, h = explodeEl.offsetHeight || 26;
+    occ.fillConvex([{ x: x - 4, y: y - 4 }, { x: x + w + 4, y: y - 4 }, { x: x + w + 4, y: y + h + 4 }, { x: x - 4, y: y + h + 4 }]);
+  }
   const busy = busyMap();
   return busy ? { occ, busy } : { occ };
 }
@@ -258,6 +270,20 @@ function showHud(): void {
     noticeEl.style.opacity = String(v.notice.alpha);
     if (noticeEl.textContent !== v.notice.text) noticeEl.textContent = v.notice.text;
   }
+}
+
+/** Shows the Explode / Assemble control at the corner of a finished model with parts to spread, and hides it otherwise. */
+function placeExplode(frame: Frame): void {
+  if (!modelRect || !player.settled || frame.objects.length < 2 || pen.active) {
+    explodeEl.style.display = 'none';
+    return;
+  }
+  explodeEl.style.display = 'block';
+  const label = player.exploded ? 'Assemble' : 'Explode';
+  if (explodeEl.textContent !== label) explodeEl.textContent = label;
+  const box = explodeButtonBox(modelRect, view, { w: explodeEl.offsetWidth || 74, h: explodeEl.offsetHeight || 26 });
+  explodeEl.style.left = `${box.x}px`;
+  explodeEl.style.top = `${box.y}px`;
 }
 
 function loop(): void {
@@ -287,14 +313,7 @@ function request(): void {
   if (!raf) raf = requestAnimationFrame(loop);
 }
 
-function setInteractive(over: boolean): void {
-  if (over === interactive) return;
-  interactive = over;
-  window.talkthrough.setInteractive(over);
-}
-
-let hudHover = false;
-const interactiveEls = [offerEl, noticeEl];
+const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl];
 
 /** True for a moment after the pen goes off, so a button released then still ends its stroke. */
 let penEnding = false;
@@ -310,16 +329,18 @@ function endPenStroke(): void {
   request();
 }
 
+const overHud = (target: EventTarget | null): boolean => interactiveEls.some((el) => el.style.display !== 'none' && target instanceof Node && el.contains(target));
 document.addEventListener('mousemove', (e) => {
-  hudHover = interactiveEls.some((el) => el.style.display !== 'none' && el.contains(e.target as Node));
-  const overModel = inRect(modelRect, e.clientX, e.clientY);
-  if (overModel || hudHover) {
+  pointerX = e.clientX;
+  pointerY = e.clientY;
+  const hudHover = overHud(e.target);
+  if (overModel(modelRect, e.clientX, e.clientY) || hudHover) {
     if (fader.armed) {
       fader.touch(performance.now());
       request();
     }
   }
-  if (!dragging) setInteractive(overModel || hudHover);
+  hold.pointer(e.clientX, e.clientY, hudHover);
 });
 
 const toScale = (e: PointerEvent): [number, number] => [(e.clientX / view.width) * 1000, (e.clientY / view.height) * 1000];
@@ -339,8 +360,11 @@ document.addEventListener('pointerdown', (e) => {
     request();
     return;
   }
-  if (e.button !== 0 || !inRect(modelRect, e.clientX, e.clientY)) return;
+  if (e.button !== 0 || !overModel(modelRect, e.clientX, e.clientY)) return;
   dragging = true;
+  hold.drag(true);
+  player.stopIdle(); // the slow turn stops while the model is held
+  window.talkthrough.engage(true);
   document.body.classList.add('dragging');
   document.documentElement.setPointerCapture(e.pointerId);
   request();
@@ -362,10 +386,16 @@ const endDrag = (e: PointerEvent): void => {
     return;
   }
   if (!dragging) return;
-  dragging = false;
-  document.body.classList.remove('dragging');
-  if (document.documentElement.hasPointerCapture(e.pointerId)) document.documentElement.releasePointerCapture(e.pointerId);
-  setInteractive(inRect(modelRect, e.clientX, e.clientY) || hudHover);
+  // However this ends, the model is let go and click-through is worked out again from where the pointer is.
+  try {
+    if (document.documentElement.hasPointerCapture(e.pointerId)) document.documentElement.releasePointerCapture(e.pointerId);
+  } finally {
+    dragging = false;
+    document.body.classList.remove('dragging');
+    hold.pointer(e.clientX, e.clientY, overHud(document.elementFromPoint(e.clientX, e.clientY)));
+    hold.drag(false);
+    request();
+  }
 };
 document.addEventListener('pointerup', endDrag);
 document.addEventListener('pointercancel', endDrag);
@@ -374,17 +404,49 @@ document.documentElement.addEventListener('lostpointercapture', () => {
   if (penPointer !== undefined) endPenStroke();
 });
 
+// The wheel zooms the model, a double click puts the camera back (and closes the model), E opens and closes it.
+document.addEventListener('wheel', (e) => {
+  if (pen.active || dragging || !overModel(modelRect, e.clientX, e.clientY)) return;
+  e.preventDefault();
+  player.zoomCamera(wheelFactor(e.deltaY, e.deltaMode));
+  if (fader.armed) fader.touch(performance.now());
+  request();
+}, { passive: false });
+document.addEventListener('dblclick', (e) => {
+  if (pen.active || !overModel(modelRect, e.clientX, e.clientY)) return;
+  player.resetCamera();
+  if (fader.armed) fader.touch(performance.now());
+  request();
+});
+const toggleExplode = (): void => {
+  player.toggleExplode();
+  if (fader.armed) fader.touch(performance.now());
+  request();
+};
+explodeEl.addEventListener('pointerdown', () => window.talkthrough.engage(true));
+explodeEl.addEventListener('click', toggleExplode);
+document.addEventListener('keydown', (e) => {
+  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || (e.key !== 'e' && e.key !== 'E')) return;
+  if (pen.active || !hold.over || !modelRect || !player.settled) return;
+  e.preventDefault();
+  toggleExplode();
+});
+// While the pointer is on the model the page keeps saying so; if the page goes quiet, main lets clicks through again.
+// The buttons come and go under a resting pointer, and the model can fade or be cleared there, so each beat looks again.
+setInterval(() => {
+  hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY)));
+  hold.beat();
+}, 3000);
+
 offerButton.addEventListener('click', () => {
   hud.dismissOffer();
   window.talkthrough.offer();
-  hudHover = false;
-  setInteractive(false);
+  hold.release();
   request();
 });
 noticeEl.addEventListener('click', () => {
   hud.dismissNotice();
-  hudHover = false;
-  setInteractive(false);
+  hold.release();
   request();
 });
 
@@ -477,7 +539,7 @@ function handleScene(message: SceneMessage): void {
     case 'seek':
       seekClock = (seekClock ?? 0) + 1000 / 30;
       fader.disarm();
-      player.seek(message.scene, message.step, message.t);
+      player.seek(message.scene, message.step, message.t, message.view);
       draw(player.update());
       void painted().then(() => window.talkthrough.rendered(message.token));
       break;

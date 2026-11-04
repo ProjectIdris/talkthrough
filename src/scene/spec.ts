@@ -82,6 +82,7 @@ const OPACITY: Field = { k: 'num', min: 0, max: 1, opt: true };
 const PARENT: Field = { k: 'parent', opt: true, doc: 'id of a group, or of a part or shape, to attach to (it carries this along)' };
 const POS: Field = { k: 'vec3', ...WORLD, opt: true, doc: '[x,y,z], default [0,0,0]' };
 const ROT: Field = { k: 'vec3', min: -3600, max: 3600, opt: true, doc: 'degrees [x,y,z]' };
+const EXPLODE: Field = { k: 'vec3', ...WORLD, opt: true, doc: 'where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it' };
 
 /** The surfaces a 3D object can be made of; the colour tints them. */
 export const MATERIALS = ['plastic', 'metal', 'rubber', 'pcb', 'glass', 'glow', 'paper'] as const;
@@ -159,7 +160,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addSolid', op: 'add', shapes: SOLID_SHAPES, creates: 'solid',
     doc: 'A solid. size is its bounding box [x,y,z]: cylinder and cone stand on y with diameter x, torus lies flat with outer diameter x and tube thickness y, plane faces +z and ignores z. A box with a bevel has rounded edges.',
     fields: {
-      shape: { k: 'enum', values: SOLID_SHAPES }, id: { k: 'newId' }, parent: PARENT, pos: POS,
+      shape: { k: 'enum', values: SOLID_SHAPES }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS,
       size: { k: 'vec3', min: 0.01, max: 100 }, rot: ROT, color: COLOR_OPT, material: MATERIAL, bevel: BEVEL, edges: EDGES, opacity: OPACITY, at: AT,
     },
   },
@@ -167,7 +168,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addExtrude', op: 'add', shapes: ['extrude'], creates: 'solid',
     doc: 'A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets.',
     fields: {
-      shape: { k: 'enum', values: ['extrude'] }, id: { k: 'newId' }, parent: PARENT, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['extrude'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: LIMITS.maxOutline, lo: WORLD.min, hi: WORLD.max },
       depth: { k: 'num', min: 0.01, max: 100 }, color: COLOR_OPT, material: MATERIAL, bevel: BEVEL, edges: EDGES, opacity: OPACITY, at: AT,
     },
@@ -176,7 +177,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addLathe', op: 'add', shapes: ['lathe'], creates: 'solid',
     doc: 'A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides (default 48) makes it faceted.',
     fields: {
-      shape: { k: 'enum', values: ['lathe'] }, id: { k: 'newId' }, parent: PARENT, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['lathe'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
       profile: { k: 'pts2', min: 2, max: LIMITS.maxOutline, lo: WORLD.min, hi: WORLD.max },
       sides: { k: 'num', min: 3, max: 64, int: true, opt: true }, color: COLOR_OPT, material: MATERIAL, edges: EDGES, opacity: OPACITY, at: AT,
     },
@@ -185,7 +186,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addTube', op: 'add', shapes: ['tube'], creates: 'path',
     doc: 'A smooth tube through the points: cables, pipes, vessels. flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn.',
     fields: {
-      shape: { k: 'enum', values: ['tube'] }, id: { k: 'newId' }, parent: PARENT,
+      shape: { k: 'enum', values: ['tube'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE,
       pts: { k: 'pts', min: 2, max: LIMITS.maxPts, lo: WORLD.min, hi: WORLD.max },
       radius: { k: 'num', min: 0.01, max: 20 }, flat: { k: 'num', min: 0.05, max: 1, opt: true },
       color: COLOR_OPT, material: MATERIAL, draw: DRAW, opacity: OPACITY, at: AT,
@@ -195,7 +196,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addPath', op: 'add', shapes: ['line', 'arrow'], creates: 'path',
     doc: 'A thin line through the points, or an arrow from the first to the last point.',
     fields: {
-      shape: { k: 'enum', values: ['line', 'arrow'] }, id: { k: 'newId' }, parent: PARENT,
+      shape: { k: 'enum', values: ['line', 'arrow'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE,
       pts: { k: 'pts', min: 2, max: LIMITS.maxPts, lo: WORLD.min, hi: WORLD.max }, color: COLOR_OPT, draw: DRAW, opacity: OPACITY, at: AT,
     },
   },
@@ -203,7 +204,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addPart', op: 'add', shapes: ['part'], creates: 'group',
     doc: 'A ready-made part fitted to the box size [x,y,z]: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z).',
     fields: {
-      shape: { k: 'enum', values: ['part'] }, id: { k: 'newId' }, parent: PARENT, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['part'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
       part: { k: 'enum', values: PARTS }, variant: { k: 'enum', values: PART_VARIANTS, opt: true },
       size: { k: 'vec3', min: 0.01, max: 100 }, n: { k: 'num', min: 1, max: LIMITS.maxArray, int: true, opt: true },
       color: COLOR_OPT, opacity: OPACITY, at: AT,
@@ -221,14 +222,14 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addText', op: 'add', shapes: ['text'], creates: 'text',
     doc: 'Text in the 3D scene that always faces the camera; height is in 3D units.',
     fields: {
-      shape: { k: 'enum', values: ['text'] }, id: { k: 'newId' }, parent: PARENT, pos: POS,
+      shape: { k: 'enum', values: ['text'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS,
       text: { k: 'str', min: 1, max: LIMITS.maxText }, height: { k: 'num', min: 0.05, max: 50 }, color: COLOR, at: AT,
     },
   },
   {
     name: 'addGroup', op: 'add', shapes: ['group'], creates: 'group',
     doc: 'An empty node to move, turn and scale other objects together (attach them with parent).',
-    fields: { shape: { k: 'enum', values: ['group'] }, id: { k: 'newId' }, parent: PARENT, pos: POS, rot: ROT, at: AT },
+    fields: { shape: { k: 'enum', values: ['group'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT, at: AT },
   },
   {
     name: 'pin', op: 'pin', creates: 'pin', attach: 'on',
@@ -260,7 +261,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'explode', op: 'explode',
-    doc: 'Spread the parts of a group outward from its origin: 0 assembled, 1 apart (up to 3). Back to 0 to assemble.',
+    doc: 'Spread the parts of a group outward from its origin: 0 assembled, 1 apart (up to 3). A part that has its own explode offset moves by that offset times the spread instead. Back to 0 to assemble.',
     fields: { id: { k: 'ref', of: 'object3d' }, to: { k: 'num', min: 0, max: 3 }, at: AT, dur: DUR },
   },
   {

@@ -23,6 +23,8 @@ import { convexHull } from './labels.ts';
 import type { Pt } from './labels.ts';
 import type { Piece } from './parts.ts';
 import type { FocusFrame, Frame, ObjectFrame, Rgb } from './timeline.ts';
+import { spreadPosition, userOffsets } from './explode.ts';
+import type { Part } from './explode.ts';
 
 /** The longer side of the stage sees this many degrees; the shorter side follows from its shape, so a wide stage does not skew what sits at its edges. */
 export const FOV_DEGREES = 35;
@@ -304,23 +306,43 @@ export class PanelScene {
     const live = new Set<number>();
     const spreads = new Map<number, number>();
     for (const o of frame.objects) spreads.set(o.key, o.spread);
-    for (const o of frame.objects) {
-      live.add(o.key);
-      let node = this.nodes.get(o.key);
-      if (!node) {
-        node = this.build(o);
-        this.nodes.set(o.key, node);
-        const parent = o.parentKey !== null ? this.nodes.get(o.parentKey)?.obj : undefined;
-        (parent ?? this.content).add(node.obj);
-        // Larger translucent shells draw first so the inner ones show through them.
-        const def = o.def as { size?: Vec3; material?: string };
-        const order = o.shape === 'sphere' && def.size
-          ? Math.round(100 - Math.min(99, (def.size[0] + def.size[1] + def.size[2]) * 3))
-          : def.material === 'glass' ? 90 : 0;
-        node.obj.traverse((c: Object3D) => { c.renderOrder = c instanceof Sprite ? 999 : order; });
+    // The person's Explode control: how far each part moves from where it sits (explode.ts).
+    const offsets = (frame.userExplode ?? 0) > 0
+      ? userOffsets(frame.objects.map((o): Part => {
+        const explode = (o.def as { explode?: Vec3 }).explode;
+        return { key: o.key, parentKey: o.parentKey, pos: o.pos, ...(explode ? { explode } : {}), ...(o.shape === 'text' ? { fixed: true } : {}) };
+      }), frame.userExplode ?? 0)
+      : undefined;
+    const layout = (with_: Map<number, Vec3> | undefined): void => {
+      for (const o of frame.objects) {
+        live.add(o.key);
+        let node = this.nodes.get(o.key);
+        if (!node) {
+          node = this.build(o);
+          this.nodes.set(o.key, node);
+          const parent = o.parentKey !== null ? this.nodes.get(o.parentKey)?.obj : undefined;
+          (parent ?? this.content).add(node.obj);
+          // Larger translucent shells draw first so the inner ones show through them.
+          const def = o.def as { size?: Vec3; material?: string };
+          const order = o.shape === 'sphere' && def.size
+            ? Math.round(100 - Math.min(99, (def.size[0] + def.size[1] + def.size[2]) * 3))
+            : def.material === 'glass' ? 90 : 0;
+          node.obj.traverse((c: Object3D) => { c.renderOrder = c instanceof Sprite ? 999 : order; });
+        }
+        this.apply(node, o, o.parentKey !== null ? spreads.get(o.parentKey) ?? 0 : 0, with_?.get(o.key));
       }
-      this.apply(node, o, o.parentKey !== null ? spreads.get(o.parentKey) ?? 0 : 0);
-    }
+    };
+    // The camera has to stand further back for an opened model than for a closed one: measure how far the parts reach both ways.
+    let standBack = 1;
+    if (offsets) {
+      layout(undefined);
+      this.scene.updateMatrixWorld(true);
+      const closed = this.reach(this.focusPoint(frame.camera.focus, new Vector3()));
+      layout(offsets);
+      this.scene.updateMatrixWorld(true);
+      const open = this.reach(this.focusPoint(frame.camera.focus, new Vector3()));
+      standBack = closed > 1e-6 ? Math.max(1, Math.min(4, open / closed)) : 1;
+    } else layout(undefined);
     for (const [key, node] of this.nodes) {
       if (!live.has(key)) {
         this.dispose(node);
@@ -328,15 +350,16 @@ export class PanelScene {
       }
     }
     this.scene.updateMatrixWorld(true);
-    this.aim(frame, aspect, view);
+    this.aim(frame, aspect, view, standBack);
     this.placeShadow(frame);
   }
 
-  private apply(node: Node, o: ObjectFrame, parentSpread: number): void {
+  private apply(node: Node, o: ObjectFrame, parentSpread: number, offset?: Vec3): void {
     const pulse = o.pulse;
     const grow = 1 + 0.07 * pulse;
-    const k = 1 + parentSpread;
-    node.obj.position.set(o.pos[0] * k, o.pos[1] * k, o.pos[2] * k);
+    // Spread by the model's own explode, then by the person's control.
+    const at = spreadPosition(o.pos, (o.def as { explode?: Vec3 }).explode, parentSpread);
+    node.obj.position.set(at[0] + (offset?.[0] ?? 0), at[1] + (offset?.[1] ?? 0), at[2] + (offset?.[2] ?? 0));
     node.obj.rotation.copy(new Euler(o.rot[0] * DEG, o.rot[1] * DEG, o.rot[2] * DEG, 'XYZ'));
     node.obj.scale.set(node.baseScale.x * o.scale[0] * grow, node.baseScale.y * o.scale[1] * grow, node.baseScale.z * o.scale[2] * grow);
     const alpha = Math.max(0, Math.min(1, o.opacity * o.appear * o.fade));
@@ -373,12 +396,12 @@ export class PanelScene {
     return out.copy(from).lerp(to, f.k);
   }
 
-  private aim(frame: Frame, aspect: number, view?: StageView): void {
+  private aim(frame: Frame, aspect: number, view?: StageView, standBack = 1): void {
     const cam = frame.camera;
     const fov = verticalFov(aspect);
     const tan = Math.tan((fov * DEG) / 2);
     const base = (FRAMING_UNITS / 2 / (aspect >= 1 ? 1 : aspect)) / tan;
-    const dist = base / Math.max(0.05, cam.zoom);
+    const dist = base * standBack / Math.max(0.05, cam.zoom);
     const az = cam.az * DEG, el = Math.max(-89, Math.min(89, cam.el)) * DEG;
     const target = this.focusPoint(cam.focus, new Vector3());
     this.camera.aspect = aspect;
@@ -394,6 +417,20 @@ export class PanelScene {
     this.camera.lookAt(target);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld(true);
+  }
+
+  /** How far the visible parts reach from a point: the largest distance to a corner of a part's box. */
+  private reach(from: Vector3): number {
+    let far = 0;
+    const box = new Box3();
+    const corner = new Vector3();
+    for (const node of this.nodes.values()) {
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || node.path) continue;
+      box.setFromObject(node.obj);
+      if (box.isEmpty()) continue;
+      for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) far = Math.max(far, corner.set(x, y, z).distanceTo(from));
+    }
+    return far;
   }
 
   /** Puts the floor, its soft blob and the light under what is there now. */
