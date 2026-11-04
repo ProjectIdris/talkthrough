@@ -26,6 +26,9 @@ export const LIMITS = {
   maxPts: 24,
   /** Points of an outline or profile. */
   maxOutline: 40,
+  /** Corners of a screen polygon, and points of a traced curve. */
+  maxPoly: 24,
+  maxTrace: 40,
   /** Copies one `array` may make, and the copies all arrays may make together in a scene. */
   maxArray: 64,
   maxCopies: 400,
@@ -99,6 +102,7 @@ const WORLD = { min: -100, max: 100 } as const;
 const AT: Field = { k: 'num', min: 0, max: 60, opt: true, doc: 'seconds after the step starts' };
 const DUR: Field = { k: 'num', min: 0, max: 30, opt: true, doc: 'seconds the change takes (default 0.6)' };
 const COLOR: Field = { k: 'color' };
+const TILT: Field = { k: 'num', min: -360, max: 360, opt: true, doc: 'degrees clockwise about the middle of the box: a tilted square or oval (default 0)' };
 const COLOR_OPT: Field = { k: 'color', opt: true };
 const OPACITY: Field = { k: 'num', min: 0, max: 1, opt: true };
 const PARENT: Field = { k: 'parent', opt: true, doc: 'id of a group, or of a part or shape, to attach to (it carries this along)' };
@@ -123,13 +127,13 @@ export const PART_VARIANTS = ['black', 'metal', 'usb', 'usb3', 'ethernet', 'hdmi
 export const VARIANTS: readonly Variant[] = [
   {
     name: 'box', op: 'box', creates: 'mark',
-    doc: 'Rectangle outline on the screenshot; x,y is the top-left corner.',
-    fields: { id: { k: 'newId' }, x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN }, w: { k: 'num', ...SPAN }, h: { k: 'num', ...SPAN }, color: COLOR, at: AT },
+    doc: 'Rectangle outline on the screenshot; x,y is the top-left corner. rot tilts it about its middle.',
+    fields: { id: { k: 'newId' }, x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN }, w: { k: 'num', ...SPAN }, h: { k: 'num', ...SPAN }, rot: TILT, color: COLOR, at: AT },
   },
   {
     name: 'circle', op: 'circle', creates: 'mark',
-    doc: 'Circle or oval outline drawn inside the box x,y,w,h (x,y is the top-left corner).',
-    fields: { id: { k: 'newId' }, x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN }, w: { k: 'num', ...SPAN }, h: { k: 'num', ...SPAN }, color: COLOR, at: AT },
+    doc: 'Circle or oval outline drawn inside the box x,y,w,h (x,y is the top-left corner). rot tilts it about its middle.',
+    fields: { id: { k: 'newId' }, x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN }, w: { k: 'num', ...SPAN }, h: { k: 'num', ...SPAN }, rot: TILT, color: COLOR, at: AT },
   },
   {
     name: 'underline', op: 'underline', creates: 'mark',
@@ -142,6 +146,24 @@ export const VARIANTS: readonly Variant[] = [
     fields: {
       id: { k: 'newId' }, x1: { k: 'num', ...SCREEN }, y1: { k: 'num', ...SCREEN },
       x2: { k: 'num', ...SCREEN }, y2: { k: 'num', ...SCREEN }, color: COLOR, at: AT,
+    },
+  },
+  {
+    name: 'poly', op: 'poly', creates: 'mark',
+    doc: 'A closed outline through the screen points [[x,y],...], lightly filled: a triangle, a tilted square, any shape a box or oval does not fit. Put the points on the corners of the shape on the page.',
+    fields: { id: { k: 'newId' }, pts: { k: 'pts2', min: 3, max: LIMITS.maxPoly, lo: SCREEN.min, hi: SCREEN.max }, color: COLOR, at: AT },
+  },
+  {
+    name: 'point', op: 'point', creates: 'mark',
+    doc: 'A marker (a ring with a dot) on one exact point of the screenshot: where two lines cross, a tip, a place on a map.',
+    fields: { id: { k: 'newId' }, x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN }, color: COLOR, at: AT },
+  },
+  {
+    name: 'trace', op: 'trace', creates: 'mark',
+    doc: 'A smooth line that follows a curve or path on the screenshot through the points [[x,y],...]: a curve on a graph, a road, a coastline. head true ends it in an arrowhead.',
+    fields: {
+      id: { k: 'newId' }, pts: { k: 'pts2', min: 2, max: LIMITS.maxTrace, lo: SCREEN.min, hi: SCREEN.max },
+      head: { k: 'bool', opt: true }, color: COLOR, at: AT,
     },
   },
   {

@@ -5,6 +5,8 @@
 
 import type { Action, Mark } from '../scene/types.ts';
 import { edgeGrid } from './labels.ts';
+import { tiltedCorners } from './shapes.ts';
+import type { Pt } from './shapes.ts';
 
 export type Box = { x: number; y: number; w: number; h: number };
 
@@ -203,7 +205,13 @@ export function cardHeightUnits(a: Extract<Action, { op: 'card' }>, screenHeight
 /** The part of the screen a mark points at, to keep clear: boxes, circles and crops whole, an arrow's ends, a line, a label. */
 export function markFootprint(m: Mark, aspect: number): Box[] {
   switch (m.op) {
-    case 'box': case 'circle': return [{ x: m.x, y: m.y, w: m.w, h: m.h }];
+    case 'box': case 'circle': {
+      if (!m.rot) return [{ x: m.x, y: m.y, w: m.w, h: m.h }];
+      // Turned on the screen's own pixels: work in units of the screen height, then back.
+      return [boundsOf(tiltedCorners((m.x + m.w / 2) * aspect, m.y + m.h / 2, m.w * aspect, m.h, m.rot).map(([x, y]) => [x / aspect, y] as Pt))];
+    }
+    case 'poly': case 'trace': return [boundsOf(m.pts)];
+    case 'point': return [{ x: m.x - 12 / aspect, y: m.y - 12, w: 24 / aspect, h: 24 }];
     case 'underline': return [{ x: m.x, y: m.y - 14, w: m.w, h: 28 }];
     case 'arrow': {
       const pad = 14;
@@ -218,7 +226,7 @@ export function markFootprint(m: Mark, aspect: number): Box[] {
 /** Notes what a set of actions points at, so cards and the stage keep off it. */
 export function reserveMarks(placer: Placer, actions: readonly Action[], aspect: number): void {
   for (const a of actions) {
-    if (a.op === 'box' || a.op === 'circle' || a.op === 'underline' || a.op === 'arrow' || a.op === 'label' || a.op === 'image') {
+    if (a.op === 'box' || a.op === 'circle' || a.op === 'underline' || a.op === 'arrow' || a.op === 'poly' || a.op === 'point' || a.op === 'trace' || a.op === 'label' || a.op === 'image') {
       for (const b of markFootprint(a, aspect)) placer.reserve(b);
     }
   }
@@ -247,6 +255,12 @@ export function placeAction(placer: Placer, a: Action, screenHeight: number): Ac
   }
   if (a.op === 'clear') placer.release(a.target);
   return a;
+}
+
+function boundsOf(pts: readonly Pt[]): Box {
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const x = Math.min(...xs), y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
 }
 
 const round = (b: Box): Box => ({ x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.w), h: Math.round(b.h) });

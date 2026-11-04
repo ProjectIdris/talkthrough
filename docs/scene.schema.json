@@ -49,6 +49,13 @@
           "type": "number",
           "description": "1 to 1000"
         },
+        "rot": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "degrees clockwise about the middle of the box: a tilted square or oval (default 0); -360 to 360"
+        },
         "color": {
           "type": "string",
           "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
@@ -68,11 +75,12 @@
         "y",
         "w",
         "h",
+        "rot",
         "color",
         "at"
       ],
       "additionalProperties": false,
-      "description": "Rectangle outline on the screenshot; x,y is the top-left corner."
+      "description": "Rectangle outline on the screenshot; x,y is the top-left corner. rot tilts it about its middle."
     },
     "circle": {
       "type": "object",
@@ -101,6 +109,13 @@
           "type": "number",
           "description": "1 to 1000"
         },
+        "rot": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "degrees clockwise about the middle of the box: a tilted square or oval (default 0); -360 to 360"
+        },
         "color": {
           "type": "string",
           "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
@@ -120,11 +135,12 @@
         "y",
         "w",
         "h",
+        "rot",
         "color",
         "at"
       ],
       "additionalProperties": false,
-      "description": "Circle or oval outline drawn inside the box x,y,w,h (x,y is the top-left corner)."
+      "description": "Circle or oval outline drawn inside the box x,y,w,h (x,y is the top-left corner). rot tilts it about its middle."
     },
     "underline": {
       "type": "object",
@@ -224,6 +240,141 @@
       ],
       "additionalProperties": false,
       "description": "Arrow on the screenshot from x1,y1 to x2,y2 (the head is at x2,y2)."
+    },
+    "poly": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "poly"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "3 to 24 points [x,y], each 0 to 1000"
+        },
+        "color": {
+          "type": "string",
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "pts",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A closed outline through the screen points [[x,y],...], lightly filled: a triangle, a tilted square, any shape a box or oval does not fit. Put the points on the corners of the shape on the page."
+    },
+    "point": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "point"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "y": {
+          "type": "number",
+          "description": "0 to 1000"
+        },
+        "color": {
+          "type": "string",
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A marker (a ring with a dot) on one exact point of the screenshot: where two lines cross, a tip, a place on a map."
+    },
+    "trace": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "trace"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "2 to 40 points [x,y], each 0 to 1000"
+        },
+        "head": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "color": {
+          "type": "string",
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "pts",
+        "head",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A smooth line that follows a curve or path on the screenshot through the points [[x,y],...]: a curve on a graph, a road, a coastline. head true ends it in an arrowhead."
     },
     "label": {
       "type": "object",
@@ -2719,6 +2870,15 @@
         },
         {
           "$ref": "#/$defs/arrow"
+        },
+        {
+          "$ref": "#/$defs/poly"
+        },
+        {
+          "$ref": "#/$defs/point"
+        },
+        {
+          "$ref": "#/$defs/trace"
         },
         {
           "$ref": "#/$defs/label"

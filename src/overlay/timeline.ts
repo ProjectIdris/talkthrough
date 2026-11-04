@@ -12,6 +12,7 @@ import type { CamDef, CrankDef, FlashDef, Motion, Pose, SpinPlan } from './motio
 import { applyDiagramAction, clearDiagrams, diagramPlanFrom, diagramTimes, emptyDiagramPlan, evaluateDiagrams, pulseDiagramThing, styleDiagramThing } from './diagram-plan.ts';
 import type { DiagramFrame, DiagramPlan } from './diagram-plan.ts';
 import { mechanismColor } from './part-colors.ts';
+import { pathLength, smoothPath } from './shapes.ts';
 import type { Rgb } from '../scene/colors.ts';
 import type { Action, AddAction, Mark, Step, Vec3 } from '../scene/types.ts';
 
@@ -258,6 +259,8 @@ export function strokeSeconds(mark: Mark): number | undefined {
     case 'circle': length = Math.PI * (mark.w + mark.h) * 0.75; break;
     case 'underline': length = mark.w; break;
     case 'arrow': length = Math.hypot(mark.x2 - mark.x1, mark.y2 - mark.y1); break;
+    case 'poly': length = pathLength(mark.pts, true); break;
+    case 'trace': length = pathLength(smoothPath(mark.pts, 3)); break;
     default: return undefined;
   }
   return Math.max(0.8, Math.min(1.2, 0.7 + length / 3000));
@@ -351,7 +354,7 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
   const dur = 'dur' in a && a.dur !== undefined ? a.dur : DEFAULT_DUR;
   const end = (len: number) => { plan.duration = Math.max(plan.duration, at + len); };
   switch (a.op) {
-    case 'box': case 'circle': case 'underline': case 'arrow': case 'label': case 'card': case 'image': case 'pin': {
+    case 'box': case 'circle': case 'underline': case 'arrow': case 'poly': case 'point': case 'trace': case 'label': case 'card': case 'image': case 'pin': {
       const color = 'color' in a ? a.color : undefined;
       let onKey: number | undefined;
       if (a.op === 'pin') {

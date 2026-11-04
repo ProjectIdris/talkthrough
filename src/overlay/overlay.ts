@@ -13,7 +13,10 @@ import { createSpeechSynthesisVoice } from '../adapters/speech-synthesis-voice.t
 import { AutoFade, fadeFrame } from './fade.ts';
 import { HudState } from './hud.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
+import { snapperFor } from './page-gray.ts';
 import { Placer, pageGrid, placeAction, reserveMarks } from './placement.ts';
+import { snapActions } from './snap.ts';
+import type { Snapper } from './snap.ts';
 import type { PageGrid } from './placement.ts';
 import type { Busy } from './labels.ts';
 import { panelRect } from './layout.ts';
@@ -328,6 +331,22 @@ function placer(): Placer | undefined {
   return placerFor.placer;
 }
 
+/** The page's edges and corners, for putting marks on what they point at (snap.ts); kept for as long as the picture is the same. */
+let snapFor: { image: CanvasImageSource; snapper: Snapper | undefined } | undefined;
+function snapper(): Snapper | undefined {
+  const source = cropSource();
+  if (!source) return undefined;
+  if (snapFor?.image !== source.image) snapFor = { image: source.image, snapper: snapperFor(source.image, source.width, source.height) };
+  return snapFor.snapper;
+}
+
+/** Marks moved onto the page's own lines, corners and figures; each move is said once in the app log (a check run reads it). */
+function snappedActions(actions: readonly Action[]): Action[] {
+  const s = snapper();
+  if (!s) return [...actions];
+  return snapActions(s, actions, (r) => console.info(`talkthrough: snapped ${r.op} ${r.id} by ${r.moved} units`));
+}
+
 function labelEnvironment(): { occ: Occupancy; busy?: Busy } {
   const occ = new Occupancy(view.width, view.height);
   for (const hull of panelScene.silhouette(view.width, view.height)) occ.fillConvex(hull);
@@ -589,16 +608,18 @@ function placedScene(scene: Scene): Scene {
   if (!p) return scene;
   p.reset();
   p.setStage(undefined);
-  for (const step of scene.steps) reserveMarks(p, step.actions, view.width / view.height);
-  const out = { ...scene, steps: scene.steps.map((step) => ({ ...step, actions: step.actions.map((a) => placeAction(p, a, view.height)) })) };
+  const snapped = scene.steps.map((step) => ({ ...step, actions: snappedActions(step.actions) }));
+  for (const step of snapped) reserveMarks(p, step.actions, view.width / view.height);
+  const out = { ...scene, steps: snapped.map((step) => ({ ...step, actions: step.actions.map((a) => placeAction(p, a, view.height)) })) };
   return out;
 }
 
 function placedAction(action: Action): Action {
   const p = placer();
   if (!p) return action;
-  reserveMarks(p, [action], view.width / view.height);
-  return placeAction(p, action, view.height);
+  const [snapped] = snappedActions([action]) as [Action];
+  reserveMarks(p, [snapped], view.width / view.height);
+  return placeAction(p, snapped, view.height);
 }
 
 /**

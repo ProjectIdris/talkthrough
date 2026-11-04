@@ -4,6 +4,8 @@
 
 import { drawCard, drawImage, drawPin } from './annotations.ts';
 import type { Annotator } from './annotations.ts';
+import { pathLength, smoothPath } from './shapes.ts';
+import type { Pt } from './shapes.ts';
 import { rgbCss } from './timeline.ts';
 import type { MarkFrame, Rgb } from './timeline.ts';
 
@@ -112,9 +114,17 @@ function roundRectPath(ctx: Ctx, x: number, y: number, w: number, h: number, r: 
 function drawBox(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, reduce: boolean): void {
   const mk = m.mark;
   if (mk.op !== 'box' && mk.op !== 'circle') return;
+  const tilt = mk.rot ?? 0;
   const x = px(mk.x, v.width, v.dpr), y = px(mk.y, v.height, v.dpr);
   const w = Math.max(2, px(mk.w, v.width, v.dpr)), h = Math.max(2, px(mk.h, v.height, v.dpr));
   const p = m.appear;
+  // A tilted box or oval turns about its middle, on the screen's own pixels (a tilted square stays square).
+  ctx.save();
+  if (tilt !== 0) {
+    ctx.translate(x + w / 2, y + h / 2);
+    ctx.rotate((tilt * Math.PI) / 180);
+    ctx.translate(-(x + w / 2), -(y + h / 2));
+  }
   if (mk.op === 'box') {
     const rr = Math.max(0, Math.min(8, w / 2, h / 2));
     const perimeter = 2 * (w + h) - (8 - 2 * Math.PI) * rr;
@@ -125,6 +135,7 @@ function drawBox(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, red
     ctx.restore();
     const st = strokeState(m, perimeter, reduce);
     penStroke(ctx, m, st.alpha, lw, perimeter, st.head, st.tail, () => roundRectPath(ctx, x, y, w, h, 8));
+    ctx.restore();
     return;
   }
   const cx = x + w / 2, cy = y + h / 2;
@@ -141,6 +152,105 @@ function drawBox(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, red
     ctx.beginPath();
     ctx.ellipse(cx, cy, a, b, 0, -Math.PI / 2, (3 * Math.PI) / 2);
   });
+  ctx.restore();
+}
+
+/** The points of a mark's outline or path in pixels. */
+function pixelPoints(pts: readonly [number, number][], v: View): Pt[] {
+  return pts.map(([x, y]) => [px(x, v.width, v.dpr), px(y, v.height, v.dpr)] as Pt);
+}
+
+function tracePath(ctx: Ctx, pts: readonly Pt[], closed: boolean): void {
+  ctx.beginPath();
+  pts.forEach((q, i) => (i === 0 ? ctx.moveTo(q[0], q[1]) : ctx.lineTo(q[0], q[1])));
+  if (closed) ctx.closePath();
+}
+
+function drawPoly(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, reduce: boolean): void {
+  const mk = m.mark;
+  if (mk.op !== 'poly') return;
+  const pts = pixelPoints(mk.pts, v);
+  ctx.save();
+  ctx.fillStyle = rgbCss(m.color, 0.1 * alpha * m.appear);
+  tracePath(ctx, pts, true);
+  ctx.fill();
+  ctx.restore();
+  const total = pathLength(pts, true);
+  const st = strokeState(m, total, reduce);
+  penStroke(ctx, m, st.alpha, lw, total, st.head, st.tail, () => tracePath(ctx, pts, true));
+}
+
+function drawTrace(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, reduce: boolean): void {
+  const mk = m.mark;
+  if (mk.op !== 'trace') return;
+  const pts = smoothPath(pixelPoints(mk.pts, v));
+  const total = pathLength(pts);
+  if (total < 1) return;
+  // With a head, the line stops short of the tip and the head pops in over the last of the draw (as an arrow does).
+  const last = pts[pts.length - 1] as Pt;
+  let before = pts[Math.max(0, pts.length - 2)] as Pt;
+  for (let i = pts.length - 2; i >= 0; i--) {
+    before = pts[i] as Pt;
+    if (Math.hypot(last[0] - before[0], last[1] - before[1]) > 3) break;
+  }
+  const dir = Math.atan2(last[1] - before[1], last[0] - before[0]);
+  const headLen = mk.head ? Math.min(total * 0.4, Math.max(16, lw * 5)) : 0;
+  const st = strokeState(m, total, reduce);
+  penStroke(ctx, m, st.alpha, lw, total, st.head, st.tail, () => tracePath(ctx, pts, false));
+  if (mk.head && m.appear > 0.55) {
+    const hp = Math.min(1, (m.appear - 0.55) / 0.45);
+    const s = headLen * (0.4 + 0.6 * hp);
+    const ux = Math.cos(dir), uy = Math.sin(dir);
+    const bx = last[0] - ux * s, by = last[1] - uy * s, nx = -uy * s * 0.5, ny = ux * s * 0.5;
+    const path = (): void => {
+      ctx.beginPath();
+      ctx.moveTo(last[0], last[1]);
+      ctx.lineTo(bx + nx, by + ny);
+      ctx.lineTo(bx - nx, by - ny);
+      ctx.closePath();
+    };
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = `rgba(0,0,0,${0.35 * alpha})`;
+    path();
+    ctx.stroke();
+    ctx.fillStyle = rgbCss(m.color, alpha);
+    path();
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/** A ring with a dot on one point: it settles in from a wider ring so the eye lands on the centre. */
+function drawPoint(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number): void {
+  const mk = m.mark;
+  if (mk.op !== 'point') return;
+  const x = px(mk.x, v.width, v.dpr), y = px(mk.y, v.height, v.dpr);
+  const r = Math.max(9, lw * 3);
+  const ring = r * (1 + 1.2 * (1 - m.appear));
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha * m.appear * 1.4);
+  const circle = (radius: number): void => {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+  };
+  ctx.lineWidth = lw + 3;
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  circle(ring);
+  ctx.stroke();
+  if (m.pulse > 0) {
+    ctx.shadowColor = rgbCss(m.pulseColor ?? m.color, 0.9 * m.pulse);
+    ctx.shadowBlur = 26 * m.pulse;
+  }
+  ctx.lineWidth = lw;
+  ctx.strokeStyle = rgbCss(m.pulse > 0 && m.pulseColor ? m.pulseColor : m.color, 1);
+  circle(ring);
+  ctx.stroke();
+  ctx.fillStyle = ctx.strokeStyle;
+  circle(Math.max(3, lw * 1.1));
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawUnderline(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, reduce: boolean): void {
@@ -258,6 +368,9 @@ export function drawMarks(ctx: Ctx, marks: readonly MarkFrame[], view: View, ann
     drawBox(ctx, m, view, alpha, lw, reduce);
     drawUnderline(ctx, m, view, alpha, lw, reduce);
     drawArrow(ctx, m, view, alpha, lw, reduce);
+    drawPoly(ctx, m, view, alpha, lw, reduce);
+    drawTrace(ctx, m, view, alpha, lw, reduce);
+    drawPoint(ctx, m, view, alpha, lw);
     drawLabel(ctx, m, view, alpha);
     const op = m.mark.op;
     if (op === 'pin' || op === 'card' || op === 'image') {

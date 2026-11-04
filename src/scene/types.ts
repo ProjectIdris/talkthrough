@@ -21,10 +21,13 @@ export type Timing = At & {
 };
 
 // Screen marks: coordinates are 0..1000 across the screenshot (x right, y down).
-export type BoxMark = { op: 'box'; id: string; x: number; y: number; w: number; h: number; color: Color } & At;
-export type CircleMark = { op: 'circle'; id: string; x: number; y: number; w: number; h: number; color: Color } & At;
+export type BoxMark = { op: 'box'; id: string; x: number; y: number; w: number; h: number; rot?: number; color: Color } & At;
+export type CircleMark = { op: 'circle'; id: string; x: number; y: number; w: number; h: number; rot?: number; color: Color } & At;
 export type UnderlineMark = { op: 'underline'; id: string; x: number; y: number; w: number; color: Color } & At;
 export type ArrowMark = { op: 'arrow'; id: string; x1: number; y1: number; x2: number; y2: number; color: Color } & At;
+export type PolyMark = { op: 'poly'; id: string; pts: Vec2[]; color: Color } & At;
+export type PointMark = { op: 'point'; id: string; x: number; y: number; color: Color } & At;
+export type TraceMark = { op: 'trace'; id: string; pts: Vec2[]; head?: boolean; color: Color } & At;
 export type LabelMark = { op: 'label'; id: string; x: number; y: number; text: string; color: Color; size?: number } & At;
 
 export type CardLayout = 'list' | 'timeline' | 'stat';
@@ -39,7 +42,7 @@ export type ImageMark = {
 /** A label pinned to a 3D object; `on` is that object's id. */
 export type PinMark = { op: 'pin'; id: string; on: string; point?: Vec3; anchor?: string; text: string; off?: Vec2; color?: Color } & At;
 
-export type Mark = BoxMark | CircleMark | UnderlineMark | ArrowMark | LabelMark | CardMark | ImageMark | PinMark;
+export type Mark = BoxMark | CircleMark | UnderlineMark | ArrowMark | PolyMark | PointMark | TraceMark | LabelMark | CardMark | ImageMark | PinMark;
 
 // Flat diagrams: a rectangle on the screenshot (0..1000) and the pieces drawn in it. See docs/scene-language.md.
 export type DiagramAction = {
