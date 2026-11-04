@@ -2,9 +2,9 @@
 // when it is set (some tools set it) Electron runs as plain Node and never opens a window.
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { ensureElectron } from './ensure-electron.mjs';
+import { ensureElectronOrExit } from './ensure-electron.mjs';
 
-ensureElectron();
+ensureElectronOrExit();
 const build = spawnSync(process.execPath, ['scripts/build.mjs'], { stdio: 'inherit' });
 if (build.status !== 0) process.exit(build.status ?? 1);
 
