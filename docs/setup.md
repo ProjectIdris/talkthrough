@@ -71,6 +71,10 @@ Talkthrough sends your screenshot and question to a model you choose. Set `model
 
 For the first two, Talkthrough only starts the tool you already have; it never reads or stores your sign-in. If your Codex setup lists tool servers (MCP), the app switches each one off for the process it starts; the list is read when that process starts, so a server added later is switched off at the next start. **Check your provider's terms for automated use before you pick one.** To use something else, write a `Model` adapter (`src/adapters/model.ts`).
 
+### Trying one live question from a checkout
+
+`node scripts/live-check.mjs --claude-command <path to the claude executable> --page <screenshot.png> --question "Explain this"` asks one question on a saved screenshot, on the Claude (Haiku) route, in a hidden window with a silent voice. It writes the settings itself and refuses to start unless they read back as the claude route, a Haiku model and an executable that exists (a settings file that does not parse falls back to the default route without a word, and the call would go to the wrong model). Frames, the app's log (with each answer's raw text) and a short summary of what the answer drew are left in `--out`. `--route-only` runs the check and stops.
+
 ## The detail pass
 
 A quick answer is drawn with a small, fast model. If you set `detailRoute`, a **More detail** button appears beside a finished 3D model (next to *Explode*), and saying "show me in detail" does the same. The app then sends the screenshot, your question and the scene on screen to the detail model, which is asked for a much richer version of the same scene (the same ids, ready-made parts, linkages, smaller parts). The picture upgrades in place as the pieces arrive, with a quiet "Adding detail…" in the corner and nothing spoken. A new question cancels it. It never runs by itself, and without `detailRoute` nothing offers it and no second model is ever started. The detail route is run exactly like the quick one (the same locked-down Codex or Claude process, or the API key) with its own model and effort; it uses more of your allowance than a quick answer.
