@@ -7,11 +7,14 @@ import { NeutralToneMapping, PMREMGenerator, SRGBColorSpace, WebGLRenderer } fro
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { DisplayInfo, SceneMessage } from '../shared/ipc.ts';
+import type { Action, Scene } from '../scene/types.ts';
 import type { Voice } from '../adapters/voice.ts';
 import { createSpeechSynthesisVoice } from '../adapters/speech-synthesis-voice.ts';
 import { AutoFade, fadeFrame } from './fade.ts';
 import { HudState } from './hud.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
+import { Placer, pageGrid, placeAction, reserveMarks } from './placement.ts';
+import type { PageGrid } from './placement.ts';
 import type { Busy } from './labels.ts';
 import { panelRect } from './layout.ts';
 import { createHold, explodeButtonBox, overModel, wheelFactor } from './orbit.ts';
@@ -153,6 +156,10 @@ const clampRect = (r: ScreenRect, pad: number): ScreenRect => {
   return { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0) };
 };
 
+/** The system's "reduce motion" setting: marks then appear in one step instead of being drawn along like a pen stroke. */
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+reduceMotion.addEventListener('change', () => request());
+
 function draw(frame: Frame): void {
   renderer.setScissorTest(false);
   renderer.clear();
@@ -167,6 +174,9 @@ function draw(frame: Frame): void {
       frameEl.style.width = `${w}px`;
       frameEl.style.height = `${h}px`;
       frameEl.style.opacity = String(alpha);
+      // A frame over a light page is light, over a dark one dark, so it never reads as a black slab on a white article.
+      const under = placer()?.brightness({ x: (x / view.width) * 1000, y: (y / view.height) * 1000, w: (w / view.width) * 1000, h: (h / view.height) * 1000 }) ?? 0;
+      frameEl.classList.toggle('light', under > 150);
     } else {
       frameEl.style.display = 'none';
     }
@@ -193,9 +203,9 @@ function draw(frame: Frame): void {
   drawMarks(marksCtx, frame.marks, view, {
     view,
     place: (key, request) => board.place(key, request, labelEnvironment),
-    project: (key, point) => panelScene.project(key, point, view.width, view.height),
+    project: (key, point, anchor) => panelScene.project(key, point, view.width, view.height, anchor),
     ...(cropSource() ? { source: cropSource()! } : {}),
-  });
+  }, { reduceMotion: reduceMotion.matches });
   drawPen(marksCtx, pen.view(labelClock()), view);
   if (pointerX >= 0) hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY))); // a button can fade under a resting pointer
   hold.model(modelRect);
@@ -217,25 +227,56 @@ const pen = new PenLayer();
 // Frame grabs (seek) step a clock of their own, one thirtieth of a second a grab, so a clip's tags move at the clip's pace.
 let seekClock: number | undefined;
 const labelClock = (): number => seekClock ?? performance.now();
-let busyFor: { image: CanvasImageSource; busy: Busy } | undefined;
+let busyFor: { image: CanvasImageSource; busy: Busy; grid: PageGrid } | undefined;
 
-/** How busy each part of the page is, from the screenshot (or backdrop): tags keep off its text. */
-function busyMap(): Busy | undefined {
+/** A small gray picture of the screenshot (or backdrop), kept for as long as it is the same image. */
+function pageFor(): { busy: Busy; grid: PageGrid } | undefined {
   const source = cropSource();
   if (!source) return undefined;
-  if (busyFor?.image === source.image) return busyFor.busy;
+  if (busyFor?.image === source.image) return busyFor;
   const cols = 192, rows = 108;
+  // Shrunk in halves, so thin text blurs into a tone instead of being skipped over by a single big step.
+  let from: CanvasImageSource = source.image;
+  let fw = source.width, fh = source.height;
+  while (fw > cols * 2 && fh > rows * 2) {
+    const step = document.createElement('canvas');
+    step.width = Math.max(cols, Math.ceil(fw / 2));
+    step.height = Math.max(rows, Math.ceil(fh / 2));
+    const sc = step.getContext('2d');
+    if (!sc) return undefined;
+    sc.imageSmoothingQuality = 'high';
+    sc.drawImage(from, 0, 0, step.width, step.height);
+    from = step;
+    fw = step.width;
+    fh = step.height;
+  }
   const canvas = document.createElement('canvas');
   canvas.width = cols;
   canvas.height = rows;
   const c = canvas.getContext('2d', { willReadFrequently: true });
   if (!c) return undefined;
-  c.drawImage(source.image, 0, 0, cols, rows);
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(from, 0, 0, cols, rows);
   const data = c.getImageData(0, 0, cols, rows).data;
   const gray = new Uint8Array(cols * rows);
   for (let i = 0; i < gray.length; i++) gray[i] = (data[i * 4] as number) * 0.3 + (data[i * 4 + 1] as number) * 0.59 + (data[i * 4 + 2] as number) * 0.11;
-  busyFor = { image: source.image, busy: busyFromGray(gray, cols, rows, view.width, view.height) };
-  return busyFor.busy;
+  busyFor = { image: source.image, busy: busyFromGray(gray, cols, rows, view.width, view.height), grid: pageGrid(gray, cols, rows) };
+  return busyFor;
+}
+
+/** How busy each part of the page is, from the screenshot (or backdrop): tags keep off its text. */
+const busyMap = (): Busy | undefined => pageFor()?.busy;
+
+/** Where the stage and the cards go on this page (placement.ts); there is none without a picture of the page. */
+let placerFor: { image: CanvasImageSource; aspect: number; placer: Placer } | undefined;
+function placer(): Placer | undefined {
+  const page = pageFor();
+  const source = cropSource();
+  if (!page || !source) return undefined;
+  const aspect = view.width / view.height;
+  if (placerFor?.image === source.image && placerFor.aspect === aspect) return placerFor.placer;
+  placerFor = { image: source.image, aspect, placer: new Placer(page.grid, { aspect }) };
+  return placerFor.placer;
 }
 
 function labelEnvironment(): { occ: Occupancy; busy?: Busy } {
@@ -458,13 +499,65 @@ function beginTurn(turn: number): void {
   milestones.word = false;
 }
 
+/** The scene with its stage and cards moved off the page's text and off what it points at (placement.ts). */
+function placedScene(scene: Scene): Scene {
+  const p = placer();
+  if (!p) return scene;
+  p.reset();
+  p.setStage(undefined);
+  for (const step of scene.steps) reserveMarks(p, step.actions, view.width / view.height);
+  const out = { ...scene, steps: scene.steps.map((step) => ({ ...step, actions: step.actions.map((a) => placeAction(p, a, view.height)) })) };
+  return out;
+}
+
+function placedAction(action: Action): Action {
+  const p = placer();
+  if (!p) return action;
+  reserveMarks(p, [action], view.width / view.height);
+  return placeAction(p, action, view.height);
+}
+
+/**
+ * While the screenshot (or the backdrop) is still being decoded, the scene's messages wait for it, so the first
+ * stage and card are placed against the real page and not put down and moved afterwards.
+ */
+let pageDecoding = false;
+const heldScene: SceneMessage[] = [];
+const WAITS_FOR_PAGE = new Set(['play', 'begin', 'step', 'step-open', 'action', 'step-close', 'end', 'seek']);
+function waitForPage(image: HTMLImageElement): void {
+  if (!image.src || image.complete) return;
+  pageDecoding = true;
+  const release = (): void => {
+    if (!pageDecoding) return;
+    pageDecoding = false;
+    for (const held of heldScene.splice(0)) handleScene(held);
+  };
+  void image.decode().then(release, release);
+  setTimeout(release, 1500);
+}
+
 function handleScene(message: SceneMessage): void {
+  if (message.kind === 'screenshot') {
+    shot.onload = () => request();
+    shot.src = message.url;
+    waitForPage(shot);
+    return;
+  }
+  if (message.kind === 'clear') heldScene.length = 0;
+  if (pageDecoding && WAITS_FOR_PAGE.has(message.kind)) {
+    heldScene.push(message);
+    return;
+  }
+  applyScene(message);
+}
+
+function applyScene(message: SceneMessage): void {
   switch (message.kind) {
     case 'play':
       beginTurn(message.turn);
       milestones.mark = true;
       milestones.word = true;
-      player.play(message.scene);
+      player.play(placedScene(message.scene));
       break;
     case 'pen':
       if (message.on) {
@@ -478,19 +571,17 @@ function handleScene(message: SceneMessage): void {
         setTimeout(() => { penEnding = false; }, 500);
       }
       break;
-    case 'screenshot':
-      shot.onload = () => request();
-      shot.src = message.url;
-      break;
     case 'begin':
       beginTurn(message.turn);
+      placer()?.reset();
+      if (message.turn <= 1) placer()?.setStage(undefined);
       player.beginTurn();
       break;
     case 'step':
       pen.fade(labelClock());
       fader.disarm();
       hud.stopWorking();
-      player.pushStep(message.step);
+      player.pushStep({ ...message.step, actions: message.step.actions.map(placedAction) });
       break;
     case 'step-open':
       pen.fade(labelClock());
@@ -499,7 +590,7 @@ function handleScene(message: SceneMessage): void {
       player.openStep(message.say);
       break;
     case 'action':
-      player.addAction(message.action);
+      player.addAction(placedAction(message.action));
       break;
     case 'step-close':
       player.closeStep();
@@ -537,7 +628,7 @@ function handleScene(message: SceneMessage): void {
     case 'seek':
       seekClock = (seekClock ?? 0) + 1000 / 30;
       fader.disarm();
-      player.seek(message.scene, message.step, message.t, message.view);
+      player.seek(placedScene(message.scene), message.step, message.t, message.view);
       draw(player.update());
       void painted().then(() => window.talkthrough.rendered(message.token));
       break;
@@ -552,6 +643,7 @@ window.talkthrough.onDisplay((info) => {
   if (info.backdrop) {
     backdropEl.onload = () => request();
     backdropEl.src = info.backdrop;
+    waitForPage(backdropEl);
     backdropEl.style.display = 'block';
   } else {
     backdropEl.style.display = 'none';

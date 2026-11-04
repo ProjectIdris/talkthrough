@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { createSceneState, validateScene } from '../src/scene/index.ts';
 import type { Scene, Step } from '../src/scene/index.ts';
 import {
-  APPEAR_SECONDS, DEFAULT_CAMERA, IDLE_DELAY_SECONDS, IDLE_MAX_SECONDS, idleAngle, DEFAULT_PANEL, FADE_OUT_SECONDS, emptyFrame, estimateSpeechSeconds, evaluate, frameAt,
+  APPEAR_SECONDS, STROKE_WIPE_SECONDS, DEFAULT_CAMERA, IDLE_DELAY_SECONDS, IDLE_MAX_SECONDS, idleAngle, DEFAULT_PANEL, FADE_OUT_SECONDS, emptyFrame, estimateSpeechSeconds, evaluate, frameAt,
   parseColor, planStep, settle, shiftCamera,
 } from '../src/overlay/timeline.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
@@ -32,7 +32,7 @@ test('every sample plays to the end with finite numbers at any time', () => {
 });
 
 test('marks draw in over the appear time, at their own offset', () => {
-  const s = step({ op: 'box', id: 'b', x: 10, y: 10, w: 100, h: 50, color: 'red', at: 1 });
+  const s = step({ op: 'label', id: 'b', x: 10, y: 10, text: 'hi', color: 'red', at: 1 });
   const plan = planStep(emptyFrame(), s);
   assert.equal(evaluate(plan, 0.9).marks.length, 0);
   near(evaluate(plan, 1).marks[0]?.appear, 0);
@@ -40,6 +40,19 @@ test('marks draw in over the appear time, at their own offset', () => {
   assert.ok(mid > 0.3 && mid < 0.7, String(mid));
   assert.equal(evaluate(plan, 2).marks[0]?.appear, 1);
   assert.equal(plan.duration, 1 + APPEAR_SECONDS);
+});
+
+test('a box, circle, underline or arrow is drawn on like a pen stroke: 0.8 to 1.2 seconds, longer for a longer line, and wiped off along its length', () => {
+  const small = planStep(emptyFrame(), step({ op: 'underline', id: 'u', x: 10, y: 10, w: 40, color: 'red' }));
+  const big = planStep(emptyFrame(), step({ op: 'box', id: 'b', x: 10, y: 10, w: 800, h: 600, color: 'red' }));
+  near(small.duration, 0.8, 0.02);
+  near(big.duration, 1.2);
+  assert.ok((evaluate(big, 0.6).marks[0]?.appear ?? 0) < 1 && (evaluate(big, 0.6).marks[0]?.appear ?? 0) > 0.2);
+  assert.equal(evaluate(big, 1.2).marks[0]?.appear, 1);
+  const wiping = planStep(settle(big), step({ op: 'clear', target: 'b' }));
+  const half = evaluate(wiping, STROKE_WIPE_SECONDS / 2).marks[0]?.fade ?? -1;
+  assert.ok(half > 0.2 && half < 0.8, String(half));
+  assert.equal(evaluate(wiping, STROKE_WIPE_SECONDS + 0.01).marks.length, 0);
 });
 
 test('a tween runs from where the property is, and a later one starts from the middle of an earlier one', () => {

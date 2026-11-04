@@ -47,6 +47,57 @@ function strokeWithHalo(ctx: Ctx, color: Rgb, alpha: number, lw: number, pulse: 
   ctx.restore();
 }
 
+/** Options the page gives: with reduceMotion the marks appear and go in one step, with no stroke drawn along. */
+export type MarkOptions = { reduceMotion?: boolean };
+
+const FEATHER_BANDS = 7;
+
+/**
+ * Draws a stroke along a path as a pen would: the part drawn so far (`head` of `total`, in pixels along the
+ * path) from `tail` on, with the leading end feathered (it thins and fades over the last stretch) and, when the mark is
+ * being cleared, the tail wiped away the same way. `trace` makes the path; the stroke goes along it from its start.
+ */
+function penStroke(
+  ctx: Ctx, m: MarkFrame, alpha: number, lw: number, total: number, head: number, tail: number, trace: () => void,
+): void {
+  const featherLen = Math.min(Math.max(0, head - tail), Math.max(18, total * 0.1));
+  const body = head - featherLen;
+  const dashed = (from: number, to: number, a: number): void => {
+    if (to - from <= 0.2 || a <= 0.003) return;
+    ctx.setLineDash([to - from, total + 200]);
+    ctx.lineDashOffset = -from;
+    strokeWithHalo(ctx, m.color, alpha * a, lw, m.pulse, m.pulseColor, () => {
+      trace();
+      ctx.stroke();
+    });
+  };
+  // The tail end is wiped with the same softness as the head is drawn.
+  const wipe = tail > 0 ? Math.min(featherLen, Math.max(0, body - tail)) : 0;
+  if (tail <= 0 && head >= total - 0.5) {
+    dashed(0, total + 2, 1);
+    ctx.setLineDash([]);
+    return;
+  }
+  dashed(tail + wipe, body, 1);
+  for (let i = 0; i < FEATHER_BANDS; i++) {
+    const a = body + (featherLen * i) / FEATHER_BANDS;
+    const b = body + (featherLen * (i + 1)) / FEATHER_BANDS;
+    dashed(a, b, 1 - (i + 0.5) / FEATHER_BANDS);
+  }
+  for (let i = 0; i < FEATHER_BANDS && wipe > 0; i++) {
+    const a = tail + (wipe * i) / FEATHER_BANDS;
+    const b = tail + (wipe * (i + 1)) / FEATHER_BANDS;
+    dashed(a, b, (i + 0.5) / FEATHER_BANDS);
+  }
+  ctx.setLineDash([]);
+}
+
+/** How a stroke mark is drawn: its alpha, how far along it is, and where its tail has been wiped to (0 when it is whole). */
+function strokeState(m: MarkFrame, total: number, reduce: boolean): { alpha: number; head: number; tail: number } {
+  if (reduce) return { alpha: Math.max(0, Math.min(1, m.opacity * m.fade)), head: m.appear > 0 ? total : 0, tail: 0 };
+  return { alpha: Math.max(0, Math.min(1, m.opacity)), head: total * m.appear, tail: total * (1 - m.fade) };
+}
+
 function roundRectPath(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
   const rr = Math.max(0, Math.min(r, w / 2, h / 2));
   ctx.beginPath();
@@ -58,25 +109,22 @@ function roundRectPath(ctx: Ctx, x: number, y: number, w: number, h: number, r: 
   ctx.closePath();
 }
 
-function drawBox(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number): void {
+function drawBox(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, reduce: boolean): void {
   const mk = m.mark;
   if (mk.op !== 'box' && mk.op !== 'circle') return;
   const x = px(mk.x, v.width, v.dpr), y = px(mk.y, v.height, v.dpr);
   const w = Math.max(2, px(mk.w, v.width, v.dpr)), h = Math.max(2, px(mk.h, v.height, v.dpr));
   const p = m.appear;
   if (mk.op === 'box') {
-    const perimeter = 2 * (w + h);
+    const rr = Math.max(0, Math.min(8, w / 2, h / 2));
+    const perimeter = 2 * (w + h) - (8 - 2 * Math.PI) * rr;
     ctx.save();
     ctx.fillStyle = rgbCss(m.color, 0.1 * alpha * p);
     roundRectPath(ctx, x, y, w, h, 8);
     ctx.fill();
     ctx.restore();
-    strokeWithHalo(ctx, m.color, alpha, lw, m.pulse, m.pulseColor, () => {
-      ctx.setLineDash([perimeter * p, perimeter + 10]);
-      roundRectPath(ctx, x, y, w, h, 8);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    });
+    const st = strokeState(m, perimeter, reduce);
+    penStroke(ctx, m, st.alpha, lw, perimeter, st.head, st.tail, () => roundRectPath(ctx, x, y, w, h, 8));
     return;
   }
   const cx = x + w / 2, cy = y + h / 2;
@@ -86,26 +134,28 @@ function drawBox(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number): vo
   ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
-  strokeWithHalo(ctx, m.color, alpha, lw, m.pulse, m.pulseColor, () => {
+  const a = w / 2, b = h / 2;
+  const girth = Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)));
+  const st = strokeState(m, girth, reduce);
+  penStroke(ctx, m, st.alpha, lw, girth, st.head, st.tail, () => {
     ctx.beginPath();
-    ctx.ellipse(cx, cy, w / 2, h / 2, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.001, p));
-    ctx.stroke();
+    ctx.ellipse(cx, cy, a, b, 0, -Math.PI / 2, (3 * Math.PI) / 2);
   });
 }
 
-function drawUnderline(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number): void {
+function drawUnderline(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, reduce: boolean): void {
   const mk = m.mark;
   if (mk.op !== 'underline') return;
   const x = px(mk.x, v.width, v.dpr), y = px(mk.y, v.height, v.dpr), w = px(mk.w, v.width, v.dpr);
-  strokeWithHalo(ctx, m.color, alpha, lw * 1.15, m.pulse, m.pulseColor, () => {
+  const st = strokeState(m, w, reduce);
+  penStroke(ctx, m, st.alpha, lw * 1.15, w, st.head, st.tail, () => {
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineTo(x + w * m.appear, y);
-    ctx.stroke();
+    ctx.lineTo(x + w, y);
   });
 }
 
-function drawArrow(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number): void {
+function drawArrow(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, reduce: boolean): void {
   const mk = m.mark;
   if (mk.op !== 'arrow') return;
   const x1 = px(mk.x1, v.width, v.dpr), y1 = px(mk.y1, v.height, v.dpr);
@@ -119,11 +169,12 @@ function drawArrow(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number): 
   // The shaft grows first; the head pops in over the last part of the draw.
   const reach = len * Math.min(1, p / 0.8);
   const shaftEnd = Math.max(0, Math.min(reach, len - head * 0.7));
-  strokeWithHalo(ctx, m.color, alpha, lw, m.pulse, m.pulseColor, () => {
+  const shaft = Math.max(1, len - head * 0.7);
+  const st = reduce ? { alpha, head: m.appear > 0 ? shaft : 0, tail: 0 } : { alpha: Math.max(0, Math.min(1, m.opacity)), head: shaftEnd, tail: shaft * (1 - m.fade) };
+  penStroke(ctx, m, st.alpha, lw, shaft, st.head, st.tail, () => {
     ctx.beginPath();
     ctx.moveTo(x1, y1);
-    ctx.lineTo(x1 + ux * shaftEnd, y1 + uy * shaftEnd);
-    ctx.stroke();
+    ctx.lineTo(x1 + ux * shaft, y1 + uy * shaft);
   });
   if (p > 0.55) {
     const hp = Math.min(1, (p - 0.55) / 0.45);
@@ -194,7 +245,8 @@ function drawLabel(ctx: Ctx, m: MarkFrame, v: View, alpha: number): void {
  * Clears the canvas and draws every mark in the frame, oldest first. Pins, cards and image cards need an
  * annotator (the theme, and where 3D parts fall on screen); without one they are left out.
  */
-export function drawMarks(ctx: Ctx, marks: readonly MarkFrame[], view: View, annotator?: Annotator): void {
+export function drawMarks(ctx: Ctx, marks: readonly MarkFrame[], view: View, annotator?: Annotator, options: MarkOptions = {}): void {
+  const reduce = options.reduceMotion === true;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   ctx.clearRect(0, 0, view.width, view.height);
   const lw = lineWidth(view);
@@ -203,9 +255,9 @@ export function drawMarks(ctx: Ctx, marks: readonly MarkFrame[], view: View, ann
     const alpha = Math.max(0, Math.min(1, m.opacity * m.fade));
     if (alpha <= 0.002 || m.appear <= 0) continue;
     ctx.save();
-    drawBox(ctx, m, view, alpha, lw);
-    drawUnderline(ctx, m, view, alpha, lw);
-    drawArrow(ctx, m, view, alpha, lw);
+    drawBox(ctx, m, view, alpha, lw, reduce);
+    drawUnderline(ctx, m, view, alpha, lw, reduce);
+    drawArrow(ctx, m, view, alpha, lw, reduce);
     drawLabel(ctx, m, view, alpha);
     const op = m.mark.op;
     if (op === 'pin' || op === 'card' || op === 'image') {

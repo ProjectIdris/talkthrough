@@ -7,6 +7,9 @@
 // including across follow-up questions.
 
 import { PALETTE_RGB } from '../scene/colors.ts';
+import { advanceMotion, emptyMotion, poses, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
+import type { CamDef, CrankDef, FlashDef, Motion, Pose, SpinPlan } from './motion.ts';
+import { mechanismColor } from './part-colors.ts';
 import type { Rgb } from '../scene/colors.ts';
 import type { Action, AddAction, Mark, Step, Vec3 } from '../scene/types.ts';
 
@@ -41,6 +44,7 @@ export function defaultColor(def: AddAction): Rgb {
       case 'button': return [214, 64, 64];
       case 'fan': return [88, 94, 108];
       case 'wheel': return [128, 134, 146];
+      default: return mechanismColor(def.part) ?? [190, 196, 206];
     }
   }
   const material = 'material' in def ? def.material : undefined;
@@ -98,6 +102,8 @@ export type ObjectFrame = {
   draw: number;
   /** How far apart its parts are pushed: 0 assembled; its children sit at pos * (1 + spread). */
   spread: number;
+  /** Where a machine has put it just now (a turning part, a piston, a valve, a glow); drawn in place of pos, rot and opacity. */
+  pose?: Pose;
 };
 
 export type Frame = {
@@ -109,11 +115,13 @@ export type Frame = {
   nextKey: number;
   /** The person's Explode control, 0 closed to 1 open, when they have used it (see explode.ts). */
   userExplode?: number;
+  /** What is turning, and how the parts are tied to it. */
+  motion: Motion;
 };
 
 export function emptyFrame(): Frame {
   return {
-    panel: null, marks: [], objects: [], nextKey: 1,
+    panel: null, marks: [], objects: [], nextKey: 1, motion: emptyMotion(),
     camera: { ...DEFAULT_CAMERA, focus: { key: null, k: 1 } },
   };
 }
@@ -186,7 +194,8 @@ function focusAt(tr: FocusTrack, t: number): FocusFrame {
 
 // ---- Instances ------------------------------------------------------------------------------
 
-type Life = { bornAt: number; diedAt: number | undefined };
+/** `grow` and `wipe` are the seconds a mark takes to be drawn on and to be wiped off, when they are not the usual ones (strokes are drawn like a pen). */
+type Life = { bornAt: number; diedAt: number | undefined; grow?: number; wipe?: number };
 
 type MarkInst = Life & { key: number; id: string; mark: Mark; color: Track; opacity: Track; tinted: boolean; onKey?: number };
 type ObjInst = Life & {
@@ -202,6 +211,10 @@ export type StepPlan = {
   panels: PanelInst[];
   az: Track; el: Track; zoom: Track; focus: FocusTrack;
   pulses: Pulse[];
+  spins: SpinPlan[];
+  cranks: CrankDef[];
+  cams: CamDef[];
+  flashes: FlashDef[];
   nextKey: number;
   /** Authored seconds until the last action has finished. */
   duration: number;
@@ -214,15 +227,29 @@ function aliveAt(l: Life, t: number): boolean {
 }
 
 function appearOf(l: Life, t: number): number {
-  return ease(progress(t, l.bornAt, APPEAR_SECONDS));
+  return ease(progress(t, l.bornAt, l.grow ?? APPEAR_SECONDS));
 }
 
 function fadeOf(l: Life, t: number): number {
-  return l.diedAt === undefined ? 1 : 1 - progress(t, l.diedAt, FADE_OUT_SECONDS);
+  return l.diedAt === undefined ? 1 : 1 - progress(t, l.diedAt, l.wipe ?? FADE_OUT_SECONDS);
 }
 
 function visibleAt(l: Life, t: number): boolean {
-  return l.bornAt <= t && (l.diedAt === undefined || t < l.diedAt + FADE_OUT_SECONDS);
+  return l.bornAt <= t && (l.diedAt === undefined || t < l.diedAt + (l.wipe ?? FADE_OUT_SECONDS));
+}
+
+/** A box, circle, underline or arrow is drawn on like a stroke of a pen: a longer line takes longer, 0.8 to 1.2 seconds. */
+export const STROKE_WIPE_SECONDS = 0.5;
+export function strokeSeconds(mark: Mark): number | undefined {
+  let length: number;
+  switch (mark.op) {
+    case 'box': length = 2 * (mark.w + mark.h); break;
+    case 'circle': length = Math.PI * (mark.w + mark.h) * 0.75; break;
+    case 'underline': length = mark.w; break;
+    case 'arrow': length = Math.hypot(mark.x2 - mark.x1, mark.y2 - mark.y1); break;
+    default: return undefined;
+  }
+  return Math.max(0.8, Math.min(1.2, 0.7 + length / 3000));
 }
 
 // ---- Planning -------------------------------------------------------------------------------
@@ -234,10 +261,12 @@ export function planStep(base: Frame, step: Step): StepPlan {
     az: track([base.camera.az]), el: track([base.camera.el]), zoom: track([base.camera.zoom]),
     focus: { init: base.camera.focus.key, segs: [] },
     pulses: [], nextKey: base.nextKey, duration: 0,
+    spins: base.motion.spins.map(spinPlanFrom), cranks: [...base.motion.cranks], cams: [...base.motion.cams], flashes: [...base.motion.flashes],
   };
   for (const m of base.marks) {
     plan.marks.push({
       key: m.key, id: m.id, mark: m.mark, bornAt: NEVER, diedAt: undefined,
+      ...(strokeSeconds(m.mark) !== undefined ? { grow: strokeSeconds(m.mark), wipe: STROKE_WIPE_SECONDS } : {}),
       color: track(m.color), opacity: track([m.opacity]), tinted: m.tinted, ...(m.onKey !== undefined ? { onKey: m.onKey } : {}),
     });
   }
@@ -284,7 +313,7 @@ function ensurePanel(plan: StepPlan, at: number): void {
 
 function kill(plan: StepPlan, l: Life, at: number): void {
   if (l.diedAt === undefined || l.diedAt > at) l.diedAt = at;
-  plan.duration = Math.max(plan.duration, at + FADE_OUT_SECONDS);
+  plan.duration = Math.max(plan.duration, at + (l.wipe ?? FADE_OUT_SECONDS));
 }
 
 function descendants(plan: StepPlan, rootKey: number, at: number): ObjInst[] {
@@ -317,12 +346,17 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
         if (!host) return;
         onKey = host.key;
       }
+      const grow = strokeSeconds(a);
+      // A mark or tag added again under its id takes the old one's place (and key, so a tag keeps its spot on the board).
+      const was = lookup(plan.marks, a.id, at);
+      if (was) plan.marks.splice(plan.marks.indexOf(was), 1);
       plan.marks.push({
-        key: plan.nextKey++, id: a.id, mark: a, bornAt: at, diedAt: undefined,
+        key: was ? was.key : plan.nextKey++, id: a.id, mark: a, bornAt: at, diedAt: undefined,
         color: track(parseColor(color)), opacity: track([1]), tinted: color !== undefined,
         ...(onKey !== undefined ? { onKey } : {}),
+        ...(grow !== undefined ? { grow, wipe: STROKE_WIPE_SECONDS } : {}),
       });
-      end(APPEAR_SECONDS);
+      end(grow ?? APPEAR_SECONDS);
       return;
     }
     case 'panel': {
@@ -347,8 +381,9 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       }
       const parent = 'parent' in a && a.parent !== undefined ? lookup(plan.objs, a.parent, at) : undefined;
       const given = (a as { color?: string }).color;
-      plan.objs.push({
-        key: plan.nextKey++, id: a.id, parentKey: parent ? parent.key : null, def: a,
+      const replaced = lookup(plan.objs, a.id, at);
+      const fresh: ObjInst = {
+        key: plan.nextKey++, id: a.id, parentKey: parent ? parent.key : replaced ? replaced.parentKey : null, def: a,
         bornAt: at, diedAt: undefined,
         pos: track('pos' in a && a.pos ? a.pos : [0, 0, 0]),
         rot: track('rot' in a && a.rot ? a.rot : [0, 0, 0]),
@@ -356,8 +391,10 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
         color: track(given !== undefined ? parseColor(given) : defaultColor(a)),
         opacity: track([('opacity' in a && a.opacity !== undefined) ? a.opacity : 1]),
         draw: track([('draw' in a && a.draw !== undefined) ? a.draw : 1]), spread: track([0]),
-      });
-      end(APPEAR_SECONDS);
+      };
+      if (replaced) replaceObject(plan, replaced, fresh, at);
+      else plan.objs.push(fresh);
+      end(replaced ? REPLACE_SECONDS : APPEAR_SECONDS);
       return;
     }
     case 'move': case 'turn': case 'scale': {
@@ -380,6 +417,8 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       const o = lookup(plan.objs, a.id, at);
       if (!o) return;
       tweenTo(a.op === 'explode' ? o.spread : o.draw, at, dur, [a.to]);
+      // Pulled apart, a machine stops: its parts no longer fit together.
+      if (a.op === 'explode' && a.to > 0) for (const sp of plan.spins) stopSpin(sp, at, Math.max(0.3, dur));
       end(dur);
       return;
     }
@@ -405,6 +444,53 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       const hit: Array<ObjInst | MarkInst> = target ? [target, ...descendants(plan, target.key, at)] : [mark as MarkInst];
       for (const h of hit) plan.pulses.push({ key: h.key, start: at, dur: Math.max(0.2, dur), color: a.color !== undefined ? parseColor(a.color) : undefined });
       end(Math.max(0.2, dur));
+      return;
+    }
+    case 'spin': {
+      const o = lookup(plan.objs, a.id, at);
+      if (!o) return;
+      let sp = plan.spins.find((x) => x.key === o.key);
+      const axis = a.axis === 'x' ? 0 : a.axis === 'y' ? 1 : a.axis === undefined ? (sp ? sp.axis : 2) : 2;
+      if (!sp) {
+        sp = spinPlanFrom({ key: o.key, axis, angle: 0, rate: 0 });
+        plan.spins.push(sp);
+      }
+      const by = a.by !== undefined ? lookup(plan.objs, a.by, at) : undefined;
+      if (a.by !== undefined) {
+        if (!by || by.key === o.key) return;
+        setLock(sp, at, { byKey: by.key, ratio: a.ratio ?? 1, phase: a.phase ?? 0 }, axis);
+      } else {
+        setRate(sp, at, (a.rpm ?? 0) * 6, a.rpm === 0 || a.dur !== undefined ? dur : 0.8, axis);
+      }
+      end(0.2);
+      return;
+    }
+    case 'crank': {
+      const piston = lookup(plan.objs, a.id, at);
+      const shaft = lookup(plan.objs, a.shaft, at);
+      const rod = a.rod !== undefined ? lookup(plan.objs, a.rod, at) : undefined;
+      if (!piston || !shaft || (a.rod !== undefined && !rod)) return;
+      plan.cranks = plan.cranks.filter((c) => c.key !== piston.key);
+      plan.cranks.push({ key: piston.key, shaftKey: shaft.key, rodKey: rod ? rod.key : null, pin: a.pin ?? 1 });
+      end(0.2);
+      return;
+    }
+    case 'cam': {
+      const valve = lookup(plan.objs, a.id, at);
+      const cam = lookup(plan.objs, a.by, at);
+      if (!valve || !cam) return;
+      plan.cams = plan.cams.filter((c) => c.key !== valve.key);
+      plan.cams.push({ key: valve.key, byKey: cam.key, lift: a.lift, open: a.open ?? 110, phase: a.phase ?? 180 });
+      end(0.2);
+      return;
+    }
+    case 'flash': {
+      const glow = lookup(plan.objs, a.id, at);
+      const by = lookup(plan.objs, a.by, at);
+      if (!glow || !by) return;
+      plan.flashes = plan.flashes.filter((c) => c.key !== glow.key);
+      plan.flashes.push({ key: glow.key, byKey: by.key, angle: a.angle, span: a.span, cycle: a.cycle ?? 720 });
+      end(0.2);
       return;
     }
     case 'orbit': {
@@ -433,15 +519,72 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
   }
 }
 
+/** Seconds an object that is added again under the id of one already there takes to swap in, the old one fading as the new comes up. */
+export const REPLACE_SECONDS = 0.6;
+
+/**
+ * An `add` for an id that is already on the stage replaces that object in place (a richer model of the same part):
+ * the old one fades out as the new one fades in, what hung from the old one (parts, pins) goes on hanging from the new,
+ * and what was turning stays turning. Anything the answer does not mention is left alone.
+ */
+function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number): void {
+  old.diedAt = at;
+  old.wipe = REPLACE_SECONDS;
+  fresh.grow = REPLACE_SECONDS;
+  fresh.spread = track(valueAt(old.spread, at));
+  // It starts where the old one had got to (moved, turned, scaled), unless the new one says where it goes.
+  const given = fresh.def as { pos?: Vec3; rot?: Vec3 };
+  if (!given.pos) fresh.pos = track(valueAt(old.pos, at));
+  if (!given.rot) fresh.rot = track(valueAt(old.rot, at));
+  fresh.scale = track(valueAt(old.scale, at));
+  // What hung from the old one hangs from the new, except what the new one itself hangs from (an answer can add a part and then
+  // its former holder under it): that would make a loop, so it takes the old one's place in the old one's holder.
+  const above = new Set<number>();
+  for (let k: number | null = fresh.parentKey; k !== null && !above.has(k); ) {
+    above.add(k);
+    k = plan.objs.find((o) => o.key === k)?.parentKey ?? null;
+  }
+  for (const o of plan.objs) {
+    if (o.parentKey === old.key && aliveAt(o, at)) o.parentKey = above.has(o.key) ? old.parentKey : fresh.key;
+  }
+  for (const m of plan.marks) if (m.onKey === old.key && aliveAt(m, at)) m.onKey = fresh.key;
+  const to = (k: number): number => (k === old.key ? fresh.key : k);
+  for (const sp of plan.spins) {
+    if (sp.key === old.key) sp.key = fresh.key;
+    if (sp.lock) sp.lock.byKey = to(sp.lock.byKey);
+  }
+  plan.cranks = plan.cranks.map((c) => ({ ...c, key: to(c.key), shaftKey: to(c.shaftKey), rodKey: c.rodKey === null ? null : to(c.rodKey) }));
+  plan.cams = plan.cams.map((c) => ({ ...c, key: to(c.key), byKey: to(c.byKey) }));
+  plan.flashes = plan.flashes.map((c) => ({ ...c, key: to(c.key), byKey: to(c.byKey) }));
+  // The new one sits where the old one was in the list, so parents still come before their children.
+  plan.objs.splice(plan.objs.indexOf(old) + 1, 0, fresh);
+  plan.duration = Math.max(plan.duration, at + REPLACE_SECONDS);
+}
+
 /** Makes the copies of an array: the original joins a new group, and each further copy sits in a pivot that carries the step and turn. */
 function addArray(plan: StepPlan, a: Extract<AddAction, { shape: 'array' }>, at: number): void {
   const of = lookup(plan.objs, a.of, at);
   if (!of) return;
+  // An array written again: the old group and its generated copies go (fading out), while the original, however it came
+  // to be written again, joins the new group; the rest of what is below the old group, which the answer does not write again, goes too.
+  const before = lookup(plan.objs, a.id, at);
+  let holder = of.parentKey;
+  if (before) {
+    const keep = new Set([of.key, ...descendants(plan, of.key, at).map((d) => d.key)]);
+    for (const d of [before, ...descendants(plan, before.key, at)]) {
+      if (keep.has(d.key)) continue;
+      d.diedAt = at;
+      d.wipe = REPLACE_SECONDS;
+    }
+    if (holder === before.key) holder = before.parentKey;
+    plan.duration = Math.max(plan.duration, at + REPLACE_SECONDS);
+  }
   const group: ObjInst = {
-    key: plan.nextKey++, id: a.id, parentKey: of.parentKey, def: { op: 'add', shape: 'group', id: a.id } as AddAction,
+    key: plan.nextKey++, id: a.id, parentKey: holder, def: { op: 'add', shape: 'group', id: a.id } as AddAction,
     bornAt: of.bornAt, diedAt: undefined,
     pos: track([0, 0, 0]), rot: track([0, 0, 0]), scale: track([1, 1, 1]), color: track([255, 255, 255]), opacity: track([1]),
     draw: track([1]), spread: track([0]),
+    ...(before ? { grow: REPLACE_SECONDS } : {}),
   };
   plan.objs.push(group);
   const subtree = [of, ...descendants(plan, of.key, at)];
@@ -516,6 +659,8 @@ const asRgb = (a: number[]): Rgb => [a[0] ?? 0, a[1] ?? 0, a[2] ?? 0];
 
 /** The complete state at authored time `t` seconds into the step. Infinity settles the step. */
 export function evaluate(plan: StepPlan, t: number): Frame {
+  // A part keeps turning, so it has no angle at the end of time: settling reads it as the step's own length.
+  const spinTime = Number.isFinite(t) ? t : plan.duration;
   const marks: MarkFrame[] = [];
   const hosts = new Map<number, ObjInst>();
   for (const o of plan.objs) hosts.set(o.key, o);
@@ -537,7 +682,7 @@ export function evaluate(plan: StepPlan, t: number): Frame {
     });
   }
   const objects: ObjectFrame[] = [];
-  for (const o of plan.objs) {
+  for (const o of parentsFirst(plan.objs)) {
     if (!visibleAt(o, t)) continue;
     const pulse = pulseFor(plan, o.key, t);
     objects.push({
@@ -548,6 +693,8 @@ export function evaluate(plan: StepPlan, t: number): Frame {
       draw: valueAt(o.draw, t)[0] ?? 1, spread: valueAt(o.spread, t)[0] ?? 0,
     });
   }
+  const motion = motionOf(plan, objects, spinTime);
+  applyPoses(objects, motion);
   let panel: Frame['panel'] = null;
   for (const p of plan.panels) {
     if (!visibleAt(p, t)) continue;
@@ -555,7 +702,7 @@ export function evaluate(plan: StepPlan, t: number): Frame {
     panel = { rect: { x: r[0] ?? 0, y: r[1] ?? 0, w: r[2] ?? 0, h: r[3] ?? 0 }, appear: appearOf(p, t), fade: fadeOf(p, t), frame: p.frame };
   }
   return {
-    panel, marks, objects, nextKey: plan.nextKey,
+    panel, marks, objects, nextKey: plan.nextKey, motion,
     camera: {
       az: valueAt(plan.az, t)[0] ?? 0, el: valueAt(plan.el, t)[0] ?? 0, zoom: valueAt(plan.zoom, t)[0] ?? 1,
       focus: focusAt(plan.focus, t),
@@ -563,9 +710,67 @@ export function evaluate(plan: StepPlan, t: number): Frame {
   };
 }
 
-/** The Frame a step ends in, which the next step starts from. */
-export function settle(plan: StepPlan): Frame {
-  return evaluate(plan, Infinity);
+/** The objects with every parent before its children (a replaced object's children now hang from one made later). Stable otherwise. */
+function parentsFirst(objs: readonly ObjInst[]): readonly ObjInst[] {
+  const index = new Map<number, number>();
+  objs.forEach((o, i) => index.set(o.key, i));
+  if (objs.every((o, i) => o.parentKey === null || (index.get(o.parentKey) ?? -1) < i)) return objs;
+  const out: ObjInst[] = [];
+  const done = new Set<number>();
+  const visit = (o: ObjInst, depth: number): void => {
+    if (done.has(o.key)) return;
+    done.add(o.key);
+    const parent = o.parentKey !== null && depth < 64 ? objs[index.get(o.parentKey) ?? -1] : undefined;
+    if (parent) visit(parent, depth + 1);
+    out.push(o);
+  };
+  for (const o of objs) visit(o, 0);
+  return out;
+}
+
+/** What is turning at time `t`, and what is tied to it, limited to what is still on the stage. */
+function motionOf(plan: StepPlan, objects: readonly ObjectFrame[], t: number): Motion {
+  if (plan.spins.length + plan.cranks.length + plan.cams.length + plan.flashes.length === 0) return emptyMotion();
+  const alive = new Set(objects.map((o) => o.key));
+  const spins = spinsAt(plan.spins, t).filter((s) => alive.has(s.key));
+  const both = (a: number, b: number) => alive.has(a) && alive.has(b);
+  return {
+    spins,
+    cranks: plan.cranks.filter((c) => both(c.key, c.shaftKey) && (c.rodKey === null || alive.has(c.rodKey))),
+    cams: plan.cams.filter((c) => both(c.key, c.byKey)),
+    flashes: plan.flashes.filter((c) => both(c.key, c.byKey)),
+  };
+}
+
+function applyPoses(objects: ObjectFrame[], motion: Motion): void {
+  const placed = poses(objects, motion);
+  if (placed.size === 0) return;
+  for (const o of objects) {
+    const pose = placed.get(o.key);
+    if (pose) o.pose = pose;
+  }
+}
+
+/** The Frame a step ends in, which the next step starts from. `at` is how far into the step it really got, for what is turning. */
+export function settle(plan: StepPlan, at = Infinity): Frame {
+  const frame = evaluate(plan, Infinity);
+  if (!Number.isFinite(at) || at <= plan.duration || frame.motion.spins.length === 0) return frame;
+  return withMotion(frame, at - plan.duration);
+}
+
+/**
+ * The frame `seconds` later with the machine still running (a scene that has finished goes on turning). `from` is
+ * the motion to run on from, when it is not the frame's own.
+ */
+export function withMotion(frame: Frame, seconds: number, from: Motion = frame.motion): Frame {
+  if (from.spins.length === 0 || (seconds <= 0 && from === frame.motion)) return frame;
+  const motion = advanceMotion(from, Math.max(0, seconds));
+  const objects = frame.objects.map((o) => {
+    const { pose: _gone, ...rest } = o;
+    return rest as ObjectFrame;
+  });
+  applyPoses(objects, motion);
+  return { ...frame, objects, motion };
 }
 
 /** How far in and out the person may zoom the 3D panel: the scene language's own limits, so a wheel step never moves a scene's own zoom. */

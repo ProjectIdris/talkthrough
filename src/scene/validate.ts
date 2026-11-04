@@ -277,6 +277,10 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', path, 'style needs a colour or an opacity');
     return null;
   }
+  if (variant.name === 'spin' && out.rpm === undefined && out.by === undefined) {
+    note(notes, 'dropped', path, 'spin needs rpm or by');
+    return null;
+  }
   if (variant.name === 'card') {
     const rows = out.rows as string[] | undefined;
     if (out.title === undefined && (!rows || rows.length === 0)) {

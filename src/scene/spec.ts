@@ -92,8 +92,11 @@ const EDGES: Field = { k: 'bool', opt: true, doc: 'dark edge lines (default true
 const DRAW: Field = { k: 'num', min: 0, max: 1, opt: true, doc: 'how much is drawn at first, 0 to 1 (default 1); grow it with reveal' };
 
 export const SOLID_SHAPES = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'] as const;
-export const PARTS = ['chip', 'header', 'port', 'lens', 'screen', 'button', 'fan', 'wheel'] as const;
-export const PART_VARIANTS = ['black', 'metal', 'usb', 'usb3', 'ethernet', 'hdmi', 'usbc', 'gold'] as const;
+export const PARTS = [
+  'chip', 'header', 'port', 'lens', 'screen', 'button', 'fan', 'wheel',
+  'cylinder-block', 'piston', 'connecting-rod', 'crankshaft', 'valve', 'camshaft', 'spark-plug', 'gear', 'spring', 'bearing', 'pipe', 'elbow', 'housing',
+] as const;
+export const PART_VARIANTS = ['black', 'metal', 'usb', 'usb3', 'ethernet', 'hdmi', 'usbc', 'gold', 'cutaway', 'finned'] as const;
 
 export const VARIANTS: readonly Variant[] = [
   {
@@ -202,7 +205,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addPart', op: 'add', shapes: ['part'], creates: 'group',
-    doc: 'A ready-made part fitted to the box size [x,y,z]: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z).',
+    doc: 'A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Each has good proportions and named anchors for pins.',
     fields: {
       shape: { k: 'enum', values: ['part'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
       part: { k: 'enum', values: PARTS }, variant: { k: 'enum', values: PART_VARIANTS, opt: true },
@@ -235,7 +238,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'pin', op: 'pin', creates: 'pin', attach: 'on',
     doc: 'A label pinned to a 3D object: a dot at point (in the object\'s own space, default its middle), a line and a tag that follow it as it moves. off is where the tag sits from the dot in screen units (default [0,-90]).',
     fields: {
-      id: { k: 'newId' }, on: { k: 'ref', of: 'object3d' }, point: POS, text: { k: 'str', min: 1, max: 40 },
+      id: { k: 'newId' }, on: { k: 'ref', of: 'object3d' }, point: POS, anchor: { k: 'str', min: 1, max: 24, opt: true, doc: 'a named point of a ready-made part, instead of point' }, text: { k: 'str', min: 1, max: 40 },
       off: { k: 'vec2', min: -500, max: 500, opt: true }, color: COLOR_OPT, at: AT,
     },
   },
@@ -278,6 +281,44 @@ export const VARIANTS: readonly Variant[] = [
     name: 'highlight', op: 'highlight',
     doc: 'Pulse an object or mark to draw the eye, optionally in a colour.',
     fields: { id: { k: 'ref', of: 'any' }, color: { k: 'color', opt: true }, at: AT, dur: DUR },
+  },
+  {
+    name: 'spin', op: 'spin',
+    doc: 'Make a part turn round its own axis and keep turning, until another spin on it says otherwise. rpm is turns a minute (negative the other way; 0 stops; dur is the time to get up to speed). Or give by, another part that drives it: it then turns ratio times as far as that part (0.5 half as fast, -1 a meshed gear) and phase degrees ahead. axis is x, y or z, default z (the axis of a crankshaft, camshaft, gear and bearing; use y for a fan).',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, rpm: { k: 'num', min: -600, max: 600, opt: true },
+      by: { k: 'ref', of: 'object3d', opt: true, doc: 'the part that drives this one' },
+      ratio: { k: 'num', min: -20, max: 20, opt: true, doc: 'with by: turns per turn of that part (default 1)' },
+      phase: { k: 'num', min: -3600, max: 3600, opt: true, doc: 'with by: degrees ahead of that part' },
+      axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT, dur: DUR,
+    },
+  },
+  {
+    name: 'crank', op: 'crank',
+    doc: 'Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. Put the three in one group, the crankshaft turning with spin. pin is which throw (1 is the first).',
+    fields: {
+      id: { k: 'ref', of: 'object3d', doc: 'the piston' }, shaft: { k: 'ref', of: 'object3d', doc: 'the crankshaft' },
+      rod: { k: 'ref', of: 'object3d', opt: true, doc: 'the connecting-rod joining them' },
+      pin: { k: 'num', min: 1, max: 8, int: true, opt: true }, at: AT,
+    },
+  },
+  {
+    name: 'cam', op: 'cam',
+    doc: 'A valve (or any follower) that a spinning camshaft pushes down along y: it is down by lift while the cam nose points down at it, and back up otherwise. open is how many degrees of the turn of the cam it stays open (default 110), phase the cam angle where it is most open (default 180: the nose pointing down).',
+    fields: {
+      id: { k: 'ref', of: 'object3d', doc: 'the valve' }, by: { k: 'ref', of: 'object3d', doc: 'the camshaft' },
+      lift: { k: 'num', min: 0.01, max: 50, opt: true, doc: 'how far it moves down in units (default a fifth of its length)' },
+      open: { k: 'num', min: 10, max: 350, opt: true }, phase: { k: 'num', min: -3600, max: 3600, opt: true }, at: AT,
+    },
+  },
+  {
+    name: 'flash', op: 'flash',
+    doc: 'A glow that comes on at one point of the cycle of a turning part: the object (a small sphere for a spark, a larger one for the burn) is invisible, flares to its opacity at the crank angle given and dies away over span degrees. by is the crankshaft; angle is degrees into a cycle of cycle degrees (default 720, a four-stroke engine: 0 is the piston at the top starting the intake, 360 the top of the compression).',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, by: { k: 'ref', of: 'object3d', doc: 'the part whose turning times it' },
+      angle: { k: 'num', min: 0, max: 3600 }, span: { k: 'num', min: 1, max: 720 },
+      cycle: { k: 'num', min: 90, max: 3600, opt: true }, at: AT,
+    },
   },
   {
     name: 'orbit', op: 'orbit',

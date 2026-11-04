@@ -69,6 +69,12 @@ The main process also keeps a lease on "solid": the page repeats `setInteractive
 
 Frame grabs can show these states without a pointer: `--steps step:t:az:el:zoom:explode` (leave a field empty to keep the scene's value), for example `--steps 7:20:55:22:1.2:1`.
 
+## Where things go
+
+A model writes coordinates without seeing the page, so the overlay moves what it would cover (`src/overlay/placement.ts`). From a small gray picture of the screenshot it finds where there is something on the page (an edge, or a tone that is not the page's own background) and, for the 3D stage and for each note card or crop, picks the nearest free rectangle: off the text, off what the answer points at (boxes, circles, underlines, arrow ends, labels, crop regions), off the stage and off the cards still showing. The stage may come out a little smaller (down to two thirds) to fit. A place that is already free stays where the model put it, a move has to be clearly worth it, and a page with nowhere free is left as written. A card's place is free again when it is cleared. The scene's messages wait, up to a second and a half, for the screenshot to be decoded so the first stage is placed on the real page; without a picture of the page nothing moves. The optional `frame` behind the stage is light over a light page and dark over a dark one.
+
+Marks that are strokes (box, circle, underline, arrow) are drawn on like a pen: 0.8 to 1.2 seconds by length, the leading end feathered, and wiped off along the line when cleared. With the system's "reduce motion" setting they appear and go in one step.
+
 ## The pen
 
 While the keys are held the main process sends `pen on` and the window takes the mouse. The page (`pen.ts`, plain state tested without a window) draws what is dragged as a red, round stroke with a faint dark outline, about half a percent of the longer side wide, and reports it with `stroke`: points on the 0 to 1000 scale, appended per stroke id, once per frame while drawing and once more when the button comes up (`done`). A click, or a twitch under 3 units, draws and reports nothing. While the pen is on the mouse never turns the model or clicks the app's own words, and the browser's own image drag is switched off (it would cancel the stroke). After `pen off` the stroke stays until the answer's first step (or the end, a notice, a clear or an idle status), then fades over 0.6 s; a new `pen on` removes it at once. It is never part of a scene, and the screenshot kept for image cards is the clean one.

@@ -15,7 +15,7 @@ import { rgbCss } from './timeline.ts';
 export type Annotator = {
   view: View;
   /** Where a point of a 3D object is in the window. */
-  project: (key: number, point: Vec3 | undefined) => { x: number; y: number; visible: boolean } | undefined;
+  project: (key: number, point: Vec3 | undefined, anchor?: string) => { x: number; y: number; visible: boolean } | undefined;
   /** The screenshot (or backdrop) image crops are taken from. */
   source?: { image: CanvasImageSource; width: number; height: number };
   /** Where the tag of a pin goes (stable between frames). Without it a tag sits where the author's offset says. */
@@ -147,7 +147,7 @@ const easeOut = (t: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
 export function drawPin(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): void {
   const mk = m.mark;
   if (mk.op !== 'pin' || m.onKey === undefined) return;
-  const where = a.project(m.onKey, mk.point);
+  const where = a.project(m.onKey, mk.point, mk.anchor);
   if (!where || !where.visible) return;
   const theme = THEME;
   const { view } = a;

@@ -34,7 +34,7 @@ export type ImageMark = {
   caption?: string; color?: Color;
 } & At;
 /** A label pinned to a 3D object; `on` is that object's id. */
-export type PinMark = { op: 'pin'; id: string; on: string; point?: Vec3; text: string; off?: Vec2; color?: Color } & At;
+export type PinMark = { op: 'pin'; id: string; on: string; point?: Vec3; anchor?: string; text: string; off?: Vec2; color?: Color } & At;
 
 export type Mark = BoxMark | CircleMark | UnderlineMark | ArrowMark | LabelMark | CardMark | ImageMark | PinMark;
 
@@ -60,8 +60,10 @@ export type AddTube = {
 export type AddPath = {
   op: 'add'; shape: 'line' | 'arrow'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; color?: Color; draw?: number; opacity?: number;
 } & At;
-export type PartKind = 'chip' | 'header' | 'port' | 'lens' | 'screen' | 'button' | 'fan' | 'wheel';
-export type PartVariant = 'black' | 'metal' | 'usb' | 'usb3' | 'ethernet' | 'hdmi' | 'usbc' | 'gold';
+export type PartKind =
+  | 'chip' | 'header' | 'port' | 'lens' | 'screen' | 'button' | 'fan' | 'wheel'
+  | 'cylinder-block' | 'piston' | 'connecting-rod' | 'crankshaft' | 'valve' | 'camshaft' | 'spark-plug' | 'gear' | 'spring' | 'bearing' | 'pipe' | 'elbow' | 'housing';
+export type PartVariant = 'black' | 'metal' | 'usb' | 'usb3' | 'ethernet' | 'hdmi' | 'usbc' | 'gold' | 'cutaway' | 'finned';
 export type AddPart = {
   op: 'add'; shape: 'part'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; part: PartKind; variant?: PartVariant;
   size: Vec3; n?: number; color?: Color; opacity?: number;
@@ -84,6 +86,12 @@ export type ScaleAction = { op: 'scale'; id: string; to: Vec3 } & Timing;
 export type StyleAction = { op: 'style'; id: string; color?: Color; opacity?: number } & Timing;
 export type HighlightAction = { op: 'highlight'; id: string; color?: Color } & Timing;
 
+// Machines: parts that keep moving by themselves once started.
+export type SpinAction = { op: 'spin'; id: string; rpm?: number; by?: string; ratio?: number; phase?: number; axis?: 'x' | 'y' | 'z' } & Timing;
+export type CrankAction = { op: 'crank'; id: string; shaft: string; rod?: string; pin?: number } & At;
+export type CamAction = { op: 'cam'; id: string; by: string; lift?: number; open?: number; phase?: number } & At;
+export type FlashAction = { op: 'flash'; id: string; by: string; angle: number; span: number; cycle?: number } & At;
+
 // Camera, for the 3D panel.
 export type OrbitAction = { op: 'orbit'; az: number; el: number } & Timing;
 export type ZoomAction = { op: 'zoom'; to: number } & Timing;
@@ -95,6 +103,7 @@ export type ClearAction = { op: 'clear'; target: string } & At;
 export type Action =
   | Mark | PanelAction | AddAction
   | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | StyleAction | HighlightAction
+  | SpinAction | CrankAction | CamAction | FlashAction
   | OrbitAction | ZoomAction | FocusAction | ClearAction;
 
 export type Step = { say: string; actions: Action[] };
