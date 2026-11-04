@@ -17,6 +17,7 @@ const MAX_GROWTH = 2.6; // a fitted box is at most this many times the area of t
 const MIN_SHARE = 0.75; // a box must hold at least this share of a paragraph's lines to be taken for a box round all of it; holding less, it may be one sentence, and keeps its own lines
 const TABLE_SHARE = 0.4; // and this share of a table's rules
 const MIN_LINE = 4; // a line of letters is at least this tall (a rule or a border is thinner)
+const RULE_SIDE = 0.3; // the share of a row beside a rule that may be inked: a ruled line has blank rows around it, a line of letters does not
 const MAX_LINES = 16; // a paragraph longer than this is not one block to box
 
 const median = (v: number[]): number => { const s = [...v].sort((a, b) => a - b); return s[Math.floor(s.length / 2)] ?? 0; };
@@ -84,16 +85,19 @@ export function fitParagraph(g: BlockGrid, x0: number, y0: number, x1: number, y
   // The whole paragraph when the box holds a fair share of it; when that would be too much more than was drawn, the cut lines only.
   let whole = covers / para.length >= MIN_SHARE;
   let top = y0, bottom = y1;
+  // Air beside a line is never more than half the gap to its neighbour (in dense text the gap is two or three cells), so an edge never lands in the next line.
+  const air = (a: number, b: number): number => { const n = bands[a], m = bands[b]; return n && m ? Math.max(1, Math.min(AIR, Math.floor((Math.max(n.top, m.top) - Math.min(n.bottom, m.bottom)) / 2))) : AIR; };
+  const airAbove = (i: number): number => air(i - 1, i), airBelow = (i: number): number => air(i, i + 1);
   if (whole) {
-    top = (para[0] as Band).top - AIR;
-    bottom = (para[para.length - 1] as Band).bottom + AIR;
+    top = (para[0] as Band).top - airAbove(lo);
+    bottom = (para[para.length - 1] as Band).bottom + airBelow(hi);
     if (!grows(top, bottom)) whole = false;
   }
   if (!whole) {
     top = y0;
     bottom = y1;
-    if (cutTop) top = topLine.bottom - y0 >= 0.5 * (topLine.bottom - topLine.top) ? topLine.top - AIR : topLine.bottom + AIR;
-    if (cutBottom) bottom = y1 - botLine.top >= 0.5 * (botLine.bottom - botLine.top) ? botLine.bottom + AIR : botLine.top - AIR;
+    if (cutTop) top = topLine.bottom - y0 >= 0.5 * (topLine.bottom - topLine.top) ? topLine.top - airAbove(first) : topLine.bottom + airBelow(first);
+    if (cutBottom) bottom = y1 - botLine.top >= 0.5 * (botLine.bottom - botLine.top) ? botLine.bottom + airBelow(last) : botLine.top - airAbove(last);
     if (!grows(top, bottom)) return undefined;
   }
   const out: Span = { y0: Math.max(0, top), y1: Math.min(g.rows, bottom) };
@@ -133,8 +137,10 @@ function rulesIn(g: BlockGrid, x0: number, x1: number, from: number, to: number)
     if (on && start < 0) { start = y; strong = 0; }
     if (on) strong = Math.max(strong, count(g.strong, g.cols, x0, x1, y));
     if (!on && start >= 0) {
-      // A rule is thin and drawn; a solid band of colour or a line of letters packed together is neither.
-      if (y - start <= 6 && strong >= 0.6 * span) out.push((start + y - 1) / 2);
+      // A rule is thin and drawn, with blank rows on both sides of it; a solid band of colour is not, and neither is a line of
+      // letters (in dense text every line is a thick band of ink with the tops and feet of the letters just above and below).
+      const side = (row: number): number => (row < 0 || row >= g.rows ? 0 : count(g.ink, g.cols, x0, x1, row) / span);
+      if (y - start <= 6 && strong >= 0.6 * span && Math.max(side(start - 1), side(y)) < RULE_SIDE) out.push((start + y - 1) / 2);
       start = -1;
     }
   }
