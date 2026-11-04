@@ -198,13 +198,28 @@ test('tweens and references only reach known ids of the right kind', () => {
     cube('c', { parent: 'ghost' }),
     cube('d', { parent: 'm' }),
     cube('e'),
-    cube('f', { parent: 'e' }), // e is a box, not a group
+    cube('f', { parent: 'e' }), // any 3D object can hold parts
     { op: 'move', id: 'e', to: [1, 2, 3] },
     { op: 'highlight', id: 'm' },
     { op: 'style', id: 'e' }, // nothing to change
     { op: 'style', id: 'e', opacity: 0.5 },
   ));
-  assert.deepEqual(actionsOf(r).map((a) => a.op), ['box', 'add', 'move', 'highlight', 'style']);
+  assert.deepEqual(actionsOf(r).map((a) => a.op), ['box', 'add', 'add', 'move', 'highlight', 'style']);
+});
+
+test('a part can be a parent, but a mark, a pin or a text cannot; a parent made later in the step is waited for', () => {
+  const r = validateScene(scene(
+    cube('plug'),
+    cube('pin1', { parent: 'plug' }),
+    box('m'),
+    cube('x', { parent: 'm' }),
+    { op: 'pin', id: 'tag', on: 'plug', text: 'Plug' },
+    cube('y', { parent: 'tag' }),
+    cube('late', { parent: 'holder' }),
+    cube('holder'),
+  ));
+  assert.deepEqual(actionsOf(r).map((a) => (a as { id: string }).id), ['plug', 'pin1', 'm', 'tag', 'holder', 'late']);
+  assert.equal(r.issues.filter((i) => i.message.includes('cannot hold parts')).length, 2);
 });
 
 test('ids: malformed, reserved and duplicate ones are refused; odd-looking names are safe', () => {

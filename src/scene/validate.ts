@@ -138,8 +138,11 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       return f.of === 'object3d' && (kind === 'mark' || kind === 'pin') ? bad(`"${v}" is a screen mark, not a 3D object`) : good(v);
     }
     case 'parent': {
-      if (typeof v !== 'string') return bad('expected a group id');
-      if (state.ids.get(v) !== 'group') return bad(`"${v}" is not a known group`);
+      if (typeof v !== 'string') return bad('expected the id of a group or a part');
+      // Any 3D object can hold children: a group, or a part or shape that others are attached to.
+      const kind = state.ids.get(v);
+      if (!kind) return bad(`unknown id "${v}"`);
+      if (kind === 'mark' || kind === 'pin' || kind === 'text') return bad(`"${v}" cannot hold parts`);
       return (state.depth.get(v) ?? 0) + 1 > LIMITS.maxDepth ? bad('groups nested too deep') : good(v);
     }
     case 'target':

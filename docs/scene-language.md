@@ -88,7 +88,7 @@ Marks take `id`, `color` (cards, images and pins may leave it out: the look choo
 | `text` | `text` `height` `pos`? `color` | text in the 3D scene, always facing the camera |
 | `group` | `pos`? `rot`? | an empty node |
 
-All take `parent`? (the id of a group to attach to; groups nest up to 6 deep) and `at`?. `pos` defaults to `[0,0,0]`, `rot` to `[0,0,0]`, `opacity` to 1. A child moves, turns and scales with its parent. To make something grow from its base, put it in a group at the base, offset the child by half its height, and scale the group (see `bar-chart.json`). Arrays are capped at 64 copies each and 400 in a scene.
+All take `parent`? (the id of a group, or of a part or shape, to attach to; they nest up to 6 deep, and a mark, a pin or a text cannot be a parent) and `at`?. `pos` defaults to `[0,0,0]`, `rot` to `[0,0,0]`, `opacity` to 1. A child moves, turns and scales with its parent. To make something grow from its base, put it in a group at the base, offset the child by half its height, and scale the group (see `bar-chart.json`). Arrays are capped at 64 copies each and 400 in a scene.
 
 ### Changing objects
 
@@ -182,6 +182,8 @@ A valid scene comes back deep-equal to what went in.
 **Pieces.** `createStepStream({ onPiece })` also reports, in order, each step's `say` text the moment its string closes, each action the moment its object closes, and then the step itself (`{type:'say'}`, `{type:'action'}`, `{type:'step'}`). A step is still the boundary; the pieces let a step be drawn while it is being written.
 
 `beginLiveStep(state, { open(say), action(action) })` validates a step that way: `say(raw)` for the words, `action(raw)` for each action, `finish()` at the end of the step. Each action is checked on arrival, against the ids the scene already holds and under the same limits as a whole step (24 actions a step, the per-turn caps, id collisions), so what is drawn as it streams is exactly what `validateStep` would keep (`validateStep` is built on it). An action that names an object not seen yet (an array before the object it copies, a pin before its part) is held for up to six more actions, then dropped with its reason; an action that arrives before the words waits for them, and a step that never gets its words (missing, or not text) is dropped with them, streamed or whole. A step that repeats its `say` or `actions` key streams the first of each.
+
+**Build order.** Because a streamed model appears part by part, the order the model writes it in is the order it is built on screen. The prompt guide asks for the order a person would assemble it: the base or frame first, then the main parts that rest on it, then moving parts, then small details, one sub-assembly per step, and an object before anything that refers to it (its group, its array, its move, its pin). `orderScore(steps, known)` reads a raw answer and says how much of it did: `refs` references to an object (a parent, the object a pin is on, the original an array copies, the object a move acts on), `early` of them to an object made only later, `missing` to one never made, and `score` the share in order (1 when every one comes after its object). It drops nothing; the app records it in each question's report.
 
 ## The JSON Schema
 

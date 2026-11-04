@@ -4,5 +4,7 @@ export { beginLiveStep, createSceneState, startTurn, validateStep, validateScene
 export type { LiveStep, LiveStepEvents, SceneState, StepResult, SceneResult } from './validate.ts';
 export { createStepStream } from './stream.ts';
 export type { StepPiece, StepStream, StepStreamOptions } from './stream.ts';
+export { orderScore } from './order.ts';
+export type { OrderScore } from './order.ts';
 export { sceneSchema, sceneSchemaLean } from './schema.ts';
 export { sceneGuide, sceneGuideExample } from './guide.ts';
