@@ -275,3 +275,25 @@ test('a stroke being drawn hides the button (the layer says so); a finished one 
   assert.equal(pen.drawing, false);
   assert.equal(pen.canUndo, true);
 });
+
+test('a stroke whose picture would be huge is worked out at half size (and drawn scaled up), with the same opacity; a small one at full size', () => {
+  const big = new PenLayer();
+  big.turnOn();
+  big.down(50, 50, 0);
+  for (let i = 1; i <= 40; i++) big.move(50 + 900 * Math.sin((i / 40) * Math.PI * 2) ** 2, 50 + 900 * (i / 40), i * 20);
+  big.up();
+  const wide = { width: 3440, height: 1440 };
+  const view = big.view(5000, { reduceMotion: true });
+  const ribbon = penRibbon(view.strokes[0] as NonNullable<typeof view.strokes[0]>, wide, 5000, undefined)!;
+  const half = rasterRibbon(ribbon, wide)!;
+  assert.equal(half.scale, 0.5);
+  assert.ok(half.w * half.h <= 1_500_000, 'the picture is a quarter of the area');
+  let peak = 0;
+  for (let k = 3; k < half.data.length; k += 4) peak = Math.max(peak, (half.data[k] as number) / 255);
+  assert.ok(peak > 0.5 && peak < 0.75, 'the same opacity: ' + peak.toFixed(2));
+  const small = new PenLayer();
+  small.turnOn();
+  drawLoop(small);
+  const sv = small.view(1000);
+  assert.equal(rasterRibbon(penRibbon(sv.strokes[0] as NonNullable<typeof sv.strokes[0]>, SIZE, 1000, sv.decayMs)!, SIZE)!.scale, 1);
+});

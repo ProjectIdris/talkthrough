@@ -293,7 +293,7 @@ export function penRibbon(s: { points: ReadonlyArray<Pt>; times?: ReadonlyArray<
 }
 
 /** An image of a stroke: RGBA bytes for the rectangle `w` by `h` at (`x`, `y`). */
-export type PenRaster = { x: number; y: number; w: number; h: number; data: Uint8ClampedArray<ArrayBuffer> };
+export type PenRaster = { x: number; y: number; w: number; h: number; data: Uint8ClampedArray<ArrayBuffer>; /** The picture is this share of full size (a big stroke is worked out smaller and drawn scaled up; its edge is soft anyway). */ scale: number };
 
 /**
  * The ribbon as pixels, worked out for each pixel from its nearest point on the line: the distance gives the edge (a pixel wide), the
@@ -301,7 +301,17 @@ export type PenRaster = { x: number; y: number; w: number; h: number; data: Uint
  * seam or banding in it however the opacity changes, and where the stroke crosses itself the pixel keeps the stronger of the two (the
  * ink does not pile up into a dark bead). `bounds` is the area the picture may cover (the window). Nothing when the ribbon is off it.
  */
-export function rasterRibbon(r: Ribbon, bounds: { width: number; height: number }): PenRaster | undefined {
+export function rasterRibbon(r: Ribbon, bounds: { width: number; height: number }, scale = 1): PenRaster | undefined {
+  if (scale === 1) {
+    // A stroke whose picture would be over about a million and a half pixels is worked out at half size: the cost goes with the area.
+    let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
+    for (const p of r.pts) { lo = [Math.min(lo[0] as number, p.x), Math.min(lo[1] as number, p.y)]; hi = [Math.max(hi[0] as number, p.x), Math.max(hi[1] as number, p.y)]; }
+    if (((hi[0] as number) - (lo[0] as number)) * ((hi[1] as number) - (lo[1] as number)) > 1_500_000) {
+      const k = 0.5;
+      const small: Ribbon = { pts: r.pts.map((p) => ({ x: p.x * k, y: p.y * k, t: p.t })), half: r.half.map((h) => h * k), level: r.level };
+      return rasterRibbon(small, { width: bounds.width * k, height: bounds.height * k }, k);
+    }
+  }
   const { pts, half, level } = r;
   const n = pts.length;
   let reach = 0;
@@ -353,11 +363,11 @@ export function rasterRibbon(r: Ribbon, bounds: { width: number; height: number 
     data[k * 4 + 2] = INK[2];
     data[k * 4 + 3] = Math.round(a * 255);
   }
-  return { x: x0, y: y0, w, h, data };
+  return { x: x0, y: y0, w, h, data, scale };
 }
 
 /** What a stroke was last drawn as, so a stroke that has settled (or stands still) is not worked out again for every frame the page draws. */
-const drawn = new WeakMap<object, { key: string; layer: HTMLCanvasElement | undefined; x: number; y: number }>();
+const drawn = new WeakMap<object, { key: string; layer: HTMLCanvasElement | undefined; x: number; y: number; scale: number }>();
 
 /**
  * Draws the strokes as a soft marker: a translucent ribbon in the style's red, thickest at the pen and tapering at its start and tip, with a
@@ -387,10 +397,10 @@ export function drawPen(ctx: Ctx, view: PenView, size: { width: number; height: 
         layer.height = image.h;
         layer.getContext('2d')?.putImageData(new ImageData(image.data, image.w, image.h), 0, 0);
       }
-      entry = { key, layer, x: image?.x ?? 0, y: image?.y ?? 0 };
+      entry = { key, layer, x: image?.x ?? 0, y: image?.y ?? 0, scale: image?.scale ?? 1 };
       drawn.set(s, entry);
     }
-    if (entry.layer) ctx.drawImage(entry.layer, entry.x, entry.y);
+    if (entry.layer) ctx.drawImage(entry.layer, entry.x / entry.scale, entry.y / entry.scale, entry.layer.width / entry.scale, entry.layer.height / entry.scale);
   }
   ctx.restore();
 }
