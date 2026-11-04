@@ -351,7 +351,7 @@ test('the extra call is told what it is for: whole answer = no step and done, ot
 });
 
 test('every spoken sentence is told to open short, in the guide (the one-call answer) and in each step prompt, and the 30-word cap stays', () => {
-  const rule = sceneGuide.split('\n').find((l) => l.startsWith('- The say of every step opens with a short first sentence'));
+  const rule = sceneGuide.split('\n').find((l) => l.startsWith('- The say of every explanation step opens with a short first sentence'));
   assert.ok(rule, 'a rule of its own in the guide');
   assert.match(rule, /about 8 words or 50 characters at most/);
   assert.match(rule, /The cap on the whole say stays/);
@@ -368,4 +368,7 @@ test('every spoken sentence is told to open short, in the guide (the one-call an
     assert.match(text, /about 30 words/, 'the cap is still there');
   }
   assert.equal(SHORT_OPENER.length < 200 && opener.test(SHORT_OPENER), true);
+  // said once in a call's own text, and the first-step sentence stays whole: the opener comes after it
+  for (const stage of steps) assert.equal(questionText({ ...request, stage }).split(SHORT_OPENER).length - 1, 1, `once in ${JSON.stringify(stage)}`);
+  assert.match(questionText({ ...request, stage: { part: 'first', plan: true } }), /: what the page is and what the question is about, not a label. Open the sentence with a short first sentence/);
 });
