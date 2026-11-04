@@ -123,7 +123,7 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
     async *ask(req: ModelRequest): AsyncGenerator<ModelOutput> {
       if (req.signal?.aborted) throw new ModelError('aborted', 'request aborted');
       const { proc } = take();
-      // A first call of a two-call answer is followed at once by a second: its process starts now, not when the second call is wanted.
+      // A call of a split answer (two calls, or one step to a call) is followed at once by another: its process starts now, not when that call is wanted.
       if (req.stage && !closed) ready ??= launch();
       const queue = new AsyncQueue<ModelOutput>();
       const stream = createOutputStream(req.pieces === true, req.onRaw);
