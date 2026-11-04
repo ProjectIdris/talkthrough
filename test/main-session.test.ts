@@ -122,11 +122,27 @@ test('speech server down, nothing heard, and a too-short clip each give a notice
   assert.ok(short.kinds().includes('notice:info'));
 });
 
-test('a model failure is a notice; steps already drawn are closed with end', async () => {
-  const model = { id: 'm', ask: async function* () { yield { type: 'step' as const, step: step('One.') }; throw new Error('boom'); } };
+test('a model failure before any step is a notice and nothing else', async () => {
+  const model = { id: 'm', ask: async function* (): AsyncGenerator<never> { throw new Error('boom'); } };
   const r = rig({ model: () => model });
   await question(r);
-  assert.deepEqual(r.kinds().slice(-3), ['end', 'status:idle', 'notice:error']);
+  assert.equal(r.kinds().at(-1), 'notice:error');
+});
+
+test('a failure after steps have played keeps what was drawn and ends the answer there, logged: no error, no wiped page', async () => {
+  const model = { id: 'm', ask: async function* () { yield { type: 'step' as const, step: step('One.') }; yield { type: 'step' as const, step: step('Two.') }; throw new ModelError('bad-output', 'scene text has mismatched brackets'); } };
+  const lines: string[] = [];
+  const reports: Array<{ steps: number; error?: string; cutShort?: string; endMs?: number }> = [];
+  const r = rig({ model: () => model, log: (l) => void lines.push(l), onReport: (rep) => void reports.push(rep) });
+  await question(r);
+  const k = r.kinds();
+  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'step', 'step', 'end'], 'both steps shown, the answer ended, no notice');
+  assert.ok(lines.some((l) => /answer cut short after 2 steps/.test(l) && /mismatched brackets/.test(l)), lines.join(' | '));
+  const rep = reports.at(-1)!;
+  assert.equal(rep.steps, 2);
+  assert.equal(rep.error, undefined, 'not an error');
+  assert.match(rep.cutShort ?? '', /mismatched brackets/);
+  assert.ok(rep.endMs !== undefined, 'it counts as finished, so a follow-up (More detail) can still be asked');
 });
 
 test('a new chord while an answer is still arriving stops it', async () => {

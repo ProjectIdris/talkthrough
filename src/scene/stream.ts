@@ -42,7 +42,7 @@ function unquote(raw: string): string {
 
 /**
  * Text before the scene's opening brace and after its closing brace is ignored (code fences,
- * chatter). Throws on mismatched brackets, on a step that is not valid JSON, and on a step
+ * chatter), and so is a `]` written where the closing brace belongs once every step is closed. Throws on mismatched brackets, on a step that is not valid JSON, and on a step
  * over 200,000 characters.
  */
 export function createStepStream(options: StepStreamOptions = {}): StepStream {
@@ -144,7 +144,9 @@ export function createStepStream(options: StepStreamOptions = {}): StepStream {
         stepExpectValue = false;
       } else if (c === '}' || c === ']') {
         const open = stack.pop();
-        if (open === undefined || (c === '}') !== (open === '{')) throw new Error('scene text has mismatched brackets');
+        // A model that has written every step may close the scene with a stray `]` where its `}` belongs (the steps array is already closed): the scene is whole, so it ends there.
+        const strayEnd = c === ']' && open === '{' && stack.length === 0 && stepsDepth > 0;
+        if (open === undefined || ((c === '}') !== (open === '{') && !strayEnd)) throw new Error('scene text has mismatched brackets');
         if (inAct && stack.length === stepsDepth + 2) {
           const text = act + chunk.slice(actFrom, i + 1);
           inAct = false;
