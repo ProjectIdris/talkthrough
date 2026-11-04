@@ -213,7 +213,7 @@ export class Snapper {
         return block; // the block's own size and air: the usual edge snap would draw it back onto the letters
       }
     }
-    // An underline is held to its own line of letters, which may be a long way shorter than the one written; it only ever shortens.
+    // An underline is held to its own line of letters, which may be a long way shorter than the one written; its ends come out to the edges of the words they fall in.
     if (m.op === 'underline') return this.underline(m);
     const next = this.refine(m);
     return next === m || this.within(m, next) ? next : m;

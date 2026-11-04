@@ -46,8 +46,8 @@ test('a box round the first lines of a paragraph, its bottom edge through a line
   page.text(60, 40, 300, 6, 200); // lines at 40, 53, 66, 79, 92, 105; ends at 113
   page.text(60, 140, 300, 4); // the next paragraph, a gap of 27 below
   const s = page.snapper();
-  // Rows 38..82: the first three lines whole and the fourth cut through its middle.
-  const out = s.snapMark(box(58, 38, 302, 83));
+  // Rows 38..96: the first four lines whole and the fifth cut through its middle: five of the six lines.
+  const out = s.snapMark(box(58, 38, 302, 96));
   const { y0, y1 } = cellsOfBox(out);
   assert.ok(y1 >= 113 && y1 <= 121, `bottom at the end of the sixth line, not the next paragraph: ${y1.toFixed(1)}`);
   assert.ok(y0 <= 37 && y0 >= 30, `air above the first line (at 40): ${y0.toFixed(1)}`);
@@ -135,4 +135,25 @@ test('an underline starts and ends at the edges of words of its line, not in the
   const a = out.x * kx, b = (out.x + out.w) * kx;
   assert.ok(Math.abs(a - 90) <= 3, `starts at the start of the word (90), got ${a.toFixed(1)}`);
   assert.ok(Math.abs(b - 174) <= 3, `ends at the end of the word (174), got ${b.toFixed(1)}`);
+});
+
+test('a box on one sentence (four of six lines, its bottom through the fourth) keeps its own lines and does not grow to the whole paragraph', () => {
+  const page = new Page();
+  page.text(60, 40, 300, 6, 200);
+  const s = page.snapper();
+  const out = s.snapMark(box(58, 38, 302, 83)); // lines 1 to 3 whole and line 4 cut through its middle
+  const { y1 } = cellsOfBox(out);
+  assert.ok(y1 >= 86 && y1 <= 93, `completed to the end of the fourth line (87), no further: ${y1.toFixed(1)}`);
+  assert.ok((out as Extract<Mark, { op: 'box' }>).x * kx <= 57, 'and it has air at the left of its lines');
+});
+
+test('a box that holds about half a paragraph and cuts a line at each edge is not left cutting them: its lines are completed, not the whole paragraph', () => {
+  const page = new Page();
+  page.text(60, 40, 300, 6); // lines at 40, 53, 66, 79, 92, 105 (each 8 tall)
+  const s = page.snapper();
+  const out = s.snapMark(box(58, 56, 302, 95)); // line 2 cut near its middle at the top, line 5 near its middle at the bottom
+  const { y0, y1 } = cellsOfBox(out);
+  const clear = (y: number): boolean => ![40, 53, 66, 79, 92, 105].some((t) => y > t + 2 && y < t + 6);
+  assert.ok(clear(y0) && clear(y1), `neither edge runs through a line: ${y0.toFixed(1)} to ${y1.toFixed(1)}`);
+  assert.ok(y1 < 110, `not the whole paragraph: ${y1.toFixed(1)}`);
 });

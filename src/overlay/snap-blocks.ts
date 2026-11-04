@@ -11,10 +11,11 @@ export type BlockGrid = { cols: number; rows: number; ink: ArrayLike<number>; st
 /** The rows (and, when the block's own sides are known, the columns) a box is fitted to. */
 export type Span = { y0: number; y1: number; x0?: number; x1?: number };
 
-const PAD = 3; // cells between an edge completed round a cut line and the letters
+const PAD = 3; // cells of slack when looking for the rules of a table
 const AIR = 4; // cells of air on every side of a box fitted to a whole paragraph or table (about 8 px on a 1920-wide screen)
 const MAX_GROWTH = 2.6; // a fitted box is at most this many times the area of the one written
-const MIN_SHARE = 0.4; // the box must hold at least this share of the block's lines or rows to be taken for a box round that block
+const MIN_SHARE = 0.75; // a box must hold at least this share of a paragraph's lines to be taken for a box round all of it; holding less, it may be one sentence, and keeps its own lines
+const TABLE_SHARE = 0.4; // and this share of a table's rules
 const MIN_LINE = 4; // a line of letters is at least this tall (a rule or a border is thinner)
 const MAX_LINES = 16; // a paragraph longer than this is not one block to box
 
@@ -79,15 +80,25 @@ export function fitParagraph(g: BlockGrid, x0: number, y0: number, x1: number, y
   const cutBottom = y1 < botLine.bottom - room(botLine) && y1 > botLine.top + room(botLine);
   if (!cutTop && !cutBottom) return undefined;
   const covers = inside.filter((r) => (Math.min(r.bottom, y1) - Math.max(r.top, y0)) >= 0.5 * (r.bottom - r.top)).length;
-  const whole = covers / para.length >= MIN_SHARE;
+  const grows = (top: number, bottom: number): boolean => bottom - top >= h && (bottom - top) <= (y1 - y0) * MAX_GROWTH;
+  // The whole paragraph when the box holds a fair share of it; when that would be too much more than was drawn, the cut lines only.
+  let whole = covers / para.length >= MIN_SHARE;
   let top = y0, bottom = y1;
-  if (whole) { top = (para[0] as Band).top - AIR; bottom = (para[para.length - 1] as Band).bottom + AIR; }
-  else if (cutTop) top = topLine.bottom - y0 >= 0.5 * (topLine.bottom - topLine.top) ? topLine.top - PAD : topLine.bottom + PAD;
-  if (!whole && cutBottom) bottom = y1 - botLine.top >= 0.5 * (botLine.bottom - botLine.top) ? botLine.bottom + PAD : botLine.top - PAD;
-  if (bottom - top < h || (bottom - top) * (b - a) > (y1 - y0) * (b - a) * MAX_GROWTH) return undefined;
+  if (whole) {
+    top = (para[0] as Band).top - AIR;
+    bottom = (para[para.length - 1] as Band).bottom + AIR;
+    if (!grows(top, bottom)) whole = false;
+  }
+  if (!whole) {
+    top = y0;
+    bottom = y1;
+    if (cutTop) top = topLine.bottom - y0 >= 0.5 * (topLine.bottom - topLine.top) ? topLine.top - AIR : topLine.bottom + AIR;
+    if (cutBottom) bottom = y1 - botLine.top >= 0.5 * (botLine.bottom - botLine.top) ? botLine.bottom + AIR : botLine.top - AIR;
+    if (!grows(top, bottom)) return undefined;
+  }
   const out: Span = { y0: Math.max(0, top), y1: Math.min(g.rows, bottom) };
-  // A whole paragraph gets air on its sides too: its own left edge and the end of its longest line (a gutter or a picture ends it).
-  if (whole) Object.assign(out, textColumns(g, (para[0] as Band).top, (para[para.length - 1] as Band).bottom, a, b));
+  // The lines get air on their sides too: its own left edge and the end of its longest line (a gutter or a picture ends it).
+  Object.assign(out, whole ? textColumns(g, (para[0] as Band).top, (para[para.length - 1] as Band).bottom, a, b) : textColumns(g, Math.round(top + AIR), Math.round(bottom - AIR), a, b));
   return out;
 }
 
@@ -155,7 +166,7 @@ export function fitTable(g: BlockGrid, x0: number, y0: number, x1: number, y1: n
   // A table that runs off the screen: the rows go on to its edge.
   if (g.rows - bottom <= pitch * 1.2 && g.rows - bottom > 1 && count(g.ink, g.cols, a, b, g.rows - 1) > 0) bottom = g.rows - 1;
   const total = i1 - i0 + 1;
-  if (inBox.length / total < MIN_SHARE) return undefined;
+  if (inBox.length / total < TABLE_SHARE) return undefined;
   const nt = top - AIR, nb = bottom + AIR;
   if (Math.abs(nt - y0) + Math.abs(nb - y1) < 4) return undefined;
   if ((nb - nt) > (y1 - y0) * MAX_GROWTH) return undefined;
