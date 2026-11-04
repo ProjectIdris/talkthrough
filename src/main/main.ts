@@ -229,7 +229,7 @@ async function main(): Promise<void> {
   // The Claude route can write its quick answer in pieces (step 1 first); the other routes answer fast enough on their own.
   const split = settings.model === 'claude' ? settings.splitAnswer : 'off';
   const quickModel = makeModel(settings.model, settings.model === 'claude' ? settings.claudeModel : settings.model === 'openai' ? settings.openaiModel : settings.codexModel, settings.effort, true, split === 'steps');
-  const model: Model = split === 'two' ? createTwoStepModel(quickModel, { log }) : split === 'steps' ? createStepByStepModel(quickModel, { log }) : quickModel;
+  const model: Model = split === 'two' ? createTwoStepModel(quickModel, { log, early: process.env.EXPLAINER_TWO_EARLY === '1' /* tried, not yet a setting: see the Two Call note */ }) : split === 'steps' ? createStepByStepModel(quickModel, { log }) : quickModel;
   // The detail model starts only when the person first asks for more detail (nothing is launched for it before that).
   let detailModel: Model | undefined;
   const detailRoute = settings.detailRoute;

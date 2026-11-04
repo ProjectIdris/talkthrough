@@ -38,6 +38,7 @@ test('what each half is told: the first asks for step 1 alone (about 30 words), 
   const rest = questionText({ ...request, stage: { part: 'rest', first: { say: 'Hello.', actions: [] } } });
   assert.match(rest, /Step 1 of this answer is already drawn and spoken: \{"say":"Hello\.","actions":\[\]\}/);
   assert.match(rest, /from step 2 onward/);
+  assert.match(rest, /at most three more steps, each about 30 words/);
   assert.match(rest, /when in doubt draw none/);
   assert.match(rest, /never over its text or its settings and controls/);
   assert.ok(!/Write only step 1/.test(rest) && !/Step 1 of this answer/.test(questionText(request)), 'a plain question carries neither');
