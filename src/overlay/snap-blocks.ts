@@ -8,9 +8,11 @@
 /** The page as cells: 1 where there is ink, and 1 where a long straight edge runs (a ruled line, the edge of a band of text). */
 export type BlockGrid = { cols: number; rows: number; ink: ArrayLike<number>; strong: ArrayLike<number> };
 
-export type Span = { y0: number; y1: number };
+/** The rows (and, when the block's own sides are known, the columns) a box is fitted to. */
+export type Span = { y0: number; y1: number; x0?: number; x1?: number };
 
-const PAD = 3; // cells of air between a fitted edge and the letters or the rule
+const PAD = 3; // cells between an edge completed round a cut line and the letters
+const AIR = 4; // cells of air on every side of a box fitted to a whole paragraph or table (about 8 px on a 1920-wide screen)
 const MAX_GROWTH = 2.6; // a fitted box is at most this many times the area of the one written
 const MIN_SHARE = 0.4; // the box must hold at least this share of the block's lines or rows to be taken for a box round that block
 const MIN_LINE = 4; // a line of letters is at least this tall (a rule or a border is thinner)
@@ -79,10 +81,35 @@ export function fitParagraph(g: BlockGrid, x0: number, y0: number, x1: number, y
   const covers = inside.filter((r) => (Math.min(r.bottom, y1) - Math.max(r.top, y0)) >= 0.5 * (r.bottom - r.top)).length;
   const whole = covers / para.length >= MIN_SHARE;
   let top = y0, bottom = y1;
-  if (cutTop) top = whole ? (para[0] as Band).top - PAD : (topLine.bottom - y0 >= 0.5 * (topLine.bottom - topLine.top) ? topLine.top - PAD : topLine.bottom + PAD);
-  if (cutBottom) bottom = whole ? (para[para.length - 1] as Band).bottom + PAD : (y1 - botLine.top >= 0.5 * (botLine.bottom - botLine.top) ? botLine.bottom + PAD : botLine.top - PAD);
+  if (whole) { top = (para[0] as Band).top - AIR; bottom = (para[para.length - 1] as Band).bottom + AIR; }
+  else if (cutTop) top = topLine.bottom - y0 >= 0.5 * (topLine.bottom - topLine.top) ? topLine.top - PAD : topLine.bottom + PAD;
+  if (!whole && cutBottom) bottom = y1 - botLine.top >= 0.5 * (botLine.bottom - botLine.top) ? botLine.bottom + PAD : botLine.top - PAD;
   if (bottom - top < h || (bottom - top) * (b - a) > (y1 - y0) * (b - a) * MAX_GROWTH) return undefined;
-  return { y0: Math.max(0, top), y1: Math.min(g.rows, bottom) };
+  const out: Span = { y0: Math.max(0, top), y1: Math.min(g.rows, bottom) };
+  // A whole paragraph gets air on its sides too: its own left edge and the end of its longest line (a gutter or a picture ends it).
+  if (whole) Object.assign(out, textColumns(g, (para[0] as Band).top, (para[para.length - 1] as Band).bottom, a, b));
+  return out;
+}
+
+/**
+ * The columns of a paragraph with air on each side: from its first letter (when it is near the box's left edge) to the end of its
+ * longest line. A blank run three cells wide down every line of the paragraph is the gutter: words are not aligned from line to
+ * line, so only a column gap ends the text. Nothing for a side that cannot be told (the text runs on past the box).
+ */
+function textColumns(g: BlockGrid, top: number, bottom: number, a: number, b: number): { x0?: number; x1?: number } {
+  const used = (x: number): boolean => { for (let y = top; y < bottom; y++) if (g.ink[y * g.cols + x]) return true; return false; };
+  let first = -1;
+  for (let x = Math.max(0, a - 6); x < Math.min(g.cols, a + 14); x++) if (used(x)) { first = x; break; }
+  const out: { x0?: number; x1?: number } = {};
+  if (first >= 0) out.x0 = Math.max(0, first - AIR);
+  if (first >= 0) {
+    let blank = 0, end = first;
+    for (let x = first; x < Math.min(g.cols, b + 14); x++) {
+      if (used(x)) { end = x + 1; blank = 0; } else if (++blank >= 3) break;
+    }
+    if (end <= b + 8) out.x1 = Math.min(g.cols, end + AIR);
+  }
+  return out;
 }
 
 /** Rows of cells that are one long ruled line across x0..x1: its middle row, for each rule. */
@@ -129,10 +156,17 @@ export function fitTable(g: BlockGrid, x0: number, y0: number, x1: number, y1: n
   if (g.rows - bottom <= pitch * 1.2 && g.rows - bottom > 1 && count(g.ink, g.cols, a, b, g.rows - 1) > 0) bottom = g.rows - 1;
   const total = i1 - i0 + 1;
   if (inBox.length / total < MIN_SHARE) return undefined;
-  const nt = top - PAD, nb = bottom + PAD;
+  const nt = top - AIR, nb = bottom + AIR;
   if (Math.abs(nt - y0) + Math.abs(nb - y1) < 4) return undefined;
   if ((nb - nt) > (y1 - y0) * MAX_GROWTH) return undefined;
-  return { y0: Math.max(0, nt), y1: Math.min(g.rows, nb) };
+  const out: Span = { y0: Math.max(0, nt), y1: Math.min(g.rows, nb) };
+  // The table's own sides, with air: where its rules start and end (when that is near the box's sides).
+  let left = -1, right = -1;
+  const rule = Math.round(rules[i0] as number);
+  for (let x = Math.max(0, a - 14); x < Math.min(g.cols, b + 14); x++) if (g.ink[rule * g.cols + x] || g.ink[(rule + 1) * g.cols + x]) { if (left < 0) left = x; right = x + 1; }
+  if (left >= 0 && Math.abs(left - a) <= 14) out.x0 = Math.max(0, left - AIR);
+  if (right >= 0 && Math.abs(right - b) <= 14) out.x1 = Math.min(g.cols, right + AIR);
+  return out;
 }
 
 /**

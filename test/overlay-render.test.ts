@@ -109,7 +109,7 @@ test('every shape the language has can be built, at the size it was given', () =
 /** A drawing context that records what is asked of it. */
 function recordingContext() {
   const calls: string[] = [];
-  const target = { canvas: {}, measureText: () => ({ width: 100 }) } as Record<string, unknown>;
+  const target = { canvas: {}, createLinearGradient: () => ({ addColorStop: () => {} }), measureText: () => ({ width: 100 }) } as Record<string, unknown>;
   const ctx = new Proxy(target, {
     get(t, key: string) {
       if (key in t) return t[key];
@@ -157,7 +157,7 @@ function strokeRecorder() {
   let dash: number[] = [];
   let offset = 0;
   const target: Record<string, unknown> = {
-    canvas: {}, measureText: () => ({ width: 100 }),
+    canvas: {}, createLinearGradient: () => ({ addColorStop: () => {} }), measureText: () => ({ width: 100 }),
     setLineDash: (d: number[]) => { dash = d; },
     stroke: () => { strokes.push({ style, dash, offset }); },
   };
@@ -201,8 +201,8 @@ test('a box is drawn where the scene says, across the whole display', () => {
   const frame = frameAt([{ say: '', actions: [{ op: 'box', id: 'b', x: 500, y: 250, w: 100, h: 500, color: 'red' }] }], 0, 5);
   const { ctx, calls } = recordingContext();
   drawMarks(ctx, frame.marks, { width: 2000, height: 1000, dpr: 1 });
-  // The rounded corner path starts at x + radius on the top edge: 1000 + 6, 250.
-  assert.ok(calls.includes('moveTo(1006,250)'), calls.slice(0, 12).join(' '));
+  // The rounded corner path starts at x + radius on the top edge: 1000 + 10, 250.
+  assert.ok(calls.includes('moveTo(1010,250)'), calls.slice(0, 12).join(' '));
   assert.ok(calls.some((c) => c.startsWith('arcTo(1200,250,1200,750')), 'right edge is at 1200, bottom at 750');
 });
 

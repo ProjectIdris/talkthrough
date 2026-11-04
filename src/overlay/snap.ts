@@ -210,8 +210,7 @@ export class Snapper {
     if (m.op === 'box') {
       const block = this.fitBlock(m);
       if (block) {
-        const next = this.refine(block);
-        return next === block || this.within(block, next) ? next : block;
+        return block; // the block's own size and air: the usual edge snap would draw it back onto the letters
       }
     }
     // An underline is held to its own line of letters, which may be a long way shorter than the one written; it only ever shortens.
@@ -353,9 +352,9 @@ export class Snapper {
     if (x1 - x0 < 24 || y1 - y0 < 8 || this.inkSums.mean(x0, y0, x1 - x0, y1 - y0) < 0.01) return undefined;
     const span = fitTable(this.blockGrid, x0, y0, x1, y1) ?? fitParagraph(this.blockGrid, x0, y0, x1, y1, Math.round(0.05 * this.scale));
     if (!span) return undefined;
-    const [, ny] = this.toUnits({ x: 0, y: span.y0 });
-    const [, my] = this.toUnits({ x: 0, y: span.y1 });
-    return { ...m, y: ny, h: round1(my - ny) };
+    const [nx, ny] = this.toUnits({ x: span.x0 ?? x0, y: span.y0 });
+    const [mx, my] = this.toUnits({ x: span.x1 ?? x1, y: span.y1 });
+    return { ...m, x: nx, y: ny, w: round1(mx - nx), h: round1(my - ny) };
   }
 
   /**

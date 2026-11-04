@@ -162,7 +162,7 @@ test('with no model there is nothing to bound', () => {
 
 function recorder() {
   const calls: string[] = [];
-  const target = { canvas: {}, measureText: (t: string) => ({ width: t.length * 8 }) } as Record<string, unknown>;
+  const target = { canvas: {}, createLinearGradient: () => ({ addColorStop: () => {} }), measureText: (t: string) => ({ width: t.length * 8 }) } as Record<string, unknown>;
   const ctx = new Proxy(target, {
     get(t, key: string) {
       if (key in t) return t[key];

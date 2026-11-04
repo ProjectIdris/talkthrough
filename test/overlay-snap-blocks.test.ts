@@ -16,7 +16,7 @@ class Page {
   text(x0: number, y0: number, x1: number, lines: number, lastTo = x1) {
     for (let l = 0; l < lines; l++) {
       const end = l === lines - 1 ? lastTo : x1;
-      for (let x = x0; x < end; x++) if (Math.floor((x - x0) / 6) % 5 !== 4) this.fill(x, y0 + l * 13, x + 1, y0 + l * 13 + 8, 40);
+      for (let x = x0; x < end; x++) if ((Math.floor((x - x0) / 6) + l * 2) % 5 !== 4) this.fill(x, y0 + l * 13, x + 1, y0 + l * 13 + 8, 40);
     }
   }
   /** A ruled table: a rule every `pitch` cells from y0, a short word in each row. */
@@ -50,7 +50,9 @@ test('a box round the first lines of a paragraph, its bottom edge through a line
   const out = s.snapMark(box(58, 38, 302, 83));
   const { y0, y1 } = cellsOfBox(out);
   assert.ok(y1 >= 113 && y1 <= 121, `bottom at the end of the sixth line, not the next paragraph: ${y1.toFixed(1)}`);
-  assert.ok(y0 <= 40 && y0 >= 34, `top stays on the first line: ${y0.toFixed(1)}`);
+  assert.ok(y0 <= 37 && y0 >= 30, `air above the first line (at 40): ${y0.toFixed(1)}`);
+  const b = out as Extract<Mark, { op: 'box' }>;
+  assert.ok(b.x * kx <= 57 && (b.x + b.w) * kx >= 303 && (b.x + b.w) * kx <= 310, `air on both sides of the lines (60 to 300): ${(b.x * kx).toFixed(1)} to ${((b.x + b.w) * kx).toFixed(1)}`);
 });
 
 test('a box that holds one line of a long paragraph and cuts it is made to take that line, not the paragraph', () => {

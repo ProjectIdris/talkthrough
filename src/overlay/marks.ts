@@ -56,7 +56,7 @@ const FEATHER_BANDS = 7;
  * being cleared, the tail wiped away the same way. `trace` makes the path; the stroke goes along it from its start.
  */
 function penStroke(
-  ctx: Ctx, m: MarkFrame, alpha: number, lw: number, total: number, head: number, tail: number, trace: () => void,
+  ctx: Ctx, m: MarkFrame, alpha: number, lw: number, total: number, head: number, tail: number, trace: () => void, glow = true,
 ): void {
   const featherLen = Math.min(Math.max(0, head - tail), Math.max(18, total * 0.1));
   const body = head - featherLen;
@@ -72,6 +72,18 @@ function penStroke(
   // The tail end is wiped with the same softness as the head is drawn.
   const wipe = tail > 0 ? Math.min(featherLen, Math.max(0, body - tail)) : 0;
   if (tail <= 0 && head >= total - 0.5) {
+    // Once drawn the line settles with a faint halo of its own colour, a soft edge of light round it.
+    if (glow && m.pulse <= 0) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.setLineDash([]);
+      ctx.strokeStyle = rgbCss(m.color, 0.16 * alpha);
+      ctx.lineWidth = lw * 3.6;
+      trace();
+      ctx.stroke();
+      ctx.restore();
+    }
     dashed(0, total + 2, 1);
     ctx.setLineDash([]);
     return;
@@ -107,6 +119,9 @@ function roundRectPath(ctx: Ctx, x: number, y: number, w: number, h: number, r: 
   ctx.closePath();
 }
 
+/** The corner radius of a box, in pixels: generous, so a box with air round what it holds reads as a rounded pane. */
+const BOX_RADIUS = 10;
+
 function drawBox(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, reduce: boolean): void {
   const mk = m.mark;
   if (mk.op !== 'box' && mk.op !== 'circle') return;
@@ -122,15 +137,19 @@ function drawBox(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, red
     ctx.translate(-(x + w / 2), -(y + h / 2));
   }
   if (mk.op === 'box') {
-    const rr = Math.max(0, Math.min(6, w / 2, h / 2));
+    const rr = Math.max(0, Math.min(BOX_RADIUS, w / 2, h / 2));
     const perimeter = 2 * (w + h) - (8 - 2 * Math.PI) * rr;
     ctx.save();
-    ctx.fillStyle = rgbCss(m.color, 0.07 * alpha * p);
-    roundRectPath(ctx, x, y, w, h, 6);
+    // A wash a little deeper at the top, so the box reads as a lit pane and not a flat tint.
+    const wash = ctx.createLinearGradient(0, y, 0, y + h);
+    wash.addColorStop(0, rgbCss(m.color, 0.13 * alpha * p));
+    wash.addColorStop(1, rgbCss(m.color, 0.05 * alpha * p));
+    ctx.fillStyle = wash;
+    roundRectPath(ctx, x, y, w, h, BOX_RADIUS);
     ctx.fill();
     ctx.restore();
     const st = strokeState(m, perimeter, reduce);
-    penStroke(ctx, m, st.alpha, lw, perimeter, st.head, st.tail, () => roundRectPath(ctx, x, y, w, h, 6));
+    penStroke(ctx, m, st.alpha, lw, perimeter, st.head, st.tail, () => roundRectPath(ctx, x, y, w, h, BOX_RADIUS));
     ctx.restore();
     return;
   }
@@ -271,7 +290,7 @@ function drawUnderline(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: numbe
     ctx.beginPath();
     ctx.moveTo(x, y + 2);
     ctx.lineTo(x + w, y + 2);
-  });
+  }, false);
 }
 
 function drawArrow(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, reduce: boolean): void {
@@ -327,12 +346,12 @@ function drawLabel(ctx: Ctx, m: MarkFrame, v: View, alpha: number): void {
   const mk = m.mark;
   if (mk.op !== 'label') return;
   const textPx = snap(Math.max(11, ((mk.size ?? 24) / 1000) * v.height), v.dpr);
-  const padX = textPx * 0.6, padY = textPx * 0.34;
+  const padX = textPx * 0.72, padY = textPx * 0.42;
   ctx.save();
-  ctx.font = `600 ${textPx}px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif`;
+  ctx.font = `650 ${textPx}px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif`;
   ctx.textBaseline = 'middle';
   const tw = ctx.measureText(mk.text).width;
-  const dot = textPx * 0.34, dotRoom = dot * 2 + textPx * 0.34;
+  const dot = textPx * 0.3, dotRoom = dot * 2 + textPx * 0.42;
   const w = tw + padX * 2 + dotRoom, h = textPx + padY * 2;
   let x = px(mk.x, v.width, v.dpr);
   const y = px(mk.y, v.height, v.dpr) + (1 - m.appear) * 8;
@@ -342,24 +361,40 @@ function drawLabel(ctx: Ctx, m: MarkFrame, v: View, alpha: number): void {
   ctx.scale(grow, grow);
   ctx.translate(-(x + w / 2), -(y + h / 2));
   ctx.globalAlpha = Math.min(1, alpha * m.appear * 1.4);
-  softShadow(ctx, 1.8);
+  softShadow(ctx, 2.2);
   if (m.pulse > 0) {
     ctx.shadowColor = rgbCss(m.pulseColor ?? m.color, 0.9 * m.pulse);
     ctx.shadowBlur = 26 * m.pulse;
     ctx.shadowOffsetY = 0;
   }
-  ctx.fillStyle = 'rgba(17,22,34,0.93)';
-  roundRectPath(ctx, x, y, w, h, Math.min(8, h * 0.3));
+  // A pill of dark glass, a little lighter at the top, with a hairline round it and a fine light line along its top edge.
+  const glass = ctx.createLinearGradient(0, y, 0, y + h);
+  glass.addColorStop(0, 'rgba(36,44,64,0.97)');
+  glass.addColorStop(1, 'rgba(15,20,32,0.97)');
+  ctx.fillStyle = glass;
+  roundRectPath(ctx, x, y, w, h, h / 2);
   ctx.fill();
   noShadow(ctx);
   ctx.lineWidth = 1;
-  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.20)';
   ctx.stroke();
+  ctx.save();
+  roundRectPath(ctx, x + 0.5, y + 0.5, w - 1, h - 1, h / 2);
+  ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,0.16)';
+  ctx.fillRect(x + h * 0.4, y, w - h * 0.8, 1);
+  ctx.restore();
+  // The colour dot has a ring round it.
+  const cx = x + padX + dot, cy = y + h / 2;
+  ctx.fillStyle = rgbCss(m.color, 0.28);
+  ctx.beginPath();
+  ctx.arc(cx, cy, dot * 1.65, 0, Math.PI * 2);
+  ctx.fill();
   ctx.fillStyle = rgbCss(m.color, 1);
   ctx.beginPath();
-  ctx.arc(x + padX + dot, y + h / 2, dot, 0, Math.PI * 2);
+  ctx.arc(cx, cy, dot, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = '#f4f7fb';
+  ctx.fillStyle = '#f7f9fc';
   ctx.fillText(mk.text, x + padX + dotRoom, y + h / 2 + textPx * 0.03);
   ctx.restore();
 }

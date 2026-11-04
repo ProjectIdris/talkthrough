@@ -186,25 +186,44 @@ export class DiagramPainter {
     const slide = (1 - d.appear) * 10;
     ctx.globalAlpha = alpha * Math.min(1, d.appear * 1.5);
     ctx.translate(0, slide);
-    ctx.shadowColor = d.pulse > 0 ? rgbCss(d.pulseColor !== undefined ? parseColor(d.pulseColor) : accent, 0.9 * d.pulse) : 'rgba(0,0,0,0.35)';
-    ctx.shadowBlur = d.pulse > 0 ? 30 * d.pulse : 24;
-    ctx.shadowOffsetY = d.pulse > 0 ? 0 : 8;
-    ctx.fillStyle = theme.surface;
-    roundRect(ctx, r.x, r.y, r.w, r.h, theme.radius + 3);
+    // Depth: a wide soft shadow under the card and a tight one at its foot, on a surface a little lighter at the top.
+    const glass = ctx.createLinearGradient(0, r.y, 0, r.y + r.h);
+    glass.addColorStop(0, 'rgba(31,39,59,0.96)');
+    glass.addColorStop(1, 'rgba(14,19,31,0.96)');
+    const radius = theme.radius + 4;
+    ctx.shadowColor = d.pulse > 0 ? rgbCss(d.pulseColor !== undefined ? parseColor(d.pulseColor) : accent, 0.9 * d.pulse) : 'rgba(4,8,18,0.46)';
+    ctx.shadowBlur = d.pulse > 0 ? 30 * d.pulse : 40;
+    ctx.shadowOffsetY = d.pulse > 0 ? 0 : 16;
+    ctx.fillStyle = glass;
+    roundRect(ctx, r.x, r.y, r.w, r.h, radius);
     ctx.fill();
+    if (d.pulse <= 0) {
+      ctx.shadowColor = 'rgba(4,8,18,0.34)';
+      ctx.shadowBlur = 5;
+      ctx.shadowOffsetY = 2;
+      roundRect(ctx, r.x, r.y, r.w, r.h, radius);
+      ctx.fill();
+    }
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
     ctx.lineWidth = 1;
-    ctx.strokeStyle = theme.line;
+    ctx.strokeStyle = 'rgba(255,255,255,0.13)';
     ctx.stroke();
+    // A fine light line along the top edge, as a lit pane has.
+    ctx.fillStyle = 'rgba(255,255,255,0.20)';
+    ctx.fillRect(r.x + radius, r.y + 0.5, Math.max(0, r.w - radius * 2), 1);
     ctx.fillStyle = rgbCss(accent, 1);
-    roundRect(ctx, r.x, r.y + 10, 4, Math.min(r.h - 20, base * 2.2), 2);
+    roundRect(ctx, r.x + 1, r.y + pad * 0.95, 3.5, base * 1.5, 1.75);
     ctx.fill();
     const { lines: titleLines, area } = titleAndArea(ctx, d, r, base, pad);
-    ctx.font = fontAt(theme.titleFont, base * 1.12);
+    ctx.font = fontAt(theme.titleFont, base * 1.2);
     ctx.fillStyle = theme.ink;
     ctx.textBaseline = 'alphabetic';
-    titleLines.forEach((l, i) => ctx.fillText(l, r.x + pad, r.y + pad + base * 1.12 * (1 + i * 1.1)));
+    titleLines.forEach((l, i) => ctx.fillText(l, r.x + pad + 2, r.y + pad + base * 1.2 * (1 + i * 1.05)));
+    if (titleLines.length > 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.09)';
+      ctx.fillRect(r.x + pad, area.y - base * 0.32, r.w - pad * 2, 1);
+    }
     const env: Env = { ctx, view, alpha: 1, accent, px: base, painter: this, dt };
     ctx.save();
     roundRect(ctx, r.x + 1, r.y + 1, r.w - 2, r.h - 2, theme.radius + 2);
@@ -239,9 +258,9 @@ function titleAndArea(ctx: Ctx, d: DiagramFrame, r: Px, base: number, pad: numbe
   let top = r.y;
   let lines: string[] = [];
   if (d.def.title) {
-    ctx.font = fontAt(THEME.titleFont, base * 1.12);
-    lines = wrapLines((s) => ctx.measureText(s).width, d.def.title, r.w - pad * 2, 2);
-    top = r.y + pad + base * 1.12 * (1.1 * lines.length) + base * 0.5;
+    ctx.font = fontAt(THEME.titleFont, base * 1.2);
+    lines = wrapLines((s) => ctx.measureText(s).width, d.def.title, r.w - pad * 2 - 2, 2);
+    top = r.y + pad + base * 1.2 * (1.05 * lines.length) + base * 0.62;
   }
   return { lines, area: { x: r.x, y: top, w: r.w, h: Math.max(20, r.y + r.h - top) } };
 }
@@ -304,29 +323,40 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
     ctx.globalAlpha = a;
     softShadow(ctx);
     ctx.strokeStyle = rgbCss(color, 1);
-    ctx.lineWidth = 1.7;
+    ctx.lineWidth = 2.3;
     glow(ctx, e, color);
     const { tip, angle } = strokePartial(ctx, pts, easeOut(e.appear));
     ctx.shadowBlur = 0;
     if (e.appear > 0.55) {
-      const h = Math.max(7, env.px * 0.55);
+      // A kite-shaped head with rounded corners: a notch at the back so it reads as an arrow, not a wedge.
+      const h = Math.max(11, env.px * 0.86);
+      const ca = Math.cos(angle), sa = Math.sin(angle);
+      const wing = 0.46, notch = 0.62;
       ctx.fillStyle = rgbCss(color, 1);
+      ctx.strokeStyle = rgbCss(color, 1);
+      ctx.lineWidth = 1.2;
+      ctx.lineJoin = 'round';
       ctx.beginPath();
       ctx.moveTo(tip.x, tip.y);
-      ctx.lineTo(tip.x - h * Math.cos(angle - 0.45), tip.y - h * Math.sin(angle - 0.45));
-      ctx.lineTo(tip.x - h * Math.cos(angle + 0.45), tip.y - h * Math.sin(angle + 0.45));
+      ctx.lineTo(tip.x - h * Math.cos(angle - wing), tip.y - h * Math.sin(angle - wing));
+      ctx.lineTo(tip.x - h * notch * ca, tip.y - h * notch * sa);
+      ctx.lineTo(tip.x - h * Math.cos(angle + wing), tip.y - h * Math.sin(angle + wing));
       ctx.closePath();
       ctx.fill();
+      ctx.stroke();
     }
     if (e.def.text && e.appear > 0.7) {
       const px = env.px * 0.78;
       ctx.font = fontAt(theme.font, px);
       const tw = ctx.measureText(e.def.text).width;
       ctx.globalAlpha = a * Math.min(1, (e.appear - 0.7) / 0.3);
-      ctx.fillStyle = theme.surface;
-      roundRect(ctx, route.mid.x - tw / 2 - 6, route.mid.y - px * 0.78, tw + 12, px * 1.55, px * 0.7);
+      ctx.fillStyle = 'rgba(19,25,39,0.97)';
+      roundRect(ctx, route.mid.x - tw / 2 - 8, route.mid.y - px * 0.8, tw + 16, px * 1.6, px * 0.8);
       ctx.fill();
-      ctx.fillStyle = theme.muted;
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = rgbCss(color, 0.42);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(232,238,248,0.96)';
       ctx.textBaseline = 'middle';
       ctx.fillText(e.def.text, route.mid.x - tw / 2, route.mid.y + px * 0.04);
     }
@@ -345,14 +375,29 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
     ctx.translate(mx, my);
     ctx.scale(grow, grow);
     ctx.translate(-mx, -my);
-    glow(ctx, n, color);
-    ctx.fillStyle = 'rgba(255,255,255,0.075)';
-    roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.h * 0.3));
+    const nodeRadius = Math.min(13, b.h * 0.34);
+    if (n.pulse > 0) glow(ctx, n, color);
+    else {
+      ctx.shadowColor = 'rgba(4,8,18,0.42)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 3;
+    }
+    // A node is a small lit pane of its own colour: tinted at the top, deeper at the foot, with a fine light line along its top edge.
+    const pane = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
+    pane.addColorStop(0, rgbCss(color, 0.30));
+    pane.addColorStop(1, rgbCss(color, 0.11));
+    ctx.fillStyle = 'rgba(14,19,31,0.9)';
+    roundRect(ctx, b.x, b.y, b.w, b.h, nodeRadius);
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.lineWidth = 1.4;
-    ctx.strokeStyle = rgbCss(color, 0.85);
+    ctx.shadowOffsetY = 0;
+    ctx.fillStyle = pane;
+    ctx.fill();
+    ctx.lineWidth = 1.3;
+    ctx.strokeStyle = rgbCss(color, 0.9);
     ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.fillRect(b.x + nodeRadius, b.y + 1.2, Math.max(0, b.w - nodeRadius * 2), 1);
     textInBox(ctx, n.def.text, n.def.note, b, env.px, theme.ink, theme.muted);
     ctx.restore();
   });
@@ -374,7 +419,7 @@ function textInBox(ctx: Ctx, text: string, note: string | undefined, b: Px, base
     const wide = lines.every((l) => ctx.measureText(l).width <= innerW);
     return { lines, noteLines, notePx, ok: wide && lines.length * px * 1.2 + noteLines.length * notePx * 1.2 <= b.h - 6 };
   };
-  let px = Math.max(9, Math.min(basePx * 1.05, b.h * 0.36));
+  let px = Math.max(9, Math.min(basePx * 1.14, b.h * 0.38));
   let fit = fitAt(px, 2);
   for (; !fit.ok && px > 9; ) {
     px = Math.max(9, px - 1);

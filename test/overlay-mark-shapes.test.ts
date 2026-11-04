@@ -13,7 +13,7 @@ const actionsOf = (r: ReturnType<typeof validateScene>) => (r.scene as Scene).st
 /** A drawing context that records what is asked of it. */
 function recordingContext() {
   const calls: string[] = [];
-  const target = { canvas: {}, measureText: () => ({ width: 100 }) } as Record<string, unknown>;
+  const target = { canvas: {}, createLinearGradient: () => ({ addColorStop: () => {} }), measureText: () => ({ width: 100 }) } as Record<string, unknown>;
   const ctx = new Proxy(target, {
     get(t, key: string) {
       if (key in t) return t[key];
