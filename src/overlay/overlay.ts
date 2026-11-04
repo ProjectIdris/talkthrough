@@ -125,8 +125,11 @@ const player = new Player({
 });
 
 let display: DisplayInfo | undefined;
-/** "More detail" was asked for this answer (it is offered once). */
-let detailAsked = false;
+/**
+ * Where "More detail" is for this answer: offered (none), asked and not yet begun (asked), being drawn (running), or
+ * done. Only a failure (a notice while asked or running) offers it again; a new question starts afresh.
+ */
+let detailState: 'none' | 'asked' | 'running' | 'done' = 'none';
 let view: View = { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 };
 /** Where the model is on screen (for the pointer), and the stage's frame when it has one. */
 let modelRect: ScreenRect | undefined;
@@ -331,7 +334,7 @@ function placeExplode(frame: Frame): void {
   explodeEl.style.left = `${box.x}px`;
   explodeEl.style.top = `${box.y}px`;
   // "More detail" sits to the left of Explode, once per answer, and only where a detail model is set up.
-  if (!display?.detail || detailAsked) {
+  if (!display?.detail || detailState !== 'none') {
     detailEl.style.display = 'none';
     return;
   }
@@ -482,7 +485,7 @@ explodeEl.addEventListener('pointerdown', () => window.talkthrough.engage(true))
 explodeEl.addEventListener('click', toggleExplode);
 // "More detail": one request per answer; the button goes, and the status says it is working until the richer scene has arrived.
 detailEl.addEventListener('click', () => {
-  detailAsked = true;
+  detailState = 'asked';
   detailEl.style.display = 'none';
   hold.release();
   window.talkthrough.detail();
@@ -517,7 +520,7 @@ function beginTurn(turn: number, detail = false): void {
   if (detail) return;
   hud.newTurn();
   pendingOffer = undefined;
-  detailAsked = false;
+  detailState = 'none';
   // The first turn of a question starts clean; later turns continue it, keeping objects and ids.
   if (turn <= 1) player.clear();
   milestones.mark = false;
@@ -600,6 +603,7 @@ function applyScene(message: SceneMessage): void {
       beginTurn(message.turn, message.detail === true);
       placer()?.reset();
       if (message.turn <= 1 && message.detail !== true) placer()?.setStage(undefined); // a detail pass keeps the stage it grows into
+      if (message.detail === true) detailState = 'running';
       player.beginTurn(message.detail === true);
       break;
     case 'step':
@@ -625,6 +629,7 @@ function applyScene(message: SceneMessage): void {
       if (!pen.active && hold.over && modelRect && player.settled) toggleExplode();
       break;
     case 'end':
+      if (detailState === 'running') detailState = 'done';
       pen.fade(labelClock());
       hud.stopWorking();
       if (message.escalate !== undefined) pendingOffer = message.escalate;
@@ -639,7 +644,7 @@ function applyScene(message: SceneMessage): void {
       else hud.setStatus(message.status);
       break;
     case 'notice':
-      detailAsked = false; // whatever went wrong with a detail pass, the person may ask again
+      if (detailState === 'asked' || detailState === 'running') detailState = 'none'; // it failed: the person may ask again
       pen.fade(labelClock());
       hud.showNotice(message.text, message.level, performance.now());
       break;
@@ -650,7 +655,7 @@ function applyScene(message: SceneMessage): void {
       fader.disarm();
       hud.reset();
       pendingOffer = undefined;
-      detailAsked = false;
+      detailState = 'none';
       break;
     case 'seek':
       seekClock = (seekClock ?? 0) + 1000 / 30;

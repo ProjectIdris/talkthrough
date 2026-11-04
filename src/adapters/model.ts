@@ -6,6 +6,8 @@ export type ThreadTurn = {
   question: string;
   /** The validated steps that were shown for that question. */
   steps: readonly Step[];
+  /** A detail pass: a richer version of the scene as it stood, replacing what the turns before it drew (the ids it writes again are swapped in place). */
+  detail?: true;
 };
 
 export type ModelRequest = {

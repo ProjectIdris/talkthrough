@@ -5,7 +5,7 @@ import type { Model, ModelOutput, ThreadTurn, Usage } from '../adapters/model.ts
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
-import { beginLiveStep, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
+import { beginLiveStep, createDetailState, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
 import type { LiveStep, SceneState, Step } from '../scene/index.ts';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
@@ -247,7 +247,7 @@ export function createSession(deps: SessionDeps) {
     if (!last) return { ok: false, text: 'There is nothing to pin yet. Ask something first.' };
     try {
       const keep = deps.pinScreenshot?.() === true && pictures.get(last);
-      deps.pin({ question: last.question, thread: [...thread], steps: thread.flatMap((t) => [...t.steps]), ...(keep ? { screenshot: keep } : {}) });
+      deps.pin({ question: last.question, thread: [...thread], steps: sceneSteps(), ...(keep ? { screenshot: keep } : {}) });
       return { ok: true, text: keep ? 'Pinned, with the screenshot.' : 'Pinned.' };
     } catch (error) {
       deps.log(`pin: ${error instanceof Error ? error.message : String(error)}`);
@@ -255,9 +255,18 @@ export function createSession(deps: SessionDeps) {
     }
   }
 
+  /**
+   * The steps that draw what is on screen now: the turns from the last detail pass on (a detail pass writes the whole
+   * scene again, richer), or all of them when there has been none.
+   */
+  function sceneSteps(): unknown[] {
+    const from = thread.findLastIndex((t) => t.detail === true);
+    return thread.slice(Math.max(0, from)).flatMap((t) => [...t.steps]);
+  }
+
   /** What the backend is told about the scene on screen: the steps drawn in this thread and the ids in use. */
   function sceneOnScreen(): { steps: unknown[]; ids: Record<string, string> } {
-    return { steps: thread.flatMap((t) => [...t.steps]), ids: Object.fromEntries(state.ids) };
+    return { steps: sceneSteps(), ids: Object.fromEntries(state.ids) };
   }
 
   /** The backend as a source of steps: the overlay says it is with the backend while it waits. */
@@ -288,12 +297,12 @@ export function createSession(deps: SessionDeps) {
       thread = [];
       state = createSceneState();
     }
-    // A detail pass is checked against a scene of its own: the ids of the scene on screen are not "in use" for it,
-    // because it writes the same ids again, richer; the page swaps each one in place as it arrives.
-    const checking: SceneState = detail ? createSceneState() : state;
+    // A detail pass knows the ids on screen: it may name one it does not write again (a pin on it, a part under it) and
+    // may write any of them again, richer; the page swaps each one in place as it arrives.
+    const checking: SceneState = detail ? createDetailState(state) : state;
     const turn = detail ? Math.max(1, thread.length) : thread.length + 1;
     const picture = lastAsk?.clean;
-    const known = detail ? [] : [...state.ids.keys()];
+    const known = [...state.ids.keys()];
     startTurn(checking);
     deps.log(`question heard (turn ${turn}, ${source.label}${deps.logText ? `): ${JSON.stringify(question)}` : ')'}`);
 
@@ -395,20 +404,15 @@ export function createSession(deps: SessionDeps) {
     }
     open();
     deps.send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) });
-    const kept: ThreadTurn = { question, steps: shown };
+    const kept: ThreadTurn = { question, steps: shown, ...(detail ? { detail: true as const } : {}) };
     if (picture) pictures.set(kept, picture);
     if (detail) {
-      // The richer scene stands in for what was drawn before: it is what a follow-up, a pin or a second detail pass sees.
-      // The ids the old scene held that the answer did not write again stay known, so a follow-up can still name them.
-      for (const [id, kind] of checking.ids) state.ids.set(id, kind);
-      for (const [id, parent] of checking.parents) state.parents.set(id, parent);
-      for (const [id, d] of checking.depth) state.depth.set(id, d);
-      state.copies = Math.max(state.copies, checking.copies);
-      thread = [kept];
+      // The scene on screen is now the richer one: the ids it did not write again are still there and still known.
+      delete checking.replaceable;
+      state = checking;
       deps.send(displayId, { kind: 'status', status: 'idle' });
-    } else {
-      thread.push(kept);
     }
+    thread.push(kept);
     lastActivity = now();
     if (lastAsk) lastAsk.reason = detail ? undefined : escalate;
   }
@@ -433,7 +437,7 @@ export function createSession(deps: SessionDeps) {
     r.question = base.question;
     r.detail = true;
     deps.send(displayId, { kind: 'status', status: 'detail' });
-    const scene = thread.flatMap((t) => [...t.steps]);
+    const scene = sceneSteps();
     const source: Source = {
       kind: 'model',
       label: model.id,

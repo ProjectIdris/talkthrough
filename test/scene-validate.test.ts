@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { createSceneState, LIMITS, startTurn, validateEscalate, validateScene, validateStep } from '../src/scene/index.ts';
+import { createDetailState, createSceneState, LIMITS, startTurn, validateEscalate, validateScene, validateStep } from '../src/scene/index.ts';
 import type { Scene } from '../src/scene/index.ts';
 
 const samplesDir = new URL('../samples/scenes/', import.meta.url);
@@ -341,4 +341,21 @@ test('a part may name where it moves when the model is exploded; a bad offset is
     const a = find(validateScene(scene(group('g'), cube('a', { parent: 'g', explode: wrong }))));
     assert.ok(!a || a.explode === undefined, `a bad offset (${JSON.stringify(wrong)}) is not kept`);
   }
+});
+
+test('a detail state knows the ids on screen: they can be named without being written, written once more (same kind), but not twice', () => {
+  const onScreen = createSceneState();
+  validateScene(scene(group('g'), cube('a', { parent: 'g' }), { op: 'pin', id: 'p', on: 'a', text: 'A' }), onScreen);
+  const detail = createDetailState(onScreen);
+  startTurn(detail);
+  const r = validateScene(scene(
+    { op: 'pin', id: 'q', on: 'a', text: 'B' }, // `a` named, not written again
+    cube('b', { parent: 'g' }), // a new part under an unwritten holder
+    cube('a', { parent: 'g', size: [2, 2, 2] }), // written again: replaces
+    cube('a', { parent: 'g' }), // a second time: refused
+    box('p'), // `p` is a pin on screen; a screen box with its id is a different kind: refused
+  ), detail);
+  assert.deepEqual(actionsOf(r).map((a) => (a as { id?: string }).id), ['q', 'b', 'a']);
+  assert.equal(onScreen.replaceable, undefined, 'the scene on screen is left as it was');
+  assert.ok(onScreen.ids.has('a') && !onScreen.ids.has('b'));
 });

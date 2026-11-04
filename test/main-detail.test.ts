@@ -91,8 +91,9 @@ test('after a detail pass the richer scene is the thread: a follow-up sees it, a
   r.sent.length = 0;
   await r.question();
   const followUp = requests[1] as ModelRequest;
-  assert.equal(followUp.thread.length, 1, 'one turn: the detail scene replaced what was drawn');
-  assert.deepEqual(followUp.thread[0]?.steps.map((step) => (step as { say: string }).say), ['The body again, better.', 'A label.']);
+  assert.equal(followUp.thread.length, 2, 'the model still sees the first answer, then the detail turn');
+  assert.equal(followUp.thread[1]?.detail, true);
+  assert.deepEqual(followUp.thread[1]?.steps.map((step) => (step as { say: string }).say), ['The body again, better.', 'A label.']);
   // `lid` exists only in the detail scene: the follow-up's move reached it, so the id is known.
   assert.ok(r.sent.some((m) => m.kind === 'action' && (m as { action: { op: string } }).action.op === 'move'));
 });
@@ -177,4 +178,45 @@ test('the button is ignored while an answer is still being written', async () =>
   await r.session.detail(7);
   assert.equal(detail.requests.length, 0);
   await wait(200);
+});
+
+test('a detail answer may name an id it did not write again (a pin, a part under an unwritten group), and may write any id again once', async () => {
+  const detail = recording([{ say: 'Labels.', actions: [
+    { op: 'pin', id: 'bodytag', on: 'body', text: 'Body' }, // `body` is on screen and not written again here
+    cube('lid', { parent: 'body', pos: [0, 1, 0] }), // a part under an unwritten holder
+    cube('lid', { pos: [5, 0, 0] }), // the same id a second time in one answer: refused
+    { op: 'box', id: 'body', x: 10, y: 10, w: 50, h: 50, color: 'red' }, // `body` is a 3D object on screen; a screen mark with its id is a different kind, refused
+  ] }], 'detail');
+  const r = rig({ detail });
+  await r.question();
+  r.sent.length = 0;
+  await r.session.detail(7);
+  const ids = r.sent.filter((m) => m.kind === 'action').map((m) => (m as { action: { id?: string; op: string } }).action);
+  assert.deepEqual(ids.map((a) => a.id), ['bodytag', 'lid'], 'the pin and the one part were accepted');
+});
+
+test('after a detail pass a second pass is shown the richer scene only, not the steps it replaced', async () => {
+  const detail = recording(richer, 'detail');
+  const r = rig({ detail });
+  await r.question();
+  await r.session.detail(7);
+  await r.session.detail(7);
+  const second = detail.requests[1] as ModelRequest;
+  assert.deepEqual(second.detail?.steps, richer);
+});
+
+test('a new press while a detail pass is being written clears the "adding detail" status before it hushes', async () => {
+  const slow = recording(richer, 'detail', { gapMs: 80 });
+  const r = rig({ detail: slow, said: ['what is this', 'and the lid?'] });
+  await r.question();
+  r.sent.length = 0;
+  const running = r.session.detail(7);
+  await wait(30);
+  r.session.arm();
+  r.session.start();
+  const kinds = r.kinds();
+  assert.ok(kinds.indexOf('status:idle') > kinds.indexOf('status:detail') && kinds.indexOf('status:idle') < kinds.indexOf('status:hush'), kinds.join(','));
+  r.session.stop();
+  await running;
+  await wait(100);
 });

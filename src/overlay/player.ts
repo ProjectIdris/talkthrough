@@ -195,8 +195,12 @@ export class Player {
   beginTurn(detail = false): void {
     this.stop();
     this.quiet = detail;
-    this.explodeValue.reset();
-    this.home = undefined;
+    // A detail pass adds to the model the person may have opened and turned: their explode and the camera a double
+    // click returns to are left as they are.
+    if (!detail) {
+      this.explodeValue.reset();
+      this.home = undefined;
+    }
     this.frozen = undefined;
     this.steps = [];
     this.openIndex = null;
@@ -389,8 +393,8 @@ export class Player {
   private finishScene(): void {
     this.phase = 'idle';
     this.plan = undefined;
-    this.home = { ...this.base.camera };
-    if (this.base.panel) this.idleAt = this.clock.now();
+    if (!this.quiet || !this.home) this.home = { ...this.base.camera };
+    if (this.base.panel && !this.quiet) this.idleAt = this.clock.now();
     this.onDone?.();
   }
 

@@ -320,3 +320,21 @@ test("the first wheel step does not move a scene's own zoom to the person's limi
   player.zoomCamera(1.0001);
   assert.ok(Math.abs(player.update().camera.zoom - before * 1.0001) < 1e-6, 'a scene zoom of 0.2 is left alone');
 });
+
+test("a detail turn leaves the person's opened model and the camera a double click returns to alone", () => {
+  const { player, advance } = settledPlayer();
+  player.dragCamera(30, 5);
+  player.setExplode(true);
+  advance(EXPLODE_SECONDS * 1000 + 50);
+  assert.ok((player.update().userExplode ?? 0) > 0.99);
+  player.beginTurn(true);
+  player.openStep('Adds a part.');
+  player.addAction({ op: 'add', shape: 'box', id: 'c', size: [1, 1, 1] } as never);
+  player.closeStep();
+  player.endTurn();
+  advance(3000);
+  assert.ok((player.update().userExplode ?? 0) > 0.99, 'still open after the detail pass');
+  assert.equal(player.exploded, true);
+  player.resetCamera();
+  assert.ok(Math.abs(player.update().camera.az) < 1e-6, 'a double click goes back to where the scene left the camera, not to where the person had turned it');
+});
