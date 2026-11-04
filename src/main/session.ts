@@ -1,6 +1,7 @@
 import { createStubBackend } from '../adapters/backend.ts';
 import type { Backend } from '../adapters/backend.ts';
 import { ModelError } from '../adapters/model.ts';
+import { NO_KEY_MESSAGE } from '../adapters/openai-model.ts';
 import type { Model, ThreadTurn } from '../adapters/model.ts';
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
@@ -244,7 +245,7 @@ export function createSession(deps: SessionDeps) {
         const code = failure instanceof ModelError ? failure.code : 'failed';
         r.error = `model: ${code}: ${failure instanceof Error ? failure.message : String(failure)}`;
         if (begun) deps.send(a.displayId, { kind: 'end' });
-        return notice(a.displayId, failure instanceof ModelError && code === 'auth' && /api key/i.test(failure.message) ? 'No API key is set. Open the tray menu and choose API key.' : modelMessage(code), 'error');
+        return notice(a.displayId, failure instanceof ModelError && code === 'auth' && failure.message === NO_KEY_MESSAGE ? 'No API key is set. Open the tray menu and choose API key.' : modelMessage(code), 'error');
       }
       r.steps = shown.length;
       if (escalate) r.escalate = escalate;

@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
-import { createOpenAIModel, redactKeys } from '../src/adapters/openai-model.ts';
+import { createOpenAIModel, NO_KEY_MESSAGE, redactKeys } from '../src/adapters/openai-model.ts';
 import { ModelError } from '../src/adapters/model.ts';
 import type { Model, ModelOutput } from '../src/adapters/model.ts';
 import { sceneSchemaLean } from '../src/scene/index.ts';
@@ -161,4 +161,15 @@ test('an abort and a timeout end a silent server at once; an unreachable address
     assert.ok(Date.now() - t < 2000);
   });
   assert.equal((await failure(createOpenAIModel({ apiKey: () => KEY, baseUrl: 'http://127.0.0.1:1/v1' }))).code, 'unavailable');
+});
+
+test('a redirect is an error (the key never follows it), and a missing key has its own exact message', async () => {
+  await withServer((_req, res) => {
+    res.writeHead(307, { Location: 'http://127.0.0.1:1/elsewhere' });
+    res.end();
+  }, async (baseUrl) => {
+    assert.equal((await failure(createOpenAIModel({ apiKey: () => KEY, baseUrl }))).code, 'unavailable');
+  });
+  const missing = await failure(createOpenAIModel({ apiKey: () => undefined }));
+  assert.equal(missing.message, NO_KEY_MESSAGE);
 });

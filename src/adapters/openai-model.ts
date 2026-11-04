@@ -30,6 +30,8 @@ export type OpenAIModelOptions = {
 };
 
 const DEFAULT_BASE = 'https://api.openai.com/v1';
+/** The exact message of the error for a missing key (a wrong key gets the provider's own message). */
+export const NO_KEY_MESSAGE = 'no API key is set';
 
 /** Removes anything that looks like an API key, and the key itself, from text that may reach a screen or a log. */
 export function redactKeys(text: string, key?: string): string {
@@ -51,7 +53,7 @@ export function createOpenAIModel(options: OpenAIModelOptions): Model {
     async *ask(req: ModelRequest): AsyncGenerator<ModelOutput> {
       if (req.signal?.aborted) throw new ModelError('aborted', 'request aborted');
       const key = options.apiKey();
-      if (!key) throw new ModelError('auth', 'no API key is set');
+      if (!key) throw new ModelError('auth', NO_KEY_MESSAGE);
 
       const timeout = AbortSignal.timeout(timeoutMs);
       const signal = req.signal ? AbortSignal.any([req.signal, timeout]) : timeout;
@@ -80,6 +82,8 @@ export function createOpenAIModel(options: OpenAIModelOptions): Model {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', Authorization: `Bearer ${key}` },
           body: JSON.stringify(body),
+          // A key must never ride a redirect.
+          redirect: 'error',
           signal,
         });
       } catch (error) {

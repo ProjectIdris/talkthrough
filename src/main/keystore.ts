@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 /** The part of Electron's safeStorage this uses (the operating system encrypts for the signed-in user). */
@@ -34,8 +34,9 @@ export function createKeyStore(options: { file: string; safeStorage: SafeStorage
       }
     },
 
+    /** Whether a key is saved and can be used (a file that no longer decrypts does not count). */
     has(): boolean {
-      return existsSync(file);
+      return this.load() !== undefined;
     },
 
     /** The stored key, or undefined when there is none or it cannot be decrypted (a different account or machine). */
@@ -56,12 +57,15 @@ export function createKeyStore(options: { file: string; safeStorage: SafeStorage
       }
       if (!this.available()) throw new KeyStoreError('This computer cannot encrypt the key for your account, so it will not be saved.');
       mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, safeStorage.encryptString(key));
+      // Written whole or not at all: a temporary file, then a rename.
+      const temporary = `${file}.tmp`;
+      writeFileSync(temporary, safeStorage.encryptString(key));
       try {
-        chmodSync(file, 0o600);
+        chmodSync(temporary, 0o600);
       } catch {
         // not every file system has modes
       }
+      renameSync(temporary, file);
     },
 
     clear(): void {
