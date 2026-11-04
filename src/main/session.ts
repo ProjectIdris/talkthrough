@@ -5,7 +5,7 @@ import type { Model, ModelOutput, ThreadTurn, Usage } from '../adapters/model.ts
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
-import { beginLiveStep, createDetailState, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
+import { applyClear, beginLiveStep, createDetailState, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
 import type { LiveStep, SceneState, Step } from '../scene/index.ts';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
@@ -361,7 +361,11 @@ export function createSession(deps: SessionDeps) {
     const startWalk = (): Guide => {
       const g: Guide = createGuide({
         displayId,
-        send: (message) => deps.send(displayId, message),
+        send: (message) => {
+          // The guide clears the page by id between steps: the scene the answers are checked against forgets those ids too.
+          if (message.kind === 'step') for (const a of message.step.actions) if (a.op === 'clear') applyClear(checking, a.target);
+          deps.send(displayId, message);
+        },
         capture: () => deps.guide!.capture(displayId),
         listen: (listener) => deps.guide!.listen(displayId, listener),
         replan: (info) => replanWalk(displayId, g, question, info),
@@ -493,6 +497,8 @@ export function createSession(deps: SessionDeps) {
   async function replanWalk(displayId: number, g: Guide, question: string, info: Parameters<Parameters<typeof createGuide>[0]['replan']>[0]): Promise<void> {
     const w = walking;
     if (!w || w.guide !== g) return;
+    // The old marks and checklist are about to go from the page; the new plan may write the same ids again.
+    for (const id of info.clears) applyClear(state, id);
     const controller = new AbortController();
     w.controller = controller;
     const model = deps.model();

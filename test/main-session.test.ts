@@ -681,6 +681,27 @@ test('guide mode: a click elsewhere that changes the screen asks the model again
   assert.ok(w.sent.some((m) => m.kind === 'step' && (m.step as { say: string }).say === 'Click Open.'), 'its step is shown');
 });
 
+const withPlan = (id: string, say: string, withWait = true) => ({
+  say,
+  actions: [
+    ...guided(id, say, withWait).actions,
+    { op: 'diagram', id: 'plan', kind: 'steps', x: 700, y: 100, w: 280, h: 260, title: 'Plan' },
+    { op: 'node', id: 'n1', of: 'plan', text: 'First' },
+    { op: 'node', id: 'n2', of: 'plan', text: 'Second' },
+  ],
+});
+
+test('guide mode: a new plan after a click elsewhere may use the same ids for its marks and its checklist again', async () => {
+  const w = walkRig([[withPlan('t1', 'Click File.')], [withPlan('t1', 'Click Open.', false)]]);
+  await question(w);
+  await w.click(800, 800, flat(90));
+  const again = w.sent.filter((m): m is Extract<typeof m, { kind: 'step' }> => m.kind === 'step').find((m) => m.step.say === 'Click Open.');
+  assert.ok(again, 'the new plan is shown, not dropped for ids in use');
+  const ops = again.step.actions.map((a) => a.op);
+  assert.ok(ops.includes('diagram') && ops.filter((o) => o === 'node').length === 2 && ops.includes('box'), `all of it kept: ${ops.join()}`);
+  assert.ok(w.sent.some((m) => m.kind === 'status' && m.status === 'idle') || w.kinds().at(-1) !== 'notice:error', 'the walk was not ended by a failed plan');
+});
+
 test('guide mode: Escape ends the walk and clears the page, and the next question starts a new thread', async () => {
   const w = walkRig([[guided('t1', 'Click File.')]]);
   await question(w);

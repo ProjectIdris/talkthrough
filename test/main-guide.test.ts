@@ -20,7 +20,7 @@ const TARGET = { x: 400, y: 100, w: 100, h: 40 };
 const on: Click = { x: 450, y: 120, displayId: 7 };
 const away: Click = { x: 800, y: 800, displayId: 7 };
 
-type Replan = (info: { frame: Frame; click: Click; history: readonly GuideEvent[]; shown: readonly Step[] }) => Promise<void>;
+type Replan = (info: { frame: Frame; click: Click; history: readonly GuideEvent[]; shown: readonly Step[]; clears: readonly string[] }) => Promise<void>;
 
 /**
  * A guide with a screen that starts as `first` and becomes whatever a click is told to make it (after the

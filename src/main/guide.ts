@@ -49,7 +49,7 @@ export type GuideDeps = {
    * The click landed away from where the step pointed and the screen changed: make a new plan from `frame`.
    * Its steps come back through push(), and streamEnded() ends them. Rejecting ends the guide.
    */
-  replan(info: { frame: Frame; click: Click; history: readonly GuideEvent[]; shown: readonly Step[] }): Promise<void>;
+  replan(info: { frame: Frame; click: Click; history: readonly GuideEvent[]; shown: readonly Step[]; clears: readonly string[] }): Promise<void>;
   /** What to send when the guide has run its course (the end of the turn, with anything the model asked for). */
   finish(): void;
   /** The guide is over, however it ended. */
@@ -330,7 +330,7 @@ export function createGuide(deps: GuideDeps) {
     phase = 'idle';
     deps.send({ kind: 'status', status: 'working' });
     try {
-      await deps.replan({ frame: seen, click, history: [...history], shown: [...shown] });
+      await deps.replan({ frame: seen, click, history: [...history], shown: [...shown], clears: [...live, ...pendingClears] });
     } catch (error) {
       deps.log(`guide: could not make a new plan (${error instanceof Error ? error.message : String(error)})`);
       deps.send({ kind: 'notice', text: "I couldn't work out the next step. Hold the keys and ask me again.", level: 'error' });
