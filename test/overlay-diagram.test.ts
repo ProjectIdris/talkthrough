@@ -211,6 +211,18 @@ test('a diagram written over the page\'s text goes to the blank part of the page
   assert.ok(!overlap(placed, second), `${JSON.stringify(placed)} ${JSON.stringify(second)}`);
 });
 
+test('a diagram keeps off what the answer points at (the figure the answer boxes), not only off the text', () => {
+  const COLS = 192, ROWS = 108;
+  const gray = new Uint8Array(COLS * ROWS);
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) gray[r * COLS + c] = c > 4 && c < COLS * 0.55 && r > 8 && r % 4 < 2 && (c * 7 + r * 13) % 11 !== 0 ? 40 : 238;
+  const placer = new Placer(pageGrid(gray, COLS, ROWS), { aspect: 16 / 9 });
+  const figure = { x: 640, y: 200, w: 260, h: 400 };
+  placer.reserve(figure);
+  const placed = placeAction(placer, { op: 'diagram', id: 'f', kind: 'chart', x: 620, y: 260, w: 300, h: 400 } as Action, 1080) as { x: number; y: number; w: number; h: number };
+  assert.ok(!overlap(placed, figure), `clear of the figure: ${JSON.stringify(placed)}`);
+  assert.ok(placed.x >= 0 && placed.y >= 0 && placed.x + placed.w <= 1000 && placed.y + placed.h <= 1000);
+});
+
 /** A canvas context that remembers the text drawn on it and does nothing else. */
 function fakeCtx() {
   const texts: string[] = [];

@@ -179,7 +179,8 @@ export class Placer {
   /** Where a flat diagram goes: like a card, but it may also be a little smaller (its drawing scales to its rectangle). */
   diagram(want: Box, id: string): Box {
     const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...(this.stage ? [this.stage] : [])];
-    const placed = this.search(want, [1, 0.88, 0.76, 0.66], keepOut);
+    // What the answer points at is what the diagram explains: keeping off it counts for three times as much as it does for a card.
+    const placed = this.search(want, [1, 0.88, 0.76, 0.66], [...keepOut, ...this.reserved, ...this.reserved]);
     this.cards.set(id, placed);
     return placed;
   }
