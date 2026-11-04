@@ -88,6 +88,7 @@ test('the schema files in docs are what this code builds', () => {
 test('the guide asks for a short first step and its example keeps to it', () => {
   // The first step is what the person waits for: a long one (a whole 3D model) held the first mark back for 17 s.
   assert.ok(sceneGuide.includes('Step 1 is short'));
+  assert.ok(sceneGuide.includes('the model is the answer') && sceneGuide.includes('set it running'), 'a machine is built and started, not only pointed at');
   const steps = (sceneGuideExample as { steps: { say: string; actions: unknown[] }[] }).steps;
   assert.ok((steps[0]?.actions.length ?? 99) <= 2, 'the first step of the example has one or two marks');
   assert.ok((steps[0]?.say.length ?? 999) <= 90, 'and one short sentence');
