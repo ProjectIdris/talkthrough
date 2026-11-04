@@ -242,6 +242,7 @@ function fakeCtx() {
   const state: Record<string, unknown> = { font: '10px x' };
   const ctx = new Proxy(state, {
     get(t, k: string) {
+      if (k === 'createLinearGradient') return () => ({ addColorStop: () => {} });
       if (k === 'measureText') return (s: string) => ({ width: s.length * 7 });
       if (k === 'fillText') return (s: string) => { texts.push(s); };
       if (k in t) return t[k];
@@ -518,6 +519,7 @@ test('a flow card that has to grow asks the page where to go, and is drawn where
     const state: Record<string, unknown> = { font: '10px x' };
     return new Proxy(state, {
       get(t, k: string) {
+        if (k === 'createLinearGradient') return () => ({ addColorStop: () => {} });
         if (k === 'measureText') return (s: string) => ({ width: s.length * 7 });
         if (k === 'moveTo') return (x: number, y: number) => { moves.push([x, y]); };
         if (k in t) return t[k];
@@ -554,6 +556,7 @@ test('the size a flow card grows to is worked out once for its layout, not on ev
     const state: Record<string, unknown> = { font: '10px x' };
     return new Proxy(state, {
       get(t, k: string) {
+        if (k === 'createLinearGradient') return () => ({ addColorStop: () => {} });
         if (k === 'measureText') return (s: string) => { measured++; return { width: s.length * 7 }; };
         if (k in t) return t[k];
         return () => undefined;

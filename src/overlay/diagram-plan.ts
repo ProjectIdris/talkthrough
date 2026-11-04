@@ -8,7 +8,7 @@ import type { DiagramAction, DiagramPiece, DiagramThing, TickAction } from '../s
 
 const NEVER = -Infinity;
 /** Seconds a diagram or one of its pieces takes to come in, and to go. */
-export const DIAGRAM_APPEAR_SECONDS = 0.45;
+export const DIAGRAM_APPEAR_SECONDS = 0.7;
 export const DIAGRAM_WIPE_SECONDS = 0.3;
 /** Seconds a tick takes to be drawn. */
 export const TICK_SECONDS = 0.3;

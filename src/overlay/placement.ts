@@ -554,10 +554,10 @@ export const DIAGRAM_MIN_SIZE = { w: 150, h: 150 };
 
 export const DIAGRAM_MIN_RATIO: Partial<Record<string, number>> = { chart: 1.1 };
 
-/** The room a label takes in units: its text at its size and the pill round it (the page draws it as measured; this is the same to within a few percent). */
+/** The room a label takes in units: its text at its size and the pill round it (the page draws it as measured, with its colour dot: 2.5 em of padding and dot, 1.85 em tall; this is the same to within a few percent). */
 export function labelUnits(a: { text: string; size?: number }, aspect: number): { w: number; h: number } {
   const size = a.size ?? 24;
-  return { w: ((a.text.length * 0.56 + 1.1) * size) / aspect, h: size * 1.6 };
+  return { w: ((a.text.length * 0.56 + 2.5) * size) / aspect, h: size * 1.85 };
 }
 
 /** A box of this size put as near as it can to (x, y) while staying inside `inside`; larger than it, it takes the corner. */

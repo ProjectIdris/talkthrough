@@ -21,10 +21,10 @@ export type Theme = {
 
 export const THEME: Theme = {
   font: '600 {px}px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
-  titleFont: '650 {px}px "Segoe UI Variable Display", "Segoe UI Semibold", "Segoe UI", sans-serif',
+  titleFont: '700 {px}px "Segoe UI Variable Display", "Segoe UI Semibold", "Segoe UI", sans-serif',
   surface: 'rgba(17,22,34,0.90)', ink: '#f4f7fb', muted: 'rgba(214,224,240,0.72)', line: 'rgba(255,255,255,0.16)',
-  accents: [[84, 196, 255], [255, 190, 64], [166, 140, 255], [92, 224, 168], [255, 120, 150]],
-  radius: 10, leaderWidth: 1.6,
+  accents: [[104, 156, 255], [238, 170, 84], [160, 136, 232], [82, 196, 150], [232, 118, 150]],
+  radius: 14, leaderWidth: 1.4,
 };
 
 /** A font shorthand for a size in pixels. */

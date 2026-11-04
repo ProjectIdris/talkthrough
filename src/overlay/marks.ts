@@ -6,6 +6,7 @@ import { drawCard, drawImage, drawPin } from './annotations.ts';
 import type { Annotator } from './annotations.ts';
 import { pathLength, smoothPath } from './shapes.ts';
 import type { Pt } from './shapes.ts';
+import { noShadow, refine, softShadow } from './style.ts';
 import { rgbCss } from './timeline.ts';
 import type { MarkFrame, Rgb } from './timeline.ts';
 
@@ -21,12 +22,10 @@ export function px(coord: number, extent: number, dpr: number): number {
   return snap((coord / 1000) * extent, dpr);
 }
 
-/** Line thickness in CSS pixels: about 0.4% of the display height, at least 3 device-independent pixels. */
+/** Line thickness in CSS pixels: about 0.27% of the display height, at least 2 device-independent pixels (thin lines; the soft shadow gives them lift). */
 export function lineWidth(view: View): number {
-  return snap(Math.max(3, view.height * 0.0042), view.dpr);
+  return snap(Math.max(2, view.height * 0.0027), view.dpr);
 }
-
-const luminance = (c: Rgb) => (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -34,14 +33,11 @@ function strokeWithHalo(ctx: Ctx, color: Rgb, alpha: number, lw: number, pulse: 
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.save();
-  ctx.strokeStyle = `rgba(0,0,0,${0.35 * alpha})`;
-  ctx.lineWidth = lw + 3;
-  draw();
-  ctx.restore();
-  ctx.save();
+  softShadow(ctx);
   if (pulse > 0) {
     ctx.shadowColor = rgbCss(pulseColor ?? color, 0.9 * pulse);
     ctx.shadowBlur = 26 * pulse;
+    ctx.shadowOffsetY = 0;
   }
   ctx.strokeStyle = rgbCss(pulse > 0 && pulseColor ? pulseColor : color, alpha);
   ctx.lineWidth = lw * (1 + 0.9 * pulse);
@@ -60,7 +56,7 @@ const FEATHER_BANDS = 7;
  * being cleared, the tail wiped away the same way. `trace` makes the path; the stroke goes along it from its start.
  */
 function penStroke(
-  ctx: Ctx, m: MarkFrame, alpha: number, lw: number, total: number, head: number, tail: number, trace: () => void,
+  ctx: Ctx, m: MarkFrame, alpha: number, lw: number, total: number, head: number, tail: number, trace: () => void, glow = true,
 ): void {
   const featherLen = Math.min(Math.max(0, head - tail), Math.max(18, total * 0.1));
   const body = head - featherLen;
@@ -76,6 +72,18 @@ function penStroke(
   // The tail end is wiped with the same softness as the head is drawn.
   const wipe = tail > 0 ? Math.min(featherLen, Math.max(0, body - tail)) : 0;
   if (tail <= 0 && head >= total - 0.5) {
+    // Once drawn the line settles with a faint halo of its own colour, a soft edge of light round it.
+    if (glow && m.pulse <= 0) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.setLineDash([]);
+      ctx.strokeStyle = rgbCss(m.color, 0.16 * alpha);
+      ctx.lineWidth = lw * 3.6;
+      trace();
+      ctx.stroke();
+      ctx.restore();
+    }
     dashed(0, total + 2, 1);
     ctx.setLineDash([]);
     return;
@@ -111,6 +119,9 @@ function roundRectPath(ctx: Ctx, x: number, y: number, w: number, h: number, r: 
   ctx.closePath();
 }
 
+/** The corner radius of a box, in pixels: generous, so a box with air round what it holds reads as a rounded pane. */
+const BOX_RADIUS = 10;
+
 function drawBox(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, reduce: boolean): void {
   const mk = m.mark;
   if (mk.op !== 'box' && mk.op !== 'circle') return;
@@ -126,21 +137,25 @@ function drawBox(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, red
     ctx.translate(-(x + w / 2), -(y + h / 2));
   }
   if (mk.op === 'box') {
-    const rr = Math.max(0, Math.min(8, w / 2, h / 2));
+    const rr = Math.max(0, Math.min(BOX_RADIUS, w / 2, h / 2));
     const perimeter = 2 * (w + h) - (8 - 2 * Math.PI) * rr;
     ctx.save();
-    ctx.fillStyle = rgbCss(m.color, 0.1 * alpha * p);
-    roundRectPath(ctx, x, y, w, h, 8);
+    // A wash a little deeper at the top, so the box reads as a lit pane and not a flat tint.
+    const wash = ctx.createLinearGradient(0, y, 0, y + h);
+    wash.addColorStop(0, rgbCss(m.color, 0.13 * alpha * p));
+    wash.addColorStop(1, rgbCss(m.color, 0.05 * alpha * p));
+    ctx.fillStyle = wash;
+    roundRectPath(ctx, x, y, w, h, BOX_RADIUS);
     ctx.fill();
     ctx.restore();
     const st = strokeState(m, perimeter, reduce);
-    penStroke(ctx, m, st.alpha, lw, perimeter, st.head, st.tail, () => roundRectPath(ctx, x, y, w, h, 8));
+    penStroke(ctx, m, st.alpha, lw, perimeter, st.head, st.tail, () => roundRectPath(ctx, x, y, w, h, BOX_RADIUS));
     ctx.restore();
     return;
   }
   const cx = x + w / 2, cy = y + h / 2;
   ctx.save();
-  ctx.fillStyle = rgbCss(m.color, 0.08 * alpha * p);
+  ctx.fillStyle = rgbCss(m.color, 0.06 * alpha * p);
   ctx.beginPath();
   ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -171,7 +186,7 @@ function drawPoly(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, re
   if (mk.op !== 'poly') return;
   const pts = pixelPoints(mk.pts, v);
   ctx.save();
-  ctx.fillStyle = rgbCss(m.color, 0.1 * alpha * m.appear);
+  ctx.fillStyle = rgbCss(m.color, 0.07 * alpha * m.appear);
   tracePath(ctx, pts, true);
   ctx.fill();
   ctx.restore();
@@ -194,7 +209,7 @@ function drawTrace(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, r
     if (Math.hypot(last[0] - before[0], last[1] - before[1]) > 3) break;
   }
   const dir = Math.atan2(last[1] - before[1], last[0] - before[0]);
-  const headLen = mk.head ? Math.min(total * 0.4, Math.max(16, lw * 5)) : 0;
+  const headLen = mk.head ? Math.min(total * 0.4, Math.max(14, lw * 4.4)) : 0;
   const st = strokeState(m, total, reduce);
   penStroke(ctx, m, st.alpha, lw, total, st.head, st.tail, () => tracePath(ctx, pts, false));
   if (mk.head && m.appear > 0.55) {
@@ -211,10 +226,7 @@ function drawTrace(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, r
     };
     ctx.save();
     ctx.lineJoin = 'round';
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = `rgba(0,0,0,${0.35 * alpha})`;
-    path();
-    ctx.stroke();
+    softShadow(ctx);
     ctx.fillStyle = rgbCss(m.color, alpha);
     path();
     ctx.fill();
@@ -227,7 +239,7 @@ function drawPoint(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number): 
   const mk = m.mark;
   if (mk.op !== 'point') return;
   const x = px(mk.x, v.width, v.dpr), y = px(mk.y, v.height, v.dpr);
-  const r = Math.max(9, lw * 3);
+  const r = Math.max(8, lw * 2.7);
   const ring = r * (1 + 1.2 * (1 - m.appear));
   ctx.save();
   ctx.globalAlpha = Math.min(1, alpha * m.appear * 1.4);
@@ -235,20 +247,24 @@ function drawPoint(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number): 
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
   };
-  ctx.lineWidth = lw + 3;
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-  circle(ring);
-  ctx.stroke();
+  softShadow(ctx);
   if (m.pulse > 0) {
     ctx.shadowColor = rgbCss(m.pulseColor ?? m.color, 0.9 * m.pulse);
     ctx.shadowBlur = 26 * m.pulse;
+    ctx.shadowOffsetY = 0;
   }
+  // A thin white keyline under the ring and the dot: a point is most often on a photo or a drawing, where a thin calm colour alone is lost.
+  ctx.lineWidth = lw + 2.4;
+  ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+  circle(ring);
+  ctx.stroke();
+  noShadow(ctx);
   ctx.lineWidth = lw;
   ctx.strokeStyle = rgbCss(m.pulse > 0 && m.pulseColor ? m.pulseColor : m.color, 1);
   circle(ring);
   ctx.stroke();
   ctx.fillStyle = ctx.strokeStyle;
-  circle(Math.max(3, lw * 1.1));
+  circle(Math.max(2.6, lw * 1));
   ctx.fill();
   ctx.restore();
 }
@@ -258,11 +274,23 @@ function drawUnderline(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: numbe
   if (mk.op !== 'underline') return;
   const x = px(mk.x, v.width, v.dpr), y = px(mk.y, v.height, v.dpr), w = px(mk.w, v.width, v.dpr);
   const st = strokeState(m, w, reduce);
-  penStroke(ctx, m, st.alpha, lw * 1.15, w, st.head, st.tail, () => {
+  // A highlighter: a band over the line of letters (y is just under them), drawn along like the pen, translucent so the words show
+  // through it as if it sat behind them, and a hairline at its foot.
+  const bandH = snap(Math.max(11, Math.min(34, v.height * 0.02)), v.dpr);
+  const from = Math.max(0, Math.min(w, st.tail)), to = Math.max(0, Math.min(w, st.head));
+  if (to - from > 0.5 && st.alpha > 0.002) {
+    ctx.save();
+    ctx.globalAlpha = st.alpha;
+    ctx.fillStyle = rgbCss(m.color, 0.36);
+    roundRectPath(ctx, x + from - 2, y - bandH + 3, to - from + 4, bandH, Math.min(4, bandH / 3));
+    ctx.fill();
+    ctx.restore();
+  }
+  penStroke(ctx, m, st.alpha * 0.9, Math.max(1.5, lw * 0.75), w, st.head, st.tail, () => {
     ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + w, y);
-  });
+    ctx.moveTo(x, y + 2);
+    ctx.lineTo(x + w, y + 2);
+  }, false);
 }
 
 function drawArrow(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, reduce: boolean): void {
@@ -274,7 +302,7 @@ function drawArrow(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, r
   const len = Math.hypot(dx, dy);
   if (len < 1) return;
   const ux = dx / len, uy = dy / len;
-  const head = Math.min(len * 0.6, Math.max(16, lw * 5));
+  const head = Math.min(len * 0.6, Math.max(14, lw * 4.4));
   const p = m.appear;
   // The shaft grows first; the head pops in over the last part of the draw.
   const reach = len * Math.min(1, p / 0.8);
@@ -302,10 +330,7 @@ function drawArrow(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, r
     };
     ctx.save();
     ctx.lineJoin = 'round';
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = `rgba(0,0,0,${0.35 * alpha})`;
-    path();
-    ctx.stroke();
+    softShadow(ctx);
     if (m.pulse > 0) {
       ctx.shadowColor = rgbCss(m.pulseColor ?? m.color, 0.9 * m.pulse);
       ctx.shadowBlur = 26 * m.pulse;
@@ -321,12 +346,13 @@ function drawLabel(ctx: Ctx, m: MarkFrame, v: View, alpha: number): void {
   const mk = m.mark;
   if (mk.op !== 'label') return;
   const textPx = snap(Math.max(11, ((mk.size ?? 24) / 1000) * v.height), v.dpr);
-  const padX = textPx * 0.55, padY = textPx * 0.3;
+  const padX = textPx * 0.72, padY = textPx * 0.42;
   ctx.save();
-  ctx.font = `600 ${textPx}px system-ui, "Segoe UI", Roboto, sans-serif`;
+  ctx.font = `650 ${textPx}px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif`;
   ctx.textBaseline = 'middle';
   const tw = ctx.measureText(mk.text).width;
-  const w = tw + padX * 2, h = textPx + padY * 2;
+  const dot = textPx * 0.3, dotRoom = dot * 2 + textPx * 0.42;
+  const w = tw + padX * 2 + dotRoom, h = textPx + padY * 2;
   let x = px(mk.x, v.width, v.dpr);
   const y = px(mk.y, v.height, v.dpr) + (1 - m.appear) * 8;
   x = Math.max(4, Math.min(x, v.width - w - 4));
@@ -335,19 +361,41 @@ function drawLabel(ctx: Ctx, m: MarkFrame, v: View, alpha: number): void {
   ctx.scale(grow, grow);
   ctx.translate(-(x + w / 2), -(y + h / 2));
   ctx.globalAlpha = Math.min(1, alpha * m.appear * 1.4);
+  softShadow(ctx, 2.2);
   if (m.pulse > 0) {
     ctx.shadowColor = rgbCss(m.pulseColor ?? m.color, 0.9 * m.pulse);
     ctx.shadowBlur = 26 * m.pulse;
+    ctx.shadowOffsetY = 0;
   }
-  ctx.fillStyle = rgbCss(m.color, 0.94);
-  roundRectPath(ctx, x, y, w, h, h * 0.32);
+  // A pill of dark glass, a little lighter at the top, with a hairline round it and a fine light line along its top edge.
+  const glass = ctx.createLinearGradient(0, y, 0, y + h);
+  glass.addColorStop(0, 'rgba(36,44,64,0.97)');
+  glass.addColorStop(1, 'rgba(15,20,32,0.97)');
+  ctx.fillStyle = glass;
+  roundRectPath(ctx, x, y, w, h, h / 2);
   ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  noShadow(ctx);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,0.20)';
   ctx.stroke();
-  ctx.fillStyle = luminance(m.color) > 0.62 ? '#10141c' : '#ffffff';
-  ctx.fillText(mk.text, x + padX, y + h / 2 + textPx * 0.03);
+  ctx.save();
+  roundRectPath(ctx, x + 0.5, y + 0.5, w - 1, h - 1, h / 2);
+  ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,0.16)';
+  ctx.fillRect(x + h * 0.4, y, w - h * 0.8, 1);
+  ctx.restore();
+  // The colour dot has a ring round it.
+  const cx = x + padX + dot, cy = y + h / 2;
+  ctx.fillStyle = rgbCss(m.color, 0.28);
+  ctx.beginPath();
+  ctx.arc(cx, cy, dot * 1.65, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = rgbCss(m.color, 1);
+  ctx.beginPath();
+  ctx.arc(cx, cy, dot, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#f7f9fc';
+  ctx.fillText(mk.text, x + padX + dotRoom, y + h / 2 + textPx * 0.03);
   ctx.restore();
 }
 
@@ -361,9 +409,10 @@ export function drawMarks(ctx: Ctx, marks: readonly MarkFrame[], view: View, ann
   if (!options.append) ctx.clearRect(0, 0, view.width, view.height);
   const lw = lineWidth(view);
   let order = 0;
-  for (const m of marks) {
-    const alpha = Math.max(0, Math.min(1, m.opacity * m.fade));
-    if (alpha <= 0.002 || m.appear <= 0) continue;
+  for (const raw of marks) {
+    const alpha = Math.max(0, Math.min(1, raw.opacity * raw.fade));
+    if (alpha <= 0.002 || raw.appear <= 0) continue;
+    const m: MarkFrame = { ...raw, color: refine(raw.color), ...(raw.pulseColor ? { pulseColor: refine(raw.pulseColor) } : {}) };
     ctx.save();
     drawBox(ctx, m, view, alpha, lw, reduce);
     drawUnderline(ctx, m, view, alpha, lw, reduce);
