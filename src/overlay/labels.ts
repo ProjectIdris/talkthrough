@@ -147,6 +147,8 @@ const MARGIN = 8;
 const GAP = 8;
 /** Frames a tag may sit with a leader across another leader or tag before it is placed again. */
 const TANGLE_FRAMES = 8;
+/** Frames to wait before looking again when no place cleared the tangle. */
+const TANGLE_RETRY_FRAMES = 60;
 
 /** The point of a rectangle's outline a leader from `from` should end on. */
 export function attachPoint(rect: Rect, from: Pt): Pt {
@@ -334,23 +336,28 @@ export class LabelBoard {
    */
   private mend(entry: Entry, env: () => Env): void {
     if (Number.isNaN(entry.target.x)) return;
-    const mine: [Pt, Pt] = [entry.request.anchor, attachPoint(entry.target, entry.request.anchor)];
     const others: Entry[] = [];
-    let bad = false;
-    for (const other of this.entries.values()) {
-      if (other === entry || Number.isNaN(other.target.x)) continue;
-      others.push(other);
-      const theirs: [Pt, Pt] = [other.request.anchor, attachPoint(other.target, other.request.anchor)];
-      if (segmentsCross(mine[0], mine[1], theirs[0], theirs[1]) || segmentHitsRect(mine[0], mine[1], other.target) || segmentHitsRect(theirs[0], theirs[1], entry.target)) bad = true;
-    }
-    if (!bad) {
+    for (const other of this.entries.values()) if (other !== entry && !Number.isNaN(other.target.x)) others.push(other);
+    const tangledAt = (rect: Rect): boolean => {
+      const mine: [Pt, Pt] = [entry.request.anchor, attachPoint(rect, entry.request.anchor)];
+      return others.some((other) => {
+        const theirs: [Pt, Pt] = [other.request.anchor, attachPoint(other.target, other.request.anchor)];
+        return segmentsCross(mine[0], mine[1], theirs[0], theirs[1]) || segmentHitsRect(mine[0], mine[1], other.target) || segmentHitsRect(theirs[0], theirs[1], rect);
+      });
+    };
+    if (!tangledAt(entry.target)) {
       entry.tangled = 0;
       return;
     }
     entry.tangled = (entry.tangled ?? 0) + 1;
     if (entry.tangled < TANGLE_FRAMES) return;
-    entry.tangled = 0;
     const rect = this.search(entry.request, env(), others.map((o) => o.target), others.map((o): [Pt, Pt] => [o.request.anchor, attachPoint(o.target, o.request.anchor)]));
+    // Move only to a place that really clears it; with none, stay and look again in a while.
+    if (tangledAt(rect)) {
+      entry.tangled = -TANGLE_RETRY_FRAMES;
+      return;
+    }
+    entry.tangled = 0;
     entry.target = rect;
   }
 
