@@ -35,6 +35,36 @@ function inkOf(grid: PageGrid): Float32Array {
   return out;
 }
 
+/** A line of ink wider than this share of the page is a line of a column of body text. */
+const BODY_MIN_WIDTH = 0.22;
+
+/**
+ * The ink that is plain body text, as against the page's controls and figures. A line of text runs a good way across the page (words close
+ * up: a gap of one cell is joined); a sidebar, an infobox and its picture, a panel of options and a toolbar are each narrower than a fifth
+ * of the page. So ink in a horizontal run wider than that is prose, which a card may cover if it must; the rest is what it should not.
+ * Returns 1 for a cell of ink in such a run and 0 elsewhere.
+ */
+export function bodyTextOf(grid: PageGrid, ink: Float32Array = inkOf(grid)): Float32Array {
+  const { cols, rows } = grid;
+  const body = new Float32Array(cols * rows);
+  const least = Math.ceil(BODY_MIN_WIDTH * cols);
+  for (let r = 0; r < rows; r++) {
+    let start = -1, last = -1;
+    const close = (): void => {
+      if (start >= 0 && last - start + 1 >= least) for (let c = start; c <= last; c++) if (ink[r * cols + c]! > 0) body[r * cols + c] = 1;
+      start = -1;
+    };
+    for (let c = 0; c < cols; c++) {
+      if (!(ink[r * cols + c]! > 0)) continue;
+      if (start >= 0 && c - last - 1 > 1) close();
+      if (start < 0) start = c;
+      last = c;
+    }
+    close();
+  }
+  return body;
+}
+
 /** Summed-area table over a cols x rows field, for the mean of any rectangle at once. */
 class Sums {
   private t: Float64Array;
@@ -78,6 +108,9 @@ const BLANK = 0.01;
  * the page looks nearly blank there. A card or diagram that was not asked for up there keeps out of it unless the rest of the
  * page is a good deal worse: this much is added to its cost, in proportion to how much of it lies in the band.
  */
+/** Covering the page's controls, figures and sidebars costs this many times what covering the same amount of body text does. */
+const FIXTURE_COST = 6;
+
 /** What a place that overlaps something the answer points at costs, however little of it. */
 const POINTED_HIT = 1.5;
 
@@ -90,6 +123,9 @@ export class Placer {
   private edge: Sums;
   /** The share of cells with an edge in them: how much of a rectangle has anything on it. */
   private ink: Sums;
+  /** The ink that is plain body text, and the rest of it (controls, figures, sidebars): covering the second counts for more. */
+  private prose: Sums;
+  private fixtures: Sums;
   private luma: Sums;
   private reserved: Box[] = [];
   private cards = new Map<string, Box>();
@@ -101,7 +137,11 @@ export class Placer {
 
   constructor(grid: PageGrid, options: PlacerOptions) {
     this.edge = new Sums(grid.cols, grid.rows, grid.edge);
-    this.ink = new Sums(grid.cols, grid.rows, inkOf(grid));
+    const ink = inkOf(grid);
+    const prose = bodyTextOf(grid, ink);
+    this.ink = new Sums(grid.cols, grid.rows, ink);
+    this.prose = new Sums(grid.cols, grid.rows, prose);
+    this.fixtures = new Sums(grid.cols, grid.rows, ink.map((v, i) => (v > 0 && !(prose[i]! > 0) ? 1 : 0)));
     this.luma = new Sums(grid.cols, grid.rows, grid.gray);
     this.aspect = options.aspect;
     this.margin = options.margin ?? 12;
@@ -137,7 +177,7 @@ export class Placer {
   private cost(box: Box, from: Box, scale: number, keepOut: readonly Box[], extra = 0): number {
     const area = box.w * box.h;
     const padded = { x: box.x - 6, y: box.y - 10, w: box.w + 12, h: box.h + 20 };
-    let c = this.edge.mean(box) * 6 + this.ink.mean(padded) * 30;
+    let c = this.edge.mean(box) * 6 + this.prose.mean(padded) * 30 + this.fixtures.mean(padded) * 30 * FIXTURE_COST;
     for (const r of keepOut) c += (overlap(box, r) / area) * 5;
     // Touching what the answer points at, even by a corner, costs a good deal whatever the share: a sliver over the figure it boxed is still covering it.
     for (const r of this.reserved) if (overlap(box, r) > 0) c += POINTED_HIT;
@@ -147,7 +187,7 @@ export class Placer {
     return c;
   }
 
-  private search(want: Box, scales: readonly number[], keepOut: readonly Box[], shapes: readonly number[] = [1], minW = 0, avoidTop = false, minRatio = 0): Box {
+  private search(want: Box, scales: readonly number[], keepOut: readonly Box[], shapes: readonly number[] = [1], minW = 0, avoidTop = false, minRatio = 0, minSize: { w: number; h: number } = { w: 0, h: 0 }): Box {
     const inside = (b: Box): Box => ({
       x: clamp(b.x, this.margin, 1000 - this.margin - b.w), y: clamp(b.y, this.margin, 1000 - this.margin - b.h), w: b.w, h: b.h,
     });
@@ -164,6 +204,8 @@ export class Placer {
       // A shape other than the one asked for (narrower and taller, the same area) fits a margin or a gap between columns; it costs a little.
       for (const shape of shapes) {
         const w = want.w * scale * shape, h = want.h * scale / shape;
+        // Smaller than it can be read at is not offered (a card asked for small may still go to three quarters of that).
+        if (scale !== 1 && (w < Math.min(minSize.w, want.w * 0.76) || h < Math.min(minSize.h, want.h * 0.76))) continue;
         if (shape !== 1 && (w < minW || h > 1000 - 2 * this.margin)) continue;
         // A shape may not be squeezed below the width to height (on the screen's own pixels) the picture needs, unless it was asked for narrower.
         if (shape !== 1 && (w / h) * this.aspect < Math.min(minRatio, (want.w / want.h) * this.aspect) - 1e-9) continue;
@@ -183,7 +225,8 @@ export class Placer {
     }
     // Moving has to be worth it: a small gain stays put, so a model's own choice survives where it was fine.
     // Nowhere is free (the whole page is text): do not shuffle it about, leave it where the model put it.
-    if (this.ink.mean(best) > 0.3) return home;
+    // (Unless where it was written is on the page's controls or figures and the best place is not: then it moves, onto the prose.)
+    if (this.ink.mean(best) > 0.3 && this.fixtures.mean(best) >= this.fixtures.mean(home)) return home;
     return homeCost - bestCost < 0.25 ? home : best;
   }
 
@@ -209,7 +252,8 @@ export class Placer {
     // What the answer points at is what the diagram explains: keeping off it counts for three times as much as it does for a card.
     // It may also be taller and narrower (down to 0.6 of the width), to fit a margin or the gap beside a column of text instead of covering the text.
     // A kind that is spoilt by a strip (a chart) has a least width to height; it gives up size before shape, down to 0.64.
-    const placed = this.search(want, minRatio > 0 ? [1, 0.88, 0.76, 0.64] : [1, 0.88, 0.76], [...keepOut, ...this.reserved, ...this.reserved], [1, 0.8, 0.65, 0.55], 150, true, minRatio);
+    // It goes smaller before it covers the page's controls or figures: down to what it can still be read at (DIAGRAM_MIN_SIZE).
+    const placed = this.search(want, [1, 0.88, 0.76, 0.64], [...keepOut, ...this.reserved, ...this.reserved], [1, 0.8, 0.65, 0.55, 0.5], 150, true, minRatio, DIAGRAM_MIN_SIZE);
     this.cards.set(id, placed);
     this.homes.set(id, { from: asked, to: placed });
     return placed;
@@ -280,15 +324,23 @@ export function insideAny(a: Action, rects: readonly Box[], aspect: number): boo
 }
 
 /**
- * The marks of a frame split by whether they lie on a flat diagram that is showing: those are drawn over the diagram's opaque card (the rest, under it,
- * as before), so a ring on a chart's crossing or an arrow at a bar is never hidden by the card it belongs to.
+ * The marks of a frame split by ownership: a mark that belongs to a flat diagram (written after it and inside the rectangle it was asked for; `owned` holds
+ * their ids) is drawn over the diagram's opaque card, so a ring on a chart's crossing or an arrow at a bar is never hidden by the card it belongs to.
+ * Every other mark, even one the card ends up covering, points at the page and stays under the card.
  */
-export function splitByDiagrams<T extends { mark: Action }>(marks: readonly T[], diagrams: readonly { def: { x: number; y: number; w: number; h: number }; appear: number }[], aspect: number): { under: T[]; over: T[] } {
-  const cards = diagrams.filter((d) => d.appear > 0).map((d) => ({ x: d.def.x, y: d.def.y, w: d.def.w, h: d.def.h }));
-  if (cards.length === 0) return { under: [...marks], over: [] };
+export function splitOwned<T extends { mark: { id?: string } }>(marks: readonly T[], owned: ReadonlySet<string>): { under: T[]; over: T[] } {
+  if (owned.size === 0) return { under: [...marks], over: [] };
   const under: T[] = [], over: T[] = [];
-  for (const m of marks) (insideAny(m.mark, cards, aspect) ? over : under).push(m);
+  for (const m of marks) (m.mark.id !== undefined && owned.has(m.mark.id) ? over : under).push(m);
   return { under, over };
+}
+
+/** The ids of the marks of a whole scene that belong to a flat diagram (see ownedByDiagram). */
+export function ownedMarkIds(steps: readonly { actions: readonly Action[] }[], aspect: number): Set<string> {
+  const flags = ownedByDiagram(steps, aspect);
+  const ids = new Set<string>();
+  steps.forEach((step, i) => step.actions.forEach((a, j) => { if (flags[i]![j] && 'id' in a && typeof a.id === 'string') ids.add(a.id); }));
+  return ids;
 }
 
 /**
@@ -346,6 +398,9 @@ export function reserveMarks(placer: Placer, actions: readonly Action[], aspect:
 const DIAGRAM_MAX: Partial<Record<string, { w: number; h: number }>> = { steps: { w: 440, h: 760 }, chart: { w: 520, h: 520 } };
 
 /** The least width to height (on the screen's pixels) a kind may be squeezed to when it is moved: a chart is read across, a strip of one is not a chart. */
+/** The least a flat diagram is made (units): below this its text would be too small to read. */
+export const DIAGRAM_MIN_SIZE = { w: 150, h: 150 };
+
 export const DIAGRAM_MIN_RATIO: Partial<Record<string, number>> = { chart: 1.1 };
 
 /** The action with its stage or card moved off the page's text; any other action comes back as it was. */

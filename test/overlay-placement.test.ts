@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Placer, cardHeightUnits, markFootprint, pageGrid, placeAction, reserveMarks } from '../src/overlay/placement.ts';
+import { Placer, bodyTextOf, cardHeightUnits, markFootprint, pageGrid, placeAction, reserveMarks } from '../src/overlay/placement.ts';
 import type { Box } from '../src/overlay/placement.ts';
 import type { Action } from '../src/scene/index.ts';
 
@@ -141,4 +141,55 @@ test('when no full-size place is clear of the figure the answer boxed, the stage
   const placed = p.panel({ x: 420, y: 200, w: 340, h: 480 });
   assert.ok(!overlaps(placed, figure), `clear of the figure: ${JSON.stringify(placed)}`);
   assert.ok(placed.w < 340 * 0.76 && inside(placed), `it had to be smaller than three quarters: ${JSON.stringify(placed)}`);
+});
+
+/**
+ * A dense page like an encyclopedia article: a column of prose (left 55%), a figure beside it (an infobox: a dense block 17% wide), a panel
+ * of options (sparse, 12% wide) above the free space in the right margin, and a sidebar down the left edge.
+ */
+function articlePage(freeRight = true) {
+  const gray = new Uint8Array(COLS * ROWS);
+  gray.fill(238);
+  const put = (c0: number, c1: number, r0: number, r1: number, ink: (c: number, r: number) => boolean) => {
+    for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) if (ink(c, r)) gray[r * COLS + c] = 40;
+  };
+  put(26, 132, 10, 104, (c, r) => r % 4 < 2 && (c * 7 + r * 13) % 11 !== 0); // prose
+  put(138, 170, 28, 50, () => true); // the figure
+  put(138, 170, 50, 62, (c, r) => r % 4 < 2 && c % 2 === 0); // its table
+  put(174, 190, 12, 52, (c, r) => r % 8 < 2 && c % 3 !== 0); // the panel of options
+  put(4, 22, 14, 100, (c, r) => r % 5 < 2 && c % 4 !== 0); // the sidebar
+  if (!freeRight) put(138, 190, 64, 104, (c, r) => r % 3 < 2); // the margin is full too
+  return pageGrid(gray, COLS, ROWS);
+}
+const AC = (c: number) => (c / COLS) * 1000; // a grid column in units
+
+test('prose is told from controls and figures by the width of its lines: a column of text is body, a sidebar, an infobox and a panel of options are not', () => {
+  const grid = articlePage();
+  const body = bodyTextOf(grid);
+  const at = (c: number, r: number) => body[r * COLS + c]!;
+  let prose = 0, fixtures = 0, proseInk = 0;
+  for (let r = 10; r < 104; r++) for (let c = 26; c < 132; c++) if (grid.gray[r * COLS + c]! < 100) { proseInk++; prose += at(c, r); }
+  for (const [c0, c1, r0, r1] of [[138, 170, 28, 62], [174, 190, 12, 52], [4, 22, 14, 100]] as const) for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) fixtures += at(c, r);
+  assert.ok(prose / proseInk > 0.9, `the prose is body: ${(prose / proseInk).toFixed(2)}`);
+  assert.equal(fixtures, 0, 'the infobox, the options panel and the sidebar are not');
+});
+
+test('a diagram goes smaller, to what it can be read at, before it covers a page\'s figure or controls, and keeps readable bounds', () => {
+  const p = new Placer(articlePage(), { aspect: 16 / 9 });
+  // Asked wide over the prose (150..950); the only free place is the right margin under the figure, narrower than the least the old shapes allowed (a third of the asked width).
+  const placed = placeAction(p, { op: 'diagram', id: 't', kind: 'timeline', x: 150, y: 690, w: 800, h: 260 } as Action, 1080) as Action & { x: number; y: number; w: number; h: number };
+  const figure = { x: AC(138), y: (28 / ROWS) * 1000, w: AC(32), h: (34 / ROWS) * 1000 };
+  const options = { x: AC(174), y: (12 / ROWS) * 1000, w: AC(16), h: (40 / ROWS) * 1000 };
+  assert.ok(!overlaps(placed, figure), `off the figure: ${JSON.stringify(placed)}`);
+  assert.ok(!overlaps(placed, options), 'off the options');
+  assert.ok(placed.w >= 150 && placed.h >= 150, 'not smaller than it can be read');
+  assert.ok(placed.w * placed.h >= 800 * 260 * 0.35 && placed.w * placed.h < 800 * 260, `smaller than asked, but not by much: ${placed.w * placed.h}`);
+  assert.ok(placed.x >= AC(132), 'in the margin, not on the prose');
+});
+
+test('when nothing is free even at the least size, a diagram covers body text before it covers a figure or controls', () => {
+  const p = new Placer(articlePage(false), { aspect: 16 / 9 });
+  const placed = placeAction(p, { op: 'diagram', id: 't', kind: 'steps', x: 740, y: 300, w: 220, h: 400 } as Action, 1080) as Action & { x: number; y: number; w: number; h: number };
+  const fixtures: Box[] = [{ x: AC(138), y: (28 / ROWS) * 1000, w: AC(32), h: (34 / ROWS) * 1000 }, { x: AC(174), y: (12 / ROWS) * 1000, w: AC(16), h: (40 / ROWS) * 1000 }, { x: AC(138), y: (64 / ROWS) * 1000, w: AC(52), h: (40 / ROWS) * 1000 }];
+  for (const f of fixtures) assert.ok(!overlaps(placed, f), `off ${JSON.stringify(f)}: ${JSON.stringify(placed)}`);
 });

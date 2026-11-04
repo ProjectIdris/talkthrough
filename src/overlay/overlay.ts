@@ -17,7 +17,7 @@ import { HudState } from './hud.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
 import { PageMemory } from './page-memory.ts';
-import { Placer, followDiagram, ownedByDiagram, pageGrid, placeAction, reserveMarks, splitByDiagrams } from './placement.ts';
+import { Placer, followDiagram, ownedByDiagram, ownedMarkIds, pageGrid, placeAction, reserveMarks, splitOwned } from './placement.ts';
 import { snapToControl } from '../shared/controls.ts';
 import type { ControlBox } from '../shared/controls.ts';
 import { snapActions } from './snap.ts';
@@ -268,7 +268,7 @@ function draw(frame: Frame): void {
     ...(cropSource() ? { source: cropSource()! } : {}),
   };
   // A mark that lies on a flat diagram (a ring on a chart's crossing, an arrow at a bar) is drawn above the diagram's opaque card, or it would be hidden by it.
-  const { under, over } = splitByDiagrams(frame.marks, frame.diagrams, view.width / view.height);
+  const { under, over } = splitOwned(frame.marks, ownedMarks);
   drawMarks(marksCtx, under, view, annotator, { reduceMotion: reduceMotion.matches });
   // The flat diagrams go over the marks' canvas in free space; a piece moved by a later arrival glides, which wants frames until it is there.
   diagramsMoving = frame.diagrams.length > 0 && diagramPainter.draw(marksCtx, frame.diagrams, view, labelClock());
@@ -290,6 +290,8 @@ function cropSource(): { image: CanvasImageSource; width: number; height: number
 }
 
 const board = new LabelBoard();
+/** The ids of the marks that belong to a flat diagram (placement.ts): drawn over its card, where the rest stay under it. */
+const ownedMarks = new Set<string>();
 const diagramPainter = new DiagramPainter();
 let diagramsMoving = false;
 const pen = new PenLayer();
@@ -670,6 +672,8 @@ function placedScene(scene: Scene): Scene {
   p.reset();
   p.setStage(undefined);
   const aspect = view.width / view.height;
+  ownedMarks.clear();
+  for (const id of ownedMarkIds(scene.steps, aspect)) ownedMarks.add(id);
   // A mark written after a flat diagram and inside the rectangle it was asked for belongs to it (it is not snapped to the page or kept clear of), and goes with it.
   const owned = ownedByDiagram(scene.steps, aspect);
   const snapped = scene.steps.map((step, i) => ({ ...step, actions: step.actions.map((a, j) => (owned[i]![j] ? a : (snappedActions([a])[0] as Action))) }));
@@ -682,7 +686,11 @@ function placedAction(action: Action): Action {
   const p = placer();
   if (!p) return action;
   const following = followDiagram(p, action, view.width / view.height);
-  if (following) return following;
+  if (following) {
+    if ('id' in following && typeof following.id === 'string') ownedMarks.add(following.id);
+    return following;
+  }
+  if ('id' in action && typeof action.id === 'string') ownedMarks.delete(action.id);
   const [snapped] = snappedActions([action]) as [Action];
   reserveMarks(p, [snapped], view.width / view.height);
   return placeAction(p, snapped, view.height);
@@ -754,6 +762,7 @@ function applyScene(message: SceneMessage): void {
     case 'begin':
       beginTurn(message.turn, message.detail === true);
       placer()?.reset();
+      if (message.detail !== true) ownedMarks.clear(); // a detail pass leaves the diagrams on screen, and the marks that go with them
       if (message.turn <= 1 && message.detail !== true) placer()?.setStage(undefined); // a detail pass keeps the stage it grows into
       if (message.detail === true) detailState = 'running';
       player.beginTurn(message.detail === true);
