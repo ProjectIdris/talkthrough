@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Action, Step } from '../src/scene/index.ts';
 import { DIAGRAM_APPEAR_SECONDS, TICK_SECONDS, diagramTimes } from '../src/overlay/diagram-plan.ts';
-import { chartLayout, chartRanges, flowLayers, flowLayout, niceTicks, stepsLayout, timelineFractions, timelineLayout } from '../src/overlay/diagram-layout.ts';
+import { bezierPoints, chartLayout, chartRanges, flowLayers, flowLayout, niceTicks, stepsLayout, timelineFractions, timelineLayout } from '../src/overlay/diagram-layout.ts';
 import type { Px } from '../src/overlay/diagram-layout.ts';
 import { DiagramPainter } from '../src/overlay/diagram-draw.ts';
 import { fadeFrame } from '../src/overlay/fade.ts';
@@ -397,4 +397,26 @@ test('a mark belongs to a diagram only when it is written after it: an earlier o
   const outside = { op: 'point', id: 'outside', x: 900, y: 900, color: 'red' } as Action;
   const owned = ownedByDiagram([{ actions: [early] }, { actions: [diagram, late, outside] }], 16 / 9);
   assert.deepEqual(owned, [[false], [false, true, false]]);
+});
+
+test('a loop back and its label stay inside the flow area, in a column that runs down and a row that runs right', () => {
+  const ids = ['call', 'base', 'done', 'again'];
+  const edges = [
+    { id: '1', from: 'call', to: 'base' }, { id: '2', from: 'base', to: 'done', labelW: 30 }, { id: '3', from: 'base', to: 'again', labelW: 24 },
+    { id: '4', from: 'again', to: 'call', labelW: 70 },
+  ];
+  const inside = (area: Px, o: typeof opts & { labelW?: number; labelH?: number }): void => {
+    const lay = flowLayout(ids, edges, area, o);
+    const back = lay.edges.get('4')!;
+    const pts = bezierPoints(back.a, back.b, back.c, back.d);
+    for (const p of pts) assert.ok(p.x <= area.x + area.w && p.y <= area.y + area.h, `${JSON.stringify(p)} past ${JSON.stringify(area)}`);
+    // the label (70 wide, centred on the curve's middle) is inside too
+    assert.ok(back.mid.x + 35 <= area.x + area.w && back.mid.y + o.labelH! / 2 <= area.y + area.h, `label ${JSON.stringify(back.mid)}`);
+    for (const b of lay.nodes.values()) assert.ok(b.x >= area.x && b.y >= area.y && b.x + b.w <= area.x + area.w && b.y + b.h <= area.y + area.h);
+  };
+  inside({ x: 100, y: 100, w: 240, h: 315 }, { ...opts, labelW: 70, labelH: 24 });
+  inside({ x: 100, y: 100, w: 700, h: 220 }, { ...opts, labelW: 70, labelH: 24 });
+  // Nothing swings out when there is no loop back: the nodes keep all the room.
+  const plain = flowLayout(['a', 'b'], [{ id: '1', from: 'a', to: 'b', labelW: 40 }], { x: 0, y: 0, w: 200, h: 300 }, { ...opts, labelW: 40, labelH: 24 });
+  assert.ok(plain.nodes.get('a')!.x + plain.nodes.get('a')!.w > 200 * 0.8);
 });

@@ -2,7 +2,7 @@
 
 **An AI that talks you through anything on your screen, and draws as it talks.**
 
-Hold a key and ask out loud. Talkthrough looks at your screen, points at what matters, draws 3D models and diagrams right over the page, and walks you through it step by step.
+Hold a key and ask out loud. Talkthrough looks at your screen, points at what matters, draws diagrams and 3D models right over the page, and walks you through it step by step.
 
 ![A pin tumbler lock opening: its parts are built and labelled, a key slides in, the pins lift and the plug turns.](docs/media/lock-demo.gif)
 
@@ -10,10 +10,37 @@ Hold a key and ask out loud. Talkthrough looks at your screen, points at what ma
 
 - **Works in any app or website:** no tutorial in another window.
 - **Open source (MIT).** You choose how it runs your model (see [Choose how it runs your model](#choose-how-it-runs-your-model)).
-- **Private:** in normal use Talkthrough itself writes nothing about your screen or questions to disk (saving an answer to come back to is planned).
+- **Private:** in normal use Talkthrough itself writes nothing about your screen or questions to disk unless you pin an answer.
 - **Safe:** it draws, it never runs generated code.
 
-> **Status: pre-release, Windows first.** The whole loop runs: hotkey, microphone, screen capture, a model through your own Codex or Claude Code install, the scene language and the three.js overlay. It needs a local speech recogniser you point it at (see [setup](docs/setup.md)). Step-by-step guiding that waits for your click is planned. See [Status](#status) for exactly what exists today.
+> **Status: pre-release, Windows first.** The whole loop runs: hotkey, microphone, screen capture, a model through your own Codex or Claude Code install, the scene language and the three.js overlay, including guided walks that wait for your click. It needs a local speech recogniser you point it at (see [setup](docs/setup.md)). See [Status](#status) for exactly what exists today.
+
+## What it can show
+
+Everything below is drawn by the overlay from a small JSON scene a model writes. The pictures are frames of real answers (or, where it says so, of hand-written example scenes) replayed over the pages they were asked about.
+
+- **Marks on the page.** Boxes, circles, underlines, arrows and labels for text and regions. For something *inside* a picture (a figure, a graph, a map) it can put an outline round a tilted or irregular shape, a point on one exact spot, or a line along a curve. The overlay then nudges a mark onto the page's own lines and corners when it is a few percent off, and leaves it alone when it cannot tell what was meant.
+- **Flat diagrams.** A **flow** for a process, a **timeline** for events, **steps** for a how-to and a **chart** for how two things relate. You never place the parts: they are laid out for you, drawn on as the voice reaches them, and placed where there is room, in a margin or beside a column when the page has one.
+- **3D models.** Built part by part in view, from a kit of ready-made parts (pistons, valves, gears, housings, chips and more) or from shapes. They can run (a crankshaft turns, valves open on their cams, a spark flashes), be cut open to show the inside, and be pulled apart. You can turn one with the mouse, and press **E** to open it up.
+- **Soft, organic forms.** Shapes like a heart or a plant are built as blended lumps with tapering tubes for vessels and stems, not as boxes (the samples include a heart and a plant).
+- **Guide mode.** For "how do I do this in that app", the answer becomes a walk: it marks where to click, waits for your click, checks the screen really changed, and shows the next step. A checklist of the moves ticks along. It never clicks for you.
+- **More detail.** If you set up a second, stronger model, a **More detail** button rebuilds what is on screen in much finer detail.
+
+![A four-stroke engine built over the Wikipedia article, with its parts labelled.](docs/media/frame-engine.jpg)
+
+![A timeline of 1066 drawn over the Battle of Hastings article, with the page's text boxed.](docs/media/frame-timeline.jpg)
+
+![A flow showing how recursion works, with the loop back drawn in.](docs/media/frame-flow.jpg)
+
+![A supply and demand chart with a point on the exact crossing.](docs/media/frame-chart.jpg)
+
+![An outline round a tilted square in a Pythagorean theorem figure.](docs/media/frame-outline.jpg)
+
+![Guide mode: a checklist of the moves ticks off as you make each click.](docs/media/frame-guide.jpg)
+
+*Frames from live answers replayed over the pages they were asked about. Page content from Wikipedia and Wikibooks (CC BY-SA 4.0), shown for illustration.*
+
+See [the scene language](docs/scene-language.md) for everything a model may draw and [the overlay notes](docs/overlay.md) for how it is drawn.
 
 ## Contribute
 
@@ -93,12 +120,15 @@ Models, voices, speech recognition and backends are adapters in `src/adapters/`,
 | Overlay window, hotkey, screen capture, microphone, tray | working |
 | Models through your own Codex or Claude install, locked down to no tools | working, tested against stand-ins |
 | A speech recogniser that ships with the app | planned (today: a local server you point it at) |
+| Flat diagrams (flow, timeline, steps, chart), laid out, drawn on with the voice and placed in free space | working; a live model drew one on six of eight real pages tried |
+| New mark shapes (outline, point, trace) and snapping marks onto the page's lines | working; replayed on eight saved pages, and live answers used the outline and the point |
+| 3D models from a parts kit, running machines, cut-open and pulled-apart views, organic forms | working; seen in frames of hand-written samples and a live engine answer |
+| Guide mode: a walk that waits for your click, with a checklist | working, tested with stand-ins and replayed in frames; the click watch is not yet tried on a real desktop |
+| The detail pass: a stronger model rebuilds what is on screen in more detail | working; run live once on a real article |
 | Circle something with the mouse while the keys are held: the model sees your stroke and a closer crop | working, tested with a stand-in stroke; the drag itself not yet tried by hand |
 | Model through an OpenAI API key | working, tested against a fake server (not yet run against the live service) |
 | A deeper backend over HTTP, by the offer or by voice, answering in the scene language | working, tested against a fake server; the contract is in docs/backend.md |
 | Pinning an answer (tray, or say "pin this"): its question, the conversation and the scene saved to a local folder | working, tested |
-| A short history that lasts while a guided task runs | planned |
-| Guided mode that waits for your click before the next step | planned |
 | Mac and Linux | planned |
 
 Windows is the first platform.
@@ -107,7 +137,7 @@ Windows is the first platform.
 
 - **What leaves the app:** your screenshot and the text of your question go to the model you chose (see above), and your recording goes to the speech server whose address you set (meant to be on your own machine; none is built in). If you set a backend address, a question you hand to it also goes there with its screenshot, the earlier questions and what is on screen. Nothing else.
 - **What Talkthrough keeps:** the screenshot and your recording live in memory only and are not written to disk in normal use (the development options `--save-capture`, `--save-pen` and `--frames-dir` save images). Your latest questions and answers stay in memory so a follow-up question works; they are gone when you quit. The one thing that is written to disk is an answer you pin (tray, or say "pin this"): its question, what was said and the scene go to a folder on your machine ([docs/pins.md](docs/pins.md)), and the screenshot only if you tick "Include the screenshot in pins". Nothing else is kept. The model tool you choose has its own policies.
-- **Planned:** a short history that lasts while a guided task runs. It is not built yet.
+- **While a guided task runs**, a short list of what happened so far is kept in memory only, and gone when the guide ends.
 
 ## Layout
 
