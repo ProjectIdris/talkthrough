@@ -114,6 +114,31 @@ test('the second call starts as step 1 arrives, not when the first call has ende
   assert.ok(log.indexOf('rest:start') >= 0 && log.indexOf('rest:start') < log.indexOf('first:end'), log.join(','));
 });
 
+test('a first call that writes more than step 1 has the extra dropped, words, marks and steps alike: the second call writes them, so nothing plays twice', async () => {
+  const inner: Model = {
+    id: 'stub',
+    async *ask(req) {
+      if (req.stage?.part === 'first') {
+        yield { type: 'say', say: 'One.' };
+        yield { type: 'action', action: { op: 'box', id: 'a' } };
+        yield { type: 'step', step: { say: 'One.', actions: [{ op: 'box', id: 'a' }] } };
+        yield { type: 'say', say: 'Two (early).' };
+        yield { type: 'action', action: { op: 'box', id: 'b' } };
+        yield { type: 'step', step: { say: 'Two (early).', actions: [] } };
+        yield { type: 'escalate', reason: 'deeper' };
+        yield { type: 'usage', usage: { input: 10, cached: 5, output: 3 } };
+        return;
+      }
+      yield { type: 'say', say: 'Two.' };
+      yield { type: 'step', step: { say: 'Two.', actions: [] } };
+      yield { type: 'usage', usage: { input: 20, cached: 5, output: 4 } };
+    },
+  };
+  const out = await collect(createTwoStepModel(inner), { pieces: true });
+  assert.deepEqual(out.map((o) => (o.type === 'say' ? `say:${o.say}` : o.type === 'step' ? `step:${(o.step as { say: string }).say}` : o.type)), ['say:One.', 'action', 'step:One.', 'escalate', 'say:Two.', 'step:Two.', 'usage']);
+  assert.deepEqual(out.at(-1), { type: 'usage', usage: { input: 30, cached: 10, output: 7 } });
+});
+
 test('a detail pass, or a request that already names its part, is passed through untouched', async () => {
   const log: string[] = [];
   const model = createTwoStepModel(stub(log, async function* () { yield { type: 'step', step: { say: 'Two.', actions: [] } }; }));

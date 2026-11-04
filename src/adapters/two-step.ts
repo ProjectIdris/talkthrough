@@ -3,6 +3,7 @@
 // twice per question, so it is a setting, and off unless the person turns it on.
 //
 // If the second call fails, the answer ends after step 1 and nothing is reported as an error. If the first fails, so does the question.
+// A first call that writes more than step 1 has the rest dropped.
 // Ending the question (the consumer stops reading, or the request is aborted) aborts both calls.
 
 import { AsyncQueue } from './subscription-shared.ts';
@@ -51,7 +52,10 @@ export function createTwoStepModel(inner: Model, options: TwoStepOptions = {}): 
             usages.push(out.usage);
             continue;
           }
-          if (out.type === 'step' && !rest) rest = startRest(out.step); // before the step is handed on: the second call must not wait for the reader
+          // The first call was asked for step 1 only. Whatever it writes after that step (its words and marks as they come, further steps) is dropped:
+          // the second call writes those, and passing both on would play them twice.
+          if (rest && (out.type === 'step' || out.type === 'say' || out.type === 'action')) continue;
+          if (out.type === 'step') rest = startRest(out.step); // before the step is handed on: the second call must not wait for the reader
           yield out;
         }
         if (rest) {
