@@ -7,8 +7,8 @@ import type { Rgb } from '../scene/colors.ts';
 
 /** The calmer 2D versions of the palette's named colours (the scene language still names them red, blue and so on). */
 export const REFINED: Readonly<Record<string, Rgb>> = {
-  red: [226, 84, 90], orange: [235, 148, 64], yellow: [240, 190, 64], green: [54, 168, 114], teal: [30, 164, 152],
-  blue: [66, 108, 224], purple: [142, 94, 206], pink: [212, 78, 160], gray: [140, 147, 162],
+  red: [226, 84, 90], orange: [232, 138, 46], yellow: [224, 164, 22], green: [54, 168, 114], teal: [30, 164, 152],
+  blue: [66, 108, 224], purple: [142, 94, 206], pink: [212, 78, 160], gray: [112, 120, 138],
 };
 
 /** A palette colour as its refined version; any other colour (a hex the model chose, white, black) stays as it was. */
