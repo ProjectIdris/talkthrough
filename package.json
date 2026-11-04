@@ -2,7 +2,13 @@
   "name": "talkthrough",
   "version": "0.0.0",
   "description": "An AI that talks you through anything on your screen, and draws as it talks.",
-  "keywords": ["screen assistant", "overlay", "ai", "three.js", "electron"],
+  "keywords": [
+    "screen assistant",
+    "overlay",
+    "ai",
+    "three.js",
+    "electron"
+  ],
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -23,6 +29,7 @@
     "uiohook-napi": "1.5.5"
   },
   "devDependencies": {
+    "@types/three": "0.187.0",
     "esbuild": "0.28.2",
     "typescript": "7.0.2"
   }
