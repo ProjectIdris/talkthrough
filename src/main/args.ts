@@ -41,6 +41,8 @@ export type Options = {
   fakeMicFile?: string;
   /** Checks: how long --self-chord holds the keys, in milliseconds. */
   chordHoldMs: number;
+  /** Checks: this many seconds after the first answer has ended, ask for more detail (as the page's button does); one chord only. */
+  detailAfter?: number;
   /** Checks: log every validated step sent to the overlay. */
   logSteps: boolean;
   /** Checks: write the grabbed screen frame to this file. */
@@ -102,6 +104,7 @@ export function parseArgs(argv: readonly string[]): Options {
       case '--fake-mic-file': options.fakeMicFile = value(i, a); options.fakeMic = true; i++; break;
       case '--save-capture': options.saveCapture = value(i, a); i++; break;
       case '--chord-hold': options.chordHoldMs = Number(value(i, a)); i++; break;
+      case '--detail-after': options.detailAfter = Number(value(i, a)); i++; break;
       case '--log-steps': options.logSteps = true; break;
       case '--question': options.question = value(i, a); i++; break;
       case '--hidden': options.hidden = true; break;
@@ -114,6 +117,7 @@ export function parseArgs(argv: readonly string[]): Options {
       default: break; // Electron and the OS pass their own arguments
     }
   }
+  if (options.detailAfter !== undefined && !(options.detailAfter >= 0)) throw new Error('--detail-after must be zero or more seconds');
   if (grabScene !== undefined) {
     if (grabOut === undefined) throw new Error('--grab needs --out <folder>');
     if (!(scaleFactor > 0)) throw new Error('--scale must be a positive number');

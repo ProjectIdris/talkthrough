@@ -492,3 +492,20 @@ test('hush closes the open step: nothing more joins it, and it finishes drawing 
   advance(100);
   assert.deepEqual(ids(player.update()), ['a']);
 });
+
+test('a detail turn is not spoken: its words name what a step adds, and nothing waits on a voice', () => {
+  const { clock, advance } = fakeClock();
+  const loud = manualVoice();
+  const player = new Player({ voice: loud.voice, clock });
+  player.beginTurn(true);
+  player.openStep('Adds a lid.');
+  player.addAction({ op: 'add', shape: 'box', id: 'lid', size: [1, 1, 1] } as never);
+  player.closeStep();
+  assert.equal(loud.spoken.length, 0, 'nothing is said');
+  advance(50);
+  assert.equal(player.update().objects.length, 1, 'but it is drawn at once, without waiting for speech');
+  // The next ordinary turn speaks again.
+  player.beginTurn();
+  player.openStep('Now words.');
+  assert.deepEqual(loud.spoken.map((x) => x.text), ['Now words.']);
+});

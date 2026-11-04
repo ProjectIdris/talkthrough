@@ -42,6 +42,7 @@ const offerText = byId<HTMLSpanElement>('offer-text');
 const offerButton = byId<HTMLButtonElement>('offer-button');
 const noticeEl = byId<HTMLDivElement>('notice');
 const explodeEl = byId<HTMLButtonElement>('explode');
+const detailEl = byId<HTMLButtonElement>('detail');
 const marksCtx = marksCanvas.getContext('2d') as CanvasRenderingContext2D;
 
 /** The quality tier: asked for in the page address, or chosen from what the graphics stack is. */
@@ -124,6 +125,11 @@ const player = new Player({
 });
 
 let display: DisplayInfo | undefined;
+/**
+ * Where "More detail" is for this answer: offered (none), asked and not yet begun (asked), being drawn (running), or
+ * done. Only a failure (a notice while asked or running) offers it again; a new question starts afresh.
+ */
+let detailState: 'none' | 'asked' | 'running' | 'done' = 'none';
 let view: View = { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 };
 /** Where the model is on screen (for the pointer), and the stage's frame when it has one. */
 let modelRect: ScreenRect | undefined;
@@ -282,10 +288,11 @@ function placer(): Placer | undefined {
 function labelEnvironment(): { occ: Occupancy; busy?: Busy } {
   const occ = new Occupancy(view.width, view.height);
   for (const hull of panelScene.silhouette(view.width, view.height)) occ.fillConvex(hull);
-  // The Explode button is not for a tag to sit on.
-  if (explodeEl.style.display !== 'none') {
-    const x = parseFloat(explodeEl.style.left) || 0, y = parseFloat(explodeEl.style.top) || 0;
-    const w = explodeEl.offsetWidth || 74, h = explodeEl.offsetHeight || 26;
+  // The buttons beside the model are not for a tag to sit on.
+  for (const el of [explodeEl, detailEl]) {
+    if (el.style.display === 'none') continue;
+    const x = parseFloat(el.style.left) || 0, y = parseFloat(el.style.top) || 0;
+    const w = el.offsetWidth || 74, h = el.offsetHeight || 26;
     occ.fillConvex([{ x: x - 4, y: y - 4 }, { x: x + w + 4, y: y - 4 }, { x: x + w + 4, y: y + h + 4 }, { x: x - 4, y: y + h + 4 }]);
   }
   const busy = busyMap();
@@ -317,6 +324,7 @@ function showHud(): void {
 function placeExplode(frame: Frame): void {
   if (!modelRect || !player.settled || frame.objects.length < 2 || pen.active) {
     explodeEl.style.display = 'none';
+    detailEl.style.display = 'none';
     return;
   }
   explodeEl.style.display = 'block';
@@ -325,6 +333,15 @@ function placeExplode(frame: Frame): void {
   const box = explodeButtonBox(modelRect, view, { w: explodeEl.offsetWidth || 74, h: explodeEl.offsetHeight || 26 });
   explodeEl.style.left = `${box.x}px`;
   explodeEl.style.top = `${box.y}px`;
+  // "More detail" sits to the left of Explode, once per answer, and only where a detail model is set up.
+  if (!display?.detail || detailState !== 'none') {
+    detailEl.style.display = 'none';
+    return;
+  }
+  detailEl.style.display = 'block';
+  const w = detailEl.offsetWidth || 90;
+  detailEl.style.left = `${Math.max(6, box.x - w - 8)}px`;
+  detailEl.style.top = `${box.y}px`;
 }
 
 function loop(): void {
@@ -354,7 +371,7 @@ function request(): void {
   if (!raf) raf = requestAnimationFrame(loop);
 }
 
-const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl];
+const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl, detailEl];
 
 /** True for a moment after the pen goes off, so a button released then still ends its stroke. */
 let penEnding = false;
@@ -466,6 +483,14 @@ const toggleExplode = (): void => {
 };
 explodeEl.addEventListener('pointerdown', () => window.talkthrough.engage(true));
 explodeEl.addEventListener('click', toggleExplode);
+// "More detail": one request per answer; the button goes, and the status says it is working until the richer scene has arrived.
+detailEl.addEventListener('click', () => {
+  detailState = 'asked';
+  detailEl.style.display = 'none';
+  hold.release();
+  window.talkthrough.detail();
+  request();
+});
 // While the pointer is on the model the page keeps saying so; if the page goes quiet, main lets clicks through again.
 // The buttons come and go under a resting pointer, and the model can fade or be cleared there, so each beat looks again.
 setInterval(() => {
@@ -488,11 +513,14 @@ noticeEl.addEventListener('click', () => {
 /** Resolves after the next frame has been painted (two animation frames). */
 const painted = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
-function beginTurn(turn: number): void {
+function beginTurn(turn: number, detail = false): void {
   seekClock = undefined;
   fader.disarm();
+  // A detail pass adds to what is on screen: nothing is cleared, and the offer and notices stay as they are.
+  if (detail) return;
   hud.newTurn();
   pendingOffer = undefined;
+  detailState = 'none';
   // The first turn of a question starts clean; later turns continue it, keeping objects and ids.
   if (turn <= 1) player.clear();
   milestones.mark = false;
@@ -572,10 +600,11 @@ function applyScene(message: SceneMessage): void {
       }
       break;
     case 'begin':
-      beginTurn(message.turn);
+      beginTurn(message.turn, message.detail === true);
       placer()?.reset();
-      if (message.turn <= 1) placer()?.setStage(undefined);
-      player.beginTurn();
+      if (message.turn <= 1 && message.detail !== true) placer()?.setStage(undefined); // a detail pass keeps the stage it grows into
+      if (message.detail === true) detailState = 'running';
+      player.beginTurn(message.detail === true);
       break;
     case 'step':
       pen.fade(labelClock());
@@ -600,6 +629,7 @@ function applyScene(message: SceneMessage): void {
       if (!pen.active && hold.over && modelRect && player.settled) toggleExplode();
       break;
     case 'end':
+      if (detailState === 'running') detailState = 'done';
       pen.fade(labelClock());
       hud.stopWorking();
       if (message.escalate !== undefined) pendingOffer = message.escalate;
@@ -614,6 +644,7 @@ function applyScene(message: SceneMessage): void {
       else hud.setStatus(message.status);
       break;
     case 'notice':
+      if (detailState === 'asked' || detailState === 'running') detailState = 'none'; // it failed: the person may ask again
       pen.fade(labelClock());
       hud.showNotice(message.text, message.level, performance.now());
       break;
@@ -624,6 +655,7 @@ function applyScene(message: SceneMessage): void {
       fader.disarm();
       hud.reset();
       pendingOffer = undefined;
+      detailState = 'none';
       break;
     case 'seek':
       seekClock = (seekClock ?? 0) + 1000 / 30;

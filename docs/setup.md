@@ -57,6 +57,9 @@ A JSON file, `%APPDATA%\talkthrough\settings.json` (the app logs the exact path 
 | `micWindowMs` | How long Right Ctrl may be held alone before the early microphone and screen grab are dropped | `1000` |
 | `screenshotEdge` | Longer side of the screenshot sent to the model, in pixels | `1280` |
 | `effort` | Reasoning effort asked of the model | `"low"` |
+| `detailRoute` | Turns on the **detail pass**: `"codex"`, `"claude"` or `"openai"`, the route that writes a much richer version of the scene on screen when you ask for more detail (see below) | none (off) |
+| `detailModel` | Model the detail route uses | `"gpt-6.1-sol"` for `codex` and `openai`, `"claude-sonnet-5-5"` for `claude` |
+| `detailEffort` | Reasoning effort for the detail pass | `"medium"` |
 
 ## Choose how it runs your model
 
@@ -67,6 +70,10 @@ Talkthrough sends your screenshot and question to a model you choose. Set `model
 3. **`"openai"`: an API key.** The app calls the OpenAI Responses API directly, streamed, with strict structured outputs and nothing stored on the provider's side. Choose *API key…* from the tray menu and paste your key: it is stored encrypted for your Windows account (Electron's `safeStorage`; nothing is saved if that is unavailable; this protects it from other users and from copies of the disk, not from other programs running as you, which can decrypt it the same way), is only ever sent to the API address as a header, and is never logged. Costs are billed to your account by the provider.
 
 For the first two, Talkthrough only starts the tool you already have; it never reads or stores your sign-in. If your Codex setup lists tool servers (MCP), the app switches each one off for the process it starts; the list is read when that process starts, so a server added later is switched off at the next start. **Check your provider's terms for automated use before you pick one.** To use something else, write a `Model` adapter (`src/adapters/model.ts`).
+
+## The detail pass
+
+A quick answer is drawn with a small, fast model. If you set `detailRoute`, a **More detail** button appears beside a finished 3D model (next to *Explode*), and saying "show me in detail" does the same. The app then sends the screenshot, your question and the scene on screen to the detail model, which is asked for a much richer version of the same scene (the same ids, ready-made parts, linkages, smaller parts). The picture upgrades in place as the pieces arrive, with a quiet "Adding detail…" in the corner and nothing spoken. A new question cancels it. It never runs by itself, and without `detailRoute` nothing offers it and no second model is ever started. The detail route is run exactly like the quick one (the same locked-down Codex or Claude process, or the API key) with its own model and effort; it uses more of your allowance than a quick answer.
 
 ## Speech
 

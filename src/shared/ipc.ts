@@ -21,6 +21,8 @@ export const CHANNEL = {
   done: 'tt:done',
   /** overlay -> main: the user clicked the escalation offer. */
   offer: 'tt:offer',
+  /** overlay -> main: the user clicked "More detail": ask the detail model for a richer version of the scene on screen. */
+  detail: 'tt:detail',
   /** overlay -> main: a piece of a pen stroke (Stroke), streamed as the pointer moves while the pen is on. */
   stroke: 'tt:stroke',
   /** overlay -> main: a Milestone, for latency measurement (the first mark drawn or word spoken of a live turn). */
@@ -48,6 +50,8 @@ export type DisplayInfo = {
   backdrop?: string;
   /** For development runs only: speak nothing (use a silent voice). */
   silent?: boolean;
+  /** A detail model is set up: the page may offer "More detail" beside a finished model. */
+  detail?: boolean;
 };
 
 /**
@@ -85,7 +89,12 @@ export type SceneMessage =
    * The stroke stays until the first `step` of the answer arrives, then fades; a new `pen on` removes it.
    */
   | { kind: 'pen'; on: boolean }
-  | { kind: 'begin'; turn: number }
+  /**
+   * A streamed turn begins. `detail` marks the detail pass: a richer version of the scene already on screen is
+   * coming, so nothing is cleared (whatever `turn` says), nothing is spoken, and an object whose id is on screen is
+   * replaced in place by the one that arrives.
+   */
+  | { kind: 'begin'; turn: number; detail?: true }
   | { kind: 'step'; step: Step }
   /**
    * A step arriving piece by piece, as the model writes it: `step-open` brings its words (spoken at once, and
@@ -102,9 +111,10 @@ export type SceneMessage =
   /**
    * hush: the chord was made, stop any speech still going now (marks stay; no cue);
    * listening: recording has really started (show the cue);
-   * working: released, waiting for the first step; idle: hide the cue and the indicator.
+   * working: released, waiting for the first step; detail: a richer version of the scene is being written
+   * (shown quietly; nothing is hidden); idle: hide the cue and the indicator.
    */
-  | { kind: 'status'; status: 'hush' | 'listening' | 'working' | 'backend' | 'idle' }
+  | { kind: 'status'; status: 'hush' | 'listening' | 'working' | 'backend' | 'detail' | 'idle' }
   /** A short line that fades by itself. */
   | { kind: 'notice'; text: string; level: 'info' | 'error' };
 
@@ -196,6 +206,8 @@ export interface TalkthroughApi {
   done(): void;
   /** The user clicked the escalation offer. */
   offer(): void;
+  /** The user clicked "More detail". */
+  detail(): void;
   /** A piece of a pen stroke, while the pen is on. */
   stroke(stroke: Stroke): void;
   /** The first mark drawn or first word spoken of a live turn (for latency measurement). */

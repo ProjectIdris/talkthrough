@@ -32,7 +32,25 @@ export type Settings = {
   screenshotEdge: number;
   /** Reasoning effort asked of the model. */
   effort: string;
+  /**
+   * The detail pass: which route writes a much richer version of the scene on screen when the person asks for more
+   * detail (a button beside the model, or "show me in detail"). Unset: there is no detail pass and nothing offers it.
+   * It is never started by itself.
+   */
+  detailRoute?: 'codex' | 'claude' | 'openai';
+  /** The model the detail route uses; unset: DETAIL_MODELS has a stronger default for each route. */
+  detailModel?: string;
+  /** Reasoning effort for the detail pass (default: DETAIL_EFFORT). */
+  detailEffort?: string;
 };
+
+/** What each route uses for the detail pass when the settings name no model: a stronger one than the quick answers use. */
+export const DETAIL_MODELS: Record<'codex' | 'claude' | 'openai', string> = {
+  codex: 'gpt-6.1-sol',
+  claude: 'claude-sonnet-5-5',
+  openai: 'gpt-6.1-sol',
+};
+export const DETAIL_EFFORT = 'medium';
 
 export const DEFAULT_SETTINGS: Settings = {
   model: 'codex',
@@ -86,6 +104,12 @@ export function loadSettings(path: string, warn: (message: string) => void = () 
   if (typeof raw.micWindowMs === 'number' && raw.micWindowMs >= 200 && raw.micWindowMs <= 5000) settings.micWindowMs = raw.micWindowMs;
   if (typeof raw.screenshotEdge === 'number' && raw.screenshotEdge >= 640 && raw.screenshotEdge <= 2560) settings.screenshotEdge = Math.round(raw.screenshotEdge);
   settings.effort = str(raw.effort) ?? settings.effort;
+  if (raw.detailRoute === 'codex' || raw.detailRoute === 'claude' || raw.detailRoute === 'openai') settings.detailRoute = raw.detailRoute;
+  else if (raw.detailRoute !== undefined) warn('detailRoute must be codex, claude or openai; there is no detail pass');
+  const detailModel = str(raw.detailModel);
+  if (detailModel) settings.detailModel = detailModel;
+  const detailEffort = str(raw.detailEffort);
+  if (detailEffort) settings.detailEffort = detailEffort;
   return settings;
 }
 

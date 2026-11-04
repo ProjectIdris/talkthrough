@@ -47,3 +47,14 @@ test('the backend has no default; its address must be https or loopback, and its
   assert.equal(bad.settings.backendTimeoutMs, undefined);
   assert.equal(bad.warnings.length, 1);
 });
+
+test('the detail pass is off unless a route is named; a model and an effort may be named too', () => {
+  assert.equal(settingsFrom(null).settings.detailRoute, undefined);
+  const named = settingsFrom(JSON.stringify({ detailRoute: 'claude', detailModel: 'claude-x', detailEffort: 'high' })).settings;
+  assert.equal(named.detailRoute, 'claude');
+  assert.equal(named.detailModel, 'claude-x');
+  assert.equal(named.detailEffort, 'high');
+  const bad = settingsFrom(JSON.stringify({ detailRoute: 'somewhere' }));
+  assert.equal(bad.settings.detailRoute, undefined);
+  assert.ok(bad.warnings.some((w) => w.includes('detailRoute')));
+});

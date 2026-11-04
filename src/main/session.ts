@@ -5,7 +5,7 @@ import type { Model, ModelOutput, ThreadTurn, Usage } from '../adapters/model.ts
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
-import { beginLiveStep, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
+import { beginLiveStep, createDetailState, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
 import type { LiveStep, SceneState, Step } from '../scene/index.ts';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
@@ -37,6 +37,11 @@ export type SessionDeps = {
   /** Null when no speech server is set up. */
   speech: SpeechToText | null;
   model(): Model;
+  /**
+   * The detail model, when the person has set one up (the settings name its route). Absent: there is no detail pass,
+   * and nothing offers it. It is asked only when the person asks for more detail, never by itself.
+   */
+  detailModel?(): Model | undefined;
   /** The deeper backend, when the user has set one up (their settings name its address). Absent: none. */
   backend?: Backend;
   send(displayId: number, message: SceneMessage): void;
@@ -79,6 +84,8 @@ export type QuestionReport = {
   /** How well the answer built in order (1: everything came after what it refers to); see orderScore. */
   order?: { score: number; refs: number; early: number; missing: number; wrong: number };
   escalate?: string;
+  /** This was a detail pass (a richer version of the scene on screen), not a question. */
+  detail?: boolean;
   error?: string;
 };
 
@@ -240,7 +247,7 @@ export function createSession(deps: SessionDeps) {
     if (!last) return { ok: false, text: 'There is nothing to pin yet. Ask something first.' };
     try {
       const keep = deps.pinScreenshot?.() === true && pictures.get(last);
-      deps.pin({ question: last.question, thread: [...thread], steps: thread.flatMap((t) => [...t.steps]), ...(keep ? { screenshot: keep } : {}) });
+      deps.pin({ question: last.question, thread: [...thread], steps: sceneSteps(), ...(keep ? { screenshot: keep } : {}) });
       return { ok: true, text: keep ? 'Pinned, with the screenshot.' : 'Pinned.' };
     } catch (error) {
       deps.log(`pin: ${error instanceof Error ? error.message : String(error)}`);
@@ -248,9 +255,18 @@ export function createSession(deps: SessionDeps) {
     }
   }
 
+  /**
+   * The steps that draw what is on screen now: the turns from the last detail pass on (a detail pass writes the whole
+   * scene again, richer), or all of them when there has been none.
+   */
+  function sceneSteps(): unknown[] {
+    const from = thread.findLastIndex((t) => t.detail === true);
+    return thread.slice(Math.max(0, from)).flatMap((t) => [...t.steps]);
+  }
+
   /** What the backend is told about the scene on screen: the steps drawn in this thread and the ids in use. */
   function sceneOnScreen(): { steps: unknown[]; ids: Record<string, string> } {
-    return { steps: thread.flatMap((t) => [...t.steps]), ids: Object.fromEntries(state.ids) };
+    return { steps: sceneSteps(), ids: Object.fromEntries(state.ids) };
   }
 
   /** The backend as a source of steps: the overlay says it is with the backend while it waits. */
@@ -275,16 +291,19 @@ export function createSession(deps: SessionDeps) {
   }
 
   /** The question is on its way to its answer: the thread, the validator, begin/step/end and every way it can end. */
-  async function answer(displayId: number, controller: AbortController, r: QuestionReport, since: () => number, question: string, source: Source, keepThread = false): Promise<void> {
+  async function answer(displayId: number, controller: AbortController, r: QuestionReport, since: () => number, question: string, source: Source, keepThread = false, detail = false): Promise<void> {
     const continuing = thread.length > 0 && (keepThread || now() - lastActivity < THREAD_WINDOW_MS);
     if (!continuing) {
       thread = [];
       state = createSceneState();
     }
-    const turn = thread.length + 1;
+    // A detail pass knows the ids on screen: it may name one it does not write again (a pin on it, a part under it) and
+    // may write any of them again, richer; the page swaps each one in place as it arrives.
+    const checking: SceneState = detail ? createDetailState(state) : state;
+    const turn = detail ? Math.max(1, thread.length) : thread.length + 1;
     const picture = lastAsk?.clean;
     const known = [...state.ids.keys()];
-    startTurn(state);
+    startTurn(checking);
     deps.log(`question heard (turn ${turn}, ${source.label}${deps.logText ? `): ${JSON.stringify(question)}` : ')'}`);
 
     const shown: Step[] = [];
@@ -292,7 +311,7 @@ export function createSession(deps: SessionDeps) {
     const open = () => {
       if (begun) return;
       begun = true;
-      deps.send(displayId, { kind: 'begin', turn });
+      deps.send(displayId, detail ? { kind: 'begin', turn, detail: true } : { kind: 'begin', turn });
     };
     let escalate: string | undefined;
     let failure: unknown;
@@ -303,7 +322,7 @@ export function createSession(deps: SessionDeps) {
     // The answer as the model wrote it, to score the order it built in.
     const written: Array<{ actions: unknown[] }> = [];
     let writing: unknown[] | null = null;
-    const newLive = (): LiveStep => beginLiveStep(state, {
+    const newLive = (): LiveStep => beginLiveStep(checking, {
       open: (say) => {
         open();
         r.firstStepMs ??= since();
@@ -339,7 +358,7 @@ export function createSession(deps: SessionDeps) {
             continue;
           }
           written.push(out.step as { actions: unknown[] });
-          const checked = validateStep(out.step, state);
+          const checked = validateStep(out.step, checking);
           if (checked.issues.length > 0) deps.log(`validator: ${checked.issues.length} notes on step ${shown.length + 1}`);
           if (!checked.step) continue;
           open();
@@ -349,7 +368,7 @@ export function createSession(deps: SessionDeps) {
         } else if (out.type === 'usage') {
           r.tokens = out.usage;
         } else if (out.type === 'escalate') {
-          escalate = validateEscalate(out.reason).escalate;
+          if (!detail) escalate = validateEscalate(out.reason).escalate; // a detail pass never offers anything
         }
       }
     } catch (error) {
@@ -381,15 +400,50 @@ export function createSession(deps: SessionDeps) {
       const said = source.message?.();
       if (said) return notice(displayId, said);
       r.error = `the ${source.kind} gave nothing to show`;
-      return notice(displayId, "I couldn't work out an answer to that. Try asking another way?");
+      return notice(displayId, detail ? "I couldn't add more detail this time." : "I couldn't work out an answer to that. Try asking another way?");
     }
     open();
     deps.send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) });
-    const kept: ThreadTurn = { question, steps: shown };
+    const kept: ThreadTurn = { question, steps: shown, ...(detail ? { detail: true as const } : {}) };
     if (picture) pictures.set(kept, picture);
+    if (detail) {
+      // The scene on screen is now the richer one: the ids it did not write again are still there and still known.
+      delete checking.replaceable;
+      state = checking;
+      deps.send(displayId, { kind: 'status', status: 'idle' });
+    }
     thread.push(kept);
     lastActivity = now();
-    if (lastAsk) lastAsk.reason = escalate;
+    if (lastAsk) lastAsk.reason = detail ? undefined : escalate;
+  }
+
+  /**
+   * The detail pass: the detail model is asked for a much richer version of the scene on screen (same language, same
+   * ids), and what it writes upgrades the picture in place as it arrives. Only ever started by the person (the page's
+   * button, or "show me in detail"); a new question cancels it like any other answer.
+   */
+  async function runDetail(displayId: number, controller: AbortController, r: QuestionReport, since: () => number): Promise<void> {
+    const model = deps.detailModel?.();
+    if (!model) {
+      r.error = 'no detail model';
+      return notice(displayId, 'No detail model is set up. Name one in the settings to use this.', 'error');
+    }
+    const base = lastAsk;
+    if (!base || thread.length === 0) {
+      r.error = 'nothing to add detail to';
+      return notice(displayId, 'Ask a question first, then ask for more detail.');
+    }
+    r.model = model.id;
+    r.question = base.question;
+    r.detail = true;
+    deps.send(displayId, { kind: 'status', status: 'detail' });
+    const scene = sceneSteps();
+    const source: Source = {
+      kind: 'model',
+      label: model.id,
+      stream: () => model.ask({ question: base.question, screenshot: base.clean, thread: [], schema: sceneSchemaLean, pieces: true, detail: { steps: scene }, signal: controller.signal }),
+    };
+    await answer(displayId, controller, r, since, base.question, source, true, true);
   }
 
   async function ask(a: Attempt): Promise<void> {
@@ -456,6 +510,10 @@ export function createSession(deps: SessionDeps) {
         const said = pinNow();
         r.error = said.ok ? undefined : 'pin failed';
         return notice(a.displayId, said.text, said.ok ? 'info' : 'error');
+      }
+      if (parseSpoken(question)?.kind === 'detail') {
+        // Not a new question: the detail model adds to what is on screen. The frame grabbed for this press is not needed.
+        return await runDetail(a.displayId, controller, r, since);
       }
       let shot: Grab;
       try {
@@ -565,6 +623,22 @@ export function createSession(deps: SessionDeps) {
       report = r;
       try {
         await answer(displayId, controller, r, () => now() - releasedAt, lastAsk.question, backendSource(displayId, 'offer', lastAsk.question, lastAsk.screenshot, lastAsk.reason, controller.signal), true);
+      } finally {
+        if (asking === controller) asking = null;
+        deps.log(`report ${JSON.stringify(deps.logText ? r : { ...r, question: r.question ? '(not logged)' : '' })}`);
+        deps.onReport?.(r);
+      }
+    },
+    /** The user clicked "More detail" beside the model. Ignored while an answer is being written or heard. */
+    async detail(displayId: number): Promise<void> {
+      if (asking !== null || attempt !== null) return;
+      const controller = new AbortController();
+      asking = controller;
+      releasedAt = now();
+      const r: QuestionReport = { model: 'detail', question: '', steps: 0 };
+      report = r;
+      try {
+        await runDetail(displayId, controller, r, () => now() - releasedAt);
       } finally {
         if (asking === controller) asking = null;
         deps.log(`report ${JSON.stringify(deps.logText ? r : { ...r, question: r.question ? '(not logged)' : '' })}`);

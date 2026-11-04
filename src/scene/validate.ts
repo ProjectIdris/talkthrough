@@ -16,6 +16,12 @@ export type SceneState = {
   turnActions: number;
   /** Copies made by `array` actions so far. */
   copies: number;
+  /**
+   * Ids that were on screen before this answer and may be written again (a detail pass writes a richer version of the
+   * scene with the same ids). Writing one again, as a 3D object for a 3D object (or a mark, pin or text for its own kind), replaces it: the id is then in use like
+   * any other and cannot be written a third time. Ids named but never written again stay valid to refer to.
+   */
+  replaceable?: Set<string>;
 };
 
 export type StepResult = { step: Step | null; issues: Issue[] };
@@ -29,6 +35,17 @@ const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\
 
 export function createSceneState(): SceneState {
   return { ids: new Map(), parents: new Map(), depth: new Map(), turnSteps: 0, turnActions: 0, copies: 0 };
+}
+
+/**
+ * A state for a detail pass over a scene already on screen: it knows every id on screen (so a part, pin or move may
+ * name one the answer does not write again) and lets the answer write any of them again, richer.
+ */
+export function createDetailState(onScreen: SceneState): SceneState {
+  return {
+    ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth),
+    turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
+  };
 }
 
 /** Call at the start of each question's answer: the per-turn caps count from zero again. */
@@ -130,7 +147,7 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
     case 'newId':
       if (typeof v !== 'string' || !ID_PATTERN.test(v)) return bad('not a valid id');
       if ((RESERVED_IDS as readonly string[]).includes(v)) return bad(`"${v}" is reserved`);
-      return state.ids.has(v) ? bad(`id "${v}" is already in use`) : good(v);
+      return state.ids.has(v) && !state.replaceable?.has(v) ? bad(`id "${v}" is already in use`) : good(v);
     case 'ref': {
       if (typeof v !== 'string') return bad('expected an id');
       const kind = state.ids.get(v);
@@ -300,11 +317,18 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     state.copies += made;
   }
   if (variant.creates) {
-    if (state.ids.size >= LIMITS.maxObjects) {
+    const id = out.id as string;
+    // An id from the scene already on screen, written again, replaces the old one: any 3D object for any other (a box for a kit part, a cylinder for a tube), a mark, pin or text only for its own kind.
+    const replacing = state.replaceable?.has(id) === true;
+    if (replacing && !swappable(state.ids.get(id), variant.creates)) {
+      note(notes, 'dropped', path, `"${id}" is already on screen as something that cannot be swapped for this`);
+      return null;
+    }
+    if (!replacing && state.ids.size >= LIMITS.maxObjects) {
       note(notes, 'dropped', path, `scene already holds ${LIMITS.maxObjects} objects`);
       return null;
     }
-    const id = out.id as string;
+    state.replaceable?.delete(id);
     const parent = (variant.attach ? out[variant.attach] : out.parent) as string | undefined;
     state.ids.set(id, variant.creates);
     state.parents.set(id, parent);
@@ -313,6 +337,13 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     applyClear(state, out.target as string);
   }
   return out as Action;
+}
+
+const SOLID_KINDS: ReadonlySet<string | undefined> = new Set(['solid', 'path', 'group']);
+
+/** Whether an object of kind `now` may be replaced by one of kind `next`: any swap among 3D objects, the same kind for the rest. */
+function swappable(now: string | undefined, next: string): boolean {
+  return now === next || (SOLID_KINDS.has(now) && SOLID_KINDS.has(next));
 }
 
 /** What a live step tells its caller as the step is written. */

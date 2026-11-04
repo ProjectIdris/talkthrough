@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { createSceneState, LIMITS, startTurn, validateEscalate, validateScene, validateStep } from '../src/scene/index.ts';
+import { createDetailState, createSceneState, LIMITS, startTurn, validateEscalate, validateScene, validateStep } from '../src/scene/index.ts';
 import type { Scene } from '../src/scene/index.ts';
 
 const samplesDir = new URL('../samples/scenes/', import.meta.url);
@@ -341,4 +341,45 @@ test('a part may name where it moves when the model is exploded; a bad offset is
     const a = find(validateScene(scene(group('g'), cube('a', { parent: 'g', explode: wrong }))));
     assert.ok(!a || a.explode === undefined, `a bad offset (${JSON.stringify(wrong)}) is not kept`);
   }
+});
+
+test('a detail state knows the ids on screen: they can be named without being written, written once more (same kind), but not twice', () => {
+  const onScreen = createSceneState();
+  validateScene(scene(group('g'), cube('a', { parent: 'g' }), { op: 'pin', id: 'p', on: 'a', text: 'A' }), onScreen);
+  const detail = createDetailState(onScreen);
+  startTurn(detail);
+  const r = validateScene(scene(
+    { op: 'pin', id: 'q', on: 'a', text: 'B' }, // `a` named, not written again
+    cube('b', { parent: 'g' }), // a new part under an unwritten holder
+    cube('a', { parent: 'g', size: [2, 2, 2] }), // written again: replaces
+    cube('a', { parent: 'g' }), // a second time: refused
+    box('p'), // `p` is a pin on screen; a screen box with its id is a different kind: refused
+  ), detail);
+  assert.deepEqual(actionsOf(r).map((a) => (a as { id?: string }).id), ['q', 'b', 'a']);
+  assert.equal(onScreen.replaceable, undefined, 'the scene on screen is left as it was');
+  assert.ok(onScreen.ids.has('a') && !onScreen.ids.has('b'));
+});
+
+test('a detail pass may swap any 3D object for another kind of 3D object, but a mark, pin or text only for its own kind', () => {
+  const onScreen = createSceneState();
+  validateScene(scene(
+    cube('plain'), // a solid
+    { op: 'add', shape: 'cylinder', id: 'pipe', size: [1, 1, 1] },
+    group('holder'),
+    { op: 'add', shape: 'text', id: 'words', text: 'Hi', height: 1, color: 'blue' },
+    { op: 'pin', id: 'p', on: 'plain', text: 'A' },
+  ), onScreen);
+  const detail = createDetailState(onScreen);
+  startTurn(detail);
+  const r = validateScene(scene(
+    { op: 'add', shape: 'part', part: 'gear', id: 'plain', size: [1, 1, 1] }, // solid -> kit part (a group)
+    { op: 'add', shape: 'tube', id: 'pipe', pts: [[0, 0, 0], [0, 1, 0]], radius: 0.1 }, // solid -> tube (a path)
+    cube('holder'), // group -> solid
+    cube('words'), // text -> solid: refused
+    { op: 'add', shape: 'text', id: 'p', text: 'Pin', height: 1, color: 'blue' }, // pin -> text: refused
+  ), detail);
+  assert.deepEqual(actionsOf(r).map((a) => (a as { id?: string }).id), ['plain', 'pipe', 'holder']);
+  assert.equal(detail.ids.get('plain'), 'group');
+  assert.equal(detail.ids.get('pipe'), 'path');
+  assert.equal(detail.ids.get('words'), 'text');
 });

@@ -28,6 +28,8 @@ export type OverlayOptions = {
   onMilestone?: (milestone: Milestone) => void;
   /** Called when the user clicks the escalation offer. */
   onOffer?: (displayId: number) => void;
+  /** A detail model is set up (the page then offers "More detail"), and what to do when the user asks for it. */
+  onDetail?: (displayId: number) => void;
 };
 
 type Overlay = { window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; pen: boolean; penOffAt: number; /** The person pressed on the model (E is then ours until they leave it). */ engaged: boolean; guard: ReturnType<typeof createClickGuard> };
@@ -71,6 +73,7 @@ export function createOverlayManager(options: OverlayOptions) {
     const info: DisplayInfo = { id: display.id, bounds: { ...display.bounds }, scaleFactor: display.scaleFactor };
     if (options.backdrop) info.backdrop = options.backdrop;
     if (options.silent) info.silent = true;
+    if (options.onDetail) info.detail = true;
     return info;
   }
 
@@ -198,6 +201,10 @@ export function createOverlayManager(options: OverlayOptions) {
     const overlay = find(event);
     if (overlay) options.onOffer?.(overlay.display.id);
   });
+  ipcMain.on(CHANNEL.detail, (event) => {
+    const overlay = find(event);
+    if (overlay) options.onDetail?.(overlay.display.id);
+  });
 
   function applyMouse(overlay: Overlay): void {
     if (ignoreMouse(overlay.pageWantsClicks, overlay.pen)) overlay.window.setIgnoreMouseEvents(true, { forward: true });
@@ -234,7 +241,7 @@ export function createOverlayManager(options: OverlayOptions) {
       };
       for (const [id, overlay] of overlays) {
         if (id === displayId) deliver(overlay, message);
-        else if ((message.kind === 'play' || message.kind === 'begin') && message.turn === 1) deliver(overlay, { kind: 'clear' });
+        else if ((message.kind === 'play' || message.kind === 'begin') && message.turn === 1 && !('detail' in message && message.detail)) deliver(overlay, { kind: 'clear' });
       }
     },
     /**

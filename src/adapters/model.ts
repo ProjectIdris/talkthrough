@@ -6,6 +6,8 @@ export type ThreadTurn = {
   question: string;
   /** The validated steps that were shown for that question. */
   steps: readonly Step[];
+  /** A detail pass: a richer version of the scene as it stood, replacing what the turns before it drew (the ids it writes again are swapped in place). */
+  detail?: true;
 };
 
 export type ModelRequest = {
@@ -21,6 +23,11 @@ export type ModelRequest = {
    * on the 0..1000 scale of the whole screenshot. Marks still use the scale of the whole screenshot.
    */
   focus?: { crop: Screenshot; box: { x: number; y: number; w: number; h: number } };
+  /**
+   * Set for a detail pass: what is already on screen (the steps drawn so far, the ids in them). The model is asked
+   * for a much richer version of the same scene, in the same language and with the same ids, instead of an answer.
+   */
+  detail?: { steps: readonly unknown[] };
   /** Also yield each step's say text and each of its actions as they are written, before the step (see ModelOutput). Default off. */
   pieces?: boolean;
   /** Aborting drops the request: the stream ends and no more steps are yielded. */

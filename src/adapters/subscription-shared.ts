@@ -177,7 +177,30 @@ export function questionText(request: ModelRequest): string {
     parts.push(`The person drew a red pen stroke on the screenshot to circle or point at something. The circled area is what "this", "that" or "here" in the question means. A second, closer picture follows the first: it is the same screen, without the stroke, cropped to the area around the stroke (from x ${r(b.x)} to ${r(b.x + b.w)}, y ${r(b.y)} to ${r(b.y + b.h)} on the 0 to 1000 scale of the whole screenshot), for reading small details. Marks still use the 0 to 1000 scale of the whole screenshot, never of the crop. The red stroke is the person's, not part of the page; do not describe it.`);
   }
   parts.push(`The user's question, transcribed from speech (it may contain recognition errors): ${JSON.stringify(request.question)}`);
+  if (request.detail) parts.push(detailText(request.detail.steps));
   return parts.join('\n\n');
+}
+
+/** The most of the scene on screen a detail pass is shown; a longer one is cut at a step, with a note. */
+const DETAIL_SCENE_CHARS = 24000;
+
+/** What a detail pass is asked: the same scene, much richer, in the same language and the same ids. */
+export function detailText(steps: readonly unknown[]): string {
+  const kept: unknown[] = [];
+  let size = 0;
+  for (const step of steps) {
+    const text = JSON.stringify(step);
+    if (size + text.length > DETAIL_SCENE_CHARS && kept.length > 0) break;
+    kept.push(step);
+    size += text.length;
+  }
+  const cut = kept.length < steps.length ? ` (the first ${kept.length} of ${steps.length} steps; the rest follow the same style)` : '';
+  return [
+    `THIS IS A DETAIL PASS, not a new question. The person asked for more detail about what is already on screen. The scene below is what was drawn for the question above${cut}:`,
+    JSON.stringify({ steps: kept }),
+    'Write a much richer version of that same scene, in the same scene language. Keep every id that exists and keep it where it is (an object you write again with an id from the scene replaces it in place, so give it the better shape and keep its position), and add what a careful illustration would have: ready-made kit parts instead of plain boxes (the `part` kit in the language above), the linkages and connections between parts (shafts, belts, pipes, cables, gears meeting), the smaller parts and fixings, and a pin for each part worth naming. Keep the same overall size, centre and orientation, so it grows into the picture it replaces instead of jumping. Give each object the place, turn and size it has at the end of the scene (apply the move, turn and scale actions it received) and leave out those finished movements; keep only motion that is still the point (a spin, a crank). Build base first, then what rests on it, then moving parts, then small details, one sub-assembly per step.',
+    'Nothing you write in `say` is spoken in this pass: keep each one to a short phrase naming what the step adds. The rule that step 1 is short does not apply. Do not repeat marks on the screenshot that are already drawn unless you improve them. Set "escalate" to null.',
+  ].join('\n\n');
 }
 
 /** A step stream whose results are model outputs: the steps, and when `pieces` is on, each say and action before its step. */

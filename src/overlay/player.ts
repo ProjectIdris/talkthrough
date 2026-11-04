@@ -110,6 +110,8 @@ export class Player {
   /** The person's Explode control, and the camera the finished scene ended with (what a double click returns to). */
   private readonly explodeValue = new ExplodeValue();
   private home: Frame['camera'] | undefined;
+  /** A detail pass is being drawn: its words are not spoken (they only name what each step adds). */
+  private quiet = false;
 
   constructor(options: PlayerOptions) {
     this.voice = options.voice;
@@ -190,10 +192,15 @@ export class Player {
    * Live play: opens a turn whose steps arrive one at a time with pushStep, as a model writes them.
    * What is drawn stays; a turn in progress is finished off first.
    */
-  beginTurn(): void {
+  beginTurn(detail = false): void {
     this.stop();
-    this.explodeValue.reset();
-    this.home = undefined;
+    this.quiet = detail;
+    // A detail pass adds to the model the person may have opened and turned: their explode and the camera a double
+    // click returns to are left as they are.
+    if (!detail) {
+      this.explodeValue.reset();
+      this.home = undefined;
+    }
     this.frozen = undefined;
     this.steps = [];
     this.openIndex = null;
@@ -268,6 +275,7 @@ export class Player {
   /** Removes everything drawn and stops speaking. */
   clear(): void {
     this.stop();
+    this.quiet = false;
     this.explodeValue.reset();
     this.home = undefined;
     this.live = false;
@@ -385,8 +393,8 @@ export class Player {
   private finishScene(): void {
     this.phase = 'idle';
     this.plan = undefined;
-    this.home = { ...this.base.camera };
-    if (this.base.panel) this.idleAt = this.clock.now();
+    if (!this.quiet || !this.home) this.home = { ...this.base.camera };
+    if (this.base.panel && !this.quiet) this.idleAt = this.clock.now();
     this.onDone?.();
   }
 
@@ -398,7 +406,7 @@ export class Player {
     this.speechEnded = false;
     this.waitingSince = this.clock.now();
     const generation = this.generation;
-    const say = step.say.trim();
+    const say = this.quiet ? '' : step.say.trim();
     if (!say) {
       this.speechEnded = true;
       this.startClock(this.clock.now(), undefined);
