@@ -4,8 +4,9 @@
 
 Hold a key and ask out loud. Talkthrough looks at your screen, points at what matters, draws 3D models and diagrams right over the page, and walks you through it step by step.
 
-<!-- demo GIF goes here -->
-> *Demo GIF coming with the first release.*
+![A pin tumbler lock opening: its parts are built and labelled, a key slides in, the pins lift and the plug turns.](docs/media/lock-demo.gif)
+
+*A hand-written example scene (no model): how a pin tumbler lock opens. Live answers are drawn the same way, over whatever is on your screen.*
 
 - **Works in any app or website:** no tutorial in another window.
 - **Open source (MIT).** You choose how it runs your model (see [Choose how it runs your model](#choose-how-it-runs-your-model)).
