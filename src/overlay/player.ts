@@ -448,9 +448,14 @@ export class Player {
         this.captions?.voiceStart(e.estimatedMs);
         this.onSpeechStart?.();
       },
-      boundary: (e) => {
-        if (generation === this.generation) this.captions?.boundary(e.charIndex);
-      },
+      // Word events only when there are captions to give them to (the streamed voice follows the sound for them, which costs a ticker).
+      ...(this.captions
+        ? {
+          boundary: (e: { charIndex: number }) => {
+            if (generation === this.generation) this.captions?.boundary(e.charIndex);
+          },
+        }
+        : {}),
       end: () => {
         if (generation !== this.generation) return;
         this.captions?.voiceEnd();

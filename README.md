@@ -24,6 +24,7 @@ Everything below is drawn by the overlay from a small JSON scene a model writes.
 - **3D models.** Built part by part in view, from a kit of ready-made parts (pistons, valves, gears, housings, chips and more) or from shapes. They can run (a crankshaft turns, valves open on their cams, a spark flashes), be cut open to show the inside, and be pulled apart. You can turn one with the mouse, and press **E** to open it up.
 - **Soft, organic forms.** Shapes like a heart or a plant are built as blended lumps with tapering tubes for vessels and stems, not as boxes (the samples include a heart and a plant).
 - **Guide mode.** For "how do I do this in that app", the answer becomes a walk: it marks where to click, waits for your click, checks the screen really changed, and shows the next step. A checklist of the moves ticks along. It never clicks for you unless you turn on `guideNavigation` (off by default; native windows only, and the first move waits for your yes).
+- **Captions.** The words of each step can be shown on screen as well as spoken, in a pill that keeps clear of the marks: *voice and text* (the default; a word appears only as it is said), *text only* (nothing is spoken, each step stays up as long as it takes to read) or *voice only*. Choose in Settings.
 - **More detail.** If you set up a second, stronger model, a **More detail** button rebuilds what is on screen in much finer detail.
 
 ![A four-stroke engine built over the Wikipedia article, with its parts labelled.](docs/media/frame-engine.jpg)
