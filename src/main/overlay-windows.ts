@@ -1,7 +1,11 @@
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import type { Display, IpcMainEvent } from 'electron';
 import { CHANNEL } from '../shared/ipc.ts';
-import type { DisplayInfo, Milestone, SceneMessage } from '../shared/ipc.ts';
+import type { DisplayInfo, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
+import { ignoreMouse } from './interaction.ts';
+
+/** A stroke piece sent just after the pen went off (the last points of a drag) still counts for this long. */
+const PEN_GRACE_MS = 500;
 
 export type OverlayOptions = {
   preload: string;
@@ -18,13 +22,15 @@ export type OverlayOptions = {
   onReady?: (description: string) => void;
   /** Called when the renderer reports the end of a played scene. */
   onDone?: (displayId: number) => void;
+  /** Called with each piece of a pen stroke the page reports. */
+  onStroke?: (displayId: number, stroke: Stroke) => void;
   /** Called when the page reports the first mark or word of a live turn. */
   onMilestone?: (milestone: Milestone) => void;
   /** Called when the user clicks the escalation offer. */
   onOffer?: (displayId: number) => void;
 };
 
-type Overlay = { window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[] };
+type Overlay = { window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; pen: boolean; penOffAt: number };
 
 /**
  * One overlay window per display: transparent, frameless, always on top, off the taskbar, never
@@ -83,7 +89,7 @@ export function createOverlayManager(options: OverlayOptions) {
       window.setBounds(display.bounds);
     });
     void window.loadFile(options.page);
-    overlays.set(display.id, { window, display, ready: false, queue: [] });
+    overlays.set(display.id, { window, display, ready: false, queue: [], pageWantsClicks: false, pen: false, penOffAt: 0 });
     window.on('closed', () => overlays.delete(display.id));
   }
 
@@ -107,8 +113,18 @@ export function createOverlayManager(options: OverlayOptions) {
   ipcMain.on(CHANNEL.interactive, (event, over: unknown) => {
     const overlay = find(event);
     if (!overlay || typeof over !== 'boolean') return;
-    if (over) overlay.window.setIgnoreMouseEvents(false);
-    else overlay.window.setIgnoreMouseEvents(true, { forward: true });
+    overlay.pageWantsClicks = over;
+    applyMouse(overlay);
+  });
+  ipcMain.on(CHANNEL.stroke, (event, stroke: unknown) => {
+    const overlay = find(event);
+    const t = stroke as Partial<Stroke> | null;
+    if (!overlay || !(overlay.pen || Date.now() - overlay.penOffAt < PEN_GRACE_MS) || !t || typeof t.id !== 'number' || !Array.isArray(t.points)) return;
+    const points: Array<[number, number]> = [];
+    for (const p of t.points.slice(0, 2000)) {
+      if (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) points.push([Math.min(1000, Math.max(0, Number(p[0]))), Math.min(1000, Math.max(0, Number(p[1])))]);
+    }
+    options.onStroke?.(overlay.display.id, { id: t.id, points, done: t.done === true });
   });
   ipcMain.on(CHANNEL.done, (event) => {
     const overlay = find(event);
@@ -124,6 +140,11 @@ export function createOverlayManager(options: OverlayOptions) {
     const overlay = find(event);
     if (overlay) options.onOffer?.(overlay.display.id);
   });
+
+  function applyMouse(overlay: Overlay): void {
+    if (ignoreMouse(overlay.pageWantsClicks, overlay.pen)) overlay.window.setIgnoreMouseEvents(true, { forward: true });
+    else overlay.window.setIgnoreMouseEvents(false);
+  }
 
   function sync(): void {
     const current = screen.getAllDisplays();
@@ -156,6 +177,23 @@ export function createOverlayManager(options: OverlayOptions) {
       for (const [id, overlay] of overlays) {
         if (id === displayId) deliver(overlay, message);
         else if ((message.kind === 'play' || message.kind === 'begin') && message.turn === 1) deliver(overlay, { kind: 'clear' });
+      }
+    },
+    /**
+     * Turns the pen on for one display (its overlay then takes the mouse) and off everywhere else;
+     * null turns it off on every display and gives click-through back.
+     */
+    setPen(displayId: number | null): void {
+      for (const [id, overlay] of overlays) {
+        const on = id === displayId;
+        if (overlay.pen && !on) overlay.penOffAt = Date.now();
+        overlay.pen = on;
+        // One window failing must never leave another one holding the mouse.
+        try {
+          if (!overlay.window.isDestroyed()) applyMouse(overlay);
+        } catch (error) {
+          console.error('[talkthrough] pen:', error instanceof Error ? error.message : String(error));
+        }
       }
     },
     clearAll(): void {

@@ -225,6 +225,7 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: req.screenshot.mime, data: req.screenshot.base64 } },
+            ...(req.focus ? [{ type: 'image', source: { type: 'base64', media_type: req.focus.crop.mime, data: req.focus.crop.base64 } }] : []),
             { type: 'text', text: questionText(req) },
           ],
         },

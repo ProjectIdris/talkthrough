@@ -6,6 +6,7 @@ import type { SpeechToText } from '../src/adapters/speech-to-text.ts';
 import { createSession } from '../src/main/session.ts';
 import type { SessionDeps } from '../src/main/session.ts';
 import type { SceneMessage } from '../src/shared/ipc.ts';
+import type { ModelRequest } from '../src/adapters/model.ts';
 
 const step = (say: string) => ({ say, actions: [{ op: 'box', id: 'b', x: 100, y: 100, w: 200, h: 100, color: 'red' }] });
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -13,6 +14,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function rig(overrides: Partial<SessionDeps> = {}, clipMs = 1500) {
   const sent: SceneMessage[] = [];
   const calls: string[] = [];
+  const pens: Array<number | null> = [];
   const speech: SpeechToText = { id: 'fake', transcribe: async () => ({ text: 'what is this' }) };
   let reports = 0;
   const deps: SessionDeps = {
@@ -21,8 +23,9 @@ function rig(overrides: Partial<SessionDeps> = {}, clipMs = 1500) {
       startMic: async () => void calls.push('startMic'),
       stopMic: async () => ({ samples: new Float32Array(16), sampleRate: 16000, durationMs: clipMs, startLatencyMs: 100 }),
       abortMic: () => void calls.push('abortMic'),
-      capture: async () => ({ screenshot: { mime: 'image/png', base64: 'AAAA', width: 10, height: 10 }, ms: 5 }),
+      capture: async () => ({ screenshot: { mime: 'image/png', base64: 'AAAA', width: 10, height: 10 }, ms: 5, grabId: 3 }),
     },
+    setPen: (id) => void pens.push(id),
     speech,
     model: () => createScriptedModel([step('One.'), step('Two.')]),
     send: (_id, m) => void sent.push(m),
@@ -33,7 +36,7 @@ function rig(overrides: Partial<SessionDeps> = {}, clipMs = 1500) {
   };
   const session = createSession(deps);
   const kinds = () => sent.map((m) => (m.kind === 'status' ? `status:${m.status}` : m.kind === 'notice' ? `notice:${m.level}` : m.kind));
-  return { session, sent, calls, kinds, reports: () => reports };
+  return { session, sent, calls, pens, kinds, reports: () => reports };
 }
 
 async function question(r: ReturnType<typeof rig>) {
@@ -46,7 +49,7 @@ async function question(r: ReturnType<typeof rig>) {
 test('an answer streams as begin, steps, end, with the working status before it', async () => {
   const r = rig();
   await question(r);
-  assert.deepEqual(r.kinds(), ['status:hush', 'status:working', 'screenshot', 'begin', 'step', 'step', 'end']);
+  assert.deepEqual(r.kinds(), ['pen', 'status:hush', 'pen', 'status:working', 'screenshot', 'begin', 'step', 'step', 'end']);
   const begin = r.sent.find((m) => m.kind === 'begin');
   assert.deepEqual(begin, { kind: 'begin', turn: 1 });
 });
@@ -120,4 +123,139 @@ test('a new chord while an answer is still arriving stops it', async () => {
   r.session.start(); // aborts the first answer
   await wait(150);
   assert.ok(r.kinds().filter((k) => k === 'step').length < 3);
+});
+
+const shotOf = (base64: string, width = 10, height = 10) => ({ mime: 'image/png' as const, base64, width, height });
+const circle: Array<[number, number]> = [[300, 300], [450, 300], [450, 450], [300, 450], [300, 300]];
+
+/** A model that remembers what it was asked. */
+function spy(): { model: () => ReturnType<typeof createScriptedModel>; asked: ModelRequest[] } {
+  const asked: ModelRequest[] = [];
+  const inner = createScriptedModel([step('One.')]);
+  return { asked, model: () => ({ ...inner, ask: (req: ModelRequest) => (asked.push(req), inner.ask(req)) }) };
+}
+
+test('the pen is on while the chord is held and off on release; the page is told both times', async () => {
+  const r = rig();
+  r.session.arm();
+  assert.deepEqual(r.pens, []);
+  r.session.start();
+  assert.deepEqual(r.pens, [7]);
+  assert.ok(r.sent.some((m) => m.kind === 'pen' && m.on));
+  r.session.stop();
+  assert.deepEqual(r.pens, [7, null]);
+  assert.deepEqual(r.sent.filter((m) => m.kind === 'pen'), [{ kind: 'pen', on: true }, { kind: 'pen', on: false }]);
+  await wait(60);
+});
+
+test('click-through comes back on release even when telling the page throws, or giving the mouse back throws once', async () => {
+  const lines: string[] = [];
+  const sent: SceneMessage[] = [];
+  const pens: Array<number | null> = [];
+  const r = rig({
+    log: (l) => void lines.push(l),
+    send: (_id, m) => {
+      if (m.kind === 'pen' && !m.on) throw new Error('the page is gone');
+      sent.push(m);
+    },
+    setPen: (id) => void pens.push(id),
+  });
+  await question(r);
+  assert.deepEqual(pens, [7, null], 'setPen(null) must still run');
+  assert.ok(sent.some((m) => m.kind === 'begin'), 'and the question is still answered');
+
+  // and when giving the mouse back fails, the question carries on and the failure is logged
+  const failing = rig({ log: (l) => void lines.push(l), setPen: (id) => { if (id === null) throw new Error('window destroyed'); } });
+  await question(failing);
+  assert.ok(failing.sent.some((m) => m.kind === 'begin'));
+  assert.ok(lines.some((l) => l.includes('could not give the mouse back')));
+});
+
+test('disposing while the chord is held gives the mouse back', () => {
+  const r = rig();
+  r.session.arm();
+  r.session.start();
+  r.session.dispose();
+  assert.deepEqual(r.pens, [7, null]);
+});
+
+test('a stroke: the model gets the composite screenshot plus the crop; the page keeps the clean frame; marks stay whole-screen', async () => {
+  const model = spy();
+  const composed: Array<{ grabId: number; strokes: unknown }> = [];
+  const r = rig({
+    model: model.model,
+    media: {
+      startMic: async () => undefined,
+      stopMic: async () => ({ samples: new Float32Array(16), sampleRate: 16000, durationMs: 1500, startLatencyMs: 100 }),
+      abortMic: () => undefined,
+      capture: async () => ({ screenshot: shotOf('CLEAN'), ms: 5, grabId: 9 }),
+      compose: async (grabId, strokes) => {
+        composed.push({ grabId, strokes });
+        return { screenshot: shotOf('MARKED'), crop: shotOf('CROP', 40, 40), box: { x: 250, y: 250, w: 250, h: 250 } };
+      },
+    },
+  });
+  r.session.arm();
+  r.session.start();
+  r.session.stroke(7, { id: 1, points: circle.slice(0, 3), done: false });
+  r.session.stroke(7, { id: 1, points: circle.slice(3), done: true });
+  r.session.stop();
+  await wait(60);
+  assert.equal(composed.length, 1);
+  assert.equal(composed[0]?.grabId, 9);
+  assert.deepEqual(composed[0]?.strokes, [circle]);
+  const asked = model.asked[0]!;
+  assert.equal(asked.screenshot.base64, 'MARKED');
+  assert.equal(asked.focus?.crop.base64, 'CROP');
+  assert.deepEqual(asked.focus?.box, { x: 250, y: 250, w: 250, h: 250 });
+  const page = r.sent.find((m) => m.kind === 'screenshot');
+  assert.equal(page?.kind === 'screenshot' && page.url.includes('CLEAN'), true);
+});
+
+test('no stroke, a tap, a stroke on another display or one made when the pen is off: nothing changes', async () => {
+  const model = spy();
+  let composes = 0;
+  const media = (): SessionDeps['media'] => ({
+    startMic: async () => undefined,
+    stopMic: async () => ({ samples: new Float32Array(16), sampleRate: 16000, durationMs: 1500, startLatencyMs: 100 }),
+    abortMic: () => undefined,
+    capture: async () => ({ screenshot: shotOf('CLEAN'), ms: 5, grabId: 1 }),
+    compose: async () => (composes++, { screenshot: shotOf('MARKED'), crop: shotOf('CROP'), box: { x: 0, y: 0, w: 1, h: 1 } }),
+  });
+  const r = rig({ model: model.model, media: media() });
+  r.session.stroke(7, { id: 1, points: circle, done: true }); // before any press: ignored
+  r.session.arm();
+  r.session.start();
+  r.session.stroke(8, { id: 2, points: circle, done: true }); // another display
+  r.session.stroke(7, { id: 3, points: [[500, 500], [503, 502]], done: true }); // a tap
+  r.session.stop();
+  await wait(60);
+  assert.equal(composes, 0);
+  assert.equal(model.asked[0]?.screenshot.base64, 'CLEAN');
+  assert.equal(model.asked[0]?.focus, undefined);
+});
+
+test('a stroke that cannot be drawn falls back to the plain screenshot and the question is still answered', async () => {
+  const model = spy();
+  const lines: string[] = [];
+  const r = rig({
+    model: model.model,
+    log: (l) => void lines.push(l),
+    media: {
+      startMic: async () => undefined,
+      stopMic: async () => ({ samples: new Float32Array(16), sampleRate: 16000, durationMs: 1500, startLatencyMs: 100 }),
+      abortMic: () => undefined,
+      capture: async () => ({ screenshot: shotOf('CLEAN'), ms: 5, grabId: 1 }),
+      compose: async () => { throw new Error('frame no longer held'); },
+    },
+  });
+  r.session.arm();
+  r.session.start();
+  r.session.stroke(7, { id: 1, points: circle, done: true });
+  r.session.stop();
+  await wait(60);
+  assert.equal(model.asked[0]?.screenshot.base64, 'CLEAN');
+  assert.equal(model.asked[0]?.focus, undefined);
+  assert.ok(r.sent.some((m) => m.kind === 'end'));
+  assert.ok(lines.some((l) => l.includes('could not be drawn')));
 });

@@ -19,9 +19,14 @@ export const CHANNEL = {
   done: 'tt:done',
   /** overlay -> main: the user clicked the escalation offer. */
   offer: 'tt:offer',
+  /** overlay -> main: a piece of a pen stroke (Stroke), streamed as the pointer moves while the pen is on. */
+  stroke: 'tt:stroke',
   /** overlay -> main: a Milestone, for latency measurement (the first mark drawn or word spoken of a live turn). */
   milestone: 'tt:milestone',
 } as const;
+
+/** Part of one pen stroke: points are appended per id; coordinates run 0..1000 across the whole overlay window. */
+export type Stroke = { id: number; points: Array<[number, number]>; done: boolean };
 
 /** A scene finished and, after this long with no new question, the page fades it out by itself. */
 export const FADE_AFTER_MS = 12_000;
@@ -69,6 +74,12 @@ export type SceneMessage =
    * by the next one; never written anywhere.
    */
   | { kind: 'screenshot'; url: string }
+  /**
+   * The pen: while on (the chord is held, on the display under the pointer) the window takes mouse
+   * input and the page draws what the user drags as a visible stroke, reporting it with `stroke`.
+   * The stroke stays until the first `step` of the answer arrives, then fades; a new `pen on` removes it.
+   */
+  | { kind: 'pen'; on: boolean }
   | { kind: 'begin'; turn: number }
   | { kind: 'step'; step: Step }
   | { kind: 'end'; escalate?: string }
@@ -86,6 +97,20 @@ export type SceneMessage =
 export type MicResult = { samples: Float32Array; sampleRate: 16000; durationMs: number; startLatencyMs: number };
 
 /** What the hidden media page grabs of a screen: one frame, scaled, as PNG bytes. */
+/** Compose request: draw strokes onto the frame grabbed under id `grab`, and crop around them from the full-resolution frame. */
+export type ComposeRequest = { id: number; grab: number; maxEdge: number; cropEdge: number; strokes: Array<Array<[number, number]>> };
+export type ComposeResult = {
+  id: number;
+  /** The screenshot with the strokes drawn on it. */
+  full: { png: Uint8Array; width: number; height: number };
+  /** A higher-resolution crop of the strokes' padded bounding box, without the strokes. */
+  crop: { png: Uint8Array; width: number; height: number };
+  /** The crop's box on the 0..1000 scale of the full screenshot. */
+  box: { x: number; y: number; w: number; h: number };
+};
+/** Checks only: decode this PNG as if it had been grabbed from a screen. */
+export type UseImageRequest = { id: number; png: Uint8Array; maxEdge: number };
+
 export type GrabRequest = { id: number; sourceId: string; maxEdge: number; nativeWidth: number; nativeHeight: number };
 export type FrameResult = { id: number; png: Uint8Array; width: number; height: number; nativeWidth: number; nativeHeight: number; ms: number };
 
@@ -103,6 +128,10 @@ export const AUDIO_CHANNEL = {
   grab: 'tt:cap-grab',
   frame: 'tt:cap-frame',
   frameError: 'tt:cap-error',
+  compose: 'tt:cap-compose',
+  composed: 'tt:cap-composed',
+  composeError: 'tt:cap-compose-error',
+  useImage: 'tt:cap-use-image',
 } as const;
 
 export interface TalkthroughAudioApi {
@@ -115,6 +144,10 @@ export interface TalkthroughAudioApi {
   started(): void;
   frame(result: FrameResult): void;
   frameError(id: number, message: string): void;
+  onCompose(listener: (request: ComposeRequest) => void): void;
+  composed(result: ComposeResult): void;
+  composeError(id: number, message: string): void;
+  onUseImage(listener: (request: UseImageRequest) => void): void;
 }
 
 /** The small settings window (API key entry). The key only ever travels page -> main. */
@@ -142,6 +175,8 @@ export interface TalkthroughApi {
   done(): void;
   /** The user clicked the escalation offer. */
   offer(): void;
+  /** A piece of a pen stroke, while the pen is on. */
+  stroke(stroke: Stroke): void;
   /** The first mark drawn or first word spoken of a live turn (for latency measurement). */
   milestone(milestone: Milestone): void;
 }

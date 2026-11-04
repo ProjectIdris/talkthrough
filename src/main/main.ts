@@ -63,13 +63,6 @@ app.on('window-all-closed', () => {
   // Stay alive in the tray when every window is closed.
 });
 
-/** A stand-in screenshot for checks: an image file used instead of grabbing the screen. */
-function loadCaptureImage(path: string): Screenshot {
-  const bytes = readFileSync(path);
-  const size = nativeImage.createFromBuffer(bytes).getSize();
-  return { mime: 'image/png', base64: bytes.toString('base64'), width: size.width, height: size.height };
-}
-
 /** Checks: after a chord release, writes a picture of the overlay every so often. */
 function createFrameRecorder(dir: string, everyMs: number, overlays: ReturnType<typeof createOverlayManager>, say: (line: string) => void) {
   mkdirSync(dir, { recursive: true });
@@ -130,6 +123,7 @@ async function main(): Promise<void> {
     silent: options.silentVoice,
     onReady: log,
     onDone: () => session?.done(),
+    onStroke: (displayId, stroke) => session?.stroke(displayId, stroke),
     onOffer: (displayId) => void session?.offer(displayId),
     onMilestone: (m) => session?.milestone(m),
   });
@@ -165,7 +159,7 @@ async function main(): Promise<void> {
   model.warm?.().catch((error: unknown) => log(`model: ${error instanceof Error ? error.message : String(error)}`));
   log(`model ${model.id}`);
 
-  const captureImage = options.captureImage ? loadCaptureImage(options.captureImage) : null;
+  const captureImage = options.captureImage ? readFileSync(options.captureImage) : null;
   let chordsDone = 0;
   const frames = options.framesDir ? createFrameRecorder(options.framesDir, options.frameEveryMs, overlays, log) : null;
 
@@ -176,14 +170,25 @@ async function main(): Promise<void> {
       stopMic: () => media.stopMic(),
       abortMic: () => media.abortMic(),
       capture: async (displayId) => {
-        if (captureImage) return { screenshot: captureImage, ms: 0 };
         const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
-        const c = await media.capture(display, settings.screenshotEdge);
+        // A stand-in picture goes through the same page as a real grab, so a pen crop works the same way.
+        const c = captureImage ? await media.captureFromImage(display, captureImage, settings.screenshotEdge) : await media.capture(display, settings.screenshotEdge);
         if (options.saveCapture) writeFileSync(options.saveCapture, Buffer.from(c.screenshot.base64, 'base64'));
         log(`screenshot ${c.screenshot.width}x${c.screenshot.height} (display ${c.nativeWidth}x${c.nativeHeight}) grabbed in ${c.ms} ms`);
         return c;
       },
+      compose: async (grabId, strokes) => {
+        const c = await media.compose(grabId, strokes, settings.screenshotEdge);
+        if (options.savePen) {
+          mkdirSync(options.savePen, { recursive: true });
+          writeFileSync(join(options.savePen, 'pen-full.png'), Buffer.from(c.screenshot.base64, 'base64'));
+          writeFileSync(join(options.savePen, 'pen-crop.png'), Buffer.from(c.crop.base64, 'base64'));
+        }
+        log(`pen: ${strokes.length} stroke(s), full ${c.screenshot.width}x${c.screenshot.height}, crop ${c.crop.width}x${c.crop.height} (box ${Math.round(c.box.x)},${Math.round(c.box.y)} ${Math.round(c.box.w)}x${Math.round(c.box.h)})`);
+        return c;
+      },
     },
+    setPen: (displayId) => overlays.setPen(displayId),
     speech,
     model: () => model,
     send: (displayId, message) => {
@@ -217,6 +222,7 @@ async function main(): Promise<void> {
     hotkey?.stop();
     frames?.stop();
     session?.dispose();
+    overlays.setPen(null);
     overlays.dispose();
     media.dispose();
     settingsWindow.dispose();
@@ -244,6 +250,11 @@ async function main(): Promise<void> {
         start: () => {
           log('chord pressed');
           session?.start();
+          if (options.fakeStroke) {
+            const points = options.fakeStroke;
+            const displayId = displayUnderPointer().id;
+            setTimeout(() => session?.stroke(displayId, { id: 1, points, done: true }), 300);
+          }
         },
         stop: () => {
           frames?.start();

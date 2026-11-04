@@ -67,7 +67,7 @@ export async function stopAndRemove(proc: { kill(): boolean; exitCode: number | 
       rmSync(dir, { recursive: true, force: true });
       return;
     } catch {
-      await new Promise<void>((resolve) => setTimeout(resolve, 200).unref());
+      await new Promise<void>((resolve) => setTimeout(resolve, 200));
     }
   }
 }
@@ -165,6 +165,11 @@ export function questionText(request: ModelRequest): string {
     parts.push(`Earlier in this conversation (what you drew stays on screen until cleared, and its ids can be used again):\n${history}`);
   }
   parts.push(`The screenshot is ${request.screenshot.width}x${request.screenshot.height} pixels, but your marks do NOT use pixels: x and y run from 0 to 1000 across the whole screenshot (500 is the middle of each axis, 1000 the right and bottom edges), whatever its pixel size. Convert before you answer.`);
+  if (request.focus) {
+    const b = request.focus.box;
+    const r = (n: number) => Math.round(n);
+    parts.push(`The person drew a red pen stroke on the screenshot to circle or point at something. The circled area is what "this", "that" or "here" in the question means. A second, closer picture follows the first: it is the same screen, without the stroke, cropped to the area around the stroke (from x ${r(b.x)} to ${r(b.x + b.w)}, y ${r(b.y)} to ${r(b.y + b.h)} on the 0 to 1000 scale of the whole screenshot), for reading small details. Marks still use the 0 to 1000 scale of the whole screenshot, never of the crop. The red stroke is the person's, not part of the page; do not describe it.`);
+  }
   parts.push(`The user's question, transcribed from speech (it may contain recognition errors): ${JSON.stringify(request.question)}`);
   return parts.join('\n\n');
 }

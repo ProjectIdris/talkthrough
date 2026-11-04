@@ -31,6 +31,10 @@ export type Options = {
   settings?: string;
   /** Checks: use this image as the screenshot instead of grabbing the screen. */
   captureImage?: string;
+  /** Checks only: a pen stroke made without a mouse, as points on the 0..1000 scale ("x,y x,y ..."). */
+  /** Checks only: write the picture the model gets with a stroke (and its crop) into this folder. */
+  savePen?: string;
+  fakeStroke?: Array<[number, number]>;
   /** Checks: use this WAV file as the microphone (with --fake-mic). */
   fakeMicFile?: string;
   /** Checks: how long --self-chord holds the keys, in milliseconds. */
@@ -83,6 +87,14 @@ export function parseArgs(argv: readonly string[]): Options {
       case '--visible-to-capture': options.visibleToCapture = true; break;
       case '--gpu': options.gpu = true; break;
       case '--settings': options.settings = value(i, a); i++; break;
+      case '--save-pen': options.savePen = value(i, a); i++; break;
+      case '--fake-stroke': {
+        const points = value(i, a).trim().split(/\s+/).map((pair) => pair.split(',').map(Number) as [number, number]);
+        if (points.length < 2 || points.some((p) => p.length !== 2 || !p.every(Number.isFinite))) throw new Error('--fake-stroke needs points like "300,300 450,300 450,450"');
+        options.fakeStroke = points;
+        i++;
+        break;
+      }
       case '--capture-image': options.captureImage = value(i, a); i++; break;
       case '--fake-mic-file': options.fakeMicFile = value(i, a); options.fakeMic = true; i++; break;
       case '--save-capture': options.saveCapture = value(i, a); i++; break;

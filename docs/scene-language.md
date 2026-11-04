@@ -119,6 +119,15 @@ The user can still drag to rotate; the next camera action tweens from wherever t
 
 `{ "op": "clear", "target": ... }`: an id (the object and everything attached to it), or `all`, `marks` (every screen mark, card and pin) or `panel` (the stage and its objects, with the pins on them). A cleared id may be used again.
 
+## When the user circled something
+
+While the keys are held, a drag with the mouse draws a pen stroke on the display under the pointer (the overlay takes the mouse only for that time; clicks never reach the page beneath). If the stroke is more than a twitch, the model gets two pictures instead of one:
+
+1. the whole screenshot with the stroke drawn on it in red, and
+2. a closer, clean picture (no stroke) of the area around the stroke, cropped from the full-resolution capture, so small text and details stay readable.
+
+The question text says that the circled area is what "this" or "here" means and gives the crop's position. **Coordinates do not change:** marks still run 0 to 1000 across the whole screenshot, never across the crop, so an answer can point at the circled thing with the same `box`, `arrow` or `label` as always. The red stroke is the person's, not part of the page, and is not described. With no stroke nothing changes: one picture, as before.
+
 ## Escalating
 
 If the question is beyond the fast model (long research, deep reasoning, something it cannot see), it says so with a top-level `escalate`: a short reason, up to 160 characters.

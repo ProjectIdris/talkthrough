@@ -1,7 +1,104 @@
 // The hidden page that records the question and grabs one frame of the screen, both away from the
 // main process. Mono 16 kHz floats are what the speech recogniser takes; the frame is scaled here too.
 
+import { cropBox } from '../shared/pen.ts';
+
 const TARGET_RATE = 16000;
+
+// The full-resolution frames of the latest grabs, in memory only, kept so a pen stroke can be drawn onto
+// the scaled picture and a sharper crop taken around it. Only the newest two are kept.
+const frames = new Map<number, ImageBitmap>();
+function keepFrame(id: number, bitmap: ImageBitmap): void {
+  frames.set(id, bitmap);
+  while (frames.size > 2) {
+    const oldest = frames.keys().next().value as number;
+    frames.get(oldest)?.close();
+    frames.delete(oldest);
+  }
+}
+
+async function toPng(canvas: OffscreenCanvas): Promise<Uint8Array> {
+  return new Uint8Array(await (await canvas.convertToBlob({ type: 'image/png' })).arrayBuffer());
+}
+
+/** The frame scaled so its longer side is at most maxEdge. */
+function scaledCanvas(bitmap: ImageBitmap, maxEdge: number): OffscreenCanvas {
+  const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+  const canvas = new OffscreenCanvas(Math.max(1, Math.round(bitmap.width * scale)), Math.max(1, Math.round(bitmap.height * scale)));
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('no 2d canvas');
+  context.imageSmoothingQuality = 'high';
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+/** Draws the pen strokes (0..1000 scale) onto a canvas: red, round, with a dark edge so it shows on any page. */
+function drawStrokes(canvas: OffscreenCanvas, strokes: Array<Array<[number, number]>>): void {
+  const context = canvas.getContext('2d');
+  if (!context) return;
+  const width = Math.max(3, Math.round(Math.max(canvas.width, canvas.height) * 0.006));
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  for (const [color, w] of [['rgba(20,20,20,0.85)', width + 3], ['#ff2a2a', width]] as const) {
+    context.strokeStyle = color;
+    context.lineWidth = w;
+    for (const stroke of strokes) {
+      if (stroke.length === 0) continue;
+      context.beginPath();
+      stroke.forEach(([x, y], i) => {
+        const px = (x / 1000) * canvas.width;
+        const py = (y / 1000) * canvas.height;
+        if (i === 0) context.moveTo(px, py);
+        else context.lineTo(px, py);
+      });
+      if (stroke.length === 1) context.lineTo((stroke[0]![0] / 1000) * canvas.width + 0.01, (stroke[0]![1] / 1000) * canvas.height);
+      context.stroke();
+    }
+  }
+}
+
+async function compose(request: { id: number; grab: number; maxEdge: number; cropEdge: number; strokes: Array<Array<[number, number]>> }): Promise<void> {
+  try {
+    const bitmap = frames.get(request.grab);
+    if (!bitmap) throw new Error('that frame is no longer held');
+    const box = cropBox(request.strokes);
+    if (!box) throw new Error('no strokes');
+    const full = scaledCanvas(bitmap, request.maxEdge);
+    drawStrokes(full, request.strokes);
+    // The crop comes from the full-resolution frame, without the strokes.
+    const sx = Math.round((box.x / 1000) * bitmap.width);
+    const sy = Math.round((box.y / 1000) * bitmap.height);
+    const sw = Math.max(1, Math.round((box.w / 1000) * bitmap.width));
+    const sh = Math.max(1, Math.round((box.h / 1000) * bitmap.height));
+    const scale = Math.min(1, request.cropEdge / Math.max(sw, sh));
+    const crop = new OffscreenCanvas(Math.max(1, Math.round(sw * scale)), Math.max(1, Math.round(sh * scale)));
+    const context = crop.getContext('2d');
+    if (!context) throw new Error('no 2d canvas');
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(bitmap, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
+    window.talkthroughAudio.composed({
+      id: request.id,
+      full: { png: await toPng(full), width: full.width, height: full.height },
+      crop: { png: await toPng(crop), width: crop.width, height: crop.height },
+      box,
+    });
+  } catch (error) {
+    window.talkthroughAudio.composeError(request.id, `could not draw the stroke: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/** Checks only: take a PNG as if it had been grabbed from a screen. */
+async function useImage(request: { id: number; png: Uint8Array; maxEdge: number }): Promise<void> {
+  const asked = performance.now();
+  try {
+    const bitmap = await createImageBitmap(new Blob([new Uint8Array(request.png)], { type: 'image/png' }));
+    keepFrame(request.id, bitmap);
+    const canvas = scaledCanvas(bitmap, request.maxEdge);
+    window.talkthroughAudio.frame({ id: request.id, png: await toPng(canvas), width: canvas.width, height: canvas.height, nativeWidth: bitmap.width, nativeHeight: bitmap.height, ms: Math.round(performance.now() - asked) });
+  } catch (error) {
+    window.talkthroughAudio.frameError(request.id, `could not read the image: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
 
 let recorder: MediaRecorder | null = null;
 let stream: MediaStream | null = null;
@@ -123,18 +220,14 @@ async function grab(request: { id: number; sourceId: string; maxEdge: number; na
     video.srcObject = media;
     await video.play();
     if (video.videoWidth === 0) await new Promise<void>((resolve) => video.addEventListener('loadeddata', () => resolve(), { once: true }));
-    const nativeWidth = video.videoWidth;
-    const nativeHeight = video.videoHeight;
-    const scale = Math.min(1, request.maxEdge / Math.max(nativeWidth, nativeHeight));
-    const width = Math.max(1, Math.round(nativeWidth * scale));
-    const height = Math.max(1, Math.round(nativeHeight * scale));
-    const canvas = new OffscreenCanvas(width, height);
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('no 2d canvas');
-    context.imageSmoothingQuality = 'high';
-    context.drawImage(video, 0, 0, width, height);
-    const blob = await canvas.convertToBlob({ type: 'image/png' });
-    const png = new Uint8Array(await blob.arrayBuffer());
+    const bitmap = await createImageBitmap(video);
+    keepFrame(request.id, bitmap);
+    const nativeWidth = bitmap.width;
+    const nativeHeight = bitmap.height;
+    const canvas = scaledCanvas(bitmap, request.maxEdge);
+    const width = canvas.width;
+    const height = canvas.height;
+    const png = await toPng(canvas);
     window.talkthroughAudio.frame({ id: request.id, png, width, height, nativeWidth, nativeHeight, ms: Math.round(performance.now() - asked) });
   } catch (error) {
     window.talkthroughAudio.frameError(request.id, `could not capture the screen: ${error instanceof Error ? error.message : String(error)}`);
@@ -146,4 +239,6 @@ async function grab(request: { id: number; sourceId: string; maxEdge: number; na
 window.talkthroughAudio.onStart(() => void start());
 window.talkthroughAudio.onAbort(abort);
 window.talkthroughAudio.onGrab((request) => void grab(request));
+window.talkthroughAudio.onCompose((request) => void compose(request));
+window.talkthroughAudio.onUseImage((request) => void useImage(request));
 window.talkthroughAudio.onStop(() => void stop());

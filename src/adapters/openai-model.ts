@@ -65,6 +65,7 @@ export function createOpenAIModel(options: OpenAIModelOptions): Model {
             role: 'user',
             content: [
               { type: 'input_image', image_url: `data:${req.screenshot.mime};base64,${req.screenshot.base64}` },
+              ...(req.focus ? [{ type: 'input_image', image_url: `data:${req.focus.crop.mime};base64,${req.focus.crop.base64}` }] : []),
               { type: 'input_text', text: questionText(req) },
             ],
           },

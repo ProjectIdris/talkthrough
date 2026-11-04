@@ -10,6 +10,8 @@ export type Capture = {
   nativeHeight: number;
   /** How long the capture took, in milliseconds. */
   ms: number;
+  /** Names this frame to the media page, which keeps the full-resolution picture for a pen crop. */
+  grabId: number;
 };
 
 /** The display the pointer is on now. */

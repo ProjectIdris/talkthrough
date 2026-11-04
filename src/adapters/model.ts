@@ -15,6 +15,12 @@ export type ModelRequest = {
   thread: readonly ThreadTurn[];
   /** The JSON Schema the answer must follow (the scene schema); a model that can hold output to a schema should. */
   schema: unknown;
+  /**
+   * Set when the person circled something with the pen. `screenshot` already has the stroke drawn on it
+   * (in red); `crop` is a closer, clean picture of the area around the stroke, and `box` is that area
+   * on the 0..1000 scale of the whole screenshot. Marks still use the scale of the whole screenshot.
+   */
+  focus?: { crop: Screenshot; box: { x: number; y: number; w: number; h: number } };
   /** Aborting drops the request: the stream ends and no more steps are yielded. */
   signal?: AbortSignal;
 };

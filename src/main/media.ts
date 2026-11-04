@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain, session } from 'electron';
 import type { Display } from 'electron';
 import { AUDIO_CHANNEL } from '../shared/ipc.ts';
-import type { FrameResult, GrabRequest, MicResult } from '../shared/ipc.ts';
+import type { ComposeRequest, ComposeResult, FrameResult, GrabRequest, MicResult, UseImageRequest } from '../shared/ipc.ts';
 import { screenSourceId } from './capture.ts';
 import type { Capture } from './capture.ts';
 
@@ -17,6 +17,8 @@ export function createMedia(options: { preload: string; page: string }) {
   // Grabs in flight, by id: a late reply to an earlier grab can never resolve a later one.
   const grabbing = new Map<number, { resolve(result: FrameResult): void; reject(error: Error): void }>();
   let nextGrab = 1;
+  const composing = new Map<number, { resolve(result: ComposeResult): void; reject(error: Error): void }>();
+  let nextCompose = 1;
   let ready: Promise<void> | null = null;
   let onStarted: (() => void) | null = null;
 
@@ -49,6 +51,21 @@ export function createMedia(options: { preload: string; page: string }) {
     if (!g) return;
     grabbing.delete(id);
     g.reject(new Error(typeof message === 'string' ? message : 'capture failed'));
+  });
+
+  ipcMain.on(AUDIO_CHANNEL.composed, (event, result: ComposeResult) => {
+    if (!mine(event)) return;
+    const c = composing.get(result?.id);
+    if (!c) return;
+    composing.delete(result.id);
+    c.resolve(result);
+  });
+  ipcMain.on(AUDIO_CHANNEL.composeError, (event, id: unknown, message: unknown) => {
+    if (!mine(event) || typeof id !== 'number') return;
+    const c = composing.get(id);
+    if (!c) return;
+    composing.delete(id);
+    c.reject(new Error(typeof message === 'string' ? message : 'could not draw the stroke'));
   });
 
   function open(): Promise<void> {
@@ -123,7 +140,47 @@ export function createMedia(options: { preload: string; page: string }) {
         nativeWidth: frame.nativeWidth,
         nativeHeight: frame.nativeHeight,
         ms: Math.round(performance.now() - started),
+        grabId: id,
       };
+    },
+    /** Checks only: a PNG taken as if it were the screen (the page keeps it for pen crops like a real grab). */
+    async captureFromImage(display: Display, png: Buffer, maxEdge = 1280): Promise<Capture> {
+      const started = performance.now();
+      await open();
+      const id = nextGrab++;
+      const request: UseImageRequest = { id, png: new Uint8Array(png), maxEdge };
+      const frame = await new Promise<FrameResult>((resolve, reject) => {
+        grabbing.set(id, { resolve, reject });
+        window?.webContents.send(AUDIO_CHANNEL.useImage, request);
+        setTimeout(() => {
+          if (grabbing.delete(id)) reject(new Error('the image took too long to read'));
+        }, 10_000).unref();
+      });
+      return {
+        screenshot: { mime: 'image/png', base64: Buffer.from(frame.png).toString('base64'), width: frame.width, height: frame.height },
+        display,
+        nativeWidth: frame.nativeWidth,
+        nativeHeight: frame.nativeHeight,
+        ms: Math.round(performance.now() - started),
+        grabId: id,
+      };
+    },
+    /**
+     * Draws the pen strokes onto a frame grabbed earlier and crops around them from its full-resolution
+     * picture. Rejects when the frame is no longer held (a newer grab has replaced it).
+     */
+    async compose(grabId: number, strokes: Array<Array<[number, number]>>, maxEdge = 1280, cropEdge = 1024) {
+      const id = nextCompose++;
+      const request: ComposeRequest = { id, grab: grabId, maxEdge, cropEdge, strokes };
+      const result = await new Promise<ComposeResult>((resolve, reject) => {
+        composing.set(id, { resolve, reject });
+        window?.webContents.send(AUDIO_CHANNEL.compose, request);
+        setTimeout(() => {
+          if (composing.delete(id)) reject(new Error('drawing the stroke took too long'));
+        }, 10_000).unref();
+      });
+      const toShot = (p: { png: Uint8Array; width: number; height: number }) => ({ mime: 'image/png' as const, base64: Buffer.from(p.png).toString('base64'), width: p.width, height: p.height });
+      return { screenshot: toShot(result.full), crop: toShot(result.crop), box: result.box };
     },
     dispose(): void {
       window?.destroy();

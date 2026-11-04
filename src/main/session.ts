@@ -9,7 +9,9 @@ import type { Screenshot } from '../adapters/types.ts';
 import { createSceneState, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
 import type { SceneState, Step } from '../scene/index.ts';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
-import type { MicResult, Milestone, SceneMessage } from '../shared/ipc.ts';
+import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
+import { isRealStroke } from '../shared/pen.ts';
+import type { Box, Point } from '../shared/pen.ts';
 
 /** Everything the question loop needs from the outside, so it can be tested without a window or a microphone. */
 export type SessionDeps = {
@@ -19,8 +21,18 @@ export type SessionDeps = {
     startMic(): Promise<void>;
     stopMic(): Promise<MicResult>;
     abortMic(): void;
-    capture(displayId: number): Promise<{ screenshot: Screenshot; ms: number }>;
+    capture(displayId: number): Promise<Grab>;
+    /**
+     * Draws the strokes onto the frame grabbed under `grabId` and crops around them from the
+     * full-resolution frame. Absent when this build cannot (then the plain screenshot is used).
+     */
+    compose?(grabId: number, strokes: Point[][]): Promise<{ screenshot: Screenshot; crop: Screenshot; box: Box }>;
   };
+  /**
+   * Turns the pen on for one display (its overlay takes the mouse) or, with null, off everywhere and
+   * gives click-through back. The session calls null on every way out of a held chord.
+   */
+  setPen(displayId: number | null): void;
   /** Null when no speech server is set up. */
   speech: SpeechToText | null;
   model(): Model;
@@ -51,9 +63,14 @@ export type QuestionReport = {
   firstMarkMs?: number;
   firstWordMs?: number;
   steps: number;
+  /** The person circled something with the pen and the model was shown it. */
+  circled?: boolean;
   escalate?: string;
   error?: string;
 };
+
+/** What a screen grab gives: the picture, how long it took, and (if the media page kept it) the id of the full-resolution frame. */
+type Grab = { screenshot: Screenshot; ms: number; grabId?: number };
 
 /** Shortest recording that counts as a question. */
 const MIN_CLIP_MS = 400;
@@ -63,7 +80,9 @@ const THREAD_WINDOW_MS = FADE_AFTER_MS + 3000;
 type Attempt = {
   id: number;
   displayId: number;
-  capture: Promise<{ screenshot: Screenshot; ms: number }>;
+  capture: Promise<Grab>;
+  /** The pen strokes of this press, by stroke id, in the 0..1000 scale. */
+  strokes: Map<number, Point[]>;
   micStarted: boolean;
   chord: boolean;
   timer: NodeJS.Timeout | null;
@@ -81,6 +100,23 @@ export function createSession(deps: SessionDeps) {
   let lastAsk: { question: string; screenshot: Screenshot } | null = null;
   let report: QuestionReport | null = null;
   let releasedAt = 0;
+  /** The press whose pen strokes still count: the one held now, and for a moment after release. */
+  let penFor: Attempt | null = null;
+
+  /** Click-through back and the page told, whatever fails on the way. */
+  function penOff(displayId: number): void {
+    try {
+      deps.send(displayId, { kind: 'pen', on: false });
+    } catch (error) {
+      deps.log(`pen: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      try {
+        deps.setPen(null);
+      } catch (error) {
+        deps.log(`pen: could not give the mouse back: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
 
   const notice = (displayId: number, text: string, level: 'info' | 'error' = 'info') => {
     deps.send(displayId, { kind: 'status', status: 'idle' });
@@ -99,7 +135,7 @@ export function createSession(deps: SessionDeps) {
 
   function begin(withWindow: boolean): Attempt {
     const displayId = deps.pointerDisplayId();
-    const a: Attempt = { id: nextId++, displayId, capture: deps.media.capture(displayId), micStarted: false, chord: false, timer: null };
+    const a: Attempt = { id: nextId++, displayId, capture: deps.media.capture(displayId), strokes: new Map(), micStarted: false, chord: false, timer: null };
     a.capture.catch(() => undefined); // an error is reported when the question is asked
     deps.media.startMic().catch((error: unknown) => deps.log(`microphone: ${error instanceof Error ? error.message : String(error)}`));
     if (withWindow) a.timer = setTimeout(() => dropAttempt('Right Shift did not follow in time'), deps.micWindowMs);
@@ -124,6 +160,14 @@ export function createSession(deps: SessionDeps) {
     if (a.timer) clearTimeout(a.timer);
     a.timer = null;
     a.chord = true;
+    penFor = a;
+    try {
+      deps.setPen(a.displayId);
+      deps.send(a.displayId, { kind: 'pen', on: true });
+    } catch (error) {
+      penOff(a.displayId);
+      deps.log(`pen: ${error instanceof Error ? error.message : String(error)}`);
+    }
     deps.send(a.displayId, { kind: 'status', status: 'hush' });
     if (a.micStarted) deps.send(a.displayId, { kind: 'status', status: 'listening' });
   }
@@ -141,6 +185,7 @@ export function createSession(deps: SessionDeps) {
     if (!a || !a.chord) return;
     attempt = null;
     releasedAt = now();
+    penOff(a.displayId);
     deps.log('chord released');
     void ask(a);
   }
@@ -163,6 +208,17 @@ export function createSession(deps: SessionDeps) {
         return notice(a.displayId, "I couldn't use the microphone.", 'error');
       }
       if (controller.signal.aborted) return;
+      // The strokes are final by now. Draw them onto the frame while the speech is being recognised.
+      const strokes = [...a.strokes.values()];
+      if (penFor === a) penFor = null;
+      const circled = isRealStroke(strokes) && deps.media.compose !== undefined;
+      const composed = circled
+        ? a.capture.then((grab) => {
+          if (grab.grabId === undefined) throw new Error('the frame was not kept');
+          return deps.media.compose!(grab.grabId, strokes);
+        })
+        : null;
+      composed?.catch(() => undefined); // reported where it is used
       if (clip.durationMs < MIN_CLIP_MS) {
         r.error = 'no question heard';
         return notice(a.displayId, "I didn't hear a question. Hold both keys while you speak.");
@@ -191,7 +247,7 @@ export function createSession(deps: SessionDeps) {
         r.error = 'empty transcript';
         return notice(a.displayId, "I didn't catch that. Try again?");
       }
-      let shot: { screenshot: Screenshot; ms: number };
+      let shot: Grab;
       try {
         shot = await a.capture;
       } catch (error) {
@@ -200,7 +256,22 @@ export function createSession(deps: SessionDeps) {
       }
       if (controller.signal.aborted) return;
       r.captureMs = shot.ms;
-      lastAsk = { question, screenshot: shot.screenshot };
+      // With a stroke, the model gets the screenshot with the stroke drawn on it plus a closer crop; the
+      // page keeps the clean frame, and every mark stays on the scale of the whole screenshot.
+      let seen: Screenshot = shot.screenshot;
+      let focus: { crop: Screenshot; box: Box } | undefined;
+      if (composed) {
+        try {
+          const c = await composed;
+          seen = c.screenshot;
+          focus = { crop: c.crop, box: c.box };
+          r.circled = true;
+        } catch (error) {
+          deps.log(`pen: the stroke could not be drawn, using the plain screenshot (${error instanceof Error ? error.message : String(error)})`);
+        }
+        if (controller.signal.aborted) return;
+      }
+      lastAsk = { question, screenshot: seen };
       deps.send(a.displayId, { kind: 'screenshot', url: `data:${shot.screenshot.mime};base64,${shot.screenshot.base64}` });
 
       const continuing = thread.length > 0 && now() - lastActivity < THREAD_WINDOW_MS;
@@ -222,7 +293,7 @@ export function createSession(deps: SessionDeps) {
       let escalate: string | undefined;
       let failure: unknown;
       try {
-        for await (const out of model.ask({ question, screenshot: shot.screenshot, thread, schema: sceneSchemaLean, signal: controller.signal })) {
+        for await (const out of model.ask({ question, screenshot: seen, ...(focus ? { focus } : {}), thread, schema: sceneSchemaLean, signal: controller.signal })) {
           r.firstPieceMs ??= since();
           if (controller.signal.aborted) break;
           if (out.type === 'step') {
@@ -271,6 +342,21 @@ export function createSession(deps: SessionDeps) {
     start,
     stop,
     micStarted,
+    /** A piece of a pen stroke from the page on `displayId`; only the press being held (or just released) takes it. */
+    stroke(displayId: number, piece: Stroke): void {
+      const a = penFor;
+      if (!a || a.displayId !== displayId || !Number.isFinite(piece.id)) return;
+      let points = a.strokes.get(piece.id);
+      if (!points) {
+        if (a.strokes.size >= 20) return;
+        points = [];
+        a.strokes.set(piece.id, points);
+      }
+      for (const p of piece.points) {
+        if (points.length >= 5000) break;
+        points.push([p[0], p[1]]);
+      }
+    },
     /** The page finished playing a scene. */
     done(): void {
       lastActivity = now();
@@ -299,6 +385,7 @@ export function createSession(deps: SessionDeps) {
     dispose(): void {
       asking?.abort();
       if (attempt?.timer) clearTimeout(attempt.timer);
+      if (attempt?.chord) penOff(attempt.displayId);
       attempt = null;
     },
   };
