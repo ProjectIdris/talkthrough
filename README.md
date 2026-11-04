@@ -10,7 +10,7 @@ Hold a key and ask out loud. Talkthrough looks at your screen, points at what ma
 
 - **Works in any app or website:** no tutorial in another window.
 - **Open source (MIT).** You choose how it runs your model (see [Choose how it runs your model](#choose-how-it-runs-your-model)).
-- **Private:** in normal use Talkthrough itself writes nothing about your screen or questions to disk (saving an answer to come back to is planned).
+- **Private:** in normal use Talkthrough itself writes nothing about your screen or questions to disk unless you pin an answer.
 - **Safe:** it draws, it never runs generated code.
 
 > **Status: pre-release, Windows first.** The whole loop runs: hotkey, microphone, screen capture, a model through your own Codex or Claude Code install, the scene language and the three.js overlay, including guided walks that wait for your click. It needs a local speech recogniser you point it at (see [setup](docs/setup.md)). See [Status](#status) for exactly what exists today.
@@ -38,7 +38,7 @@ Everything below is drawn by the overlay from a small JSON scene a model writes.
 
 ![Guide mode: a checklist of the moves ticks off as you make each click.](docs/media/frame-guide.jpg)
 
-*Frames from live answers replayed over the pages they were asked about; in the guide frame the checklist is hand-written.*
+*Frames from live answers replayed over the pages they were asked about. Page content from Wikipedia and Wikibooks (CC BY-SA 4.0), shown for illustration.*
 
 See [the scene language](docs/scene-language.md) for everything a model may draw and [the overlay notes](docs/overlay.md) for how it is drawn.
 
