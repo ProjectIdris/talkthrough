@@ -39,7 +39,7 @@ const lines: string[] = [
   'Rules:',
   '- Keep step 1 short and put its marks first, so something appears at once; add detail in later steps.',
   `- Screen coordinates run 0 to 1000 across the screenshot (x right, y down). Each size is along its own axis, so a round shape on a 16:9 screen has w about 9/16 of h.`,
-  '- 3D panel units: x right, y up, z toward the viewer; the panel shows about 12 units across. Angles are degrees.',
+  '- 3D panel units: x right, y up, z toward the viewer; at zoom 1 the panel fits a 12-unit square (zoom in for small or wide scenes). Angles are degrees.',
   `- Every mark and object has a unique id (a letter, then up to 31 letters, digits, - or _; not ${RESERVED_IDS.join(', ')}). Use the id later to change or clear it. Ids from earlier answers stay valid until cleared.`,
   '- at = seconds after the step starts, dur = seconds a change takes. Time the actions to the words.',
   `- Colours: ${PALETTE.join(', ')}. Opacity 0 to 1. Text up to ${LIMITS.maxText} characters; say up to ${LIMITS.maxSay}. At most ${LIMITS.maxActionsPerStep} actions a step.`,

@@ -21,8 +21,8 @@
       "actions": [
         { "op": "add", "shape": "sphere", "id": "core", "parent": "earth", "size": [2, 2, 2], "color": "yellow" },
         { "op": "highlight", "id": "core", "at": 0.8, "dur": 1 },
-        { "op": "add", "shape": "text", "id": "core-name", "pos": [0, -4.8, 0], "text": "Inner core", "height": 0.6, "color": "yellow", "at": 0.6 },
-        { "op": "underline", "id": "core-line", "x": 80, "y": 560, "w": 300, "color": "yellow", "at": 1 }
+        { "op": "add", "shape": "text", "id": "core-name", "pos": [0, -4.6, 0], "text": "Inner core", "height": 0.7, "color": "yellow", "at": 0.6 },
+        { "op": "underline", "id": "core-line", "x": 199, "y": 560, "w": 98, "color": "yellow", "at": 1 }
       ]
     },
     {
@@ -37,7 +37,7 @@
       "say": "Then the mantle, the thickest layer. It is solid rock, but over millions of years it creeps like very thick syrup.",
       "actions": [
         { "op": "add", "shape": "sphere", "id": "mantle", "parent": "earth", "size": [7, 7, 7], "color": "red", "opacity": 0.35 },
-        { "op": "zoom", "to": 0.85, "dur": 1.2 },
+        { "op": "zoom", "to": 1.1, "dur": 1.2 },
         { "op": "turn", "id": "earth", "to": [0, 240, 0], "at": 0.3, "dur": 3.5 }
       ]
     },
