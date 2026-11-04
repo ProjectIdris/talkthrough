@@ -121,7 +121,14 @@ async function main(): Promise<void> {
     })();
   };
 
-  const hotkey = options.noHotkey ? null : startHotkey({ start: onChordStart, stop: onChordStop });
+  let hotkey: ReturnType<typeof startHotkey> | null = null;
+  if (!options.noHotkey) {
+    try {
+      hotkey = startHotkey({ start: onChordStart, stop: onChordStop });
+    } catch (error) {
+      log(`the key hook could not start: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
   log(hotkey ? 'ready: hold Right Ctrl + Right Shift' : 'ready (hotkey off)');
 
   if (options.playSample) playSample(screen.getPrimaryDisplay().id);
