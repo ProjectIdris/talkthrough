@@ -316,3 +316,50 @@ test('codex keepThread: a thread nobody follows up on is let go after its time, 
     await model.close?.();
   }
 });
+
+test('codex prime: a question after prime() runs on the thread already loaded with the instructions; an unprimed chord is let go and counted', async () => {
+  process.env.FAKE_MODE = 'ok';
+  process.env.FAKE_USAGE = 'thread';
+  const lines: string[] = [];
+  const model = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex], prime: true, log: (l) => lines.push(l) });
+  const where = async () => {
+    const out: ModelOutput[] = [];
+    for await (const o of model.ask({ ...request, schema: sceneSchemaLean })) out.push(o);
+    const u = out.find((o) => o.type === 'usage');
+    return u?.type === 'usage' ? { thread: Math.floor(u.usage.input / 1000), turn: u.usage.input % 1000 } : null;
+  };
+  try {
+    model.prime?.();
+    assert.deepEqual(await where(), { thread: 1, turn: 2 }, 'thread 1 had the primer turn, the question is its second');
+    assert.ok(lines.some((l) => l.includes('prime used')));
+    model.prime?.();
+    model.unprime?.(); // the chord came to nothing
+    assert.ok(lines.some((l) => l.includes('prime abandoned') && l.includes('1 abandoned')));
+    assert.deepEqual(await where(), { thread: 3, turn: 1 }, 'a question without a primer starts its own thread');
+    // a schema other than the primer's is not given the spare
+    model.prime?.();
+    const other = await (async () => {
+      const out: ModelOutput[] = [];
+      for await (const o of model.ask({ ...request, schema: sceneSchema })) out.push(o);
+      const u = out.find((o) => o.type === 'usage');
+      return u?.type === 'usage' ? { thread: Math.floor(u.usage.input / 1000), turn: u.usage.input % 1000 } : null;
+    })();
+    assert.equal(other?.turn, 1);
+  } finally {
+    delete process.env.FAKE_USAGE;
+    await model.close?.();
+  }
+  // without the option prime() does nothing: the question has the thread to itself
+  process.env.FAKE_USAGE = 'thread';
+  const plain = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex] });
+  try {
+    plain.prime?.();
+    const out: ModelOutput[] = [];
+    for await (const o of plain.ask({ ...request, schema: sceneSchemaLean })) out.push(o);
+    const u = out.find((o) => o.type === 'usage');
+    assert.equal(u?.type === 'usage' && u.usage.input, 1001, 'thread 1, its first turn');
+  } finally {
+    delete process.env.FAKE_USAGE;
+    await plain.close?.();
+  }
+});

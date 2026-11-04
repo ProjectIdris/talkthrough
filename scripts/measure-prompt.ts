@@ -5,10 +5,12 @@
 //
 //   node scripts/measure-prompt.ts --image page.png[,other.png,...] --model codex:gpt-6-luna|claude:claude-haiku-5-5 \
 //        [--n 3] [--question "what is this?"] [--schema lean|full] [--codex-config key=json ...] \
-//        [--follow-up] [--keep-thread] --max-calls 4 [--out results.json]
+//        [--follow-up] [--keep-thread] [--prime [--prime-wait 4]] --max-calls 4 [--out results.json]
 //
 // --codex-config sets a Codex config key for each thread (value as JSON), e.g. include_permissions_instructions=false.
 // --follow-up asks each question as a follow-up of the last (the model is told the earlier turns).
+// --prime (Codex) primes a spare thread before each question, as the app does when the key chord completes, and
+// waits --prime-wait seconds (the time to speak a question) before asking.
 // --keep-thread (Codex) continues one thread for the follow-ups instead of starting a new one each time.
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -42,7 +44,7 @@ for (const pair of many('codex-config')) {
 }
 const model: Model = kind === 'claude'
   ? createClaudeModel({ model: name, schema, ...(process.env.TALKTHROUGH_CLAUDE ? { command: process.env.TALKTHROUGH_CLAUDE } : {}) })
-  : createCodexModel({ model: name, ...(process.env.TALKTHROUGH_CODEX ? { command: process.env.TALKTHROUGH_CODEX } : {}), keepThread: flag('keep-thread'), ...(Object.keys(threadConfig).length > 0 ? { threadConfig } : {}) });
+  : createCodexModel({ model: name, ...(process.env.TALKTHROUGH_CODEX ? { command: process.env.TALKTHROUGH_CODEX } : {}), keepThread: flag('keep-thread'), prime: flag('prime'), log: (l) => console.log(`  ${l}`), ...(Object.keys(threadConfig).length > 0 ? { threadConfig } : {}) });
 await model.warm?.();
 
 // several pictures (comma-separated) are used in turn, as different screens would be
@@ -50,6 +52,10 @@ const pictures = image.split(',').map((f) => readFileSync(f).toString('base64'))
 const rows: Array<{ n: number; usage?: Usage; firstPieceMs?: number; totalMs: number; steps: number; error?: string }> = [];
 const thread: ThreadTurn[] = [];
 for (let i = 1; i <= n; i++) {
+  if (flag('prime')) {
+    model.prime?.();
+    await new Promise((resolve) => setTimeout(resolve, Number(one('prime-wait', '4')) * 1000));
+  }
   const started = performance.now();
   let first: number | undefined;
   let usage: Usage | undefined;

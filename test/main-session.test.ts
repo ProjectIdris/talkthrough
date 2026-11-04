@@ -319,3 +319,31 @@ test('the full-resolution frame is released when the question ends, however it e
   await wait(20);
   assert.deepEqual(dropped.released, [4], 'and when the press was dropped');
 });
+
+test('the model is primed when the chord completes (not on Right Ctrl alone), not for a follow-up, and let go when no question follows', async () => {
+  const events: string[] = [];
+  const inner = createScriptedModel([step('One.')]);
+  const model = { ...inner, prime: () => void events.push('prime'), unprime: () => void events.push('unprime') };
+  const r = rig({ model: () => model });
+  r.session.arm();
+  assert.deepEqual(events, [], 'Right Ctrl alone does not prime');
+  r.session.start();
+  assert.deepEqual(events, ['prime']);
+  r.session.stop();
+  await wait(60);
+  assert.deepEqual(events, ['prime'], 'a question was asked: nothing to let go');
+  // a follow-up inside the thread window continues the open thread, so no primer
+  r.session.arm();
+  r.session.start();
+  r.session.stop();
+  await wait(60);
+  assert.deepEqual(events, ['prime']);
+  // a chord that never became a question (too short) lets the spare go
+  const q = rig({ model: () => model }, 100);
+  events.length = 0;
+  q.session.arm();
+  q.session.start();
+  q.session.stop();
+  await wait(60);
+  assert.deepEqual(events, ['prime', 'unprime']);
+});

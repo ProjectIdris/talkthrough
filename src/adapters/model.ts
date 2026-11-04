@@ -56,6 +56,14 @@ export interface Model {
   ask(request: ModelRequest): AsyncIterable<ModelOutput>;
   /** Optional: start whatever is slow to start (a process, a connection) before the first question. */
   warm?(): Promise<void>;
+  /**
+   * Optional: a first question is probably coming (the key chord is complete). Get ready for it in the
+   * background so it starts with the fixed prompt already loaded. Costs a call's input; unprime() or the
+   * question ends it.
+   */
+  prime?(): void;
+  /** Optional: no question is coming after all; let go of what prime() prepared. */
+  unprime?(): void;
   /** Optional: release it. */
   close?(): Promise<void>;
 }

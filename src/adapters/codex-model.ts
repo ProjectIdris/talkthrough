@@ -3,6 +3,7 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { sceneSchemaLean } from '../scene/schema.ts';
 import { createStepStream } from '../scene/stream.ts';
 import type { StepStream } from '../scene/stream.ts';
 import { ModelError } from './model.ts';
@@ -38,6 +39,16 @@ export type CodexModelOptions = {
    * (an empty thread in the request) still starts a fresh thread, so an old screenshot is never carried.
    */
   keepThread?: boolean;
+  /**
+   * Allow prime(): a spare thread is started and loaded with the fixed instructions (one small turn that
+   * answers with nothing) while the person is still speaking, so their first question reads the
+   * instructions from the provider's cache instead of paying for them in full. Default false.
+   */
+  prime?: boolean;
+  /** Replaces the instructions (default: the scene guide). For measuring what Codex adds on its own. */
+  instructions?: string;
+  /** The schema the primer uses; it must be the one questions use or the spare is not taken. Default the lean scene schema. */
+  primeSchema?: unknown;
   /** How long an open thread waits for a follow-up before it is let go (and its screenshots with it). Default 20000. */
   keepThreadMs?: number;
   /** Config overrides for each thread (the same keys `-c` takes), for trying what trims the prompt. */
@@ -82,6 +93,26 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
     const old = kept;
     kept = null;
     if (old) void request(old.proc, 'thread/unsubscribe', { threadId: old.threadId }).catch(() => undefined);
+  };
+  /** A thread being loaded with the instructions for the first question (only with prime). `ready` gives its thread once the primer turn is done, or null if that failed. */
+  type Primed = { proc: ChildProcessWithoutNullStreams; threadId: string };
+  let spare: { ready: Promise<Primed | null>; schemaKey: string } | null = null;
+  let spareTimer: NodeJS.Timeout | undefined;
+  const primeCounts = { primed: 0, used: 0, late: 0, abandoned: 0 };
+  const primeLine = (what: string) => log(`codex prime ${what} (${primeCounts.primed} primed, ${primeCounts.used} used, ${primeCounts.late} late, ${primeCounts.abandoned} abandoned)`);
+  /** Lets go of the spare thread, counting why (null: not counted, e.g. it never got ready). */
+  const dropSpare = (why: 'abandoned' | 'late' | null) => {
+    clearTimeout(spareTimer);
+    const old = spare;
+    spare = null;
+    if (!old) return;
+    if (why) {
+      primeCounts[why]++;
+      primeLine(why);
+    }
+    void old.ready.then((p) => {
+      if (p) void request(p.proc, 'thread/unsubscribe', { threadId: p.threadId }).catch(() => undefined);
+    });
   };
   let serviceTier: string | undefined;
   const waiters = new Map<number, Waiter>();
@@ -146,6 +177,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
             ...(typeof tu.cacheWriteInputTokens === 'number' && tu.cacheWriteInputTokens > 0 ? { cacheWrite: tu.cacheWriteInputTokens } : {}),
             output: typeof tu.outputTokens === 'number' ? tu.outputTokens : 0,
           };
+          log(`codex tokens: ${turn.usage.input} in (${turn.usage.cached} cached), ${turn.usage.output} out`);
         }
         break;
       }
@@ -308,6 +340,62 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
     }
   }
 
+  function threadParams(): Json {
+    return {
+      cwd: workDir,
+      model: modelName,
+      sandbox: 'read-only',
+      approvalPolicy: 'never',
+      ephemeral: true,
+      serviceName: 'talkthrough',
+      baseInstructions: options.instructions ?? systemPrompt(),
+      ...(options.threadConfig ? { config: options.threadConfig } : {}),
+    };
+  }
+
+  /** The text of the primer turn: it loads the instructions and answers with nothing. */
+  const PRIMER = 'This first message only loads your instructions. Do not draw anything: answer with an empty scene (no steps, escalate null). The real question comes next, with a screenshot.';
+
+  /** Starts a spare thread and runs the primer turn on it. */
+  function startSpare(): void {
+    if (spare) return;
+    const schema = options.primeSchema ?? sceneSchemaLean;
+    const ready = (async (): Promise<Primed | null> => {
+      const proc = await ensure();
+      const started = await request(proc, 'thread/start', threadParams());
+      const thread = started.thread as Json | undefined;
+      const threadId = thread && typeof thread.id === 'string' ? thread.id : '';
+      if (!threadId) return null;
+      const turn: Turn = { proc, queue: new AsyncQueue<ModelOutput>(), stream: createStepStream(), threadId, done: false };
+      turns.set(threadId, turn);
+      try {
+        const begun = await request(proc, 'turn/start', {
+          threadId,
+          input: [{ type: 'text', text: PRIMER }],
+          outputSchema: schema,
+          effort,
+          approvalPolicy: 'never',
+          sandboxPolicy: { type: 'readOnly' },
+        });
+        const t = begun.turn as Json | undefined;
+        if (t && typeof t.id === 'string') turn.turnId = t.id;
+        for await (const out of turn.queue) void out; // the primer's own answer is not used
+        return { proc, threadId };
+      } finally {
+        turns.delete(threadId);
+      }
+    })().catch(() => null);
+    const entry = { ready, schemaKey: JSON.stringify(schema) };
+    spare = entry;
+    primeCounts.primed++;
+    // a spare nobody asked for is not kept for long
+    clearTimeout(spareTimer);
+    spareTimer = setTimeout(() => {
+      if (spare === entry) dropSpare('abandoned');
+    }, 30_000);
+    spareTimer.unref();
+  }
+
   return {
     id: `codex:${modelName}${fast ? ':fast' : ''}`,
     get serviceTier() {
@@ -318,7 +406,16 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
       await ensure();
     },
 
+    prime() {
+      if (options.prime) startSpare();
+    },
+
+    unprime() {
+      if (spare) dropSpare('abandoned');
+    },
+
     async close() {
+      dropSpare(null);
       clearTimeout(keptTimer);
       kept = null;
       const proc = child;
@@ -372,23 +469,31 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
         const old = kept;
         kept = null; // it is put back only when this question ends well
         if (old && !reuse) void request(old.proc, 'thread/unsubscribe', { threadId: old.threadId }).catch(() => undefined);
-        const started = reuse ? { thread: { id: reuse.threadId } } as Json : await within(request(proc, 'thread/start', {
-          cwd: workDir,
-          model: modelName,
-          sandbox: 'read-only',
-          approvalPolicy: 'never',
-          ephemeral: true,
-          serviceName: 'talkthrough',
-          baseInstructions: systemPrompt(),
-          ...(options.threadConfig ? { config: options.threadConfig } : {}),
-        })).catch((error: unknown) => {
+        // A thread primed while the person was speaking, if it is ready in time and made for this schema.
+        let primed: Primed | null = null;
+        if (!reuse && spare) {
+          const sp = spare;
+          const got = sp.schemaKey === JSON.stringify(req.schema)
+            ? await within(Promise.race([sp.ready, new Promise<null>((resolve) => setTimeout(resolve, 1500, null).unref())]))
+            : null;
+          if (got && got.proc === proc) {
+            primed = got;
+            spare = null;
+            clearTimeout(spareTimer);
+            primeCounts.used++;
+            primeLine('used');
+          } else {
+            dropSpare('late');
+          }
+        }
+        const started = reuse ? { thread: { id: reuse.threadId } } as Json : primed ? { thread: { id: primed.threadId } } as Json : await within(request(proc, 'thread/start', threadParams())).catch((error: unknown) => {
           throw error instanceof ModelError ? error : errorFrom(error instanceof Error ? error.message : String(error));
         });
         const tThread = performance.now();
         const thread = started.thread as Json | undefined;
         threadId = thread && typeof thread.id === 'string' ? thread.id : '';
         if (!threadId) throw new ModelError('failed', 'codex did not start a thread');
-        if (!reuse && serviceTier !== started.serviceTier) {
+        if (!reuse && !primed && serviceTier !== started.serviceTier) {
           serviceTier = typeof started.serviceTier === 'string' ? started.serviceTier : undefined;
           log(`codex model ${String(started.model)}, service tier ${serviceTier ?? 'default'}`);
         }
@@ -401,6 +506,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
           input: [
             { type: 'image', url: `data:${req.screenshot.mime};base64,${req.screenshot.base64}` },
             ...(req.focus ? [{ type: 'image', url: `data:${req.focus.crop.mime};base64,${req.focus.crop.base64}` }] : []),
+            // a continued thread already holds the earlier turns
             // a continued thread already holds the earlier turns
             { type: 'text', text: questionText(reuse ? { ...req, thread: [] } : req) },
           ],
