@@ -93,3 +93,32 @@ test('streams are capped in number of markers', () => {
   const { shape } = run(tube('pipe'), { op: 'add', shape: 'stream', id: 's', along: 'pipe', count: 500 });
   assert.equal(shape('stream')[0]?.count, 40);
 });
+
+// ---- a connector is a physical rope between two 3D objects, never a link between panels, cards, marks or diagram nodes -------------------------
+
+test('a connector end that names a mark, a pin, a diagram, a diagram node or a flow arrow is refused with a line that says why', () => {
+  const screen = [
+    { op: 'label', id: 'tag', x: 100, y: 100, text: 'hi', color: 'red' },
+    { op: 'diagram', id: 'd', kind: 'flow', x: 50, y: 50, w: 600, h: 300 },
+    { op: 'node', id: 'a', of: 'd', text: 'Farm' }, { op: 'node', id: 'b', of: 'd', text: 'Shop' }, { op: 'edge', id: 'e', from: 'a', to: 'b' },
+  ];
+  for (const bad of ['tag', 'd', 'a', 'e']) {
+    const { shape, issues } = run(wheel('w'), ...screen, { op: 'add', shape: 'connector', id: 'rope', from: 'w', to: bad });
+    assert.equal(shape('connector').length, 0, bad);
+    assert.ok(issues.some((i) => /not a 3D object|a physical rope/.test(i.message) && /to/.test(i.path + i.message)), `${bad}: ${JSON.stringify(issues)}`);
+  }
+});
+
+test('a connector end that names an object not added yet is refused (the line names the id), not drawn to nothing', () => {
+  const { shape, issues } = run(wheel('w'), { op: 'add', shape: 'connector', id: 'rope', from: 'w', to: 'switch-later' });
+  assert.equal(shape('connector').length, 0);
+  assert.ok(issues.some((i) => /unknown id "switch-later"/.test(i.message)), JSON.stringify(issues));
+});
+
+test('the guide and the schema call a connector a physical rope, wire, belt or pipe between parts of one model, and keep the flat arrows for cards and nodes', async () => {
+  const { sceneGuide, sceneSchemaLean } = await import('../src/scene/index.ts');
+  const text = sceneGuide + JSON.stringify(sceneSchemaLean);
+  assert.match(text, /physical/);
+  assert.match(text, /parts of one 3D model/);
+  assert.match(text, /edge/);
+});

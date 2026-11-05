@@ -315,7 +315,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addConnector', op: 'add', shapes: ['connector'], creates: 'path',
-    doc: 'A rope, belt, wire, chain or pipe between two objects, following them as they move. kind straight (default) is taut and shortens as a weight rises; slack hangs in a sag; wrapped is a flat belt round two wheels. fromSide and toSide say where an end meets its object, as seen from the front (left, right, top, bottom, front, back; the rim of a wheel), else its middle; fromAnchor and toAnchor name a point of a ready-made part. radius is its thickness.',
+    doc: 'A physical rope, belt, wire, chain or pipe between two parts of one 3D model, with its ends on them, following them as they move (use it, not a hand-placed tube, when its ends must touch the parts; it never links panels, cards or marks, and flat diagram arrows are edge). kind straight (default) is taut and shortens as a weight rises; slack hangs in a sag; wrapped is a flat belt round two wheels. fromSide and toSide say where an end meets its object, as seen from the front (left, right, top, bottom, front, back; the rim of a wheel), else its middle; fromAnchor and toAnchor name a point of a ready-made part. radius is its thickness.',
     fields: {
       shape: { k: 'enum', values: ['connector'] }, id: { k: 'newId' }, parent: PARENT,
       from: { k: 'ref', of: 'object3d', doc: 'the object one end is on' }, to: { k: 'ref', of: 'object3d', doc: 'the object the other end is on' },

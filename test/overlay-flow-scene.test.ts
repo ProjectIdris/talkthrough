@@ -141,3 +141,22 @@ test('a marker is never smaller than a bead standing out of its pipe, whatever s
   assert.ok(seen.length >= 2);
   assert.ok(Math.max(...seen.map((m) => m.scale.x)) > 0.6, `widest marker ${Math.max(...seen.map((m) => m.scale.x))}`);
 });
+
+test('a connector whose end is not there yet is not drawn (not drawn to nothing), and comes in with its ends once they are', () => {
+  const actions = [
+    box('a', { pos: [0, 0, 0], at: 0 }), box('b', { pos: [3, 0, 0], at: 2 }),
+    { op: 'add', shape: 'connector', id: 'rope', from: 'a', to: 'b', at: 0 },
+  ];
+  const before = shown(actions, 1);
+  assert.equal(before.node('rope').visible, false, 'one end is not born yet');
+  assert.equal(before.frame.objects.some((o) => o.id === 'b'), false);
+  const arriving = shown(actions, 2.2);
+  const rope = arriving.node('rope');
+  const opacity = (rope.children[0] as Mesh).material as MeshPhysicalMaterial;
+  assert.equal(rope.visible, true);
+  const end = arriving.frame.objects.find((o) => o.id === 'b')!;
+  assert.ok(end.appear < 1, 'the end is still coming in');
+  assert.ok(opacity.opacity < 0.9 * 1, `the rope is no more there than its end: ${opacity.opacity}`);
+  const after = shown(actions, 4);
+  assert.ok(((after.node('rope').children[0] as Mesh).material as MeshPhysicalMaterial).opacity > opacity.opacity);
+});

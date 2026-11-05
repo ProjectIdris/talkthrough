@@ -61,6 +61,13 @@ export function updateConnectors(nodes: ReadonlyMap<number, FlowNode>, frame: Fr
       continue;
     }
     any = true;
+    // It is no more there than the ends it hangs on: while either is coming in (or going), the connector comes in (goes) with it.
+    const held = Math.min(fa.appear * fa.fade, fb.appear * fb.fade);
+    if (held < 0.003) {
+      node.obj.visible = false;
+      continue;
+    }
+    if (held < 1) for (const p of node.pieces) if (p.surface) p.surface.opacity *= held;
     const a = endPoint(na.obj, fa.def, def.fromSide, def.fromAnchor, na.anchors);
     const b = endPoint(nb.obj, fb.def, def.toSide, def.toAnchor, nb.anchors);
     const thick = def.radius ?? ROPE_RADIUS;
