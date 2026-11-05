@@ -580,6 +580,24 @@ export class Placer {
     this.homes.set(id, { from, to });
   }
 
+  /** Update the displayed destination without replacing its authored source. */
+  syncHomeDisplay(id: string, displayed: Box, current: Box): void {
+    const home = this.homes.get(id);
+    if (home) this.homes.set(id, { from: home.from, to: { ...home.to, x: current.x, y: current.y } });
+    else this.homes.set(id, { from: displayed, to: current });
+  }
+
+  /** Mapping for marks already placed in the player, not newly streamed marks. */
+  displayedHomeOf(x: number, y: number): { from: Box; to: Box } | undefined {
+    for (const [id] of this.homes) {
+      const from = this.sourceBoxes.get(id);
+      const to = this.cards.get(id);
+      if (from && to && x >= from.x && x <= from.x + from.w && y >= from.y && y <= from.y + from.h)
+        return { from, to };
+    }
+    return undefined;
+  }
+
   /**
    * The smallest rectangle the answer pointed at (a box round a picture) that holds the top-left corner of a label and is clearly larger than it:
    * the label belongs to what that box encloses and is kept inside it, so a name on a picture never hangs over its caption or the page beside it.
@@ -791,10 +809,10 @@ const r1 = (v: number): number => Math.round(v * 10) / 10;
  * diagram: when the diagram was placed elsewhere or smaller, the mark goes with it, to the same place in the new rectangle.
  * Nothing when the mark is not inside a diagram's rectangle.
  */
-export function followDiagram(placer: Placer, a: Action, aspect: number): Action | undefined {
+export function followDiagram(placer: Placer, a: Action, aspect: number, displayed = false): Action | undefined {
   if (!MARK_OPS.has(a.op)) return undefined;
   const c = markCentre(a as Mark, aspect);
-  const home = c ? placer.homeOf(c.x, c.y) : undefined;
+  const home = c ? (displayed ? placer.displayedHomeOf(c.x, c.y) : placer.homeOf(c.x, c.y)) : undefined;
   if (!home) return undefined;
   const { from, to } = home;
   const fx = to.w / from.w, fy = to.h / from.h;

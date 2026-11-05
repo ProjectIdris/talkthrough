@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Placer, bodyTextOf, cardHeightUnits, markFootprint, pageGrid, placeAction, reserveMarks } from '../src/overlay/placement.ts';
+import { Placer, followDiagram, bodyTextOf, cardHeightUnits, markFootprint, pageGrid, placeAction, reserveMarks } from '../src/overlay/placement.ts';
 import type { Box } from '../src/overlay/placement.ts';
 import type { Action } from '../src/scene/index.ts';
 
@@ -501,4 +501,21 @@ test('visible stage controls are separate obstacles, leaving open space between 
   p.release('button-overlap');
   const middle=p.card({x:400,y:260,w:200,h:70},'middle');
   assert.deepEqual(middle,{x:400,y:260,w:200,h:70});
+});
+
+test('render synchronization preserves authored crop and diagram ownership for later streamed marks', () => {
+  const grid = pageGrid(new Uint8Array(192 * 108).fill(255), 192, 108);
+  for (const id of ['crop', 'diagram']) {
+    const p = new Placer(grid, { aspect: 1 });
+    const authored = {x:100,y:100,w:200,h:200}, displayed = {x:92,y:330,w:200,h:200};
+    p.home(id, authored, displayed);
+    p.syncVisible([{id,key:1,box:displayed}]);
+    p.syncHomeDisplay(id, displayed, displayed);
+    assert.deepEqual(p.homeOf(150,150), {from:authored,to:displayed});
+    assert.deepEqual(followDiagram(p, {op:"point",id:"dot",x:150,y:150,color:"red"}, 1), {op:"point",id:"dot",x:142,y:380,color:"red"});
+    assert.deepEqual(followDiagram(p, {op:"point",id:"dot",x:142,y:380,color:"red"}, 1, true), {op:"point",id:"dot",x:142,y:380,color:"red"});
+    const renewed = new Placer(grid,{aspect:1}); renewed.restore(p.snapshot());
+    renewed.syncHomeDisplay(id, displayed, { ...displayed, x: 200 });
+    assert.deepEqual(renewed.homeOf(150,150), {from:authored,to:{...displayed,x:200}});
+  }
 });

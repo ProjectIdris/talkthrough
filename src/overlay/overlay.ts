@@ -315,7 +315,7 @@ function draw(frame: Frame): Frame {
       });
       p.syncRenderedStage(units(modelRect), visibleButtons);
     } else if (!frame.panel) p.setStage(undefined);
-    for (const surface of surfaces) { const current = p.surface(surface.id); if (current) p.home(surface.id, surface.box, current); }
+    for (const surface of surfaces) { const current = p.surface(surface.id); if (current) p.syncHomeDisplay(surface.id, surface.box, current); }
     frame = { ...frame,
       marks: frame.marks.map((m) => {
         const mark = m.mark;
@@ -325,7 +325,7 @@ function draw(frame: Frame): Frame {
           return { ...m, mark: mark.op === 'card' ? { ...mark, x: current.x, y: current.y } : { ...mark, dx: current.x, dy: current.y } };
         }
         if (!ownedMarks.has(m.id)) return m;
-        const moved = followDiagram(p, mark, aspect);
+        const moved = followDiagram(p, mark, aspect, true);
         return moved ? { ...m, mark: moved as typeof m.mark } : m;
       }),
       diagrams: frame.diagrams.map((d) => { const current = p.surface(d.id); return current ? { ...d, def: { ...d.def, x: current.x, y: current.y } } : d; }),
@@ -1156,7 +1156,7 @@ function applyScene(message: SceneMessage): void {
       beginTurn(message.turn, message.detail === true);
       if (message.detail !== true) box.reset(typeof message.question === 'string' ? message.question : '');
       placer()?.reset();
-      if (message.detail !== true) ownedMarks.clear(); // a detail pass leaves the diagrams on screen, and the marks that go with them
+      if (message.turn <= 1 && message.detail !== true) ownedMarks.clear(); // a continuing turn retains the visible owners and their marks
       if (message.turn <= 1 && message.detail !== true) placer()?.setStage(undefined); // a detail pass keeps the stage it grows into
       if (message.detail === true) detailState = 'running';
       player.beginTurn(message.detail === true);
