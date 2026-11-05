@@ -726,7 +726,7 @@ export class PanelScene {
         }
       }
     }
-    const weight = 0.3 + 0.7 * Math.max(0, Math.min(1, solidity));
+    const weight = 0.12 + 0.88 * Math.max(0, Math.min(1, solidity)) ** 1.5;
     const presence = frame.panel ? Math.max(0, Math.min(1, frame.panel.appear * frame.panel.fade)) : 0;
     const show = this.hasBox && presence > 0.003;
     if (this.blob) this.blob.visible = show;
