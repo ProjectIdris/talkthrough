@@ -4,6 +4,10 @@
 
 Hold a key and ask out loud. Talkthrough looks at your screen, points at what matters, draws diagrams and 3D models right over the page, and walks you through it step by step.
 
+![A real answer about the Wikipedia article on the four-stroke engine, in text-only mode: the words appear in a caption while the figure is boxed, a labelled 3D cutaway of the engine is built beside it and a chart of the four strokes is drawn. No sound.](docs/media/text-only-answer.gif)
+
+*A real answer to "Explain this" on a saved page, in the Captions setting's text-only mode: no voice, the words in a caption, each step held long enough to read. The first step came from a fast model and the rest from a stronger one; the clip is cropped to the page's right part.*
+
 ![A pin tumbler lock opening: its parts are built and labelled, a key slides in, the pins lift and the plug turns.](docs/media/lock-demo.gif)
 
 *A hand-written example scene (no model): how a pin tumbler lock opens. Live answers are drawn the same way, over whatever is on your screen.*
