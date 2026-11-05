@@ -330,7 +330,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addStream', op: 'add', shapes: ['stream'], creates: 'solid', attach: 'along',
     doc: 'Dots, dashes or arrows travelling along a tube, line, arrow, connector or an edge of a flow diagram, running on by themselves. period is the seconds a marker takes for the whole way (negative runs backwards, default 4); or by a spinning part, ratio laps for each turn. color changes to toColor along the way (shiftAt, 0 to 1, is where).',
     fields: {
-      shape: { k: 'enum', values: ['stream'] }, id: { k: 'newId' }, along: { k: 'ref', of: 'any', doc: 'what they travel along' },
+      shape: { k: 'enum', values: ['stream'] }, id: { k: 'newId' }, along: { k: 'ref', of: 'any', doc: 'id of an existing tube, line, arrow, connector or flow-diagram edge that they travel along' },
       mark: { k: 'enum', values: ['dot', 'dash', 'arrow'], opt: true }, count: { k: 'num', min: 1, max: LIMITS.maxMarkers, int: true, opt: true },
       size: { k: 'num', min: 0.01, max: 5, opt: true }, color: COLOR_OPT, toColor: COLOR_OPT, shiftAt: { k: 'num', min: 0, max: 1, opt: true },
       period: { k: 'num', min: -120, max: 120, opt: true }, by: { k: 'ref', of: 'object3d', opt: true, doc: 'a spinning part to run in step with' },
