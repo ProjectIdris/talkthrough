@@ -179,3 +179,25 @@ test('a flat ribbon that starts flat and bends up faces the viewer along the cli
   }
   assert.ok(x1 - x0 > (z1 - z0) * 2, `wider in x (${(x1 - x0).toFixed(2)}) than in z (${(z1 - z0).toFixed(2)})`);
 });
+
+test('a flat ribbon on a quarter circle from heading along x to heading up never turns more than a few degrees between two rings', async () => {
+  const { tubeGeometry } = await import('../src/overlay/geometry.ts');
+  const path: Array<[number, number, number]> = [];
+  for (let i = 0; i <= 60; i++) { const a = (i / 60) * (Math.PI / 2); path.push([3 * Math.sin(a), 3 - 3 * Math.cos(a), 0]); }
+  const radial = 12, row = radial + 1;
+  const geo = tubeGeometry(path, 0.3, 0.2, radial);
+  const pos = geo.getAttribute('position');
+  let prev: Vector3 | undefined, worst = 0;
+  for (let i = 0; i < path.length; i++) {
+    let far = 0;
+    const wide = new Vector3();
+    for (let j = 0; j < radial; j++) {
+      const k = i * row + j;
+      const d = new Vector3(pos.getX(k) - path[i]![0], pos.getY(k) - path[i]![1], pos.getZ(k) - path[i]![2]);
+      if (d.length() > far) { far = d.length(); wide.copy(d).normalize(); }
+    }
+    if (prev) worst = Math.max(worst, Math.acos(Math.min(1, Math.abs(wide.dot(prev)))) * (180 / Math.PI));
+    prev = wide;
+  }
+  assert.ok(worst < 10, `the widest turn between two rings is ${worst.toFixed(1)} degrees`);
+});

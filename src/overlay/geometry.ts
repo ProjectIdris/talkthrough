@@ -154,14 +154,20 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
     // A round tube carries the last ring's frame along (parallel transport), so it never twists where the path passes straight up or down:
     // choosing a frame from "up" at every ring flips it there, which drew a hard seam across a bent tube. A flat ribbon keeps its frame from "up"
     // (a ribbon that starts flat and bends up then faces the viewer, as the scene language says), made continuous: never turned over from one ring to the next.
-    const ref = Math.abs(tangent.dot(UP)) > 0.95 ? FORWARD : UP;
+    // The reference turns from up to forward smoothly as the path nears the vertical (a hard switch at 0.95 turned a ribbon a quarter turn between two rings).
+    const lean = Math.abs(tangent.dot(UP));
+    const k = Math.max(0, Math.min(1, (lean - 0.3) / 0.68));
+    const mix = k * k * (3 - 2 * k);
+    const ref = new Vector3().addScaledVector(UP, 1 - mix).addScaledVector(FORWARD, mix).normalize();
     if (flat === 1 && i > 0) {
       wide.addScaledVector(tangent, -wide.dot(tangent));
       if (wide.lengthSq() < 1e-12) wide.crossVectors(tangent, ref);
       wide.normalize();
     } else {
       const before = i > 0 ? wide.clone() : undefined;
-      wide.crossVectors(tangent, ref).normalize();
+      wide.crossVectors(tangent, ref);
+      if (wide.lengthSq() < 1e-12) wide.crossVectors(tangent, Math.abs(tangent.dot(UP)) > 0.95 ? FORWARD : UP);
+      wide.normalize();
       if (before && wide.dot(before) < 0) wide.negate();
     }
     thin.crossVectors(wide, tangent).normalize();
