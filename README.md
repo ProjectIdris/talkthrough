@@ -14,10 +14,10 @@ Hold a key and ask out loud. Talkthrough looks at your screen, points at what ma
 
 - **Works in any app or website:** no tutorial in another window.
 - **Open source (MIT).** You choose how it runs your model (see [Choose how it runs your model](#choose-how-it-runs-your-model)).
-- **Private:** in normal use Talkthrough itself writes nothing about your screen or questions to disk unless you pin an answer.
+- **Private:** your screen and questions normally stay in memory; optional hearing and recording choices are explained in [Privacy](#privacy).
 - **Safe:** it draws, it never runs generated code.
 
-> **Status: pre-release, Windows first.** The whole loop runs: hotkey, microphone, screen capture, a model through your own Codex or Claude Code install, the scene language and the three.js overlay, including guided walks that wait for your click. It needs a local speech recogniser you point it at (see [setup](docs/setup.md)). See [Status](#status) for exactly what exists today.
+> **Status: pre-release, Windows first.** The whole loop runs: hotkey, microphone, screen capture, a model through your own Codex or Claude Code install, the scene language and the three.js overlay, including guided walks that wait for your click. On Windows it can use the installed English speech recogniser; optional hearing choices are in [setup](docs/setup.md). See [Status](#status) for exactly what exists today.
 
 ## What it can show
 
@@ -63,7 +63,7 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md) (how to run and test it, the seams
 
 ## Install
 
-Download `Talkthrough-Setup-<version>.exe` from the [releases page](https://github.com/ProjectIdris/talkthrough/releases) and run it. It installs for your own account only (no administrator rights) and starts from the Start menu. You still need a way to hear you and a model: see [docs/setup.md](docs/setup.md).
+Download `Talkthrough-Setup-<version>.exe` from the [releases page](https://github.com/ProjectIdris/talkthrough/releases) and run it. It installs for your own account only (no administrator rights) and starts from the Start menu. Choose a model and, if you wish, another way to hear you: see [docs/setup.md](docs/setup.md).
 
 **Windows may warn you.** The first releases are not code-signed, because a signing certificate costs money and the project is new, free and open source. Windows SmartScreen therefore shows *"Windows protected your PC"* with *Unknown publisher* for a file it has not seen many times. This does not mean the file is bad; it means Windows does not know it yet. To go on, choose **More info**, then **Run anyway**. If you would rather not, you can build the installer yourself from this repository (`npm ci`, then `npm run dist`; see [docs/setup.md](docs/setup.md)) and read every line first.
 
@@ -109,7 +109,7 @@ Talkthrough starts the tool you already have and gives it no tools of its own: i
               your screen + 3D models over the page    the drawing starts with the words
 ```
 
-1. **Hotkey.** Hold Right Ctrl + Right Shift (or two other modifier keys you choose in Settings); holding records your question, letting go sends it. If the window in front is on your list of windows to skip (a password manager, by default), nothing is recorded or captured.
+1. **Hotkey.** Hold Right Ctrl + Right Shift (or one key or a chord of up to four keys you choose in Settings); holding records your question, letting go sends it. If the window in front is on your list of windows to skip (a password manager, by default), nothing is recorded or captured.
 2. **Capture.** The screen under the pointer is captured and kept in memory only. While you hold the keys you can also drag the mouse to circle something: your stroke is drawn on the screenshot and a closer crop around it goes along, so "what is this?" means what you circled. The stroke settles to a faint trace as you go; an *Undo* button takes back the last circle, and a right click (or Escape) cancels the question; Escape later stops an answer that is being written or spoken and fades it away.
 3. **Model.** A vision model gets the screenshot, your question and the earlier turns of the thread, and answers in the **scene language**: timed steps, each with something to say and things to draw. The model can also say a question is beyond it.
 4. **Scene language.** A small JSON format (boxes, ovals, arrows, labels, and 3D shapes with tweens and camera moves). It is data, validated before anything is drawn; no code is ever run. See [docs/scene-language.md](docs/scene-language.md).
@@ -127,7 +127,7 @@ Models, voices, speech recognition and backends are adapters in `src/adapters/`,
 | Voice from a local HTTP text-to-speech server, streamed, with the system voice as the spare | working, tested against a fake server and in the app |
 | Overlay window, hotkey, screen capture, microphone, tray | working |
 | Models through your own Codex or Claude install, locked down to no tools | working, tested against stand-ins |
-| A speech recogniser that ships with the app | planned (today: a local server you point it at) |
+| Speech recognition | Windows can use an installed English Windows recogniser; an optional whisper.cpp download or your own server can also be used |
 | Flat diagrams (flow, timeline, steps, chart), laid out, drawn on with the voice and placed in free space | working; a live model drew one on six of eight real pages tried |
 | New mark shapes (outline, point, trace) and snapping marks onto the page's lines | working; replayed on eight saved pages, and live answers used the outline and the point |
 | 3D models from a parts kit, running machines, cut-open and pulled-apart views, organic forms | working; seen in frames of hand-written samples and a live engine answer |
@@ -143,8 +143,8 @@ Windows is the first platform.
 
 ## Privacy
 
-- **What leaves the app:** your screenshot and the text of your question go to the model you chose (see above), and your recording goes to the speech server whose address you set (meant to be on your own machine; none is built in). If you set a backend address, a question you hand to it also goes there with its screenshot, the earlier questions and what is on screen. If you set a voice server address, the words of each spoken step go there. Nothing else.
-- **What Talkthrough keeps:** the screenshot and your recording live in memory only and are not written to disk in normal use (the development options `--save-capture`, `--save-pen` and `--frames-dir` save images). Your latest questions and answers stay in memory so a follow-up question works; they are gone when you quit. The one thing that is written to disk is an answer you pin (tray, or say "pin this"): its question, what was said and the scene go to a folder on your machine ([docs/pins.md](docs/pins.md)), and the screenshot only if you tick "Include the screenshot in pins". Nothing else is kept. The model tool you choose has its own policies.
+- **What leaves the app:** your screenshot and the text of your question go to the model you chose (see above), and if you configure a speech server, your recording can be sent to it (it should run on your own machine). Windows hearing and the optional whisper.cpp download run locally. If you set a backend address, a question you hand to it also goes there with its screenshot, the earlier questions and what is on screen. If you set a voice server address, the words of each spoken step go there. Nothing else.
+- **What Talkthrough keeps:** The screenshot and recording normally stay in memory. Optional whisper.cpp hearing writes a temporary WAV while processing, then removes it; the development options `--save-capture`, `--save-pen` and `--frames-dir` save images. Your latest questions and answers stay in memory so a follow-up question works; they are gone when you quit. An answer you pin is written to disk (tray, or say "pin this"): its question, what was said and the scene go to a folder on your machine ([docs/pins.md](docs/pins.md)), and the screenshot only if you tick "Include the screenshot in pins". An optional question record can also save screenshots and transcripts when enabled in Settings. The model tool you choose has its own policies.
 - **While a guided task runs**, a short list of what happened so far is kept in memory only, and gone when the guide ends.
 
 ## Layout

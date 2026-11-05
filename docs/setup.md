@@ -7,7 +7,7 @@ npm install
 npm start        # builds, then starts the app in the tray
 ```
 
-Hold **Right Ctrl + Right Shift** (or the two keys you chose in *Settings*), ask out loud, let go. The overlay answers on the screen you were looking at. The tray icon has *Settings…*, *Play a sample scene*, *Clear the overlay* and *Quit*.
+Hold **Right Ctrl + Right Shift** (or the single key or chord you chose in *Settings*), ask out loud, let go. The overlay answers on the screen you were looking at. The tray icon has *Settings…*, *Play a sample scene*, *Clear the overlay* and *Quit*.
 
 ### Building the installer
 
@@ -38,7 +38,7 @@ The app writes its log to the console it was started from, and an installed copy
 
 Do the thing that went wrong, quit from the tray, and read `talkthrough-log.txt`. It lists what the app did, with no screenshot, no question text and no model answer unless you start it with `--log-steps` (which also writes each answer's raw text, one `answer-raw` line per answer, so a garbled one can be read). Remove anything private before you share it.
 
-Talkthrough needs two things outside itself: a way to hear you and a model.
+Choose a model. On Windows, Talkthrough can hear using an installed English Windows recogniser; other hearing options are described below.
 
 ## Graphics
 
@@ -46,13 +46,13 @@ The overlay uses the graphics card by default, with antialiasing, soft shadows a
 
 ## Settings
 
-Open **Settings…** from the tray icon. One window has the route and model, the detail route, the voice (the system voice, or a voice server's address), the speech recogniser's address, the two keys held to ask, the windows to skip, the two switches (*let a guide act for me*, *place marks on real controls*; both off until you turn them on, each with a line saying what it does) and the API key. Saving writes the file below, through the same checks as the file: a value that does not pass (an http voice address that is not on this computer, two keys that are the same) is not saved, and the window says why. Changes take effect when Talkthrough restarts (the window has a button for that), except the list of windows to skip, which protects as soon as it is saved.
+Open **Settings…** from the tray icon. One window has the route and model, the detail route, the voice (the system voice, or a voice server's address), hearing options and an optional speech server address, the key or chord held to ask, the windows to skip, the two switches (*let a guide act for me*, *place marks on real controls*; both off until you turn them on, each with a line saying what it does) and the API key. Saving writes the file below, through the same checks as the file: a value that does not pass (an http voice address that is not on this computer, two keys that are the same) is not saved, and the window says why. Changes take effect when Talkthrough restarts (the window has a button for that), except the list of windows to skip, which protects as soon as it is saved.
 
 The window writes a JSON file, `%APPDATA%\talkthrough\settings.json` (the app logs the exact path when it starts), which you can also edit by hand. Every key is optional; a key left at its default is not written.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `speechServerUrl` | Base URL of a local speech recogniser (see below). Without it the app cannot hear you and says so. | none |
+| `speechServerUrl` | Optional base URL of a speech recogniser you run (see below). The app can use installed Windows hearing without it. | none |
 | `speechLimitMs` | Sent to the speech server as `limit_ms`: how long its main recogniser may take before a quicker one answers. About 1000 suits a CPU-only server. | server's own |
 | `model` | The connector that writes the first step: `"claude"` (Claude Code), `"codex"`, `"openai"` (an API key) or `"local"` (a model on this computer) | `"codex"` |
 | `codexModel` | Model name in your Codex catalog | `"gpt-6-luna"` |
@@ -110,7 +110,13 @@ A quick answer is drawn with a small, fast model. If you set `detailRoute`, a **
 
 ## Speech
 
-Your question is recorded in memory, turned into text by a local recogniser, and thrown away. Talkthrough ships a client for a recogniser that runs as a small local HTTP server (`createLocalSpeechServerRecogniser`): `POST /transcribe` with raw 16 kHz mono float32 samples, answer `{"text": "..."}`, and `GET /health` to check it is up. A server that sleeps when idle can also take `POST /warm` (no body; answer `202` at once and get ready in the background): the app sends it, at most once every 30 seconds, as soon as the keys first go down, so the server is ready by the time you finish speaking. A server without that route (a `404`) is simply not asked again for a while. The app never starts the server itself; if the address does not answer, the overlay says so. A recogniser that ships with the app is planned.
+On Windows, Talkthrough can use the installed English Windows speech recogniser with no extra download. It requires an English recogniser to be available on that computer and works best with short, clear English. If it is unavailable or cannot recognise the question, the app reports that it could not hear it.
+
+For another local option, choose **Clearer hearing** in the first-run window or Settings and explicitly download whisper.cpp and a model. Neither is bundled: the app shows the download before you agree, checks the files, and lets you remove them in Settings. The recogniser runs on your computer. It writes a temporary WAV while processing each question and removes it when the run ends.
+
+You can instead configure your own speech recogniser server using `speechServerUrl`. Your recording is sent to that address, so run it on your own computer. The app does not start the server. The client sends `POST /transcribe` with raw 16 kHz mono float32 samples and expects `{"text": "..."}`; `GET /health` checks availability. An optional `POST /warm` lets a sleeping server prepare in the background. A server without that route is not asked again for a while.
+
+When configured, the server is initially tried before a downloaded whisper.cpp recogniser and Windows hearing. If a recogniser is unavailable or fails, the app tries the next one; it remembers the last one that worked and tries it first for later questions. An empty recognition result or a cancelled question ends that attempt rather than falling through. On platforms without Windows hearing, an available configured server or downloaded recogniser is needed.
 
 ## Voice
 
