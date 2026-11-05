@@ -2784,15 +2784,6 @@
             "null"
           ]
         },
-        "pivot": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
         "at": {
           "type": [
             "number",
@@ -2810,7 +2801,6 @@
         "by",
         "ratio",
         "phase",
-        "pivot",
         "at"
       ],
       "additionalProperties": false
@@ -2840,15 +2830,6 @@
             "z",
             null
           ]
-        },
-        "dir": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
         },
         "pivot": {
           "type": [
@@ -2889,7 +2870,6 @@
         "id",
         "kind",
         "axis",
-        "dir",
         "pivot",
         "min",
         "max",
