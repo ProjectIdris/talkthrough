@@ -641,7 +641,7 @@ export class PanelScene {
     const p = new Vector3();
     const proj = this.camera.projectionMatrix.elements;
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
       for (const piece of node.pieces) {
         const mesh = piece.object as Mesh;
         box.setFromObject(mesh);

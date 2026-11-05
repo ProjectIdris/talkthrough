@@ -160,3 +160,11 @@ test('a connector whose end is not there yet is not drawn (not drawn to nothing)
   const after = shown(actions, 4);
   assert.ok(((after.node('rope').children[0] as Mesh).material as MeshPhysicalMaterial).opacity > opacity.opacity);
 });
+
+test('markers are no part of the model for the buttons and tags either: the model\'s screen rectangle is the same with a stream as without', () => {
+  const pipe = { op: 'add', shape: 'tube', id: 'pipe', pts: [[0, 0, 0], [3, 0, 0]], radius: 0.1 };
+  const base = [box('b', { pos: [0, 0, 0] }), pipe];
+  const a = shown(base, 1).scene.screenBounds(1000, 1000)!.model;
+  const b = shown([...base, { op: 'add', shape: 'stream', id: 's', along: 'pipe', count: 5, size: 3 }], 1).scene.screenBounds(1000, 1000)!.model;
+  assert.deepEqual([b.x, b.y, b.w, b.h].map(Math.round), [a.x, a.y, a.w, a.h].map(Math.round));
+});
