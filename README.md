@@ -114,7 +114,7 @@ Talkthrough starts the tool you already have and gives it no tools of its own: i
 3. **Model.** A vision model gets the screenshot, your question and the earlier turns of the thread, and answers in the **scene language**: timed steps, each with something to say and things to draw. The model can also say a question is beyond it.
 4. **Scene language.** A small JSON format (boxes, ovals, arrows, labels, and 3D shapes with tweens and camera moves). It is data, validated before anything is drawn; no code is ever run. See [docs/scene-language.md](docs/scene-language.md).
 5. **Renderer.** A transparent, click-through overlay draws marks over your screen and 3D models over the page with [three.js](https://threejs.org). A framed 3D panel is optional.
-6. **Voice and captions.** Each step uses your chosen output: system voice, a local text-to-speech server, captions, or both. If a voice server takes more than 10 seconds to produce its first sound, the system voice speaks that step instead.
+6. **Voice and captions.** Each step uses your chosen output: system voice, a local text-to-speech server, captions, or both. With a voice server, the system voice takes over if it has not made its first sound within `voiceFirstAudioMs` (10 seconds by default; configurable from 300 ms to 30 seconds). The overlay allows an extra 1.5 seconds for a voice to start before advancing the step (11.5 seconds by default, with a 2.5-second minimum).
 
 Models, voices, speech recognition and backends are adapters in `src/adapters/`, so you can plug in your own. A question that is beyond the fast model can go to a **deeper backend** you point the app at (a plain HTTP address; see [docs/backend.md](docs/backend.md)): click the offer, or say "ask the backend".
 
