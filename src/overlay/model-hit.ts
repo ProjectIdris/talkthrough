@@ -1,6 +1,6 @@
 import { Mesh, Raycaster, Vector2 } from 'three';
 import { flexPickObject } from './flex-pick-proxy.ts';
-import { rayCandidates } from './flex-pick-budget.ts';
+import { rayCandidates, safeRayIntersections } from './flex-pick-budget.ts';
 import type { Camera, Intersection, Material, Object3D } from 'three';
 import type { FlexPickBudget } from './flex-pick-budget.ts';
 import { overModel } from './orbit.ts';
@@ -34,7 +34,7 @@ export function hitVisibleModel(objects: readonly Object3D[], camera: Camera, wi
   const candidates=rayCandidates(hits,ray);
   // An exhausted frame cannot safely classify a possible hit as background.
   if (budget && !budget.ray(candidates)) return true;
-  return ray.intersectObjects(candidates, false).some(visibleHit);
+  return safeRayIntersections(ray,candidates).some(visibleHit);
 }
 
 function visibleHit(hit: Intersection): boolean {

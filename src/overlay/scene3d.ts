@@ -16,7 +16,7 @@ import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
 import { surfacePoint } from './flex-attachment.ts';
 import { flexPickObject, flexPoseKey, registerFlexPick, unregisterFlexPick } from './flex-pick-proxy.ts';
-import { FlexPickBudget, rayCandidates } from './flex-pick-budget.ts';
+import { FlexPickBudget, rayCandidates, safeRayIntersections } from './flex-pick-budget.ts';
 import { sampleFrames } from './flex-frames.ts';
 import { buildFlexGeometry } from './flex-geometry.ts';
 import { projectRoot, rigidUniform } from './flex-root.ts';
@@ -1022,11 +1022,11 @@ export class PanelScene {
       ray.setFromCamera(new Vector2(ndc.x, ndc.y), this.camera);
       const rayTarget=rayCandidates(target,ray);
       if (this.flexBudget && !this.flexBudget.ray(rayTarget)) return defer();
-      const hit = ray.intersectObjects(rayTarget, false).find(allowed);
+      const hit = safeRayIntersections(ray,rayTarget).find(allowed);
       if (!hit) continue;
       const rayOccluders=rayCandidates(occluders,ray);
       if (this.flexBudget && !this.flexBudget.ray(rayOccluders)) return defer();
-      const blocker = ray.intersectObjects(rayOccluders, false).find(allowed);
+      const blocker = safeRayIntersections(ray,rayOccluders).find(allowed);
       if (blocker && blocker.distance < hit.distance - 1e-5) continue;
       if (explicit) {
         // Do not snap a point in front of the target onto its visible face.
@@ -1055,7 +1055,7 @@ export class PanelScene {
         let beyond = false;
         const reverseTarget=rayCandidates(target,reverse);
         if (this.flexBudget && !this.flexBudget.ray(reverseTarget)) { for (const [m, side] of sides) m.side = side; return defer(); }
-        try { beyond = reverse.intersectObjects(reverseTarget, false).some(allowed); }
+        try { beyond = safeRayIntersections(reverse,reverseTarget).some(allowed); }
         finally { for (const [m, side] of sides) m.side = side; }
         if (beyond) continue;
       }

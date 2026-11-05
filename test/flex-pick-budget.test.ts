@@ -37,3 +37,19 @@ test('ray broad phase is conservative for occluders, unknown bounds and instance
  const invalidGeo=geo.clone();invalidGeo.boundingSphere=new Sphere(new Vector3(NaN,0,0),1);const invalid=new Mesh(invalidGeo,mat);invalid.updateMatrixWorld();assert.deepEqual(rayCandidates([invalid],ray),[invalid]);
  geo.dispose();invalidGeo.dispose();mat.dispose();
 });
+
+test('conservative candidate filtering and model hit preserve a sheared visible surface',async()=>{
+ const {rayCandidates}=await import('../src/overlay/flex-pick-budget.ts');const {hitVisibleModel}=await import('../src/overlay/model-hit.ts');const {SphereGeometry,Matrix4,Raycaster,Vector3,PerspectiveCamera}=await import('three');
+ const mesh=new Mesh(new SphereGeometry(1,48,32),new MeshBasicMaterial());mesh.matrixAutoUpdate=false;mesh.matrixWorld.copy(new Matrix4().makeScale(3,1,1).multiply(new Matrix4().makeRotationZ(Math.PI/4)));
+ const ray=new Raycaster(new Vector3(2.5,0,5),new Vector3(0,0,-1));assert.equal(rayCandidates([mesh],ray).length,1,'ray reaches the sheared surface');
+ const camera=new PerspectiveCamera(50,1,.1,100);camera.position.set(2.5,0,5);camera.lookAt(2.5,0,0);camera.updateMatrixWorld();camera.updateProjectionMatrix();
+ assert.equal(hitVisibleModel([mesh],camera,1000,1000,500,500,new FlexPickBudget(24,5000)),true,'actual geometry must be hit after the broad phase');
+ mesh.geometry.dispose();(mesh.material as MeshBasicMaterial).dispose();
+});
+
+test('sheared instances hit and restore shared bounds even if raycasting throws',async()=>{
+ const {safeRayIntersections}=await import('../src/overlay/flex-pick-budget.ts');const {SphereGeometry,Matrix4,Raycaster,Vector3,InstancedMesh}=await import('three');
+ const geometry=new SphereGeometry(1,48,32),material=new MeshBasicMaterial(),mesh=new InstancedMesh(geometry,material,1);mesh.setMatrixAt(0,new Matrix4().makeScale(3,1,1).multiply(new Matrix4().makeRotationZ(Math.PI/4)));mesh.updateMatrixWorld();geometry.computeBoundingSphere();mesh.computeBoundingSphere();
+ const gr=geometry.boundingSphere!.radius,ir=mesh.boundingSphere!.radius,ray=new Raycaster(new Vector3(2.5,0,5),new Vector3(0,0,-1));assert.ok(safeRayIntersections(ray,[mesh]).length>0);assert.equal(geometry.boundingSphere!.radius,gr);assert.equal(mesh.boundingSphere!.radius,ir);
+ const plain=new Mesh(geometry,material),original=plain.raycast;plain.raycast=()=>{throw Error('test throw')};assert.throws(()=>safeRayIntersections(ray,[plain]),/test throw/);assert.equal(geometry.boundingSphere!.radius,gr);plain.raycast=original;geometry.dispose();material.dispose();
+});
