@@ -4,7 +4,7 @@
 const { app, BrowserWindow, screen } = require('electron');
 const http = require('node:http');
 app.disableHardwareAcceleration();
-if (process.env.TT_TEST_PROFILE) app.setPath('userData', process.env.TT_TEST_PROFILE); // its own profile, so two pages can run at once
+require('./electron-profile-guard.cjs')(process.env.TT_TEST_PROFILE, receipt => console.log('PROFILE ' + JSON.stringify(receipt)));
 
 const html = `<!doctype html><title>tt-nav-page</title><body style="margin:0;font:14px sans-serif">
 <nav aria-label="Main" style="padding:10px"><a data-t="nav-docs" href="/docs">Docs</a> &nbsp; <a data-t="nav-pricing" href="/pricing">Pricing</a> &nbsp; <a data-t="nav-offsite" href="https://other.example/x">Partner</a> &nbsp; <a data-t="nav-logout" href="/logout">Log out</a></nav>

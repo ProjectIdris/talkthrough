@@ -24,7 +24,7 @@ export function startPage(): Promise<Page> {
   const profile = mkdtempSync(join(tmpdir(), 'tt-page-'));
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== 'ELECTRON_RUN_AS_NODE'));
   env.TT_TEST_PROFILE = profile;
-  const child: ChildProcess = spawn(electronExe, [resolve('test/support/nav-page.cjs')], { env, stdio: ['ignore', 'pipe', 'ignore'] });
+  const child: ChildProcess = spawn(electronExe, [resolve('test/support/nav-page.cjs'), `--user-data-dir=${profile}`], { env, stdio: ['ignore', 'pipe', 'ignore'] });
   const requests: string[] = [];
   const stop = (): void => {
     child.kill();
@@ -39,6 +39,10 @@ export function startPage(): Promise<Page> {
       for (const m of text.matchAll(/EVENT GET (\S+)/g)) if (!requests.includes(m[1]!)) requests.push(m[1]!);
       const m = /READY (\d+) (.*)/.exec(text);
       if (!m) return;
+      const profileLine = /^PROFILE (.+)$/m.exec(text);
+      if (!profileLine) { clearTimeout(timer); stop(); reject(new Error('missing actual Electron profile receipt')); return; }
+      const observed = JSON.parse(profileLine[1]!);
+      if (observed.preReady !== true || ['userData', 'sessionData', 'storage'].some(k => resolve(observed[k]).toLowerCase() !== resolve(profile).toLowerCase())) { clearTimeout(timer); stop(); reject(new Error('Electron profile receipt mismatch')); return; }
       clearTimeout(timer);
       child.stdout!.removeAllListeners('data');
       child.stdout!.on('data', (more: Buffer) => { for (const g of more.toString().matchAll(/EVENT GET (\S+)/g)) if (!requests.includes(g[1]!)) requests.push(g[1]!); });
