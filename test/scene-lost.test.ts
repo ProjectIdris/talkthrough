@@ -56,7 +56,7 @@ test('the heart answer: four pulse loops named for the chambers (lpra, lpla, lpr
 
 test('a move, a style and a pin that name the part with a short prefix or suffix are bound the same way', () => {
   const { kept, issues } = one(blob('ra'), blob('rv'), { op: 'move', id: 'move-ra', to: [1, 0, 0] }, { op: 'style', id: 'rvcolor', color: 'red' }, { op: 'pin', id: 'p1', on: 'rv-pin', text: 'x' });
-  assert.deepEqual([kept[2]!.id, kept[3]!.id, kept[4]!.on], ['ra', 'rv', 'rv']);
+  assert.deepEqual([kept.find(a => a.op === 'move')?.id, kept.find(a => a.op === 'style')?.id, kept.find(a => a.op === 'pin')?.on], ['ra', 'rv', 'rv']);
   assert.equal(issues.filter((i) => i.kind === 'trimmed').length, 3, JSON.stringify(issues));
 });
 
@@ -133,4 +133,19 @@ test('scene-level diagnostics retain dropped reasons across the full bounded tur
   const steps = Array.from({length: 24}, (_, step) => ({say: 'x', actions: Array.from({length: 24}, (_, i) => ({op: 'unknown', id: `x${step}_${i}`}))}));
   const r = validateScene({steps}, createSceneState());
   assert.ok(r.issues.some(i => i.kind === 'dropped' && i.path === 'steps[23].actions[23]'));
+});
+
+test('repairing a small panel never evaluates enumerable getters', () => {
+  let invoked = false;
+  const panel = {op: 'panel', x: 0, y: 0, w: 0, h: 0};
+  Object.defineProperty(panel, 'surprise', {enumerable: true, get() { invoked = true; throw new Error('getter executed'); }});
+  const r = one(panel);
+  assert.equal(invoked, false);
+  assert.equal(r.ofOp('panel').length, 1);
+});
+
+test('a recoverable later creator is resolved before a consumer is guessed', () => {
+  const r = one(blob('ra'), {op:'style', id:'style-ra', color:'red'}, {op:'pin', id:'style-ra', on:'pin-ra', text:'x'});
+  assert.equal(r.ofOp('pin')[0]?.id, 'style-ra');
+  assert.equal(r.ofOp('style')[0]?.id, 'style-ra');
 });

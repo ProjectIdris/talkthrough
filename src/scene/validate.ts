@@ -400,7 +400,11 @@ function fitStage(raw: Record<string, unknown>, state: SceneState, path: string,
   const w = own(raw, 'w'), h = own(raw, 'h');
   if (!small(w) && !small(h)) return raw;
   const size = state.stage ?? DEFAULT_STAGE;
-  const next: Record<string, unknown> = { ...raw };
+  const next: Record<string, unknown> = Object.create(null);
+  for (const key of ownKeys(raw)) {
+    const d = Object.getOwnPropertyDescriptor(raw, key);
+    if (d && 'value' in d) Object.defineProperty(next, key, { value: d.value, writable: true, configurable: true, enumerable: true });
+  }
   if (small(w)) {
     next.w = size.w;
     note(notes, 'trimmed', `${path}.w`, `repaired: a stage ${w} wide is too small to hold a model; used ${size.w}`);
@@ -781,7 +785,19 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
     if (!final) return;
     // Each recovery can create an id. Give exact references another chance before any next guess.
     while (held.length > 0) {
-      const at = held.findIndex((h) => tryBound(h.raw, h.path));
+      // A still-held creator may yet supply an exact id, even if it needs recovery itself.
+      const creators = held.filter((h) => {
+        if (!isObject(h.raw)) return false;
+        const variant = pickVariant(h.raw);
+        return typeof variant !== 'string' && !!variant.creates;
+      });
+      const waitsForCreator = (h: Held): boolean => {
+        const missingIds = h.why.filter((n) => n.kind === 'dropped').map((n) => /unknown id "([^"]+)"/.exec(n.message)?.[1]);
+        return creators.some((c) => c !== h && isObject(c.raw) && missingIds.includes(own(c.raw, 'id') as string));
+      };
+      const recover = (h: Held): boolean => !waitsForCreator(h) && tryBound(h.raw, h.path);
+      const candidate = creators.find(recover) ?? held.filter((h) => !creators.includes(h)).find(recover);
+      const at = candidate ? held.indexOf(candidate) : -1;
       if (at < 0) break;
       held.splice(at, 1);
       retryHeld(false);
