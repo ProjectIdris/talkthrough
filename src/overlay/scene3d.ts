@@ -9,7 +9,7 @@
 
 import {
   AmbientLight, Box3, BufferGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight, EdgesGeometry, Euler,
-  Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Material, Mesh, MeshBasicMaterial, Object3D,
+  Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Material, Matrix4, Mesh, MeshBasicMaterial, Object3D,
   PerspectiveCamera, PlaneGeometry, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector3,
 } from 'three';
 import type { Texture } from 'three';
@@ -46,6 +46,16 @@ export const FRAMING_UNITS = 12;
 const FIT_MARGIN = 1.1;
 const MIN_FIT_DISTANCE = 0.8;
 const PATH_RADIUS = 0.06;
+function boxCorners(box: Box3, matrix: Matrix4 | undefined): Vector3[] {
+  const out: Vector3[] = [];
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+    const v = new Vector3(x, y, z);
+    out.push(matrix ? v.applyMatrix4(matrix) : v);
+  }
+  return out;
+}
+/** A part as the camera's fit sees it: its bounding sphere and the eight corners of its own box. */
+type PartHull = { sphere: Sphere; corners: Vector3[] };
 const DEG = Math.PI / 180;
 
 type CanvasLike = HTMLCanvasElement | OffscreenCanvas;
@@ -113,6 +123,8 @@ export class PanelScene {
   /** The framing sphere the camera is using, which eases to the model's own as parts come and go. */
   private shownFit: { center: Vector3; radius: number } | undefined;
   private fitClock: number | undefined;
+  /** The visible parts' bounding spheres and box corners at rest (no machine pose, no pulse), worked out in `sync` for the camera's fit. */
+  private restSpheres: PartHull[] = [];
   private settling = false;
   private cutaway = new Cutaway();
 
@@ -353,7 +365,7 @@ export class PanelScene {
         return { key: o.key, parentKey: o.parentKey, pos: o.pos, ...(explode ? { explode } : {}), ...(o.shape === 'text' ? { fixed: true } : {}) };
       }), frame.userExplode ?? 0)
       : undefined;
-    const layout = (with_: Map<number, Vec3> | undefined): void => {
+    const layout = (with_: Map<number, Vec3> | undefined, rest = false): void => {
       for (const o of frame.objects) {
         live.add(o.key);
         let node = this.nodes.get(o.key);
@@ -372,7 +384,7 @@ export class PanelScene {
         // A part whose parent was swapped for a richer one (an object added again under its id) moves to the new parent.
         const holder = o.parentKey !== null ? this.nodes.get(o.parentKey)?.obj : undefined;
         if (holder && node.obj.parent !== holder && !isAncestor(node.obj, holder)) holder.add(node.obj);
-        this.apply(node, o, o.parentKey !== null ? spreads.get(o.parentKey) ?? 0 : 0, with_?.get(o.key));
+        this.apply(node, o, o.parentKey !== null ? spreads.get(o.parentKey) ?? 0 : 0, with_?.get(o.key), rest);
       }
     };
     // The camera has to stand further back for an opened model than for a closed one: measure how far the parts reach both ways.
@@ -392,19 +404,29 @@ export class PanelScene {
         this.nodes.delete(key);
       }
     }
+    // The camera fits the model at rest: a machine's pose and a part's pulse move parts about, and a camera that followed them would breathe.
+    // So the parts' spheres are taken once with poses and pulses left out, then the frame is laid out as it really stands.
+    if (frame.objects.some((o) => o.pose || o.pulse !== 0)) {
+      layout(offsets, true);
+      this.scene.updateMatrixWorld(true);
+      this.restSpheres = this.partSpheres();
+      layout(offsets);
+    }
     this.scene.updateMatrixWorld(true);
+    if (!frame.objects.some((o) => o.pose || o.pulse !== 0)) this.restSpheres = this.partSpheres();
     this.aim(frame, aspect, view, standBack);
     // The person's Cut goes through the middle of the model from the side the camera looks from.
     this.cutaway.update(frame, this.nodes, this.scene, this.camera.getWorldDirection(new Vector3()).negate());
     this.placeShadow(frame);
   }
 
-  private apply(node: Node, o: ObjectFrame, parentSpread: number, offset?: Vec3): void {
-    const pulse = o.pulse;
+  private apply(node: Node, o: ObjectFrame, parentSpread: number, offset?: Vec3, rest = false): void {
+    const pulse = rest ? 0 : o.pulse;
+    const pose = rest ? undefined : o.pose;
     const grow = 1 + 0.07 * pulse;
     // Spread by the model's own explode, then by the person's control; a machine's pose stands in for the rest values.
-    const at = spreadPosition(o.pose?.pos ?? o.pos, (o.def as { explode?: Vec3 }).explode, parentSpread);
-    const rot = o.pose?.rot ?? o.rot;
+    const at = spreadPosition(pose?.pos ?? o.pos, (o.def as { explode?: Vec3 }).explode, parentSpread);
+    const rot = pose?.rot ?? o.rot;
     node.obj.position.set(at[0] + (offset?.[0] ?? 0), at[1] + (offset?.[1] ?? 0), at[2] + (offset?.[2] ?? 0));
     node.obj.rotation.copy(new Euler(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'XYZ'));
     node.obj.scale.set(node.baseScale.x * o.scale[0] * grow, node.baseScale.y * o.scale[1] * grow, node.baseScale.z * o.scale[2] * grow);
@@ -452,16 +474,13 @@ export class PanelScene {
     // Zoom 1 is the whole model filling the stage, whatever size it was written at (a model of 3 units and one of 30 both fit).
     // The distance comes from a sphere round the visible parts; it also takes in an opened (exploded) model, which is
     // laid out by now, so the camera stands back for it without being told.
-    const fit = this.eased(this.modelSphere(), view?.now);
+    const az = cam.az * DEG, el = Math.max(-89, Math.min(89, cam.el)) * DEG;
+    const fit = this.eased(this.fitTarget(az, el, tan, aspect), view?.now);
     let base = (FRAMING_UNITS / 2 / (aspect >= 1 ? 1 : aspect)) / tan;
-    if (fit) {
-      const tanShort = tan * Math.min(1, aspect);
-      base = Math.max(MIN_FIT_DISTANCE, (fit.radius * FIT_MARGIN * Math.sqrt(1 + tanShort * tanShort)) / tanShort);
-    }
+    if (fit) base = Math.max(MIN_FIT_DISTANCE, fit.radius);
     void standBack;
     this.fitCenter = fit ? fit.center : undefined;
     const dist = base / Math.max(0.05, cam.zoom);
-    const az = cam.az * DEG, el = Math.max(-89, Math.min(89, cam.el)) * DEG;
     const target = this.focusPoint(cam.focus, new Vector3());
     this.camera.aspect = aspect;
     this.camera.fov = fov;
@@ -513,30 +532,105 @@ export class PanelScene {
    * A sphere round every visible part, from the parts' own bounding spheres (so a part turning on its axis does not make
    * the camera breathe the way a box round it would). Undefined when nothing is there.
    */
-  private modelSphere(): { center: Vector3; radius: number } | undefined {
-    const spheres: Sphere[] = [];
+  private partSpheres(): PartHull[] {
+    const spheres: PartHull[] = [];
     for (const node of this.nodes.values()) {
       if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
       for (const p of node.pieces) {
         const mesh = p.object as Mesh;
         const geo = mesh.geometry;
         if (!geo) continue;
+        if (mesh instanceof InstancedMesh) {
+          // The geometry is one instance; the piece is where all of them are.
+          const box = new Box3().setFromObject(mesh);
+          if (!box.isEmpty()) spheres.push({ sphere: box.getBoundingSphere(new Sphere()), corners: boxCorners(box, undefined) });
+          continue;
+        }
         if (!geo.boundingSphere) geo.computeBoundingSphere();
-        if (!geo.boundingSphere) continue;
-        spheres.push(geo.boundingSphere.clone().applyMatrix4(mesh.matrixWorld));
+        if (!geo.boundingBox) geo.computeBoundingBox();
+        if (!geo.boundingSphere || !geo.boundingBox) continue;
+        spheres.push({ sphere: geo.boundingSphere.clone().applyMatrix4(mesh.matrixWorld), corners: boxCorners(geo.boundingBox, mesh.matrixWorld) });
       }
     }
-    if (spheres.length === 0) return undefined;
-    const lo = new Vector3(Infinity, Infinity, Infinity), hi = new Vector3(-Infinity, -Infinity, -Infinity);
-    for (const s of spheres) {
-      lo.min(new Vector3(s.center.x - s.radius, s.center.y - s.radius, s.center.z - s.radius));
-      hi.max(new Vector3(s.center.x + s.radius, s.center.y + s.radius, s.center.z + s.radius));
-    }
-    const center = lo.add(hi).multiplyScalar(0.5);
-    let radius = 0;
-    for (const s of spheres) radius = Math.max(radius, s.center.distanceTo(center) + s.radius);
-    return { center, radius };
+    return spheres;
   }
+
+  /**
+   * Where the model is on screen, tightly: for each part the overlap of its box's projection and its bounding sphere's, joined. A box alone
+   * reaches past a round part by a corner's worth, which made a ball look bigger than it was (and its buttons and tags keep away from nothing).
+   */
+  private tightRect(width: number, height: number): ScreenRect | undefined {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const box = new Box3();
+    const p = new Vector3();
+    const proj = this.camera.projectionMatrix.elements;
+    for (const node of this.nodes.values()) {
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
+      for (const piece of node.pieces) {
+        const mesh = piece.object as Mesh;
+        box.setFromObject(mesh);
+        if (box.isEmpty()) continue;
+        let a0 = Infinity, b0 = Infinity, a1 = -Infinity, b1 = -Infinity;
+        for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+          p.set(x, y, z).project(this.camera);
+          const sx = ((p.x + 1) / 2) * width, sy = ((1 - p.y) / 2) * height;
+          a0 = Math.min(a0, sx); a1 = Math.max(a1, sx); b0 = Math.min(b0, sy); b1 = Math.max(b1, sy);
+        }
+        if (!(mesh instanceof InstancedMesh) && mesh.geometry) {
+          if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+          const bs = mesh.geometry.boundingSphere?.clone().applyMatrix4(mesh.matrixWorld);
+          if (bs) {
+            const view = bs.center.clone().applyMatrix4(this.camera.matrixWorldInverse);
+            const depth = -view.z, d3 = view.length();
+            if (depth > 0 && bs.radius < d3 * 0.9) {
+              const r = bs.radius / Math.sqrt(1 - (bs.radius / d3) ** 2);
+              p.copy(bs.center).project(this.camera);
+              const cx = ((p.x + 1) / 2) * width, cy = ((1 - p.y) / 2) * height;
+              const rx = (r * proj[0] * width) / (2 * depth), ry = (r * proj[5] * height) / (2 * depth);
+              a0 = Math.max(a0, cx - rx); a1 = Math.min(a1, cx + rx); b0 = Math.max(b0, cy - ry); b1 = Math.min(b1, cy + ry);
+            }
+          }
+        }
+        if (a0 > a1 || b0 > b1) continue;
+        x0 = Math.min(x0, a0); x1 = Math.max(x1, a1); y0 = Math.min(y0, b0); y1 = Math.max(y1, b1);
+      }
+    }
+    return x0 <= x1 && y0 <= y1 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : undefined;
+  }
+
+  /**
+   * Where the camera stands to show the model at rest as large as the stage allows from this direction: the middle of the parts' box and the
+   * distance (returned as `radius`, so it eases like the old sphere did) at which every part's sphere sits inside the stage's frustum, with the
+   * margin. A tall or long model fills its stage instead of leaving it mostly empty, and, being made from the rest pose, it does not breathe
+   * when a part pulses or a machine moves. Never further than the all-round sphere would put it.
+   */
+  private fitTarget(az: number, el: number, tan: number, aspect: number): { center: Vector3; radius: number } | undefined {
+    const parts = this.restSpheres;
+    if (parts.length === 0) return undefined;
+    const lo = new Vector3(Infinity, Infinity, Infinity), hi = new Vector3(-Infinity, -Infinity, -Infinity);
+    for (const p of parts) for (const c of p.corners) { lo.min(c); hi.max(c); }
+    const center = lo.add(hi).multiplyScalar(0.5);
+    const toCam = new Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
+    const right = new Vector3().crossVectors(new Vector3(0, 1, 0), toCam);
+    if (right.lengthSq() < 1e-9) right.set(1, 0, 0);
+    right.normalize();
+    const up = new Vector3().crossVectors(toCam, right).normalize();
+    const tanY = tan, tanX = tan * aspect;
+    const kx = Math.sqrt(1 + tanX * tanX), ky = Math.sqrt(1 + tanY * tanY);
+    const rel = new Vector3();
+    let dist = 0;
+    for (const { sphere: s, corners } of parts) {
+      // Each part needs the nearer of what its box asks and what its bounding sphere asks: a long thin part is held by its box, a round one by its sphere.
+      let byBox = 0;
+      for (const c of corners) {
+        rel.copy(c).sub(center);
+        byBox = Math.max(byBox, rel.dot(toCam) + Math.max(Math.abs(rel.dot(right)) / tanX, Math.abs(rel.dot(up)) / tanY));
+      }
+      rel.copy(s.center).sub(center);
+      const bySphere = rel.dot(toCam) + Math.max((Math.abs(rel.dot(right)) + s.radius * kx) / tanX, (Math.abs(rel.dot(up)) + s.radius * ky) / tanY);
+      dist = Math.max(dist, Math.min(byBox, bySphere));
+    }
+    return { center, radius: dist * FIT_MARGIN };  }
 
   /** How far the visible parts reach from a point: the largest distance to a corner of a part's box. */
   private reach(from: Vector3): number {
@@ -622,7 +716,7 @@ export class PanelScene {
       }
       return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
     };
-    const model = rect(corners);
+    const model = this.tightRect(width, height) ?? rect(corners);
     const size = this.box.getSize(new Vector3());
     const floorY = min.y - 0.03 * Math.max(size.x, size.y, size.z);
     const span = Math.max(size.x, size.z, 1) * 1.6;
