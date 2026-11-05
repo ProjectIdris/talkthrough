@@ -153,8 +153,9 @@ test('the caption keeps off a note card, the enlarged picture an image mark is d
   const px = (b: Box) => ({ x: (b.x / 1000) * view.width, y: (b.y / 1000) * view.height, w: (b.w / 1000) * view.width, h: (b.h / 1000) * view.height });
   const noted = cardFootprint({ op: 'card', id: 'c', x: 300, y: 880, w: 300, title: 'Note', rows: ['one'] } as Mark, view.height).map(px);
   assert.equal(noted.length, 1, 'a card has a footprint');
-  const image = cardFootprint({ op: 'image', id: 'i', sx: 10, sy: 10, sw: 100, sh: 80, dx: 350, dy: 860, dw: 300 } as Mark, view.height).map(px);
-  assert.ok(image[0] && image[0].x === 700 && image[0].w === 600, 'the card the picture is drawn on, not the part it was cut from');
+  const image = cardFootprint({ op: 'image', id: 'i', sx: 10, sy: 10, sw: 100, sh: 80, dx: 350, dy: 860, dw: 300 } as Mark, view.height, view.width / view.height).map(px);
+  const pad = Math.max(6, view.height * 0.008);
+  assert.ok(image[0] && image[0].x === 700 && image[0].w === 600 + 2 * pad, 'the complete drawn card includes its image width and padding, not the source crop');
   const overCard = captionSpot(view, size, noted);
   assert.ok(!overlaps(overCard, size, noted[0]!), JSON.stringify(overCard));
   const overImage = captionSpot(view, size, image);
