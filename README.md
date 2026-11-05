@@ -1,5 +1,7 @@
 # Talkthrough
 
+> **Experimental 0.3.8 development branch:** This branch explores articulated surfaces and related features. For the stable 0.3.7 installer, see the [releases page](https://github.com/ProjectIdris/talkthrough/releases). Natural flight motion and live model authoring have not yet been validated for quality. Mouse circling and model dragging on the installed application remain unverified; isolated renderer checks do not establish the result of real desktop input.
+
 **An AI that talks you through anything on your screen, and draws as it talks.**
 
 Hold a key and ask out loud. Talkthrough looks at your screen, points at what matters, draws diagrams and 3D models right over the page, and walks you through it step by step.
