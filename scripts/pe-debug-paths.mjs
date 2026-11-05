@@ -29,7 +29,7 @@ function parse(input) {
   checked(b, sections, count * 40);
   const rva = b.readUInt32LE(directories + 6 * 8), size = b.readUInt32LE(directories + 6 * 8 + 4);
   if (!rva && !size) return { b, checksum, records: [] };
-  if (!rva || size % 28) throw new Error('Malformed PE debug directory');
+  if (!rva || !size || size % 28) throw new Error('Malformed PE debug directory');
   let offset;
   for (let i = 0; i < count; i++) {
     const section = sections + i * 40, address = b.readUInt32LE(section + 12);
