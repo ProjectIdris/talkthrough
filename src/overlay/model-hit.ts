@@ -1,5 +1,6 @@
 import { Mesh, Raycaster, Vector2 } from 'three';
 import { flexPickObject } from './flex-pick-proxy.ts';
+import { rayCandidates } from './flex-pick-budget.ts';
 import type { Camera, Intersection, Material, Object3D } from 'three';
 import type { FlexPickBudget } from './flex-pick-budget.ts';
 import { overModel } from './orbit.ts';
@@ -27,12 +28,13 @@ export function hitVisibleModel(objects: readonly Object3D[], camera: Camera, wi
   const seen=new Set<Object3D>(), hits:Object3D[]=[];let unknown=false;
   for(const root of objects) root.traverse(object=>{if(seen.has(object))return;seen.add(object);const pick=object instanceof Mesh?flexPickObject(object):object;if(pick)hits.push(pick);else if(hierarchyVisible(object))unknown=true;});
   if(unknown)return true;
-  // An exhausted frame cannot safely classify a possible hit as background.
-  if (budget && !budget.ray(hits)) return true;
   const ray = new Raycaster();
   ray.params.Line.threshold = 0.02;
   ray.setFromCamera(new Vector2(x / width * 2 - 1, 1 - y / height * 2), camera);
-  return ray.intersectObjects(hits, false).some(visibleHit);
+  const candidates=rayCandidates(hits,ray);
+  // An exhausted frame cannot safely classify a possible hit as background.
+  if (budget && !budget.ray(candidates)) return true;
+  return ray.intersectObjects(candidates, false).some(visibleHit);
 }
 
 function visibleHit(hit: Intersection): boolean {

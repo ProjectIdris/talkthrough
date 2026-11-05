@@ -16,7 +16,7 @@ import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
 import { surfacePoint } from './flex-attachment.ts';
 import { flexPickObject, flexPoseKey, registerFlexPick, unregisterFlexPick } from './flex-pick-proxy.ts';
-import { FlexPickBudget } from './flex-pick-budget.ts';
+import { FlexPickBudget, rayCandidates } from './flex-pick-budget.ts';
 import { sampleFrames } from './flex-frames.ts';
 import { buildFlexGeometry } from './flex-geometry.ts';
 import { projectRoot, rigidUniform } from './flex-root.ts';
@@ -154,10 +154,11 @@ export class PanelScene {
   private flexWarnings = new Set<number>();
   private flexBudgetWarnings = new Set<number>();
   private flexBudget: FlexPickBudget | undefined;
+  private flexModelBudget: FlexPickBudget | undefined;
   private flexPending: number[] = [];
   private flexPriority: number | undefined;
   private flexRetryFrames = 2;
-  flexPickBudget(): FlexPickBudget | undefined { return this.flexBudget; }
+  flexPickBudget(): FlexPickBudget | undefined { return this.flexModelBudget; }
   flexPickPending(): boolean { return this.flexPending.length > 0; }
   takeFlexPickRetry(): boolean { if(!this.flexPickPending() || this.flexRetryFrames<=0)return false;this.flexRetryFrames--;return true; }
 
@@ -440,7 +441,10 @@ export class PanelScene {
    * over height; `view`, when given, places the stage in the window so the model can reach past it.
    */
   sync(frame: Frame, aspect: number, view?: StageView): void {
-    this.flexBudget = frame.objects.some(o => o.def.shape === 'flexSurface') ? new FlexPickBudget() : undefined;
+    // Pins and input use separately bounded allowances so repeated annotation work cannot starve a model hit.
+    // 49,152 covers the measured 16-phase oblique sweep (38,950 candidate triangles worst case) with bounded headroom.
+    this.flexBudget = frame.objects.some(o => o.def.shape === 'flexSurface') ? new FlexPickBudget(24, 49152) : undefined;
+    this.flexModelBudget = this.flexBudget ? new FlexPickBudget() : undefined;
     const pinTargets=new Set(frame.marks.filter(m=>m.mark.op==='pin' && m.onKey!==undefined).map(m=>m.onKey!));
     this.flexPending=this.flexBudget ? this.flexPending.filter(key=>pinTargets.has(key)) : [];
     if(this.flexPending.length===0)this.flexRetryFrames=2;
@@ -1016,11 +1020,13 @@ export class PanelScene {
         return mats.some((m) => m.visible && !(m.clippingPlanes ?? []).some((plane) => plane.distanceToPoint(world) < -1e-6));
       })) continue;
       ray.setFromCamera(new Vector2(ndc.x, ndc.y), this.camera);
-      if (this.flexBudget && !this.flexBudget.ray(target)) return defer();
-      const hit = ray.intersectObjects(target, false).find(allowed);
+      const rayTarget=rayCandidates(target,ray);
+      if (this.flexBudget && !this.flexBudget.ray(rayTarget)) return defer();
+      const hit = ray.intersectObjects(rayTarget, false).find(allowed);
       if (!hit) continue;
-      if (this.flexBudget && !this.flexBudget.ray(occluders)) return defer();
-      const blocker = ray.intersectObjects(occluders, false).find(allowed);
+      const rayOccluders=rayCandidates(occluders,ray);
+      if (this.flexBudget && !this.flexBudget.ray(rayOccluders)) return defer();
+      const blocker = ray.intersectObjects(rayOccluders, false).find(allowed);
       if (blocker && blocker.distance < hit.distance - 1e-5) continue;
       if (explicit) {
         // Do not snap a point in front of the target onto its visible face.
@@ -1047,8 +1053,9 @@ export class PanelScene {
           if (!sides.has(m)) { sides.set(m, m.side); m.side = FrontSide; }
         }
         let beyond = false;
-        if (this.flexBudget && !this.flexBudget.ray(target)) { for (const [m, side] of sides) m.side = side; return defer(); }
-        try { beyond = reverse.intersectObjects(target, false).some(allowed); }
+        const reverseTarget=rayCandidates(target,reverse);
+        if (this.flexBudget && !this.flexBudget.ray(reverseTarget)) { for (const [m, side] of sides) m.side = side; return defer(); }
+        try { beyond = reverse.intersectObjects(reverseTarget, false).some(allowed); }
         finally { for (const [m, side] of sides) m.side = side; }
         if (beyond) continue;
       }

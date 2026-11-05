@@ -28,3 +28,12 @@ test('unknown posed geometry outside stale screen bounds is not routed as backgr
 test('exhaustion is explicitly observable so the overlay can schedule a fresh frame',()=>{
  const mesh=new Mesh(new BoxGeometry(1,1,1),new MeshBasicMaterial()),budget=new FlexPickBudget(24,1);assert.equal(budget.exhausted,false);assert.equal(budget.ray([mesh]),false);assert.equal(budget.exhausted,true);mesh.geometry.dispose();(mesh.material as MeshBasicMaterial).dispose();
 });
+
+test('ray broad phase is conservative for occluders, unknown bounds and instances',async()=>{
+ const {rayCandidates}=await import('../src/overlay/flex-pick-budget.ts');const {Raycaster,Vector3,InstancedMesh,Sphere}=await import('three');
+ const mat=new MeshBasicMaterial(),geo=new BoxGeometry(1,1,1),on=new Mesh(geo,mat),off=new Mesh(geo,mat),instances=new InstancedMesh(geo,mat,1);
+ off.position.set(100,0,0);on.updateMatrixWorld();off.updateMatrixWorld();instances.position.set(100,0,0);instances.updateMatrixWorld();
+ const ray=new Raycaster(new Vector3(0,0,5),new Vector3(0,0,-1));assert.deepEqual(rayCandidates([on,off,instances],ray),[on,instances]);
+ const invalidGeo=geo.clone();invalidGeo.boundingSphere=new Sphere(new Vector3(NaN,0,0),1);const invalid=new Mesh(invalidGeo,mat);invalid.updateMatrixWorld();assert.deepEqual(rayCandidates([invalid],ray),[invalid]);
+ geo.dispose();invalidGeo.dispose();mat.dispose();
+});
