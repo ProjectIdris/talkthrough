@@ -35,6 +35,8 @@ test('what each half is told: the first asks for step 1 alone (about 30 words), 
   const first = questionText({ ...request, stage: { part: 'first' } });
   assert.match(first, /Write only step 1 now/);
   assert.match(first, /about 30 words/);
+  assert.match(first, /begins by answering the question/);
+  assert.doesNotMatch(first, /what the page is and what the question is about/);
   assert.match(first, /the checklist is drawn in step 2/);
   const rest = questionText({ ...request, stage: { part: 'rest', first: { say: 'Hello.', actions: [] } } });
   assert.match(rest, /Step 1 of this answer is already drawn and spoken: \{"say":"Hello\.","actions":\[\]\}/);
@@ -49,6 +51,9 @@ test('what each half is told: the first asks for step 1 alone (about 30 words), 
   assert.match(rest, /never over what the answer points at \(in a how-do-I walk, never over the controls the walk needs visible\)/);
   assert.ok(!/never over its text|never covers its caption|clear of the model and of page text|never over the picture or the page text/.test(rest + sceneGuide), 'no line keeps the model clear of page text');
   assert.ok(!/Write only step 1/.test(rest) && !/Step 1 of this answer/.test(questionText(request)), 'a plain question carries neither');
+  const earlyRest = questionText({ ...request, stage: { part: 'rest' } });
+  assert.match(earlyRest, /begins by answering the question/);
+  assert.doesNotMatch(earlyRest, /what the page is and what the question is about/);
 });
 
 test('on the claude command: step 1 first, then the steps after it, one answer, with both calls\' figures added up', async () => {
@@ -277,5 +282,8 @@ test('the later calls are reminded that the question sets the task and the page 
     assert.ok(text.includes('Choose words alone (actions: []), a mark on the page, a flat diagram or a 3D model, whichever explains best'));
     assert.ok(text.includes('use no actions when words suffice'));
     assert.ok(text.includes('A diagram of a physical thing or process is a 3D scene with streams for what moves'));
+    assert.match(text, /spoken sentence must add a new answer-relevant point/);
+    assert.match(text, /Do not narrate visual staging such as building or zooming/);
+    assert.match(text, /do not add a second form for the same explanatory job/);
   }
 });
