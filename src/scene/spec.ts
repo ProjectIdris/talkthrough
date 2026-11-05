@@ -433,15 +433,34 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'loop', op: 'loop',
-    doc: 'Repeat a motion on any object, plain shape or part: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, round pivot) or pulse (swell to amount times its size). Every period seconds (default 2), or give by, a spinning part, to keep in step. It goes on until another loop on the object replaces it; stop ends it.',
+    doc: 'Repeat a motion on any object: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, round pivot) or pulse (swell to amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint\'s. Another loop replaces it; stop ends it.',
     fields: {
-      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['slide', 'swing', 'pulse', 'stop'] },
+      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['slide', 'swing', 'pulse', 'stop'], opt: true, doc: 'left out, the kind of the joint the object has' },
       amount: { k: 'num', min: 0.01, max: 360, opt: true, doc: 'slide: total travel in units; swing: degrees each side; pulse: the size factor (1.3 is 30% bigger, 0.8 smaller)' },
       axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true, doc: 'seconds for one cycle (default 2)' },
       by: { k: 'ref', of: 'object3d', opt: true, doc: 'a spinning part to stay in step with' },
       ratio: { k: 'num', min: -20, max: 20, opt: true, doc: 'with by: cycles per turn of that part (default 1)' },
       phase: { k: 'num', min: -3600, max: 3600, opt: true, doc: 'with by: degrees of that part ahead' },
       pivot: { k: 'vec3', ...WORLD, opt: true, doc: 'swing: from the object to the point it turns about' }, at: AT,
+    },
+  },
+  {
+    name: 'joint', op: 'joint',
+    doc: 'Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it.',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['hinge', 'slide', 'fixed'] }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true },
+      dir: { k: 'vec3', ...WORLD, opt: true, doc: 'slide: the direction, [x,y,z]' }, pivot: { k: 'vec3', ...WORLD, opt: true, doc: 'hinge: from the object to the point it turns about' },
+      min: { k: 'num', min: -3600, max: 3600, opt: true }, max: { k: 'num', min: -3600, max: 3600, opt: true },
+      to: { k: 'ref', of: 'object3d', opt: true, doc: 'fixed: the object it rides with' }, at: AT,
+    },
+  },
+  {
+    name: 'couple', op: 'couple',
+    doc: 'One joint follows another: its value is ratio times that of by, plus phase. Use ratio between two of a kind (gear, belt, lever) and pitch between a hinge and a slide (units of travel for one turn: a screw, a rack, a rope on a wheel is 2 x pi x radius). stop ends it.',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, by: { k: 'ref', of: 'object3d', opt: true, doc: 'the part that drives it' },
+      ratio: { k: 'num', min: -100, max: 100, opt: true, doc: 'default 1' }, pitch: { k: 'num', min: -100, max: 100, opt: true, doc: 'units of travel for one turn, between a hinge and a slide' },
+      phase: { k: 'num', min: -3600, max: 3600, opt: true }, stop: { k: 'bool', opt: true }, at: AT,
     },
   },
   {

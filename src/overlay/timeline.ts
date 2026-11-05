@@ -8,7 +8,7 @@
 
 import { PALETTE_RGB } from '../scene/colors.ts';
 import { advanceMotion, emptyMotion, loopDriver, loopStart, poses, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
-import type { CamDef, CrankDef, FlashDef, LoopDef, Motion, Pose, SpinPlan } from './motion.ts';
+import type { CamDef, CoupleDef, CrankDef, FlashDef, JointDef, LoopDef, Motion, Pose, SpinPlan } from './motion.ts';
 import { applyDiagramAction, clearDiagrams, diagramPlanFrom, diagramTimes, emptyDiagramPlan, evaluateDiagrams, pulseDiagramThing, styleDiagramThing } from './diagram-plan.ts';
 import type { DiagramFrame, DiagramPlan } from './diagram-plan.ts';
 import { mechanismColor } from './part-colors.ts';
@@ -228,6 +228,8 @@ export type StepPlan = {
   cams: CamDef[];
   flashes: FlashDef[];
   loops: LoopDef[];
+  joints: JointDef[];
+  couples: CoupleDef[];
   nextKey: number;
   /** Authored seconds until the last action has finished. */
   duration: number;
@@ -276,7 +278,7 @@ export function planStep(base: Frame, step: Step): StepPlan {
     az: track([base.camera.az]), el: track([base.camera.el]), zoom: track([base.camera.zoom]),
     focus: { init: base.camera.focus.key, segs: [] },
     pulses: [], nextKey: base.nextKey, duration: 0,
-    spins: base.motion.spins.map(spinPlanFrom), cranks: [...base.motion.cranks], cams: [...base.motion.cams], flashes: [...base.motion.flashes], loops: [...base.motion.loops],
+    spins: base.motion.spins.map(spinPlanFrom), cranks: [...base.motion.cranks], cams: [...base.motion.cams], flashes: [...base.motion.flashes], loops: [...base.motion.loops], joints: [...base.motion.joints], couples: [...base.motion.couples],
   };
   for (const m of base.marks) {
     plan.marks.push({
@@ -534,17 +536,43 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       if (!o) return;
       const by = a.by !== undefined ? lookup(plan.objs, a.by, at) : undefined;
       if (a.by !== undefined && (!by || by.key === o.key)) return;
+      const joint = plan.joints.find((j) => j.key === o.key);
+      const kind = a.kind ?? (joint?.kind === 'hinge' ? 'swing' : joint?.kind === 'slide' ? 'slide' : undefined);
+      if (kind === undefined) return;
       // One loop to an object: the later one replaces the earlier (and `stop` is only that replacement left empty).
       const driver = loopDriver(o.key);
       plan.loops = plan.loops.filter((l) => l.key !== o.key);
       plan.spins = plan.spins.filter((s) => s.key !== driver);
-      if (a.kind !== 'stop') {
-        const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : a.kind === 'swing' ? 2 : 1;
-        plan.loops.push({ key: o.key, kind: a.kind, axis, amount: a.amount ?? 1, pivot: a.pivot ? asVec(a.pivot) : [0, 0, 0] });
-        const sp = spinPlanFrom({ key: driver, axis: 2, angle: loopStart(a.kind), rate: 0 });
+      if (kind !== 'stop') {
+        const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : kind === 'swing' ? 2 : 1;
+        plan.loops.push({ key: o.key, kind, axis, amount: a.amount ?? 1, pivot: a.pivot ? asVec(a.pivot) : [0, 0, 0] });
+        const sp = spinPlanFrom({ key: driver, axis: 2, angle: loopStart(kind), rate: 0 });
         plan.spins.push(sp);
         if (by) setLock(sp, at, { byKey: by.key, ratio: a.ratio ?? 1, phase: a.phase ?? 0 }, 2);
         else setRate(sp, at, 360 / (a.period ?? 2), 0, 2);
+      }
+      end(0.2);
+      return;
+    }
+    case 'joint': {
+      const o = lookup(plan.objs, a.id, at);
+      if (!o) return;
+      const to = a.kind === 'fixed' && a.to !== undefined ? lookup(plan.objs, a.to, at) : undefined;
+      if (a.kind === 'fixed' && (!to || to.key === o.key)) return;
+      const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : a.kind === 'hinge' ? 2 : 1;
+      plan.joints = plan.joints.filter((j) => j.key !== o.key);
+      plan.joints.push({ key: o.key, kind: a.kind, axis, dir: a.dir ? asVec(a.dir) : null, pivot: a.pivot ? asVec(a.pivot) : [0, 0, 0], min: a.min, max: a.max, toKey: to ? to.key : null });
+      end(0.2);
+      return;
+    }
+    case 'couple': {
+      const o = lookup(plan.objs, a.id, at);
+      if (!o) return;
+      plan.couples = plan.couples.filter((c) => c.key !== o.key);
+      if (a.stop !== true) {
+        const by = a.by !== undefined ? lookup(plan.objs, a.by, at) : undefined;
+        if (!by || by.key === o.key) return;
+        plan.couples.push({ key: o.key, byKey: by.key, ratio: a.ratio ?? 1, pitch: a.pitch, phase: a.phase ?? 0 });
       }
       end(0.2);
       return;
@@ -618,6 +646,8 @@ function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number)
   plan.cams = plan.cams.map((c) => ({ ...c, key: to(c.key), byKey: to(c.byKey) }));
   plan.flashes = plan.flashes.map((c) => ({ ...c, key: to(c.key), byKey: to(c.byKey) }));
   plan.loops = plan.loops.map((l) => ({ ...l, key: to(l.key) }));
+  plan.joints = plan.joints.map((j) => ({ ...j, key: to(j.key), toKey: j.toKey === null ? null : to(j.toKey) }));
+  plan.couples = plan.couples.map((c) => ({ ...c, key: to(c.key), byKey: to(c.byKey) }));
   // The new one sits where the old one was in the list, so parents still come before their children.
   plan.objs.splice(plan.objs.indexOf(old) + 1, 0, fresh);
   plan.duration = Math.max(plan.duration, at + REPLACE_SECONDS);
@@ -803,7 +833,7 @@ function parentsFirst(objs: readonly ObjInst[]): readonly ObjInst[] {
 
 /** What is turning at time `t`, and what is tied to it, limited to what is still on the stage. */
 function motionOf(plan: StepPlan, objects: readonly ObjectFrame[], t: number): Motion {
-  if (plan.spins.length + plan.cranks.length + plan.cams.length + plan.flashes.length + plan.loops.length === 0) return emptyMotion();
+  if (plan.spins.length + plan.cranks.length + plan.cams.length + plan.flashes.length + plan.loops.length + plan.joints.length + plan.couples.length === 0) return emptyMotion();
   const alive = new Set(objects.map((o) => o.key));
   // A loop's angle (under a key below zero) lives as long as the object it moves.
   const spins = spinsAt(plan.spins, t).filter((s) => alive.has(s.key < 0 ? loopDriver(s.key) : s.key));
@@ -814,6 +844,8 @@ function motionOf(plan: StepPlan, objects: readonly ObjectFrame[], t: number): M
     cams: plan.cams.filter((c) => both(c.key, c.byKey)),
     flashes: plan.flashes.filter((c) => both(c.key, c.byKey)),
     loops: plan.loops.filter((l) => alive.has(l.key)),
+    joints: plan.joints.filter((j) => alive.has(j.key) && (j.toKey === null || alive.has(j.toKey))),
+    couples: plan.couples.filter((c) => both(c.key, c.byKey)),
   };
 }
 

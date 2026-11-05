@@ -2493,7 +2493,8 @@
             "slide",
             "swing",
             "pulse",
-            "stop"
+            "stop",
+            null
           ]
         },
         "amount": {
@@ -2561,6 +2562,149 @@
         "ratio",
         "phase",
         "pivot",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "joint": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "joint"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "hinge",
+            "slide",
+            "fixed"
+          ]
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "dir": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "pivot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "to": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "kind",
+        "axis",
+        "dir",
+        "pivot",
+        "min",
+        "max",
+        "to",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "couple": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "couple"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "by": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ratio": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "pitch": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "stop": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "by",
+        "ratio",
+        "pitch",
+        "phase",
+        "stop",
         "at"
       ],
       "additionalProperties": false
@@ -2950,6 +3094,12 @@
         },
         {
           "$ref": "#/$defs/loop"
+        },
+        {
+          "$ref": "#/$defs/joint"
+        },
+        {
+          "$ref": "#/$defs/couple"
         },
         {
           "$ref": "#/$defs/cut"
