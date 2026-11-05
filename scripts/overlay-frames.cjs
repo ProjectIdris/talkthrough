@@ -89,6 +89,7 @@ app.whenReady().then(async () => {
   fs.copyFileSync(path.join(root, 'src', 'overlay', 'index.html'), path.join(root, 'dist', 'overlay', 'index.html'));
   const query = {};
   if (args.tier) query.tier = args.tier;
+  if (args.scissor) query.scissor = args.scissor;
   await win.loadFile(path.join(root, 'dist', 'overlay', 'index.html'), { query });
   await ready;
   // --clean yes: the app's own Explode and Cut buttons are left out of the picture (for clips and stills of the scene alone).
