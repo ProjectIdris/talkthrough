@@ -82,7 +82,7 @@ test('text in the scene is never drawn tiny, and labels at one spot do not pile 
   scene.sync(frame, 1, { rect: stage, ...WIN });
   const rects = textRects(scene, frame);
   assert.equal(rects.length, 3);
-  for (const r of rects) assert.ok(r.h >= 17.9, `readable: ${r.h.toFixed(1)} px tall`);
+  for (const r of rects) assert.ok(r.h >= 17.9 && r.h <= 24.1, `readable, not huge: ${r.h.toFixed(1)} px tall`);
   for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
     const a = rects[i]!, b = rects[j]!;
     assert.ok(a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0, `labels ${i} and ${j} do not overlap`);

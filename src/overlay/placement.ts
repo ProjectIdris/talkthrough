@@ -402,9 +402,14 @@ export class Placer {
     return blank?.box ?? box;
   }
 
+  /** The stage as something to keep a card or diagram off: it counts several times over, because the model in it is what is being explained. */
+  private stageKeepOut(): Box[] {
+    return this.stage ? Array.from({ length: 8 }, () => this.stage as Box) : [];
+  }
+
   /** Where a card or crop goes: the nearest free place, keeping out of the stage, the other cards and what is pointed at. */
   card(want: Box, id?: string): Box {
-    const keepOut = [...this.reserved, ...this.cards.values(), ...(this.stage ? [this.stage] : [])];
+    const keepOut = [...this.reserved, ...this.cards.values(), ...this.stageKeepOut()];
     const placed = this.search(want, [1], keepOut, [1], 0, true);
     this.cards.set(id ?? `#${this.cards.size}`, placed);
     return placed;
@@ -412,7 +417,7 @@ export class Placer {
 
   /** Where a flat diagram goes: like a card, but it may also be a little smaller, down to three quarters (its drawing scales to its rectangle, and its small print needs the room). */
   diagram(want: Box, id: string, asked: Box = want, minRatio = 0): Box {
-    const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...(this.stage ? [this.stage] : [])];
+    const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...this.stageKeepOut()];
     // What the answer points at is what the diagram explains: keeping off it counts for three times as much as it does for a card.
     // It may also be taller and narrower (down to 0.6 of the width), to fit a margin or the gap beside a column of text instead of covering the text.
     // A kind that is spoilt by a strip (a chart) has a least width to height; it gives up size before shape, down to 0.64.
@@ -436,7 +441,7 @@ export class Placer {
    */
   regrow(id: string, grown: Box): Box | undefined {
     const was = this.cards.get(id) ?? this.homes.get(id)?.to ?? grown;
-    const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...(this.stage ? [this.stage] : [])];
+    const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...this.stageKeepOut()];
     const placed = this.search(grown, [1], [...keepOut, ...this.reserved, ...this.reserved], [1], 0, true);
     if (this.coverage(placed, keepOut) > this.coverage(was, keepOut) + GROWTH_COVER_SLACK) return undefined;
     this.cards.set(id, placed);

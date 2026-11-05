@@ -47,6 +47,8 @@ const FIT_MARGIN = 1.1;
 const MIN_FIT_DISTANCE = 0.8;
 /** A text sprite in the scene is drawn at least this tall on screen (CSS pixels). */
 const MIN_TEXT_PX = 18;
+/** and no taller than this, so a stage that grew does not make the labels outweigh the tags. */
+const MAX_TEXT_PX = 24;
 const PATH_RADIUS = 0.06;
 function boxCorners(box: Box3, matrix: Matrix4 | undefined): Vector3[] {
   const out: Vector3[] = [];
@@ -519,7 +521,7 @@ export class PanelScene {
   }
 
   /**
-   * Text sprites in the scene (a value over a bar, a name on a part) are kept readable on screen: none smaller than `MIN_TEXT_PX` tall, and
+   * Text sprites in the scene (a value over a bar, a name on a part) are kept readable on screen: none smaller than `MIN_TEXT_PX` or taller than `MAX_TEXT_PX`, and
    * two that would sit on each other are moved apart vertically (by the sprite's anchor, so they stay at their point in the world).
    */
   private tidyTexts(view: StageView): void {
@@ -537,7 +539,7 @@ export class PanelScene {
       p.project(this.camera);
       const cx = ((p.x + 1) / 2) * view.width, cy = ((1 - p.y) / 2) * view.height;
       const h = (sprite.scale.y * proj[5] * view.height) / (2 * depth);
-      const k = h > 0 && h < MIN_TEXT_PX ? Math.min(8, MIN_TEXT_PX / h) : 1;
+      const k = h <= 0 ? 1 : h < MIN_TEXT_PX ? Math.min(8, MIN_TEXT_PX / h) : h > MAX_TEXT_PX ? MAX_TEXT_PX / h : 1;
       if (k !== 1) sprite.scale.multiplyScalar(k);
       sprites.push({ node, cx, cy, w: (sprite.scale.x / sprite.scale.y) * h * k, h: h * k, depth });
     }
