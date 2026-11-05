@@ -260,3 +260,18 @@ test('Escape fades the drawing out quickly, not at the pace of an answer that ha
   assert.equal(hit.dismissed, false);
   assert.equal(hit.alpha(5000), 1, 'new content shows in full again');
 });
+
+test('the pointer moving over the scene does not bring back a drawing Escape has dismissed', () => {
+  const fade = new AutoFade(12_000);
+  fade.arm(0);
+  fade.dismiss(1000);
+  fade.touch(1100); // the page touches the fade on every mouse move over the model
+  assert.equal(fade.dismissed, true);
+  assert.ok(fade.alpha(1100) < 1, 'the touch did not start the count again: it is already fading');
+  assert.equal(fade.alpha(1000 + DISMISS_FADE_MS), 0, 'and it goes on to nothing');
+  assert.equal(fade.alpha(4100), 0);
+  const normal = new AutoFade(4000);
+  normal.arm(0);
+  normal.touch(3000);
+  assert.equal(normal.alpha(6000), 1, 'an ordinary scene still starts its count again when touched');
+});

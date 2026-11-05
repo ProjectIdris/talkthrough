@@ -46,9 +46,9 @@ export class AutoFade {
     return this.since !== undefined && this.fadeMs === DISMISS_FADE_MS;
   }
 
-  /** The pointer is on the scene, or the user just used it: the count starts again, and a scene already fading comes back. */
+  /** The pointer is on the scene, or the user just used it: the count starts again, and a scene already fading comes back (but not one the person dismissed with Escape). */
   touch(now: number): void {
-    if (this.since !== undefined) this.since = now;
+    if (this.since !== undefined && !this.dismissed) this.since = now; // Escape is not taken back by the pointer being on the scene
   }
 
   /** 1 while shown, falling to 0 over FADE_MS once HOLD_MS has passed. */

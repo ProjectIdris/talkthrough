@@ -199,3 +199,22 @@ test('the record is off by default, a folder must be a full path, and the settin
   assert.equal(recordDir('  ', 'data'), join('data', 'questions'));
   assert.equal(recordDir('C:\\keep\\here', 'data'), 'C:\\keep\\here');
 });
+
+test('a folder that cannot be made leaves no question open: nothing goes into the previous question\'s folder', () => {
+  const dir = scratch();
+  try {
+    const parent = join(dir, 'record');
+    const rec = createQuestionRecord({ dir: parent, now: () => stamp(0), warn: () => undefined });
+    rec.begin('question');
+    const first = rec.folder();
+    assert.ok(first);
+    rmSync(parent, { recursive: true, force: true });
+    writeFileSync(parent, 'a file where the folder was');
+    rec.begin('question');
+    assert.equal(rec.folder(), undefined, 'no folder is open for the new question');
+    rec.transcript('lost, but not misplaced', undefined);
+    assert.equal(existsSync(join(first!, 'transcript.txt')), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

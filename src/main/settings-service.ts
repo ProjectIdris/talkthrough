@@ -67,7 +67,7 @@ function plain(message: string): string {
   if (message.startsWith('voiceServerUrl')) return 'The voice server address must start with https://, or be an address on this computer (http://127.0.0.1...).';
   if (message.startsWith('hotkey')) return 'Choose two different keys.';
   if (message.startsWith('captureBlocklist: ')) return `The list of windows to skip: ${message.slice('captureBlocklist: '.length)}.`;
-  if (message.startsWith('recordFolder')) return 'Choose a full folder path for the record (such as C:\Users\you\Documents\questions), or leave it empty.';
+  if (message.startsWith('recordFolder')) return 'Choose a full folder path for the record (such as C:\\Users\\you\\Documents\\questions), or leave it empty.';
   if (message.startsWith('detailRoute')) return 'Choose a route for the richer version, or turn it off.';
   const first = message.split(';')[0]!;
   return `${first[0]!.toUpperCase()}${first.slice(1)}.`;

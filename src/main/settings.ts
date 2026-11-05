@@ -224,7 +224,7 @@ export function settingsFromRaw(raw: Record<string, unknown>, warn: (message: st
   const recordFolder = str(raw.recordFolder);
   if (recordFolder) {
     if (isAbsolute(recordFolder)) settings.recordFolder = recordFolder;
-    else warn('recordFolder must be a full folder path (for example C:\Users\you\Documents\questions); the app data folder is used');
+    else warn('recordFolder must be a full folder path (for example C:\\Users\\you\\Documents\\questions); the app data folder is used');
   }
   return settings;
 }

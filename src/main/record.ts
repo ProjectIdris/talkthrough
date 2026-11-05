@@ -120,6 +120,7 @@ export function createQuestionRecord(options: Options): QuestionRecord {
 
   return {
     begin(kind) {
+      current = undefined; // a folder that cannot be made must not leave the last question's open for this one
       safely(() => {
         mkdirSync(options.dir, { recursive: true });
         const at = clock();
