@@ -466,7 +466,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'joint', op: 'joint',
-    doc: 'Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it.',
+    doc: 'Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it.',
     fields: {
       id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['hinge', 'slide', 'fixed'] }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true },
       dir: { k: 'vec3', ...WORLD, opt: true, doc: 'slide: the direction, [x,y,z]' }, pivot: { k: 'vec3', ...WORLD, opt: true, doc: 'hinge: from the object to the point it turns about' },

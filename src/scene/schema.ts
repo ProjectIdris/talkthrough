@@ -48,7 +48,7 @@ function fieldSchema(f: Field, descriptions: boolean): Schema {
  * optional field is written as null on every action, and these are rarely wanted, so they would cost output on
  * each part. The validator and the full schema still know them.
  */
-const LEAN_OMITS: ReadonlySet<string> = new Set(['explode', 'loop.pivot', 'joint.dir']);
+const LEAN_OMITS: ReadonlySet<string> = new Set(['explode', 'loop.pivot']);
 
 /** Whether the prompt (the lean schema, and the guide's field lists) leaves a field out: by its name on any action, or as `action.field`. */
 export function leanOmits(variant: string, field: string): boolean {

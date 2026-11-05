@@ -3300,7 +3300,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it."
+      "description": "Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it."
     },
     "couple": {
       "type": "object",

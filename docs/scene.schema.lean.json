@@ -2831,6 +2831,15 @@
             null
           ]
         },
+        "dir": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
         "pivot": {
           "type": [
             "array",
@@ -2870,6 +2879,7 @@
         "id",
         "kind",
         "axis",
+        "dir",
         "pivot",
         "min",
         "max",

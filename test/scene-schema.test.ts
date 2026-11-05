@@ -16,8 +16,8 @@ test('the lean schema is the same structure without descriptions, and just as st
   const text = JSON.stringify(sceneSchemaLean);
   assert.ok(!text.includes('"description"'));
   assert.ok(text.length < JSON.stringify(sceneSchema).length * 0.7);
-  // The lean schema also leaves out `explode`, `loop.pivot` and `joint.dir` (see LEAN_OMITS in schema.ts): they are in the full schema and the validator only.
-  const omittedIn: Record<string, string[]> = { loop: ['pivot'], joint: ['dir'] };
+  // The lean schema also leaves out `explode` and `loop.pivot` (see LEAN_OMITS in schema.ts): they are in the full schema and the validator only.
+  const omittedIn: Record<string, string[]> = { loop: ['pivot'] };
   let omitted = new Set(['explode']);
   const strip = (v: unknown): unknown => Array.isArray(v) ? v.map(strip)
     : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'description').map(([k, x]) => {
@@ -114,7 +114,7 @@ test('the guide says a figure adds what the page lacks and follows what the page
   ]) assert.ok(rule!.includes(part), part);
 });
 
-test('what the prompt leaves out (loop pivot, joint dir) is still in the language: the validator keeps it, the full schema asks for it, the guide and the lean schema do not', () => {
+test('what the prompt leaves out (loop pivot) is still in the language: the validator keeps it, the full schema asks for it, the guide and the lean schema do not; a joint keeps its dir (a tilted slide) in the prompt', () => {
   const r = validateScene({ steps: [{ say: 'x', actions: [
     { op: 'add', shape: 'box', id: 'b', size: [1, 1, 1] },
     { op: 'joint', id: 'b', kind: 'slide', dir: [3, 4, 0] },
@@ -127,9 +127,9 @@ test('what the prompt leaves out (loop pivot, joint dir) is still in the languag
   const full = JSON.stringify(sceneSchema), lean = JSON.stringify(sceneSchemaLean);
   assert.ok(full.includes('"dir":{"type":["array","null"]') && full.includes('"pivot":{"type":["array","null"]'));
   assert.ok(!/"loop":\{[^]*?"pivot"/.test(JSON.stringify((sceneSchemaLean as { $defs: Record<string, unknown> }).$defs.loop)));
-  assert.ok(!JSON.stringify((sceneSchemaLean as { $defs: Record<string, unknown> }).$defs.joint).includes('"dir"'));
+  assert.ok(JSON.stringify((sceneSchemaLean as { $defs: Record<string, unknown> }).$defs.joint).includes('"dir"'));
   assert.ok(lean.includes('"pivot"'), 'a hinge joint still has its pivot in the lean schema');
   assert.ok(!sceneGuide.includes('- loop {') || !/- loop \{[^}]*pivot/.test(sceneGuide));
-  assert.ok(!/- joint \{[^}]*dir/.test(sceneGuide));
+  assert.ok(/- joint \{[^}]*dir/.test(sceneGuide));
   assert.ok(/- joint \{[^}]*pivot/.test(sceneGuide));
 });
