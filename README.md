@@ -67,7 +67,7 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md) (how to run and test it, the seams
 
 Download `Talkthrough-Setup-<version>.exe` from the [releases page](https://github.com/ProjectIdris/talkthrough/releases) and run it. It installs for your own account only (no administrator rights) and starts from the Start menu. Choose a model and, if you wish, another way to hear you: see [docs/setup.md](docs/setup.md).
 
-**Windows may warn you.** The first releases are not code-signed, because a signing certificate costs money and the project is new, free and open source. Windows SmartScreen therefore shows *"Windows protected your PC"* with *Unknown publisher* for a file it has not seen many times. This does not mean the file is bad; it means Windows does not know it yet. To go on, choose **More info**, then **Run anyway**. If you would rather not, you can build the installer yourself from this repository (`npm ci`, then `npm run dist`; see [docs/setup.md](docs/setup.md)) and read every line first.
+**Windows may warn you.** The first releases are not code-signed, because a signing certificate costs money and the project is new, free and open source. Windows SmartScreen therefore shows *"Windows protected your PC"* with *Unknown publisher* for a file it has not seen many times. This does not mean the file is bad; it means Windows does not know it yet. To go on, choose **More info**, then **Run anyway**. If you would rather not, you can build the installer yourself from this repository using the steps in [docs/setup.md](docs/setup.md) and read every line first.
 
 ## Quick start
 
