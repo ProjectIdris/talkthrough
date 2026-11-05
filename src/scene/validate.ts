@@ -1,4 +1,4 @@
-// The scene validator: the only way a scene from a model reaches the renderer.
+﻿// The scene validator: the only way a scene from a model reaches the renderer.
 // It reads data and builds fresh objects from known fields. It never evaluates, imports,
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
@@ -49,7 +49,7 @@ export type SceneState = {
 export type StepResult = { step: Step | null; issues: Issue[] };
 export type SceneResult = { ok: boolean; scene: Scene | null; issues: Issue[] };
 
-const MAX_ISSUES = LIMITS.maxActionsPerTurn + 100;
+const MAX_ISSUES = LIMITS.maxSteps * LIMITS.maxActionsPerStep + LIMITS.maxSteps + 100;
 const MAX_STRING_SCAN = 10_000;
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 // Control characters, zero-width and bidirectional-override characters.
@@ -944,3 +944,4 @@ export function validateScene(raw: unknown, state: SceneState = createSceneState
   if (esc.escalate !== undefined) scene.escalate = esc.escalate;
   return { ok: true, scene, issues: notes };
 }
+

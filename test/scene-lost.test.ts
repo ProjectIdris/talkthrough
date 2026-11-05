@@ -128,3 +128,9 @@ test('repaired panel reports each changed coordinate', () => {
   assert.ok(r.issues.some(i => i.path.endsWith('.x') && i.message.includes('900') && i.message.includes('670')));
   assert.ok(r.issues.some(i => i.path.endsWith('.y') && i.message.includes('900') && i.message.includes('580')));
 });
+
+test('scene-level diagnostics retain dropped reasons across the full bounded turn', () => {
+  const steps = Array.from({length: 24}, (_, step) => ({say: 'x', actions: Array.from({length: 24}, (_, i) => ({op: 'unknown', id: `x${step}_${i}`}))}));
+  const r = validateScene({steps}, createSceneState());
+  assert.ok(r.issues.some(i => i.kind === 'dropped' && i.path === 'steps[23].actions[23]'));
+});
