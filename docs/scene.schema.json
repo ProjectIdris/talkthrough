@@ -2678,20 +2678,30 @@
             "crank"
           ]
         },
+        "piston": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the id of the piston part already added (not the cylinder block, not a group)"
+        },
         "id": {
-          "type": "string",
-          "description": "the piston"
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the same as piston; piston is clearer"
         },
         "shaft": {
           "type": "string",
-          "description": "the crankshaft"
+          "description": "the id of the crankshaft part already added"
         },
         "rod": {
           "type": [
             "string",
             "null"
           ],
-          "description": "the connecting-rod joining them"
+          "description": "the id of the connecting-rod part already added, joining them"
         },
         "pin": {
           "type": [
@@ -2710,6 +2720,7 @@
       },
       "required": [
         "op",
+        "piston",
         "id",
         "shaft",
         "rod",
@@ -2717,7 +2728,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. Put the three in one group, the crankshaft turning with spin. pin is which throw (1 is the first)."
+      "description": "Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. This acts on parts you have already added, by their ids; it adds nothing and a new name does nothing. Name the piston with piston (the cylinder block never moves), the crankshaft with shaft and the connecting rod with rod. Put the three in one group, the crankshaft turning with spin. pin is which throw (1 is the first)."
     },
     "cam": {
       "type": "object",
@@ -2727,13 +2738,23 @@
             "cam"
           ]
         },
+        "valve": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the id of the valve part already added"
+        },
         "id": {
-          "type": "string",
-          "description": "the valve"
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the same as valve; valve is clearer"
         },
         "by": {
           "type": "string",
-          "description": "the camshaft"
+          "description": "the id of the camshaft part already added"
         },
         "lift": {
           "type": [
@@ -2766,6 +2787,7 @@
       },
       "required": [
         "op",
+        "valve",
         "id",
         "by",
         "lift",
@@ -2774,7 +2796,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A valve (or any follower) that a spinning camshaft pushes down along y: it is down by lift while the cam nose points down at it, and back up otherwise. open is how many degrees of the turn of the cam it stays open (default 110), phase the cam angle where it is most open (default 180: the nose pointing down)."
+      "description": "A valve (or any follower) that a spinning camshaft pushes down along y: it is down by lift while the cam nose points down at it, and back up otherwise. open is how many degrees of the turn of the cam it stays open (default 110), phase the cam angle where it is most open (default 180: the nose pointing down). This acts on parts you have already added, by their ids; it adds nothing and a new name does nothing. Name the valve with valve and the camshaft with by."
     },
     "flash": {
       "type": "object",

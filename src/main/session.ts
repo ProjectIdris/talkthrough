@@ -6,7 +6,7 @@ import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
 import { applyClear, beginLiveStep, createDetailState, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
-import type { LiveStep, SceneState, Step } from '../scene/index.ts';
+import type { Issue, LiveStep, SceneState, Step } from '../scene/index.ts';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
 import { isRealStroke } from '../shared/pen.ts';
@@ -532,7 +532,7 @@ export function createSession(deps: SessionDeps) {
       if (!live) return;
       const done = live.finish();
       live = null;
-      if (done.issues.length > 0) deps.log(`validator: ${done.issues.length} notes on step ${shown.length + 1}`);
+      if (done.issues.length > 0) deps.log(validatorNotes(done.issues, shown.length + 1));
       if (!held) deps.send(displayId, { kind: 'step-close' });
       if (done.step) {
         shown.push(done.step);
@@ -560,7 +560,7 @@ export function createSession(deps: SessionDeps) {
           }
           written.push(out.step as { actions: unknown[] });
           const checked = validateStep(out.step, checking);
-          if (checked.issues.length > 0) deps.log(`validator: ${checked.issues.length} notes on step ${shown.length + 1}`);
+          if (checked.issues.length > 0) deps.log(validatorNotes(checked.issues, shown.length + 1));
           if (!checked.step) continue;
           const wasHeld = walk !== undefined;
           if (!wasHeld) open();
@@ -1007,6 +1007,12 @@ export function createSession(deps: SessionDeps) {
 }
 
 const NO_BACKEND_MESSAGE = 'No backend is set up. Add its address to the settings.';
+
+/** The log line for what the validator changed or dropped in a step: how many, and the first few in words (a repaired part, a dropped action). */
+export function validatorNotes(issues: readonly Issue[], stepNumber: number): string {
+  const first = issues.slice(0, 3).map((i) => `${i.path} ${i.message}`.slice(0, 160)).join('; ');
+  return `validator: ${issues.length} notes on step ${stepNumber}: ${first}${issues.length > 3 ? '; ...' : ''}`;
+}
 
 function backendMessage(code: string): string {
   switch (code) {

@@ -402,18 +402,22 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'crank', op: 'crank',
-    doc: 'Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. Put the three in one group, the crankshaft turning with spin. pin is which throw (1 is the first).',
+    doc: 'Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. This acts on parts you have already added, by their ids; it adds nothing and a new name does nothing. Name the piston with piston (the cylinder block never moves), the crankshaft with shaft and the connecting rod with rod. Put the three in one group, the crankshaft turning with spin. pin is which throw (1 is the first).',
     fields: {
-      id: { k: 'ref', of: 'object3d', doc: 'the piston' }, shaft: { k: 'ref', of: 'object3d', doc: 'the crankshaft' },
-      rod: { k: 'ref', of: 'object3d', opt: true, doc: 'the connecting-rod joining them' },
+      piston: { k: 'ref', of: 'object3d', opt: true, doc: 'the id of the piston part already added (not the cylinder block, not a group)' },
+      id: { k: 'ref', of: 'object3d', opt: true, doc: 'the same as piston; piston is clearer' },
+      shaft: { k: 'ref', of: 'object3d', doc: 'the id of the crankshaft part already added' },
+      rod: { k: 'ref', of: 'object3d', opt: true, doc: 'the id of the connecting-rod part already added, joining them' },
       pin: { k: 'num', min: 1, max: 8, int: true, opt: true }, at: AT,
     },
   },
   {
     name: 'cam', op: 'cam',
-    doc: 'A valve (or any follower) that a spinning camshaft pushes down along y: it is down by lift while the cam nose points down at it, and back up otherwise. open is how many degrees of the turn of the cam it stays open (default 110), phase the cam angle where it is most open (default 180: the nose pointing down).',
+    doc: 'A valve (or any follower) that a spinning camshaft pushes down along y: it is down by lift while the cam nose points down at it, and back up otherwise. open is how many degrees of the turn of the cam it stays open (default 110), phase the cam angle where it is most open (default 180: the nose pointing down). This acts on parts you have already added, by their ids; it adds nothing and a new name does nothing. Name the valve with valve and the camshaft with by.',
     fields: {
-      id: { k: 'ref', of: 'object3d', doc: 'the valve' }, by: { k: 'ref', of: 'object3d', doc: 'the camshaft' },
+      valve: { k: 'ref', of: 'object3d', opt: true, doc: 'the id of the valve part already added' },
+      id: { k: 'ref', of: 'object3d', opt: true, doc: 'the same as valve; valve is clearer' },
+      by: { k: 'ref', of: 'object3d', doc: 'the id of the camshaft part already added' },
       lift: { k: 'num', min: 0.01, max: 50, opt: true, doc: 'how far it moves down in units (default a fifth of its length)' },
       open: { k: 'num', min: 10, max: 350, opt: true }, phase: { k: 'num', min: -3600, max: 3600, opt: true }, at: AT,
     },

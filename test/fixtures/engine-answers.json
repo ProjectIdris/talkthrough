@@ -1,0 +1,551 @@
+{
+ "D1": [
+  {
+   "op": "box",
+   "id": "diagram",
+   "x": 623,
+   "y": 204,
+   "w": 120,
+   "h": 268,
+   "color": "blue"
+  },
+  {
+   "op": "panel",
+   "x": 765,
+   "y": 180,
+   "w": 225,
+   "h": 290,
+   "frame": false
+  },
+  {
+   "op": "add",
+   "shape": "group",
+   "id": "engine",
+   "pos": [
+    0,
+    0,
+    0
+   ],
+   "rot": [
+    0,
+    0,
+    0
+   ],
+   "at": 0.2
+  },
+  {
+   "op": "add",
+   "shape": "part",
+   "part": "cylinder-block",
+   "variant": "cutaway",
+   "id": "block",
+   "parent": "engine",
+   "pos": [
+    0,
+    0,
+    0
+   ],
+   "size": [
+    3,
+    3,
+    3
+   ],
+   "rot": [
+    0,
+    0,
+    0
+   ],
+   "n": null,
+   "color": null,
+   "opacity": null,
+   "at": 0.6
+  },
+  {
+   "op": "add",
+   "shape": "part",
+   "part": "piston",
+   "id": "piston",
+   "parent": "engine",
+   "pos": [
+    0,
+    0.2,
+    0
+   ],
+   "size": [
+    1.6,
+    0.9,
+    1.6
+   ],
+   "rot": [
+    0,
+    0,
+    0
+   ],
+   "n": null,
+   "color": null,
+   "opacity": null,
+   "at": 1.4
+  },
+  {
+   "op": "spin",
+   "id": "engine",
+   "rpm": 0,
+   "at": 0.2
+  },
+  {
+   "op": "along",
+   "id": "piston",
+   "pts": [
+    [
+     0,
+     0.2,
+     0
+    ],
+    [
+     0,
+     1.2,
+     0
+    ],
+    [
+     0,
+     -0.6,
+     0
+    ],
+    [
+     0,
+     1.2,
+     0
+    ],
+    [
+     0,
+     -0.6,
+     0
+    ]
+   ],
+   "at": 0.5,
+   "dur": 8
+  },
+  {
+   "op": "add",
+   "shape": "part",
+   "part": "camshaft",
+   "id": "camshaft",
+   "parent": "engine",
+   "pos": [
+    0,
+    1.75,
+    0
+   ],
+   "size": [
+    0.5,
+    0.5,
+    2.4
+   ],
+   "rot": [
+    0,
+    0,
+    0
+   ],
+   "variant": null,
+   "n": 2,
+   "color": null,
+   "opacity": null,
+   "at": 0.2
+  },
+  {
+   "op": "add",
+   "shape": "part",
+   "part": "valve",
+   "id": "intake-valve",
+   "parent": "engine",
+   "pos": [
+    -0.5,
+    1.1,
+    0
+   ],
+   "size": [
+    0.6,
+    1.4,
+    0.6
+   ],
+   "rot": [
+    0,
+    0,
+    0
+   ],
+   "variant": null,
+   "n": null,
+   "color": null,
+   "opacity": null,
+   "at": 0.6
+  },
+  {
+   "op": "add",
+   "shape": "part",
+   "part": "valve",
+   "id": "exhaust-valve",
+   "parent": "engine",
+   "pos": [
+    0.5,
+    1.1,
+    0
+   ],
+   "size": [
+    0.6,
+    1.4,
+    0.6
+   ],
+   "rot": [
+    0,
+    0,
+    0
+   ],
+   "variant": null,
+   "n": null,
+   "color": null,
+   "opacity": null,
+   "at": 0.9
+  },
+  {
+   "op": "spin",
+   "id": "camshaft",
+   "rpm": 30,
+   "by": null,
+   "ratio": null,
+   "phase": null,
+   "axis": null,
+   "dur": null,
+   "at": 1.2
+  },
+  {
+   "op": "cam",
+   "id": "intake-cam",
+   "by": "camshaft",
+   "lift": 0.5,
+   "open": 110,
+   "phase": 180,
+   "at": 1.4
+  },
+  {
+   "op": "cam",
+   "id": "exhaust-cam",
+   "by": "camshaft",
+   "lift": 0.5,
+   "open": 110,
+   "phase": 0,
+   "at": 1.4
+  }
+ ],
+ "X3": [
+  {
+   "op": "box",
+   "id": "fig",
+   "x": 623,
+   "y": 204,
+   "w": 120,
+   "h": 278,
+   "color": "blue"
+  },
+  {
+   "op": "panel",
+   "x": 30,
+   "y": 180,
+   "w": 100,
+   "h": 10,
+   "frame": false,
+   "at": 0,
+   "dur": 0.1
+  },
+  {
+   "op": "panel",
+   "x": 780,
+   "y": 160,
+   "w": 210,
+   "h": 420,
+   "frame": true,
+   "at": 0,
+   "dur": 0.1
+  },
+  {
+   "op": "add",
+   "shape": "group",
+   "id": "eng",
+   "parent": null,
+   "pos": null,
+   "rot": null,
+   "at": 0
+  },
+  {
+   "op": "add",
+   "shape": "part",
+   "id": "blk",
+   "parent": "eng",
+   "pos": [
+    0,
+    0,
+    0
+   ],
+   "rot": null,
+   "part": "cylinder-block",
+   "variant": "cutaway",
+   "size": [
+    3,
+    4,
+    3
+   ],
+   "n": null,
+   "color": null,
+   "opacity": null,
+   "at": 0.2
+  },
+  {
+   "op": "add",
+   "shape": "part",
+   "id": "cs",
+   "parent": "eng",
+   "pos": [
+    0,
+    -2.6,
+    0
+   ],
+   "rot": null,
+   "part": "crankshaft",
+   "variant": null,
+   "size": [
+    2.4,
+    1.4,
+    1
+   ],
+   "n": 1,
+   "color": null,
+   "opacity": null,
+   "at": 0.5
+  },
+  {
+   "op": "add",
+   "shape": "part",
+   "id": "pis",
+   "parent": "eng",
+   "pos": [
+    0,
+    0.5,
+    0
+   ],
+   "rot": null,
+   "part": "piston",
+   "variant": null,
+   "size": [
+    2.2,
+    1.2,
+    2.2
+   ],
+   "n": null,
+   "color": null,
+   "opacity": null,
+   "at": 0.8
+  },
+  {
+   "op": "add",
+   "shape": "part",
+   "id": "rod",
+   "parent": "eng",
+   "pos": [
+    0,
+    -1,
+    0
+   ],
+   "rot": null,
+   "part": "connecting-rod",
+   "variant": null,
+   "size": [
+    0.6,
+    2.4,
+    0.6
+   ],
+   "n": null,
+   "color": null,
+   "opacity": null,
+   "at": 1
+  },
+  {
+   "op": "add",
+   "shape": "part",
+   "id": "vin",
+   "parent": "eng",
+   "pos": [
+    -0.7,
+    2.4,
+    0
+   ],
+   "rot": null,
+   "part": "valve",
+   "variant": null,
+   "size": [
+    0.8,
+    1.6,
+    0.8
+   ],
+   "n": null,
+   "color": null,
+   "opacity": null,
+   "at": 1.2
+  },
+  {
+   "op": "add",
+   "shape": "part",
+   "id": "vex",
+   "parent": "eng",
+   "pos": [
+    0.7,
+    2.4,
+    0
+   ],
+   "rot": null,
+   "part": "valve",
+   "variant": null,
+   "size": [
+    0.8,
+    1.6,
+    0.8
+   ],
+   "n": null,
+   "color": null,
+   "opacity": null,
+   "at": 1.3
+  },
+  {
+   "op": "spin",
+   "id": "cs",
+   "rpm": 30,
+   "by": null,
+   "ratio": null,
+   "phase": null,
+   "axis": "z",
+   "at": 1.5,
+   "dur": 1
+  },
+  {
+   "op": "crank",
+   "id": "crk",
+   "shaft": "cs",
+   "rod": "rod",
+   "pin": 1,
+   "at": 1.6
+  },
+  {
+   "op": "diagram",
+   "id": "tl",
+   "kind": "timeline",
+   "x": 560,
+   "y": 600,
+   "w": 420,
+   "h": 300,
+   "title": "Four strokes",
+   "xlabel": null,
+   "ylabel": null,
+   "xrange": null,
+   "yrange": null,
+   "color": "blue",
+   "at": 0
+  },
+  {
+   "op": "node",
+   "id": "n1",
+   "of": "tl",
+   "text": "Intake: piston down",
+   "note": null,
+   "when": "1",
+   "pos": null,
+   "color": null,
+   "at": 1
+  },
+  {
+   "op": "node",
+   "id": "n2",
+   "of": "tl",
+   "text": "Compression: piston up",
+   "note": null,
+   "when": "2",
+   "pos": null,
+   "color": null,
+   "at": 3
+  },
+  {
+   "op": "node",
+   "id": "n3",
+   "of": "tl",
+   "text": "Power: spark, piston down",
+   "note": null,
+   "when": "3",
+   "pos": null,
+   "color": null,
+   "at": 5
+  },
+  {
+   "op": "node",
+   "id": "n4",
+   "of": "tl",
+   "text": "Exhaust: piston up",
+   "note": null,
+   "when": "4",
+   "pos": null,
+   "color": null,
+   "at": 7
+  },
+  {
+   "op": "pin",
+   "id": "ppis",
+   "on": "pis",
+   "text": "Piston",
+   "point": null,
+   "anchor": null,
+   "off": null,
+   "color": null,
+   "at": 0.5
+  },
+  {
+   "op": "pin",
+   "id": "prod",
+   "on": "rod",
+   "text": "Connecting rod",
+   "point": null,
+   "anchor": null,
+   "off": null,
+   "color": null,
+   "at": 2
+  },
+  {
+   "op": "pin",
+   "id": "pcs",
+   "on": "cs",
+   "text": "Crankshaft",
+   "point": null,
+   "anchor": null,
+   "off": null,
+   "color": null,
+   "at": 3.5
+  },
+  {
+   "op": "pin",
+   "id": "pvin",
+   "on": "vin",
+   "text": "Intake valve",
+   "point": null,
+   "anchor": null,
+   "off": null,
+   "color": null,
+   "at": 5
+  },
+  {
+   "op": "pin",
+   "id": "pvex",
+   "on": "vex",
+   "text": "Exhaust valve",
+   "point": null,
+   "anchor": null,
+   "off": null,
+   "color": null,
+   "at": 6.5
+  }
+ ]
+}
