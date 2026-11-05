@@ -4,7 +4,7 @@
 // nothing from timeline.ts, which calls this), so the same code serves playback, frame grabs and tests.
 // Where a piece goes inside its diagram is decided at draw time (diagram-layout.ts) from all the pieces the diagram holds.
 
-import type { DiagramAction, DiagramPiece, DiagramThing, TickAction } from '../scene/types.ts';
+import type { DiagramAction, DiagramPiece, DiagramThing, StreamPiece, TickAction } from '../scene/types.ts';
 
 const NEVER = -Infinity;
 /** Seconds a diagram or one of its pieces takes to come in, and to go. */
@@ -23,14 +23,16 @@ type Style = { at: number; color?: string; opacity?: number };
 type Pulse = { start: number; dur: number; color?: string };
 type Tick = { at: number; done: boolean };
 type Inst = {
-  key: number; id: string; /** The key of the diagram a piece is in. */ parentKey: number | null; def: DiagramThing;
+  key: number; id: string; /** The key of the diagram a piece is in. */ parentKey: number | null; def: DiagramThing | StreamPiece;
   bornAt: number; diedAt: number | undefined;
   styles: Style[]; pulses: Pulse[]; ticks: Tick[];
 };
 export type DiagramPlan = { insts: Inst[] };
 
 export type DiagramItemFrame = {
-  key: number; id: string; def: DiagramPiece; color: string | undefined; opacity: number;
+  key: number; id: string; def: DiagramPiece | StreamPiece; color: string | undefined; opacity: number;
+  /** A stream: how many laps its markers have run (the fraction is where they are). */
+  phase?: number;
   /** 0 not yet there, 1 whole; a piece that is not there yet still counts toward the layout. */
   appear: number; fade: number; pulse: number; pulseColor: string | undefined;
   /** 0 not ticked, 1 ticked (between, while the tick is drawn). */
@@ -76,22 +78,22 @@ function lookup(dp: DiagramPlan, id: string, at: number): Inst | undefined {
 }
 
 /** A piece's diagram: the one it was made for, or for an edge the diagram of the node it leaves. */
-function diagramFor(dp: DiagramPlan, a: DiagramPiece, at: number): Inst | undefined {
-  const id = a.op === 'edge' ? lookup(dp, a.from, at)?.parentKey : undefined;
-  if (a.op === 'edge') return id === undefined || id === null ? undefined : dp.insts.find((i) => i.key === id && aliveAt(i, at));
+function diagramFor(dp: DiagramPlan, a: DiagramPiece | StreamPiece, at: number): Inst | undefined {
+  const id = a.op === 'edge' ? lookup(dp, a.from, at)?.parentKey : a.op === 'stream' ? lookup(dp, a.along, at)?.parentKey : undefined;
+  if (a.op === 'edge' || a.op === 'stream') return id === undefined || id === null ? undefined : dp.insts.find((i) => i.key === id && aliveAt(i, at));
   return lookup(dp, a.of, at);
 }
 
 /** Whether an action is part of the flat diagrams (a `tick` too, which names a node). */
-export function isDiagramAction(a: { op: string }): a is DiagramThing | TickAction {
-  return a.op === 'diagram' || a.op === 'node' || a.op === 'edge' || a.op === 'series' || a.op === 'dot' || a.op === 'tick';
+export function isDiagramAction(a: { op: string }): a is DiagramThing | TickAction | StreamPiece {
+  return a.op === 'diagram' || a.op === 'node' || a.op === 'edge' || a.op === 'series' || a.op === 'dot' || a.op === 'tick' || a.op === 'stream';
 }
 
 /**
  * Puts a diagram action into the plan at `at` seconds. A diagram or piece written again under the id of one that is
  * already there takes its place (and its key, so what hangs from it stays). Returns how many seconds the action takes.
  */
-export function applyDiagramAction(dp: DiagramPlan, a: DiagramThing | TickAction, at: number, alloc: () => number): number {
+export function applyDiagramAction(dp: DiagramPlan, a: DiagramThing | TickAction | StreamPiece, at: number, alloc: () => number): number {
   if (a.op === 'tick') {
     const node = lookup(dp, a.id, at);
     if (!node) return 0;
@@ -150,6 +152,8 @@ export function clearDiagrams(dp: DiagramPlan, target: string, at: number): bool
     if (!aliveAt(i, at)) continue;
     if (i.parentKey === inst.key || (i.def.op === 'edge' && i.def.from === inst.id)) kill(i);
   }
+  // A stream goes with the arrow it runs along.
+  for (const i of dp.insts) if (aliveAt(i, at) && i.def.op === 'stream' && dp.insts.some((e) => e.id === (i.def as StreamPiece).along && e.diedAt !== undefined && e.diedAt <= at)) kill(i);
   return any;
 }
 
@@ -204,7 +208,7 @@ export function evaluateDiagrams(dp: DiagramPlan, t: number): DiagramFrame[] {
       const s = styleAt(it, t);
       const p = pulseAt(it, t);
       items.push({
-        key: it.key, id: it.id, def: it.def as DiagramPiece, color: s.color, opacity: s.opacity,
+        key: it.key, id: it.id, def: it.def as DiagramPiece | StreamPiece, color: s.color, opacity: s.opacity,
         appear: it.bornAt > t ? 0 : ease(progress(t, it.bornAt, DIAGRAM_APPEAR_SECONDS)),
         fade: it.diedAt === undefined ? 1 : 1 - progress(t, it.diedAt, DIAGRAM_WIPE_SECONDS),
         pulse: p.amount, pulseColor: p.color, done: tickAt(it, t),
@@ -229,10 +233,17 @@ export function diagramTimes(actions: readonly { op: string; at?: number }[]): M
   const when = new Map<string, number>();
   let k = 0;
   actions.forEach((a, i) => {
+    // A stream along an arrow of a diagram begins once the arrow is there.
+    const along = (a as { op: string; shape?: string; along?: string }).op === 'add' && (a as { shape?: string }).shape === 'stream' ? (a as { along?: string }).along : undefined;
+    if (along !== undefined && when.has(along)) {
+      const own = a.at !== undefined ? Math.max(0, a.at) : 0;
+      out.set(i, Math.max(own, (when.get(along) as number) + DIAGRAM_APPEAR_SECONDS));
+      return;
+    }
     if (!isDiagramAction(a)) return;
-    const x = a as DiagramThing | TickAction;
+    const x = a as DiagramThing | TickAction | StreamPiece;
     let at = x.at !== undefined ? Math.max(0, x.at) : x.op === 'diagram' ? 0 : Math.min(14, 0.3 + k++ * PIECE_SPACING_SECONDS);
-    const needs = x.op === 'edge' ? [x.from, x.to] : x.op === 'tick' ? [x.id] : x.op === 'diagram' ? [] : [x.of];
+    const needs = x.op === 'edge' ? [x.from, x.to] : x.op === 'tick' ? [x.id] : x.op === 'diagram' ? [] : x.op === 'stream' ? [x.along] : [x.of];
     for (const id of needs) {
       const w = when.get(id);
       if (w !== undefined && w > at) at = w;

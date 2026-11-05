@@ -14,7 +14,7 @@ import type { DiagramFrame, DiagramPlan } from './diagram-plan.ts';
 import { mechanismColor } from './part-colors.ts';
 import { pathLength, smoothPath } from './shapes.ts';
 import type { Rgb } from '../scene/colors.ts';
-import type { Action, AddAction, Mark, Step, Vec3 } from '../scene/types.ts';
+import type { Action, AddAction, Mark, Step, StreamPiece, Vec3 } from '../scene/types.ts';
 
 export type { Rgb };
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -50,6 +50,8 @@ export function defaultColor(def: AddAction): Rgb {
       default: return mechanismColor(def.part) ?? [190, 196, 206];
     }
   }
+  if (def.shape === 'stream') return [240, 244, 250];
+  if (def.shape === 'connector') return [104, 108, 118];
   const material = 'material' in def ? def.material : undefined;
   return [...(MATERIAL_COLOR[material ?? 'plastic'] ?? (MATERIAL_COLOR.plastic as Rgb))] as Rgb;
 }
@@ -103,6 +105,8 @@ export type ObjectFrame = {
   appear: number; fade: number; pulse: number; pulseColor: Rgb | undefined;
   /** How much of a tube, line or arrow is drawn, 0..1. */
   draw: number;
+  /** A stream: how many laps its markers have run, whole and part (their places along the path are a function of this alone). */
+  phase?: number;
   /** How far apart its parts are pushed: 0 assembled; its children sit at pos * (1 + spread). */
   spread: number;
   /** Where a machine has put it just now (a turning part, a piston, a valve, a glow); drawn in place of pos, rot and opacity. */
@@ -395,6 +399,10 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       return;
     }
     case 'add': {
+      if (a.shape === 'stream') {
+        addStream(plan, a, at, end);
+        return;
+      }
       ensurePanel(plan, at);
       if (a.shape === 'array') {
         addArray(plan, a, at);
@@ -653,6 +661,46 @@ function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number)
   plan.duration = Math.max(plan.duration, at + REPLACE_SECONDS);
 }
 
+/** Seconds a stream's markers take for the whole way when the scene gives no period. */
+export const STREAM_PERIOD = 4;
+
+/**
+ * A stream: markers running along a path on the 3D stage (it hangs from the path, so it goes with it) or along an arrow of a flat diagram. Its laps are
+ * an angle kept like a loop's (under the key loopDriver gives), free at one lap a period or locked to a spinning part, so it runs on by itself.
+ */
+function addStream(plan: StepPlan, a: Extract<AddAction, { shape: 'stream' }>, at: number, end: (len: number) => void): void {
+  const path = lookup(plan.objs, a.along, at);
+  let key: number;
+  if (path) {
+    ensurePanel(plan, at);
+    const replaced = lookup(plan.objs, a.id, at);
+    const fresh: ObjInst = {
+      key: plan.nextKey++, id: a.id, parentKey: path.key, def: a, bornAt: at, diedAt: undefined,
+      pos: track([0, 0, 0]), rot: track([0, 0, 0]), scale: track([1, 1, 1]),
+      color: track(a.color !== undefined ? parseColor(a.color) : defaultColor(a)),
+      opacity: track([a.opacity ?? 1]), draw: track([1]), spread: track([0]),
+    };
+    if (replaced) replaceObject(plan, replaced, fresh, at);
+    else plan.objs.push(fresh);
+    key = fresh.key;
+    end(replaced ? REPLACE_SECONDS : APPEAR_SECONDS);
+  } else {
+    const piece: StreamPiece = { op: 'stream', id: a.id, along: a.along, ...(a.mark ? { mark: a.mark } : {}), ...(a.count ? { count: a.count } : {}), ...(a.color ? { color: a.color } : {}), ...(a.toColor ? { toColor: a.toColor } : {}), ...(a.shiftAt !== undefined ? { shiftAt: a.shiftAt } : {}), ...(a.period !== undefined ? { period: a.period } : {}), ...(a.opacity !== undefined ? { opacity: a.opacity } : {}) };
+    const seconds = applyDiagramAction(plan.diagrams, piece, at, () => plan.nextKey++);
+    const inst = plan.diagrams.insts.findLast((i) => i.id === a.id && i.def.op === 'stream');
+    if (!inst || seconds === 0) return;
+    key = inst.key;
+    end(seconds);
+  }
+  const by = a.by !== undefined && path ? lookup(plan.objs, a.by, at) : undefined;
+  const driver = loopDriver(key);
+  plan.spins = plan.spins.filter((s) => s.key !== driver);
+  const sp = spinPlanFrom({ key: driver, axis: 2, angle: 0, rate: 0 });
+  plan.spins.push(sp);
+  if (by && by.key !== key) setLock(sp, at, { byKey: by.key, ratio: a.ratio ?? 1, phase: 0 }, 2);
+  else setRate(sp, at, 360 / (a.period ?? STREAM_PERIOD), 0, 2);
+}
+
 /** Makes the copies of an array: the original joins a new group, and each further copy sits in a pivot that carries the step and turn. */
 function addArray(plan: StepPlan, a: Extract<AddAction, { shape: 'array' }>, at: number): void {
   const of = lookup(plan.objs, a.of, at);
@@ -802,8 +850,9 @@ export function evaluate(plan: StepPlan, t: number): Frame {
       def: { op: 'add', shape: 'cylinder', id, size: g.pin, rot: [90, 0, 0], color: 'white' } as AddAction,
     });
   }
-  const motion = motionOf(plan, objects, spinTime);
+  const motion = motionOf(plan, objects, spinTime, diagrams);
   applyPoses(objects, motion);
+  applyPhases(objects, motion);
   let panel: Frame['panel'] = null;
   for (const p of plan.panels) {
     if (!visibleAt(p, t)) continue;
@@ -811,7 +860,7 @@ export function evaluate(plan: StepPlan, t: number): Frame {
     panel = { rect: { x: r[0] ?? 0, y: r[1] ?? 0, w: r[2] ?? 0, h: r[3] ?? 0 }, appear: appearOf(p, t), fade: fadeOf(p, t), frame: p.frame };
   }
   return {
-    panel, marks, diagrams, objects, nextKey: plan.nextKey, motion,
+    panel, marks, diagrams: phasedDiagrams(diagrams, motion), objects, nextKey: plan.nextKey, motion,
     camera: {
       az: valueAt(plan.az, t)[0] ?? 0, el: valueAt(plan.el, t)[0] ?? 0, zoom: valueAt(plan.zoom, t)[0] ?? 1,
       focus: focusAt(plan.focus, t),
@@ -845,9 +894,10 @@ function parentsFirst(objs: readonly ObjInst[]): readonly ObjInst[] {
 }
 
 /** What is turning at time `t`, and what is tied to it, limited to what is still on the stage. */
-function motionOf(plan: StepPlan, objects: readonly ObjectFrame[], t: number): Motion {
+function motionOf(plan: StepPlan, objects: readonly ObjectFrame[], t: number, diagrams: readonly DiagramFrame[] = []): Motion {
   if (plan.spins.length + plan.cranks.length + plan.cams.length + plan.flashes.length + plan.loops.length + plan.joints.length + plan.couples.length === 0) return emptyMotion();
   const alive = new Set(objects.map((o) => o.key));
+  for (const d of diagrams) for (const it of d.items) if (it.def.op === 'stream') alive.add(it.key);
   // A loop's angle (under a key below zero) lives as long as the object it moves.
   const spins = spinsAt(plan.spins, t).filter((s) => alive.has(s.key < 0 ? loopDriver(s.key) : s.key));
   const both = (a: number, b: number) => alive.has(a) && alive.has(b);
@@ -860,6 +910,28 @@ function motionOf(plan: StepPlan, objects: readonly ObjectFrame[], t: number): M
     joints: plan.joints.filter((j) => alive.has(j.key) && (j.toKey === null || alive.has(j.toKey))),
     couples: plan.couples.filter((c) => both(c.key, c.byKey)),
   };
+}
+
+/** The laps each stream has run, from the angle kept for it. */
+function applyPhases(objects: ObjectFrame[], motion: Motion): void {
+  if (motion.spins.length === 0) return;
+  const angles = new Map(motion.spins.map((s) => [s.key, s.angle] as const));
+  for (const o of objects) {
+    const angle = o.shape === 'stream' ? angles.get(loopDriver(o.key)) : undefined;
+    if (angle !== undefined) o.phase = angle / 360;
+  }
+}
+
+function phasedDiagrams(diagrams: readonly DiagramFrame[], motion: Motion): DiagramFrame[] {
+  if (motion.spins.length === 0 || !diagrams.some((d) => d.items.some((it) => it.def.op === 'stream'))) return diagrams as DiagramFrame[];
+  const angles = new Map(motion.spins.map((s) => [s.key, s.angle] as const));
+  return diagrams.map((d) => ({
+    ...d,
+    items: d.items.map((it) => {
+      const angle = it.def.op === 'stream' ? angles.get(loopDriver(it.key)) : undefined;
+      return angle === undefined ? it : { ...it, phase: angle / 360 };
+    }),
+  }));
 }
 
 function applyPoses(objects: ObjectFrame[], motion: Motion): void {
@@ -890,7 +962,8 @@ export function withMotion(frame: Frame, seconds: number, from: Motion = frame.m
     return rest as ObjectFrame;
   });
   applyPoses(objects, motion);
-  return { ...frame, objects, motion };
+  applyPhases(objects, motion);
+  return { ...frame, objects, diagrams: phasedDiagrams(frame.diagrams, motion), motion };
 }
 
 /** How far in and out the person may zoom the 3D panel: the scene language's own limits, so a wheel step never moves a scene's own zoom. */

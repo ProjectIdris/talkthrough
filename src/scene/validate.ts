@@ -355,6 +355,14 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
       out.amount = held;
     }
   }
+  if (variant.name === 'addConnector' && out.from === out.to) {
+    note(notes, 'dropped', path, 'a connector joins two different objects (from and to are the same)');
+    return null;
+  }
+  if (variant.name === 'addStream' && out.period === 0) {
+    delete out.period;
+    note(notes, 'trimmed', `${path}.period`, 'period 0 would not move; the default is used');
+  }
   if (variant.name === 'joint' && !checkJoint(out, state, path, notes)) return null;
   if (variant.name === 'couple' && !checkCouple(out, state, path, notes)) return null;
   if (variant.name === 'addBlob') {
@@ -389,7 +397,9 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     const id = out.id as string;
     // An id from the scene already on screen, written again, replaces the old one: any 3D object for any other (a box for a kit part, a cylinder for a tube), a mark, pin or text only for its own kind.
     const replacing = state.replaceable?.has(id) === true;
-    if (replacing && !swappable(state.ids.get(id), variant.creates)) {
+    // A stream on an arrow of a flow diagram belongs to the diagram (a clear of the marks takes it); on a path it is a 3D object.
+    const kind: ObjectKind = variant.name === 'addStream' && state.ids.get(out.along as string) === 'edge' ? 'dot' : variant.creates;
+    if (replacing && !swappable(state.ids.get(id), kind)) {
       note(notes, 'dropped', path, `"${id}" is already on screen as something that cannot be swapped for this`);
       return null;
     }
@@ -399,7 +409,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     }
     state.replaceable?.delete(id);
     const parent = (variant.attach ? out[variant.attach] : out.parent) as string | undefined;
-    state.ids.set(id, variant.creates);
+    state.ids.set(id, kind);
     if (variant.creates === 'diagram') state.diagramKinds.set(id, out.kind as DiagramKind);
     else state.diagramKinds.delete(id);
     if (variant.name === 'addPart') state.parts.set(id, out.part as string);
@@ -471,7 +481,7 @@ function checkCouple(out: Record<string, unknown>, state: SceneState, path: stri
 }
 
 /** The field of each machine op that names the part it is locked to. */
-const LOCKS: Readonly<Record<string, string>> = { loop: 'by', spin: 'by', cam: 'by', flash: 'by', crank: 'shaft' };
+const LOCKS: Readonly<Record<string, string>> = { loop: 'by', spin: 'by', cam: 'by', flash: 'by', crank: 'shaft', addStream: 'by' };
 
 const DIAGRAM_PIECES: ReadonlySet<string> = new Set(['diagram', 'node', 'edge', 'series', 'dot', 'tick']);
 

@@ -97,7 +97,22 @@ export type AddText = {
 } & At;
 export type AddGroup = { op: 'add'; shape: 'group'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3 } & At;
 
-export type AddAction = AddSolid | AddExtrude | AddLathe | AddBlob | AddTube | AddPath | AddPart | AddArray | AddText | AddGroup;
+export type Side = 'left' | 'right' | 'top' | 'bottom' | 'front' | 'back';
+/** A rope, belt, wire, chain or pipe between two objects, drawn as a tube that follows them as they move. */
+export type AddConnector = {
+  op: 'add'; shape: 'connector'; id: string; parent?: string; from: string; to: string; kind?: 'straight' | 'slack' | 'wrapped';
+  fromSide?: Side; toSide?: Side; fromAnchor?: string; toAnchor?: string; sag?: number; radius?: number; draw?: number;
+} & Surface & At;
+/** Markers that travel along a path, a connector, or an edge of a flow diagram. */
+export type StreamMark = 'dot' | 'dash' | 'arrow';
+export type AddStream = {
+  op: 'add'; shape: 'stream'; id: string; along: string; mark?: StreamMark; count?: number; size?: number; color?: Color; toColor?: Color;
+  shiftAt?: number; period?: number; by?: string; ratio?: number; opacity?: number;
+} & At;
+/** A stream on an edge of a flat diagram: what the timeline makes of an AddStream whose `along` is an edge. Never written by the model. */
+export type StreamPiece = { op: 'stream'; id: string; along: string; mark?: StreamMark; count?: number; color?: Color; toColor?: Color; shiftAt?: number; period?: number; opacity?: number } & At;
+
+export type AddAction = AddSolid | AddExtrude | AddLathe | AddBlob | AddTube | AddPath | AddConnector | AddStream | AddPart | AddArray | AddText | AddGroup;
 
 // Tweens and changes on existing ids.
 export type MoveAction = { op: 'move'; id: string; to: Vec3 } & Timing;

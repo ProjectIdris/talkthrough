@@ -131,7 +131,7 @@ export function stopSpin(plan: SpinPlan, at: number, ramp: number): void {
 /** What the pose pass needs to know of an object in a frame. */
 export type PoseObject = { key: number; parentKey: number | null; def: AddAction; pos: Vec3; rot: Vec3; opacity: number };
 
-const sizeOf = (def: AddAction, fallback: Vec3): Vec3 => ('size' in def && def.size ? def.size : fallback);
+const sizeOf = (def: AddAction, fallback: Vec3): Vec3 => ('size' in def && Array.isArray(def.size) ? def.size : fallback);
 const wrap180 = (d: number): number => ((((d + 180) % 360) + 360) % 360) - 180;
 
 /** Where the machine has put each moving object, given the angles. Objects not moved are not in the result. */

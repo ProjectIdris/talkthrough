@@ -32,6 +32,8 @@ export const LIMITS = {
   /** Lumps one soft blob is blended from, and the points of a tube's radius profile. */
   maxLumps: 12,
   maxSwell: 8,
+  /** Markers one stream runs. */
+  maxMarkers: 40,
   /** Copies one `array` may make, and the copies all arrays may make together in a scene. */
   maxArray: 64,
   maxCopies: 400,
@@ -117,6 +119,7 @@ const EXPLODE: Field = { k: 'vec3', ...WORLD, opt: true, doc: 'where it moves wh
 
 /** The surfaces a 3D object can be made of; the colour tints them. */
 export const MATERIALS = ['plastic', 'metal', 'rubber', 'pcb', 'glass', 'glow', 'paper', 'tissue'] as const;
+const SIDE: Field = { k: 'enum', values: ['left', 'right', 'top', 'bottom', 'front', 'back'], opt: true };
 const MATERIAL: Field = { k: 'enum', values: MATERIALS, opt: true, doc: 'surface, default plastic' };
 const BEVEL: Field = { k: 'num', min: 0, max: 20, opt: true, doc: 'rounding of the edges in units (default small)' };
 const EDGES: Field = { k: 'bool', opt: true, doc: 'dark edge lines (default true)' };
@@ -308,6 +311,30 @@ export const VARIANTS: readonly Variant[] = [
     fields: {
       shape: { k: 'enum', values: ['line', 'arrow'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE,
       pts: { k: 'pts', min: 2, max: LIMITS.maxPts, lo: WORLD.min, hi: WORLD.max }, color: COLOR_OPT, draw: DRAW, opacity: OPACITY, at: AT,
+    },
+  },
+  {
+    name: 'addConnector', op: 'add', shapes: ['connector'], creates: 'path',
+    doc: 'A rope, belt, wire, chain or pipe between two objects that follows them as they move. kind straight (default) is a taut rope that shortens as a weight rises; slack hangs in a sag (a wire, a tube); wrapped is a flat belt round two wheels. fromSide and toSide pick the side of each object an end meets as seen from the front (left, right, top, bottom, front, back; on a wheel that is its rim), else its middle; fromAnchor and toAnchor name a point of a ready-made part instead. radius is its thickness.',
+    fields: {
+      shape: { k: 'enum', values: ['connector'] }, id: { k: 'newId' }, parent: PARENT,
+      from: { k: 'ref', of: 'object3d', doc: 'the object one end is on' }, to: { k: 'ref', of: 'object3d', doc: 'the object the other end is on' },
+      kind: { k: 'enum', values: ['straight', 'slack', 'wrapped'], opt: true },
+      fromSide: SIDE, toSide: SIDE,
+      fromAnchor: { k: 'str', min: 1, max: 24, opt: true }, toAnchor: { k: 'str', min: 1, max: 24, opt: true },
+      sag: { k: 'num', min: 0, max: 1, opt: true, doc: 'slack: how far it hangs, as a fraction of its length (default 0.2)' },
+      radius: { k: 'num', min: 0.01, max: 2, opt: true }, color: COLOR_OPT, material: MATERIAL, draw: DRAW, opacity: OPACITY, at: AT,
+    },
+  },
+  {
+    name: 'addStream', op: 'add', shapes: ['stream'], creates: 'solid', attach: 'along',
+    doc: 'Dots, dashes or arrows travelling along a tube, line, arrow or connector, or along an arrow (edge) of a flow diagram: blood through vessels, current in a wire, water in a pipe, cars on a road, data between computers, money in an economy. They go on running by themselves. period is the seconds a marker takes for the whole way (negative runs it backwards, default 4); or by a spinning part, ratio laps for each turn of it. color changes to toColor along the way (shiftAt, 0 to 1, is where, default the middle). size is for 3D markers; markers narrower than an opaque pipe are hidden inside it.',
+    fields: {
+      shape: { k: 'enum', values: ['stream'] }, id: { k: 'newId' }, along: { k: 'ref', of: 'any', doc: 'the id of the tube, line, arrow, connector or flow-diagram edge they travel along' },
+      mark: { k: 'enum', values: ['dot', 'dash', 'arrow'], opt: true }, count: { k: 'num', min: 1, max: LIMITS.maxMarkers, int: true, opt: true },
+      size: { k: 'num', min: 0.01, max: 5, opt: true }, color: COLOR_OPT, toColor: COLOR_OPT, shiftAt: { k: 'num', min: 0, max: 1, opt: true },
+      period: { k: 'num', min: -120, max: 120, opt: true }, by: { k: 'ref', of: 'object3d', opt: true, doc: 'a spinning part to run in step with' },
+      ratio: { k: 'num', min: -100, max: 100, opt: true }, opacity: OPACITY, at: AT,
     },
   },
   {

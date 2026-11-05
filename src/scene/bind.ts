@@ -35,6 +35,8 @@ export type Binding = {
   infer?: boolean;
   /** A plain shape the model wrote gives way to the one ready-made part of this kind beside the shaft, when there is one (a plain cylinder called block beside a real piston). */
   preferPart?: boolean;
+  /** For a field no ready-made part can stand for: the one object that can, given what was written (or nothing). */
+  pick?(said: string | undefined, state: SceneState): string | undefined;
 };
 
 const primitive = (i: PartInfo): boolean => i.part === undefined && (i.kind === 'solid' || i.kind === 'path');
@@ -72,7 +74,19 @@ export const BINDINGS: Readonly<Record<string, readonly Binding[]>> = {
   spin: [
     { field: 'by', what: 'driving part', part: 'crankshaft', fits: mover, optional: true, not: 'id' },
   ],
+  addStream: [
+    { field: 'along', what: 'path', fits: (i) => i.kind === 'path' || i.kind === 'edge', pick: pickPath },
+    { field: 'by', what: 'driving part', fits: mover, optional: true, not: 'id' },
+  ],
 };
+
+/** A stream's path when the name is not one: the one path under the object named (a heart group holding one vessel), else the one path there is. */
+function pickPath(said: string | undefined, state: SceneState): string | undefined {
+  const paths = [...state.ids].filter(([, kind]) => kind === 'path').map(([id]) => id);
+  const under = said === undefined ? [] : paths.filter((id) => state.parents.get(id) === said);
+  if (under.length === 1) return under[0];
+  return under.length === 0 && paths.length === 1 ? paths[0] : undefined;
+}
 
 const infoOf = (state: SceneState, id: string): PartInfo | undefined => {
   const kind = state.ids.get(id);
@@ -146,6 +160,7 @@ const article = (what: string): string => `${/^[aeiou]/.test(what) ? 'an' : 'a'}
 
 /** The one part that can stand for what was written, or undefined when none or more than one can. */
 function repair(b: Binding, said: string | undefined, bound: ReadonlyMap<string, string>, state: SceneState, self: unknown, onlyOne = false): string | undefined {
+  if (b.pick !== undefined) return b.pick(said, state);
   if (b.part === undefined) return undefined;
   let candidates: PartInfo[] = [];
   for (const id of state.ids.keys()) {
