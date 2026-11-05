@@ -7,7 +7,7 @@
 // including across follow-up questions.
 
 import { PALETTE_RGB } from '../scene/colors.ts';
-import { advanceMotion, emptyMotion, loopDriver, loopStart, poses, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
+import { advanceMotion, crankPinKey, crankPinSize, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
 import type { CamDef, CoupleDef, CrankDef, FlashDef, JointDef, LoopDef, Motion, Pose, SpinPlan } from './motion.ts';
 import { applyDiagramAction, clearDiagrams, diagramPlanFrom, diagramTimes, emptyDiagramPlan, evaluateDiagrams, pulseDiagramThing, styleDiagramThing } from './diagram-plan.ts';
 import type { DiagramFrame, DiagramPlan } from './diagram-plan.ts';
@@ -787,6 +787,19 @@ export function evaluate(plan: StepPlan, t: number): Frame {
       appear: appearOf(o, t), fade: fadeOf(o, t), pulse: pulse.amount, pulseColor: pulse.color,
       draw: valueAt(o.draw, t)[0] ?? 1, spread: valueAt(o.spread, t)[0] ?? 0,
       ...cutOf(o, t),
+    });
+  }
+  // A crank on a plain-shape disc draws its own pin, so the rod and the pin the person sees are one point (a kit crankshaft has its own).
+  for (const c of plan.cranks) {
+    const shaft = objects.find((o) => o.key === c.shaftKey);
+    if (!shaft || !drawsOwnPin(shaft.def)) continue;
+    const rod = c.rodKey !== null ? objects.find((o) => o.key === c.rodKey) : undefined;
+    const id = `${shaft.id}-pin`;
+    const g = crankPinSize(shaft.def, rod?.def);
+    objects.push({
+      key: crankPinKey(c.key), id, parentKey: shaft.parentKey, shape: 'cylinder', pos: [0, 0, 0], rot: [90, 0, 0], scale: [1, 1, 1], color: [236, 236, 240], opacity: 1,
+      appear: shaft.appear, fade: shaft.fade, pulse: 0, pulseColor: undefined, draw: 1, spread: shaft.spread,
+      def: { op: 'add', shape: 'cylinder', id, size: g.pin, rot: [90, 0, 0], color: 'white' } as AddAction,
     });
   }
   const motion = motionOf(plan, objects, spinTime);

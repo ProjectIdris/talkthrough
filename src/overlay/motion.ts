@@ -179,7 +179,7 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     if (rod && (rod.parentKey !== shaft.parentKey || holders.has(rod.key))) continue;
     // A plain cylinder stands on y (its width is x, its thickness y); laid on its side it is the disc the kit's crankshaft is.
     const written = sizeOf(shaft.def, [1, 1, 1]);
-    const shaftSize: Vec3 = shaft.def.shape === 'cylinder' ? [written[0], written[0], written[1]] : written;
+    const shaftSize: Vec3 = drawsOwnPin(shaft.def) ? [written[0], written[0], written[1]] : written;
     const throws = Math.max(1, Math.min('n' in shaft.def && shaft.def.n ? shaft.def.n : 1, 8));
     const theta = (turnZ(c.shaftKey) + (throws > 1 ? ((c.pin - 1) * 360) / throws : 0)) * DEG;
     const r = crankThrow(shaftSize);
@@ -195,8 +195,17 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
       const a = Math.atan2(-dx, rise);
       edit(c.rodKey as number);
       const pose = out.get(c.rodKey as number) as Pose;
-      pose.pos = [pinX + ends.big * Math.sin(a), pinY - ends.big * Math.cos(a), rod.pos[2]];
+      // On a plain-shape disc the rod runs in front of it, on the pin the crank draws, so the rod and the pin are one thing to look at.
+      const front = drawsOwnPin(shaft.def) ? crankPinSize(shaft.def, rod.def) : undefined;
+      const rodZ = front ? shaft.pos[2] + front.thick / 2 + 0.02 + front.rodD / 2 : rod.pos[2];
+      pose.pos = [pinX + ends.big * Math.sin(a), pinY - ends.big * Math.cos(a), rodZ];
       pose.rot = [rod.rot[0], rod.rot[1], a / DEG];
+    }
+    const pinObj = byKey.get(crankPinKey(c.key));
+    if (pinObj) {
+      const g = crankPinSize(shaft.def, rod?.def);
+      const face = shaft.pos[2] + g.thick / 2;
+      edit(pinObj.key).pos = [pinX, pinY, face + (g.pin[1] / 2) - 0.02];
     }
   }
 
@@ -312,15 +321,14 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
       const to = byKey.get(j.toKey);
       const moved = out.get(j.toKey);
       if (!o || !to || !moved || o.parentKey !== to.parentKey) continue;
-      const dRot: Vec3 = [(moved.rot?.[0] ?? to.rot[0]) - to.rot[0], (moved.rot?.[1] ?? to.rot[1]) - to.rot[1], (moved.rot?.[2] ?? to.rot[2]) - to.rot[2]];
+      // The turn it has made is the rotation from the rest orientation to the one it has now, as a matrix (not a difference of angles: with a part laid
+      // on its side the angles do not subtract).
+      const delta = mulM(matOf(moved.rot ?? to.rot), transposeM(matOf(to.rot)));
       const dPos: Vec3 = [(moved.pos?.[0] ?? to.pos[0]) - to.pos[0], (moved.pos?.[1] ?? to.pos[1]) - to.pos[1], (moved.pos?.[2] ?? to.pos[2]) - to.pos[2]];
-      let v: Vec3 = [o.pos[0] - to.pos[0], o.pos[1] - to.pos[1], o.pos[2] - to.pos[2]];
-      v = turnAbout(v, 0, dRot[0]);
-      v = turnAbout(v, 1, dRot[1]);
-      v = turnAbout(v, 2, dRot[2]);
+      const v = applyM(delta, [o.pos[0] - to.pos[0], o.pos[1] - to.pos[1], o.pos[2] - to.pos[2]]);
       const pose = edit(j.key);
       pose.pos = [to.pos[0] + dPos[0] + v[0], to.pos[1] + dPos[1] + v[1], to.pos[2] + dPos[2] + v[2]];
-      pose.rot = [o.rot[0] + dRot[0], o.rot[1] + dRot[1], o.rot[2] + dRot[2]];
+      pose.rot = eulerOf(mulM(delta, matOf(o.rot)));
     }
   }
   return out;
@@ -334,28 +342,55 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
 type Row = [number, number, number];
 type M3 = [Row, Row, Row];
 
+/** The rotation an XYZ turn (three.js Euler order: Rx * Ry * Rz) stands for. */
+function matOf(rot: Vec3): M3 {
+  const [x, y, z] = [rot[0] * DEG, rot[1] * DEG, rot[2] * DEG];
+  const [cx, sx, cy, sy, cz, sz] = [Math.cos(x), Math.sin(x), Math.cos(y), Math.sin(y), Math.cos(z), Math.sin(z)];
+  return [
+    [cy * cz, -cy * sz, sy],
+    [cx * sz + sx * sy * cz, cx * cz - sx * sy * sz, -sx * cy],
+    [sx * sz - cx * sy * cz, sx * cz + cx * sy * sz, cx * cy],
+  ];
+}
+const mulM = (p: M3, q: M3): M3 => p.map((row) => ([0, 1, 2] as const).map((j) => row[0] * q[0][j] + row[1] * q[1][j] + row[2] * q[2][j])) as M3;
+const transposeM = (m: M3): M3 => [[m[0][0], m[1][0], m[2][0]], [m[0][1], m[1][1], m[2][1]], [m[0][2], m[1][2], m[2][2]]];
+const applyM = (m: M3, v: Vec3): Vec3 => [m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2], m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2], m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2]];
+/** The XYZ turn (degrees) that stands for a rotation. */
+function eulerOf(n: M3): Vec3 {
+  const m13 = Math.max(-1, Math.min(1, n[0][2]));
+  const ey = Math.asin(m13);
+  if (Math.abs(m13) < 0.9999999) return [Math.atan2(-n[1][2], n[2][2]) / DEG, ey / DEG, Math.atan2(-n[0][1], n[0][0]) / DEG];
+  return [Math.atan2(n[2][1], n[1][1]) / DEG, ey / DEG, 0];
+}
+
+/**
+ * A turn of `deg` about the parent's axis (0 x, 1 y, 2 z) added to an object's rest turn. With the other two angles at 0 it is just the angle added; with
+ * them set (a cylinder laid on its side is [90,0,0]) the part turns about the parent's axis, as the scene says, and does not tumble about its own: the
+ * result is the same orientation written again as the XYZ turn the renderer draws.
+ */
 export function turned(rest: Vec3, axis: Axis, deg: number): Vec3 {
   if (rest[(axis + 1) % 3] === 0 && rest[(axis + 2) % 3] === 0) {
     const out: Vec3 = [rest[0], rest[1], rest[2]];
     out[axis] += deg;
     return out;
   }
-  // three.js Euler XYZ: the matrix is Rx * Ry * Rz
-  const [x, y, z] = [rest[0] * DEG, rest[1] * DEG, rest[2] * DEG];
-  const [cx, sx, cy, sy, cz, sz] = [Math.cos(x), Math.sin(x), Math.cos(y), Math.sin(y), Math.cos(z), Math.sin(z)];
-  const r: M3 = [
-    [cy * cz, -cy * sz, sy],
-    [cx * sz + sx * sy * cz, cx * cz - sx * sy * sz, -sx * cy],
-    [sx * sz - cx * sy * cz, sx * cz + cx * sy * sz, cx * cy],
-  ];
   const c = Math.cos(deg * DEG), s = Math.sin(deg * DEG);
   const t: M3 = axis === 2 ? [[c, -s, 0], [s, c, 0], [0, 0, 1]] : axis === 0 ? [[1, 0, 0], [0, c, -s], [0, s, c]] : [[c, 0, s], [0, 1, 0], [-s, 0, c]];
-  const col = (j: 0 | 1 | 2) => (row: Row): number => row[0] * r[0][j] + row[1] * r[1][j] + row[2] * r[2][j];
-  const n: M3 = [t[0], t[1], t[2]].map((row) => [col(0)(row), col(1)(row), col(2)(row)] as Row) as M3;
-  const m13 = Math.max(-1, Math.min(1, n[0][2]));
-  const ey = Math.asin(m13);
-  if (Math.abs(m13) < 0.9999999) return [Math.atan2(-n[1][2], n[2][2]) / DEG, ey / DEG, Math.atan2(-n[0][1], n[0][0]) / DEG];
-  return [Math.atan2(n[2][1], n[1][1]) / DEG, ey / DEG, 0];
+  return eulerOf(mulM(t, matOf(rest)));
+}
+
+/** The key of the pin a crank draws on a plain-shape crankshaft (below zero, so it never meets an object made by a scene). */
+export const crankPinKey = (crankKey: number): number => -1_000_000 - crankKey;
+/** Whether a crankshaft is a plain shape the crank must draw the pin for (a kit crankshaft draws its own): a cylinder, laid on its side as the disc. */
+export const drawsOwnPin = (shaft: AddAction): boolean => shaft.shape === 'cylinder';
+/** The pin drawn on a plain-shape disc and the room the rod needs on it, from the sizes of the disc and of the rod. */
+export function crankPinSize(shaft: AddAction, rod: AddAction | undefined): { throwR: number; thick: number; rodW: number; rodD: number; pin: Vec3 } {
+  const written = sizeOf(shaft, [1, 1, 1]);
+  const throwR = crankThrow([written[0], written[0], written[1]]);
+  const [rodW, , rodD] = rod ? sizeOf(rod, [0.3, 1, 0.3]) : [Math.max(0.16, throwR * 0.4), 1, Math.max(0.16, throwR * 0.4)];
+  const d = Math.max(0.16, rodW * 0.9);
+  const thick = written[1];
+  return { throwR, thick, rodW, rodD, pin: [d, rodD + 0.18, d] };
 }
 
 const unitOf = (d: Vec3): Vec3 => {

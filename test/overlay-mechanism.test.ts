@@ -16,6 +16,7 @@ const rotOf = (f: Frame, id: string) => (obj(f, id)?.pose?.rot ?? obj(f, id)?.ro
 const step = (...actions: unknown[]): Step => ({ say: 'x', actions }) as Step;
 const box = (id: string, extra: object = {}) => ({ op: 'add', shape: 'box', id, size: [1, 1, 1], ...extra });
 const run = (...actions: unknown[]) => planStep(emptyFrame(), step(...actions));
+const part = (id: string, p: string, extra: object = {}) => ({ op: 'add', shape: 'part', part: p, id, size: [1, 1, 1], ...extra });
 const spin = (id: string, rpm: number) => ({ op: 'spin', id, rpm, dur: 0 }); // 30 rpm is 180 degrees a second
 
 test('a hinge with a pivot turns the object about that point, driven by a spin', () => {
@@ -207,4 +208,50 @@ test('the crank preset on plain shapes: the rod joins the crank pin to the pisto
   assert.ok(crownAt(0) > crownAt(90) && crownAt(0) > crownAt(180) && crownAt(0) > crownAt(311)); // the pin straight up: the piston at the top
   assert.ok(Math.abs(crownAt(180) - (crownAt(0) - 2 * throwR)) < 0.2); // and its stroke is about twice the throw
   assert.notEqual(rotOf(evaluate(plan, 1), 'rod')[2], 0); // the rod swings
+});
+
+// ---- a rider fixed to a part that is laid down and spinning ------------------------------------------------------------------------
+
+test('a part fixed to a cylinder laid on its side and spinning goes round in the plane, and its z stays put', () => {
+  const plan = run({ op: 'add', shape: 'cylinder', id: 'a', size: [2, 0.4, 2], rot: [90, 0, 0] }, box('b', { pos: [2, 0, 0] }),
+    { op: 'joint', id: 'b', kind: 'fixed', to: 'a' }, { op: 'spin', id: 'a', rpm: 30, dur: 0 }); // 180 degrees a second
+  for (const t of [0.25, 0.5, 1, 1.3, 2]) {
+    const f = evaluate(plan, t);
+    const th = (180 * t * Math.PI) / 180;
+    near(posOf(f, 'b')[0], 2 * Math.cos(th), 1e-9); near(posOf(f, 'b')[1], 2 * Math.sin(th), 1e-9); near(posOf(f, 'b')[2], 0, 1e-9);
+    const side = eulerXYZ([1, 0, 0], rotOf(f, 'b')); // and it turns with the cylinder
+    near(side[0], Math.cos(th), 1e-9); near(side[1], Math.sin(th), 1e-9); near(side[2], 0, 1e-9);
+  }
+});
+
+// ---- a crank on plain shapes draws its own pin, and the rod runs on it in front of the disc --------------------------------------
+
+test('on a plain-shape crank the crank draws the pin at the throw, in front of the disc, and the rod ends on that very pin', () => {
+  const plan = run(
+    { op: 'add', shape: 'cylinder', id: 'wheel', size: [2.2, 0.4, 2.2], pos: [0, -2.6, 0], rot: [90, 0, 0] },
+    { op: 'add', shape: 'box', id: 'pis', size: [2.2, 1, 2], pos: [0, 0.6, 0] },
+    { op: 'add', shape: 'box', id: 'rod', size: [0.3, 2.6, 0.3], pos: [0, -0.9, 0] },
+    { op: 'spin', id: 'wheel', rpm: 10, dur: 0 }, { op: 'crank', id: 'pis', shaft: 'wheel', rod: 'rod' });
+  const ends = rodEnds([0.3, 2.6, 0.3]);
+  const throwR = 0.3 * 2.2;
+  for (const deg of [0, 45, 90, 180, 270, 333]) {
+    const f = evaluate(plan, deg / 60);
+    const pin = obj(f, 'wheel-pin');
+    assert.ok(pin, 'the crank made its own pin');
+    const p = posOf(f, 'wheel-pin');
+    const a = (deg * Math.PI) / 180;
+    near(p[0], -Math.sin(a) * throwR, 1e-9); near(p[1], -2.6 + Math.cos(a) * throwR, 1e-9); // on the throw circle
+    assert.ok(p[2] > 0.2, 'in front of the disc face'); // the disc is 0.4 thick, its face at z 0.2
+    const rp = posOf(f, 'rod');
+    const tilt = ((rotOf(f, 'rod')[2] ?? 0) * Math.PI) / 180;
+    near(rp[0] + ends.big * -Math.sin(tilt), p[0], 1e-9); // the rod's big end is on the pin the person sees
+    near(rp[1] + ends.big * Math.cos(tilt), p[1], 1e-9);
+    assert.ok(rp[2] > 0.2 && Math.abs(rp[2] - p[2]) < 0.3, 'the rod runs in front of the disc, on the pin');
+  }
+});
+
+test('a kit crankshaft draws its own pin already: the crank adds none', () => {
+  const plan = run(part('crank', 'crankshaft', { size: [4, 4, 2], pos: [0, -2, 0] }), part('rod', 'connecting-rod', { size: [0.8, 4, 0.5] }), part('pis', 'piston', { size: [2, 2, 2], pos: [0, 3, 0] }),
+    { op: 'spin', id: 'crank', rpm: 10, dur: 0 }, { op: 'crank', id: 'pis', shaft: 'crank', rod: 'rod' });
+  assert.equal(evaluate(plan, 1).objects.length, 3);
 });
