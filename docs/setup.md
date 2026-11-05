@@ -15,10 +15,13 @@ To build the Windows installer (per-user, no administrator rights, unsigned for 
 
 ```
 npm ci
+# PowerShell: mark this disposable copy before changing its native binaries
+Set-Content -LiteralPath node_modules/.talkthrough-disposable-packaging -Value 'disposable packaging copy' -Encoding ascii
+node scripts/native-packaging.mjs --owned-copy node_modules
 npm run dist       # builds, then writes release/Talkthrough-Setup-<version>.exe
 ```
 
-Use `npm ci` in a folder of its own, not a `node_modules` linked from elsewhere: the packager only includes the modules it finds there. The icon is drawn by `scripts/make-icon.mjs` into `build/`; the packaging settings are in `electron-builder.yml`. Because the installer is unsigned, Windows SmartScreen may say "Windows protected your PC" when it is downloaded; *More info*, then *Run anyway*, starts it.
+Use a disposable checkout with its own `node_modules`, not a linked or shared directory: sanitizing updates the Windows native binaries in that copy before packaging. It removes directory paths from their CodeView debug records and updates their PE checksums; it does not rebuild the modules. The packaging check refuses unsafe debug paths, malformed inputs and signed binaries. The icon is drawn by `scripts/make-icon.mjs` into `build/`; the packaging settings are in `electron-builder.yml`. Because the installer is unsigned, Windows SmartScreen may say "Windows protected your PC" when it is downloaded; *More info*, then *Run anyway*, starts it.
 
 ### Uninstalling, and what it leaves
 
