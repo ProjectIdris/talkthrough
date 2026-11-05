@@ -354,7 +354,7 @@ export class LabelBoard {
     // A tag that is not wholly inside the card (the card came later, or moved) is placed again, to a place inside it if there is one.
     if (entry.fitWait) entry.fitWait--;
     if (this.within && !this.fits(entry.target) && !entry.fitWait) {
-      const rect = this.scan(entry.request, env(), others.map((o) => o.target), others.map((o): [Pt, Pt] => [o.request.anchor, attachPoint(o.target, o.request.anchor)]), env().keepOut ?? [], true) ?? this.scan(entry.request, env(), others.map((o) => o.target), others.map((o): [Pt, Pt] => [o.request.anchor, attachPoint(o.target, o.request.anchor)]), [], true);
+      const rect = this.scan(entry.request, env(), others.map((o) => o.target), others.map((o): [Pt, Pt] => [o.request.anchor, attachPoint(o.target, o.request.anchor)]), env().keepOut ?? [], true);
       if (rect) {
         entry.target = rect;
         entry.tangled = 0;
@@ -409,8 +409,8 @@ export class LabelBoard {
   }
 
   private search(req: PinRequest, env: Env, placed: Rect[], leaders: Array<[Pt, Pt]>): Rect {
-    // Inside the card and off the keep-out rectangles if any place is; then inside the card alone; then off the keep-outs alone; with none, as if neither were there.
-    return (this.within ? this.scan(req, env, placed, leaders, env.keepOut ?? [], true) ?? this.scan(req, env, placed, leaders, [], true) : undefined) ?? this.scan(req, env, placed, leaders, env.keepOut ?? []) ?? this.scan(req, env, placed, leaders, []) ?? { x: Math.max(MARGIN, Math.min(this.width - req.w - MARGIN, req.anchor.x - req.w / 2)), y: Math.max(MARGIN, req.anchor.y - req.h - 30), w: req.w, h: req.h };
+    // Prefer a place inside the card and clear of controls, then any clear viewport place, before accepting a place that overlaps a control.
+    return (this.within ? this.scan(req, env, placed, leaders, env.keepOut ?? [], true) : undefined) ?? this.scan(req, env, placed, leaders, env.keepOut ?? []) ?? (this.within ? this.scan(req, env, placed, leaders, [], true) : undefined) ?? this.scan(req, env, placed, leaders, []) ?? { x: Math.max(MARGIN, Math.min(this.width - req.w - MARGIN, req.anchor.x - req.w / 2)), y: Math.max(MARGIN, req.anchor.y - req.h - 30), w: req.w, h: req.h };
   }
 
   /** Whether a tag lies wholly inside the card (always, when there is no card). */
