@@ -491,3 +491,14 @@ test('replaying an existing card clears old reflow targets before stage growth',
   p.reset();p.setStage(undefined);p.card(original,'note');p.syncVisible([{id:'note',key:1,box:original}]);p.syncRenderedStage(stage);
   assert.ok(!overlaps(p.surface('note')!,stage));
 });
+
+test('visible stage controls are separate obstacles, leaving open space between them', () => {
+  const p=new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1});
+  const stage={x:20,y:250,w:250,h:300},button={x:700,y:250,w:250,h:100};
+  p.card({x:730,y:260,w:150,h:70},'button-overlap');
+  (p.syncRenderedStage as unknown as (stage:Box,buttons:Box[])=>Map<string,Box>)(stage,[button]);
+  const moved=p.surface('button-overlap')!;assert.ok(!overlaps(moved,button));
+  p.release('button-overlap');
+  const middle=p.card({x:400,y:260,w:200,h:70},'middle');
+  assert.deepEqual(middle,{x:400,y:260,w:200,h:70});
+});

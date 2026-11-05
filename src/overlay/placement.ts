@@ -259,6 +259,7 @@ export class Placer {
   /** Each flat diagram's rectangle as asked for and as placed: marks written inside the first go with it to the second. */
   private homes = new Map<string, { from: Box; to: Box }>();
   private stage: Box | undefined;
+  private stageControls: readonly Box[] = [];
   private aspect: number;
   private margin: number;
 
@@ -291,13 +292,13 @@ export class Placer {
   }
 
   /** Carry live placement identity across screenshot and viewport cache renewal. */
-  snapshot(): { cards: Map<string, Box>; visible: Map<string, Box>; keys: Map<string, number>; actual: Map<string, Box>; desired: Map<string, Box>; sourceBoxes: Map<string, Box>; homes: Map<string, { from: Box; to: Box }>; stage?: Box } {
-    return { cards: new Map(this.cards), visible: new Map(this.visible), keys: new Map(this.visibleKeys), actual: new Map(this.actual), desired: new Map(this.desired), sourceBoxes: new Map(this.sourceBoxes), homes: new Map(this.homes), ...(this.stage ? { stage: { ...this.stage } } : {}) };
+  snapshot(): { cards: Map<string, Box>; visible: Map<string, Box>; keys: Map<string, number>; actual: Map<string, Box>; desired: Map<string, Box>; sourceBoxes: Map<string, Box>; homes: Map<string, { from: Box; to: Box }>; stageControls: readonly Box[]; stage?: Box } {
+    return { cards: new Map(this.cards), visible: new Map(this.visible), keys: new Map(this.visibleKeys), actual: new Map(this.actual), desired: new Map(this.desired), sourceBoxes: new Map(this.sourceBoxes), homes: new Map(this.homes), stageControls: this.stageControls.map((b) => ({ ...b })), ...(this.stage ? { stage: { ...this.stage } } : {}) };
   }
 
   restore(saved: ReturnType<Placer['snapshot']>): void {
     this.cards = new Map(saved.cards); this.visible = new Map(saved.visible); this.visibleKeys = new Map(saved.keys); this.actual = new Map(saved.actual); this.desired = new Map(saved.desired); this.sourceBoxes = new Map(saved.sourceBoxes);
-    this.homes = new Map(saved.homes); this.stage = saved.stage ? { ...saved.stage } : undefined;
+    this.homes = new Map(saved.homes); this.stageControls = saved.stageControls.map((b) => ({ ...b })); this.stage = saved.stage ? { ...saved.stage } : undefined;
   }
 
   /** Rehydrate and prune from identities that are still drawn. */
@@ -327,15 +328,17 @@ export class Placer {
   publishSurface(id: string, box: Box): void { this.actual.set(id, box); }
 
   /** The rendered stage can grow after placement; move colliding cards against its actual footprint. */
-  syncRenderedStage(stage: Box): Map<string, Box> {
+  syncRenderedStage(stage: Box, controls: readonly Box[] = []): Map<string, Box> {
     this.stage = stage;
+    this.stageControls = controls;
+    const obstacles = [stage, ...controls];
     const moved = new Map<string, Box>();
     for (const [id, box] of this.cards) {
       const shown = this.actual.get(id) ?? box;
-      if (!overlap(shown, stage)) continue;
+      if (!obstacles.some((r) => overlap(shown, r) > 0)) continue;
       const target = this.desired.get(id);
-      if (target && !overlap({ ...target, w: shown.w, h: shown.h }, stage)) continue;
-      const keep = [...this.reserved, ...this.controls, ...[...this.cards].filter(([key]) => key !== id).map(([key, b]) => this.actual.get(key) ?? b), stage];
+      if (target && !obstacles.some((r) => overlap({ ...target, w: shown.w, h: shown.h }, r) > 0)) continue;
+      const keep = [...this.reserved, ...this.controls, ...[...this.cards].filter(([key]) => key !== id).map(([key, b]) => this.actual.get(key) ?? b), ...obstacles];
       const next = this.search(shown, [1], keep, [1], 0, true);
       const shifted = { ...box, x: box.x + next.x - shown.x, y: box.y + next.y - shown.y };
       this.cards.set(id, shifted);
@@ -357,6 +360,7 @@ export class Placer {
   /** The stage's own rectangle (cards keep out of it). */
   setStage(box: Box | undefined): void {
     this.stage = box;
+    if (!box) this.stageControls = [];
   }
 
   /** The mean gray level (0 to 255) under a rectangle: whether a frame behind the stage should be light or dark. */
@@ -450,6 +454,7 @@ export class Placer {
     const full = this.search(want, [1], keep, [1], 0, false, 0, { w: 0, h: 0 }, false);
     const placed = this.enlarge(keep.some((r) => overlap(full, r) > 0) ? this.search(want, [1, 0.88, 0.76, 0.64, 0.52], keep) : full);
     this.stage = placed;
+    this.stageControls = [];
     return placed;
   }
 
@@ -496,7 +501,7 @@ export class Placer {
 
   /** The stage as something to keep a card or diagram off: it counts several times over, because the model in it is what is being explained. */
   private stageKeepOut(): Box[] {
-    return this.stage ? Array.from({ length: 8 }, () => this.stage as Box) : [];
+    return this.stage ? [...Array.from({ length: 8 }, () => this.stage as Box), ...this.stageControls] : [];
   }
 
   /** Where a card or crop goes: the nearest free place, keeping out of the stage, the other cards and what is pointed at. */
@@ -649,7 +654,7 @@ export class Placer {
 
   /** A card or crop went (cleared by id, or all of them): its place is free for the next. */
   release(target: string): void {
-    if (target === 'all' || target === 'panel') this.stage = undefined;
+    if (target === 'all' || target === 'panel') { this.stage = undefined; this.stageControls = []; }
     if (target === 'all' || target === 'marks') {
       this.cards.clear();
       this.visible.clear();

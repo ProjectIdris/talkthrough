@@ -307,10 +307,13 @@ function draw(frame: Frame): Frame {
     for (const d of frame.diagrams) if (d.appear > 0 && d.fade > 0) surfaces.push({ id: d.id, key: d.key, box: { x: d.def.x, y: d.def.y, w: d.def.w, h: d.def.h } });
     p.syncVisible(surfaces);
     if (modelRect) {
-      const rects = [modelRect, ...buttonKeepOut()];
-      const x = Math.min(...rects.map((r) => r.x)), y = Math.min(...rects.map((r) => r.y));
-      const right = Math.max(...rects.map((r) => r.x + r.w)), bottom = Math.max(...rects.map((r) => r.y + r.h));
-      p.syncRenderedStage({ x: x / view.width * 1000, y: y / view.height * 1000, w: (right - x) / view.width * 1000, h: (bottom - y) / view.height * 1000 });
+      const units = (r: {x: number; y: number; w: number; h: number}) => ({ x: r.x / view.width * 1000, y: r.y / view.height * 1000, w: r.w / view.width * 1000, h: r.h / view.height * 1000 });
+      const visibleButtons = [explodeEl, cutEl, detailEl].flatMap((el) => {
+        if (el.style.display === 'none' || el.style.display === '') return [];
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0 ? [units({x:r.left, y:r.top, w:r.width, h:r.height})] : [];
+      });
+      p.syncRenderedStage(units(modelRect), visibleButtons);
     } else if (!frame.panel) p.setStage(undefined);
     for (const surface of surfaces) { const current = p.surface(surface.id); if (current) p.home(surface.id, surface.box, current); }
     frame = { ...frame,
