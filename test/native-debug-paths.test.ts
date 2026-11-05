@@ -1,7 +1,7 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitizePeDebugPaths, inspectPeDebugPaths } from '../scripts/pe-debug-paths.mjs';
-function sample(path='C:\\build\\native\\module.pdb') {
+function sample(path=['C:', 'build', 'native', 'module.pdb'].join('\\')) {
  const b=Buffer.alloc(0x600);b.write('MZ');b.writeUInt32LE(0x80,0x3c);b.write('PE\0\0',0x80,'binary');b.writeUInt16LE(0x8664,0x84);b.writeUInt16LE(1,0x86);b.writeUInt16LE(0xf0,0x94);const o=0x98;b.writeUInt16LE(0x20b,o);b.writeUInt32LE(16,o+108);b.writeUInt32LE(0x1000,o+112+6*8);b.writeUInt32LE(28,o+112+6*8+4);const s=o+0xf0;b.writeUInt32LE(0x400,s+8);b.writeUInt32LE(0x1000,s+12);b.writeUInt32LE(0x400,s+16);b.writeUInt32LE(0x200,s+20);const d=0x200;b.writeUInt32LE(2,d+12);b.writeUInt32LE(24+Buffer.byteLength(path)+1,d+16);b.writeUInt32LE(0x1040,d+20);b.writeUInt32LE(0x240,d+24);b.write('RSDS',0x240);b.write(path,0x258);return b;
 }
 test('strips only structured CodeView path and preserves all unrelated bytes',()=>{const input=sample(),before=Buffer.from(input),result=sanitizePeDebugPaths(input);assert.equal(inspectPeDebugPaths(before).unsafe,1);assert.equal(inspectPeDebugPaths(result.buffer).unsafe,0);assert.equal(before.toString('ascii',0x258,0x26a).includes('build'),true);assert.equal(result.buffer.toString('ascii',0x258,0x263).startsWith('module.pdb'),true);for(let i=0;i<before.length;i++)if(!(i>=0x258&&i<0x240+before.readUInt32LE(0x210)) && !(i>=0xd8&&i<0xdc))assert.equal(result.buffer[i],before[i],`unexpected byte change ${i}`);assert.deepEqual(input,before);});
