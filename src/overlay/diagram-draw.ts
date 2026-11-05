@@ -89,8 +89,8 @@ export class DiagramPainter {
   private grown = new Map<string, { layout: string; card: Px }>();
   private grownLive = new Set<string>();
   /** Where a flow card that has to grow goes: the page finds a free place for its new size (pixels in, pixels out; undefined: stay as it was). */
-  private readonly options: { regrow?: (id: string, want: Px) => Px | undefined };
-  constructor(options: { regrow?: (id: string, want: Px) => Px | undefined } = {}) {
+  private readonly options: { regrow?: (id: string, want: Px) => Px | undefined; onBounds?: (id: string, bounds: Px) => void };
+  constructor(options: { regrow?: (id: string, want: Px) => Px | undefined; onBounds?: (id: string, bounds: Px) => void } = {}) {
     this.options = options;
   }
   private last: number | undefined;
@@ -182,6 +182,7 @@ export class DiagramPainter {
     const asked = rectOf(d, view);
     // A flow does not go below a readable node size: its card grows (eased, so a late node does not make it jump) until the nodes read.
     const r = d.def.kind === 'flow' ? this.ease(`${d.key}:card`, this.grownFlow(ctx, d, asked, view), dt, seen) : asked;
+    this.options.onBounds?.(d.id, r);
     const accent = accentOf(d.color, 0);
     const { base, pad } = textSizes(r, view);
     const slide = (1 - d.appear) * 10;

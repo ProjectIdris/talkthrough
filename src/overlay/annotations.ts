@@ -3,6 +3,7 @@
 // CSS pixels, so it lines up with the 3D layer.
 
 import type { Vec3 } from '../scene/types.ts';
+import { imageCaptionLines } from './image-caption.ts';
 import type { View } from './marks.ts';
 import { THEME, fontAt, tagTextPx } from './theme.ts';
 import type { Theme } from './theme.ts';
@@ -387,7 +388,11 @@ export function drawImage(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): 
   const h = (w * srcH) / Math.max(1, srcW);
   const pad = Math.max(6, view.height * 0.008);
   const capPx = Math.max(13, view.height * 0.018);
-  const cap = mk.caption ? capPx * 1.9 : 0;
+  ctx.save();
+  ctx.font = fontAt(theme.font, capPx);
+  const caption = mk.caption ? imageCaptionLines(mk.caption, Math.max(1, w - 4), (text) => ctx.measureText(text).width) : [];
+  ctx.restore();
+  const cap = caption.length ? capPx * (0.9 + caption.length) : 0;
   const x = snapPx((mk.dx / 1000) * view.width, view.dpr), y = snapPx((mk.dy / 1000) * view.height, view.dpr);
   ctx.save();
   ctx.globalAlpha = alpha * Math.min(1, p * 1.5);
@@ -413,7 +418,7 @@ export function drawImage(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): 
     ctx.font = fontAt(theme.font, capPx);
     ctx.fillStyle = theme.ink;
     ctx.textBaseline = 'middle';
-    ctx.fillText(mk.caption, x + pad + 2, y + pad + h + cap * 0.55);
+    caption.forEach((line, i) => ctx.fillText(line, x + pad + 2, y + pad + h + capPx * (0.8 + i)));
   }
   ctx.restore();
 }
