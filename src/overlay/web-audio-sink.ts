@@ -18,7 +18,12 @@ export type BufferLike = { readonly duration: number; getChannelData(channel: nu
 export type SourceLike = { buffer: unknown; onended: (() => void) | null; connect(to: unknown): void; start(when: number): void; stop(): void; disconnect(): void };
 
 export type WebAudioSinkOptions = {
-  context?: () => ContextLike;
+  /** Makes the output; given the device the person chose (a sink id) when there is one. It may throw when that device is not there. */
+  context?: (sinkId?: string) => ContextLike;
+  /** The speaker the person chose (a Web Audio sink id); empty or absent: the system's default. */
+  sinkId?: string;
+  /** Told once if the chosen speaker could not be used and the system's default plays instead. */
+  onSinkLost?(why: string): void;
   /** How much sound is gathered before the first of it is played, so a server a little slower than speech does not stutter. Default 120. */
   prebufferMs?: number;
   after?(ms: number, run: () => void): () => void;
@@ -29,7 +34,19 @@ const LEAD_S = 0.03;
 
 export function createWebAudioSink(options: WebAudioSinkOptions = {}): AudioSink {
   let context: ContextLike | undefined;
-  const ctx = (): ContextLike => (context ??= options.context ? options.context() : (new AudioContext({ latencyHint: 'interactive' }) as unknown as ContextLike));
+  const make = options.context ?? ((id?: string) => new AudioContext({ latencyHint: 'interactive', ...(id ? { sinkId: id } : {}) }) as unknown as ContextLike);
+  /** The output on the speaker the person chose; when that cannot be made (the device has gone) on the default, and the caller is told once. */
+  function create(): ContextLike {
+    if (options.sinkId) {
+      try {
+        return make(options.sinkId);
+      } catch (error) {
+        options.onSinkLost?.(error instanceof Error ? error.message : String(error));
+      }
+    }
+    return make(undefined);
+  }
+  const ctx = (): ContextLike => (context ??= create());
   const prebufferMs = options.prebufferMs ?? 120;
   const after = options.after ?? ((ms, run) => {
     const t = setTimeout(run, ms);

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+<title>Welcome to Talkthrough</title>
+<link rel="stylesheet" href="../shared/glass.css">
+<style>
+  body { display: grid; place-items: center; background: radial-gradient(900px 500px at 70% -10%, rgba(124, 196, 255, 0.14), transparent), var(--bg); overflow: auto; }
+  .card { width: min(640px, calc(100vw - 40px)); padding: 30px 36px 28px; border-radius: 22px; background: rgba(255, 255, 255, 0.035); box-shadow: var(--shadow); margin: 20px 0; }
+  .dots { display: flex; gap: 8px; justify-content: center; margin: 0 0 20px; }
+  .dots span { width: 8px; height: 8px; border-radius: 99px; background: var(--line); }
+  .dots span.on { width: 26px; background: var(--accent); }
+  h1 { font-size: 28px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  h2 { font-size: 22px; margin: 0 0 6px; }
+  .lead { font-size: 15px; margin: 0 0 22px; max-width: 520px; }
+  .keys { display: flex; align-items: center; gap: 12px; margin: 0 0 8px; flex-wrap: wrap; }
+  .keys .plus { font-size: 20px; }
+  .note { font-size: 13px; margin: 14px 0 26px; }
+  .actions { display: flex; gap: 10px; margin-top: 20px; }
+  .opt .name { display: block; }
+  .opt .hint { margin-top: 3px; }
+  .optbody { margin: 8px 0 0; }
+  .mic { display: flex; align-items: center; gap: 14px; margin: 14px 0 0; flex-wrap: wrap; }
+  .heard { font-size: 13px; }
+  .field { display: flex; gap: 8px; margin: 8px 0 0; }
+  .field input { flex: 1; }
+  .done { padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: color-mix(in srgb, var(--accent) 9%, transparent); margin: 6px 0 0; font-size: 13.5px; }
+  .step { display: none; }
+  .step.on { display: block; }
+  #stepError { color: var(--err); font-size: 13px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="dots" aria-hidden="true"><span class="on"></span><span></span><span></span></div>
+
+  <section class="step on" id="step1">
+    <h1>Ask your screen.</h1>
+    <p class="lead muted">Hold the keys, say your question, let go. Talkthrough looks at what is on your screen, answers out loud, and draws on top of it.</p>
+    <div class="keys" id="keysShown"></div>
+    <p class="note muted" id="keysNote">Nothing is recorded until you hold the keys.</p>
+    <div class="actions"><button class="primary" id="next1" type="button">Continue</button></div>
+  </section>
+
+  <section class="step" id="step2">
+    <h2>How should it hear you?</h2>
+    <p class="lead muted" style="font-size:13.5px;margin-bottom:16px">It works straight away with Windows speech. You can make it clearer now or later in Settings.</p>
+    <label class="opt sel" id="optWindows"><input type="radio" name="ear" value="windows" checked><span class="ic">W</span><span class="what"><span class="name">Windows speech <span class="chip ok" id="winChip">ready now</span></span><div class="hint">Built in, nothing to download, stays on this computer. Fair on short, clear questions.</div></span></label>
+    <label class="opt" id="optWhisper"><input type="radio" name="ear" value="whisper"><span class="ic">C</span><span class="what"><span class="name">Clearer hearing <span class="chip" id="whisperChip">optional download</span></span><div class="hint" id="whisperText"></div>
+      <div class="optbody hide" id="whisperBody"><button class="primary" id="whisperGet" type="button">Download</button> <button id="whisperStop" type="button" class="hide">Stop</button><progress id="whisperBar" class="hide" max="1" value="0" style="margin-top:10px"></progress><div class="hint" id="whisperMsg"></div></div></span></label>
+    <div class="mic"><button id="micTest" type="button">Test my microphone</button><span class="meter" id="meter" aria-hidden="true"></span><span class="heard muted" id="heard">Say something for three seconds.</span></div>
+    <div class="actions"><button id="back2" type="button">Back</button><button class="primary" id="next2" type="button">Continue</button></div>
+  </section>
+
+  <section class="step" id="step3">
+    <h2>Where do answers come from?</h2>
+    <p class="lead muted" style="font-size:13.5px;margin-bottom:16px">Talkthrough uses a model you already have. It looked on this computer for these.</p>
+    <div id="routes">
+      <label class="opt" data-route="claude"><input type="radio" name="route" value="claude"><span class="ic">C</span><span class="what"><span class="name">Claude Code <span class="chip" data-chip="claude"></span></span><div class="hint">Uses the tool you already have signed in.</div></span></label>
+      <label class="opt" data-route="codex"><input type="radio" name="route" value="codex"><span class="ic">X</span><span class="what"><span class="name">Codex <span class="chip" data-chip="codex"></span></span><div class="hint">Uses your ChatGPT plan through the Codex tool.</div></span></label>
+      <label class="opt" data-route="openai"><input type="radio" name="route" value="openai"><span class="ic">K</span><span class="what"><span class="name">An API key <span class="chip" data-chip="openai"></span></span><div class="hint">Paste one; it is stored encrypted for your Windows account.</div>
+        <div class="optbody hide" data-body="openai"><div class="field"><input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a key"><button id="savekey" type="button">Save key</button></div><div class="hint" id="keymessage"></div></div></span></label>
+      <label class="opt" data-route="local"><input type="radio" name="route" value="local"><span class="ic">L</span><span class="what"><span class="name">A local model <span class="chip" data-chip="local"></span></span><div class="hint">A model on this computer through Ollama or LM Studio. It must take pictures, because every question carries a screenshot.</div>
+        <div class="optbody hide" data-body="local"><div class="field"><input id="localBaseUrl" type="text" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:11434/v1"></div><div class="field"><input id="localModel" type="text" autocomplete="off" spellcheck="false" placeholder="Model name, such as gemma3:12b"><button id="localTest" type="button">Test</button></div><div class="hint" id="localResult"></div></div></span></label>
+    </div>
+    <div class="done"><span class="dot ok" style="margin-right:8px"></span><span id="modelLine"></span> You are set. Hold <strong id="keysSay">the keys</strong> on any screen and ask.</div>
+    <div id="stepError"></div>
+    <div class="actions"><button id="back3" type="button">Back</button><button class="primary" id="finish" type="button">Start</button></div>
+  </section>
+</div>
+<script src="./firstrun.js"></script>
+</body>
+</html>

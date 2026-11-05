@@ -14,6 +14,7 @@ const targets = [
   { entry: 'src/main/audio-preload.ts', out: 'dist/main/audio-preload.cjs', ...node, external: ['electron'] },
   { entry: 'src/main/settings-preload.ts', out: 'dist/main/settings-preload.cjs', ...node, external: ['electron'] },
   { entry: 'src/settings/settings.ts', out: 'dist/settings/settings.js', ...browser, external: [] },
+  { entry: 'src/firstrun/firstrun.ts', out: 'dist/firstrun/firstrun.js', ...browser, external: [] },
   { entry: 'src/overlay/overlay.ts', out: 'dist/overlay/overlay.js', ...browser, external: [] },
   { entry: 'src/audio/audio.ts', out: 'dist/audio/audio.js', ...browser, external: [] },
 ];
@@ -21,6 +22,8 @@ const pages = [
   ['src/overlay/index.html', 'dist/overlay/index.html'],
   ['src/audio/index.html', 'dist/audio/index.html'],
   ['src/settings/index.html', 'dist/settings/index.html'],
+  ['src/firstrun/index.html', 'dist/firstrun/index.html'],
+  ['src/shared/glass.css', 'dist/shared/glass.css'],
 ];
 
 for (const { entry, out, platform, format, external } of targets) {

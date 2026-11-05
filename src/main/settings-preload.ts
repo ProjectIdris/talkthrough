@@ -10,6 +10,18 @@ const api: TalkthroughSettingsApi = {
   load: () => ipcRenderer.invoke(SETTINGS_CHANNEL.get),
   store: (form) => ipcRenderer.invoke(SETTINGS_CHANNEL.put, form),
   restart: () => ipcRenderer.send(SETTINGS_CHANNEL.restart),
+  speech: () => ipcRenderer.invoke(SETTINGS_CHANNEL.speechStatus),
+  installSpeech: (model) => ipcRenderer.invoke(SETTINGS_CHANNEL.speechInstall, model),
+  cancelSpeech: () => ipcRenderer.send(SETTINGS_CHANNEL.speechCancel),
+  removeSpeech: () => ipcRenderer.invoke(SETTINGS_CHANNEL.speechRemove),
+  onSpeechProgress: (listener) => void ipcRenderer.on(SETTINGS_CHANNEL.speechProgress, (_event, progress) => listener(progress)),
+  testLocal: (baseUrl, model) => ipcRenderer.invoke(SETTINGS_CHANNEL.testLocal, { baseUrl, model }),
+  devices: () => ipcRenderer.invoke(SETTINGS_CHANNEL.devices),
+  firstRun: () => ipcRenderer.invoke(SETTINGS_CHANNEL.firstRun),
+  micTest: () => ipcRenderer.invoke(SETTINGS_CHANNEL.micTest),
+  tools: () => ipcRenderer.invoke(SETTINGS_CHANNEL.tools),
+  firstRunDone: (restart) => ipcRenderer.send(SETTINGS_CHANNEL.firstRunDone, restart === true),
+  onFocus: (listener) => void ipcRenderer.on(SETTINGS_CHANNEL.focus, (_event, section) => listener(String(section))),
 };
 
 contextBridge.exposeInMainWorld('talkthroughSettings', api);

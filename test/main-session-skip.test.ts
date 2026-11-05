@@ -129,3 +129,11 @@ test('moving to a window that is refused while holding the keys throws away what
   assert.equal(asked, true);
   assert.ok(r.kinds().includes('begin'));
 });
+
+test('a refused window is a warning, not a fault: no button, since the person put it on the list', async () => {
+  const r = rig({ skipped: async () => listed });
+  await question(r);
+  const n = r.sent.find((m) => m.kind === 'notice');
+  assert.ok(n?.kind === 'notice');
+  assert.deepEqual([n.level, n.action], ['warning', undefined]);
+});

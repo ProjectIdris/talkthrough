@@ -125,3 +125,29 @@ test('stop silences what is scheduled and calls nothing back', () => {
   assert.deepEqual(log, []);
   assert.equal(r.sources.length, 2, 'nothing more is scheduled');
 });
+
+test('the speaker the person chose is the output the sound is made on; a speaker that has gone gives the default and says so once', () => {
+  const made: Array<string | undefined> = [];
+  const fakeContext = (id?: string): ContextLike => {
+    made.push(id);
+    if (id === 'gone') throw new Error('the device was not found');
+    return rig().ctx;
+  };
+  const lost: string[] = [];
+  const chosen = createWebAudioSink({ context: fakeContext, sinkId: 'headset', onSinkLost: (why) => lost.push(why) });
+  chosen.open({ sampleRate: 24000, channels: 1 }, { started() {}, ended() {} }).push(seconds(0.2));
+  assert.deepEqual(made, ['headset']);
+  assert.equal(lost.length, 0);
+
+  made.length = 0;
+  const missing = createWebAudioSink({ context: fakeContext, sinkId: 'gone', onSinkLost: (why) => lost.push(why) });
+  const p = missing.open({ sampleRate: 24000, channels: 1 }, { started() {}, ended() {} });
+  p.push(seconds(0.2));
+  missing.open({ sampleRate: 24000, channels: 1 }, { started() {}, ended() {} }).push(seconds(0.2));
+  assert.deepEqual(made, ['gone', undefined], 'the default is made once, after the chosen one failed');
+  assert.deepEqual(lost, ['the device was not found'], 'said once');
+
+  made.length = 0;
+  createWebAudioSink({ context: fakeContext }).open({ sampleRate: 24000, channels: 1 }, { started() {}, ended() {} }).push(seconds(0.2));
+  assert.deepEqual(made, [undefined], 'no speaker chosen: the default, nothing asked for');
+});

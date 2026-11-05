@@ -1,9 +1,10 @@
 import { BrowserWindow, ipcMain, session } from 'electron';
 import type { Display } from 'electron';
 import { AUDIO_CHANNEL } from '../shared/ipc.ts';
-import type { ComposeRequest, ComposeResult, FrameResult, GrabRequest, MicResult, UseImageRequest } from '../shared/ipc.ts';
+import type { ComposeRequest, ComposeResult, DeviceList, FrameResult, GrabRequest, MicResult, UseImageRequest } from '../shared/ipc.ts';
 import { screenSourceId } from './capture.ts';
 import type { Capture } from './capture.ts';
+import { DEFAULT_DEVICES, readDeviceList } from './devices.ts';
 
 /**
  * The hidden page that listens and looks: it records the question (MediaRecorder needs a renderer)
@@ -21,6 +22,12 @@ export function createMedia(options: { preload: string; page: string }) {
   let nextCompose = 1;
   let ready: Promise<void> | null = null;
   let onStarted: (() => void) | null = null;
+  /** The microphone the person chose (the system's device id); '' is the system default. */
+  let microphone = '';
+  let onMicFallback: (() => void) | null = null;
+  let micFallbackSaid = false;
+  const listing = new Map<number, (list: DeviceList) => void>();
+  let nextListing = 1;
 
   const mine = (event: Electron.IpcMainEvent) => window !== null && event.sender === window.webContents;
   ipcMain.on(AUDIO_CHANNEL.result, (event, result: MicResult) => {
@@ -37,6 +44,19 @@ export function createMedia(options: { preload: string; page: string }) {
   });
   ipcMain.on(AUDIO_CHANNEL.started, (event) => {
     if (mine(event)) onStarted?.();
+  });
+  // The microphone that was chosen could not be opened and the default was used: said once (the notice is main's to show).
+  ipcMain.on(AUDIO_CHANNEL.micFallback, (event) => {
+    if (!mine(event) || micFallbackSaid) return;
+    micFallbackSaid = true;
+    onMicFallback?.();
+  });
+  ipcMain.on(AUDIO_CHANNEL.devices, (event, requestId: unknown, list: unknown) => {
+    if (!mine(event) || typeof requestId !== 'number') return;
+    const done = listing.get(requestId);
+    if (!done) return;
+    listing.delete(requestId);
+    done(readDeviceList(list));
   });
   ipcMain.on(AUDIO_CHANNEL.frame, (event, result: FrameResult) => {
     if (!mine(event)) return;
@@ -98,9 +118,34 @@ export function createMedia(options: { preload: string; page: string }) {
     set onStarted(listener: (() => void) | null) {
       onStarted = listener;
     },
+    /** Called once when the chosen microphone could not be opened and the system default was used instead. */
+    set onMicFallback(listener: (() => void) | null) {
+      onMicFallback = listener;
+    },
+    /** The microphone to record from (a device id from `devices()`); '' or nothing: the system's default. */
+    setMicrophone(id: string): void {
+      microphone = id;
+    },
+    /** The microphones and speakers the system lists, each list starting with the system default (id ''). Opens the microphone for a moment if the names need it. */
+    async devices(): Promise<DeviceList> {
+      await open();
+      const id = nextListing++;
+      return new Promise<DeviceList>((resolve) => {
+        const timer = setTimeout(() => {
+          listing.delete(id);
+          resolve(DEFAULT_DEVICES);
+        }, 8000);
+        timer.unref?.();
+        listing.set(id, (list) => {
+          clearTimeout(timer);
+          resolve(list);
+        });
+        window?.webContents.send(AUDIO_CHANNEL.listDevices, id);
+      });
+    },
     async startMic(): Promise<void> {
       await open();
-      window?.webContents.send(AUDIO_CHANNEL.start);
+      window?.webContents.send(AUDIO_CHANNEL.start, microphone);
     },
     /** Stops recording and resolves with the clip. */
     stopMic(): Promise<MicResult> {

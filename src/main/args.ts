@@ -17,6 +17,8 @@ export type Options = {
   playSample: boolean;
   /** Do not install the global key hook. */
   noHotkey: boolean;
+  /** Show the first-run window now, whatever was saved before (development). */
+  firstRun: boolean;
   /** Use the fake microphone Chromium provides (checks that need no real microphone). */
   fakeMic: boolean;
   /** Keep the overlay visible to screen capture and recordings (it is hidden from them by default). */
@@ -83,7 +85,7 @@ export type Options = {
 
 export function parseArgs(argv: readonly string[]): Options {
   const options: Options = {
-    playSample: false, noHotkey: false, fakeMic: false, visibleToCapture: false, gpu: false, software: false, exitAfterChord: 0, selfChord: false,
+    playSample: false, noHotkey: false, firstRun: false, fakeMic: false, visibleToCapture: false, gpu: false, software: false, exitAfterChord: 0, selfChord: false,
     hidden: false, silentVoice: false, chordHoldMs: 2000, logSteps: false, frameEveryMs: 700, settleSeconds: 9, recordFps: 30, driveAfter: 12,
   };
   const value = (i: number, name: string): string => {
@@ -108,6 +110,7 @@ export function parseArgs(argv: readonly string[]): Options {
       case '--max-seconds': options.maxSeconds = Number(value(i, a)); i++; break;
       case '--play-sample': options.playSample = true; break;
       case '--no-hotkey': options.noHotkey = true; break;
+      case '--first-run': options.firstRun = true; break;
       case '--fake-mic': options.fakeMic = true; break;
       case '--visible-to-capture': options.visibleToCapture = true; break;
       case '--gpu': options.gpu = true; break;

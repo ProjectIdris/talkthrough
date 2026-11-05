@@ -97,13 +97,15 @@ test('reset while armed cancels', () => {
 // ---- a chord of the person's choosing --------------------------------------------------------------------------------
 
 import { CHORD_KEYS, DEFAULT_HOTKEY, parseHotkey } from '../src/main/chord.ts';
+import { hotkeyWarning } from '../src/shared/chord-keys.ts';
 
-test('a hotkey names two different modifier keys; anything else is refused', () => {
+test('a hotkey names one to four different keys; anything else is refused', () => {
   const d = parseHotkey(DEFAULT_HOTKEY)!;
-  assert.deepEqual([d.lead, d.second, d.label], [KEY_RIGHT_CTRL, KEY_RIGHT_SHIFT, 'Right Ctrl + Right Shift']);
+  assert.deepEqual([...d.keys, d.label, d.early], [KEY_RIGHT_CTRL, KEY_RIGHT_SHIFT, 'Right Ctrl + Right Shift', true]);
   assert.equal(parseHotkey(' Right-Alt + LEFT-CTRL ')!.label, 'Right Alt + Left Ctrl');
-  for (const bad of ['right-ctrl+right-ctrl', 'right-ctrl', 'right-ctrl+a', 'f1+f2', '', 'right-ctrl+right-shift+left-alt', null, 5]) assert.equal(parseHotkey(bad), null, String(bad));
-  assert.equal(Object.keys(CHORD_KEYS).length, 6);
+  for (const bad of ['right-ctrl+right-ctrl', 'right-ctrl+a+a', '', 'escape', 'right-ctrl+nope', 'a+b+c+d+e', null, 5]) assert.equal(parseHotkey(bad), null, String(bad));
+  assert.ok(Object.keys(CHORD_KEYS).length > 100);
+  assert.deepEqual(parseHotkey('right-ctrl+a')!.keys, [KEY_RIGHT_CTRL, 30], 'any two keys');
 });
 
 test('with another pair, only that pair makes the chord, and the first key held alone arms the early microphone', () => {
@@ -115,14 +117,14 @@ test('with another pair, only that pair makes the chord, and the first key held 
   assert.deepEqual(log, [], 'the usual pair does nothing now');
   tracker.keyUp(KEY_RIGHT_CTRL);
   tracker.keyUp(KEY_RIGHT_SHIFT);
-  tracker.keyDown(keys.lead);
+  tracker.keyDown(keys.keys[0]!);
   assert.deepEqual(log, ['arm']);
-  tracker.keyUp(keys.lead);
+  tracker.keyUp(keys.keys[0]!);
   assert.deepEqual(log, ['arm', 'cancel']);
-  tracker.keyDown(keys.lead);
-  tracker.keyDown(keys.second);
+  tracker.keyDown(keys.keys[0]!);
+  tracker.keyDown(keys.keys[1]!);
   assert.deepEqual(log, ['arm', 'cancel', 'arm', 'start']);
-  tracker.keyUp(keys.second);
+  tracker.keyUp(keys.keys[1]!);
   assert.deepEqual(log, ['arm', 'cancel', 'arm', 'start', 'stop']);
 });
 
@@ -130,13 +132,61 @@ test('a chord made for a check goes into the tracker, start then stop, and the r
   const log: string[] = [];
   const tracker = createChordTracker({ arm: () => log.push('arm'), start: () => log.push('start'), stop: () => log.push('stop') });
   const waiting: Array<() => void> = [];
-  const release = pressChord(tracker, { lead: KEY_RIGHT_CTRL, second: KEY_RIGHT_SHIFT, label: 'test' }, 1500, (fn) => void waiting.push(fn));
+  const release = pressChord(tracker, { keys: [KEY_RIGHT_CTRL, KEY_RIGHT_SHIFT], label: 'test', early: true }, 1500, (fn) => void waiting.push(fn));
   assert.deepEqual(log, ['arm', 'start']);
   assert.equal(tracker.held, true);
   release();
   assert.deepEqual(log, ['arm', 'start', 'stop']);
   waiting[0]?.(); // the timer firing afterwards does nothing more
   assert.deepEqual(log, ['arm', 'start', 'stop']);
+});
+
+test('one key is a hotkey: it starts on press, stops on release, repeats do nothing, and the microphone is never opened early', () => {
+  const log: string[] = [];
+  const keys = parseHotkey('f13')!;
+  assert.deepEqual([keys.keys.length, keys.early, keys.label], [1, false, 'F13']);
+  const tracker = createChordTracker({ arm: () => log.push('arm'), cancel: () => log.push('cancel'), start: () => log.push('start'), stop: () => log.push('stop') }, keys);
+  tracker.keyDown(KEY_RIGHT_CTRL);
+  tracker.keyDown(keys.keys[0]!);
+  tracker.keyDown(keys.keys[0]!);
+  assert.deepEqual(log, ['start']);
+  assert.equal(tracker.held, true);
+  tracker.keyUp(keys.keys[0]!);
+  assert.deepEqual(log, ['start', 'stop']);
+  tracker.keyDown(keys.keys[0]!);
+  tracker.reset();
+  assert.deepEqual(log, ['start', 'stop', 'start', 'stop']);
+});
+
+test('three keys make the hotkey in any order; letting go of any one ends it; only a chord that starts with Ctrl, Shift or Alt arms early', () => {
+  const log: string[] = [];
+  const keys = parseHotkey('right-ctrl+right-shift+f13')!;
+  assert.equal(keys.early, true);
+  const tracker = createChordTracker({ arm: () => log.push('arm'), cancel: () => log.push('cancel'), start: () => log.push('start'), stop: () => log.push('stop') }, keys);
+  tracker.keyDown(keys.keys[0]!);
+  tracker.keyDown(keys.keys[1]!);
+  assert.deepEqual(log, ['arm'], 'two of three is not enough');
+  tracker.keyDown(keys.keys[2]!);
+  assert.deepEqual(log, ['arm', 'start']);
+  tracker.keyUp(keys.keys[1]!);
+  assert.deepEqual(log, ['arm', 'start', 'stop']);
+  tracker.keyUp(keys.keys[0]!);
+  tracker.keyUp(keys.keys[2]!);
+  // the other way round: the last key first, and the first key last, does not arm
+  tracker.keyDown(keys.keys[2]!);
+  tracker.keyDown(keys.keys[1]!);
+  tracker.keyDown(keys.keys[0]!);
+  assert.deepEqual(log, ['arm', 'start', 'stop', 'start']);
+  assert.equal(parseHotkey('a+right-ctrl')!.early, false, 'a key that types never opens the microphone on its own');
+});
+
+test('what a person is told about the keys they chose', () => {
+  assert.equal(hotkeyWarning(['right-ctrl', 'right-shift']), null);
+  assert.equal(hotkeyWarning(['f13']), null);
+  assert.match(hotkeyWarning(['space']) ?? '', /typing or in programs/);
+  assert.match(hotkeyWarning(['right-ctrl']) ?? '', /shortcuts/);
+  assert.match(hotkeyWarning(['a', 'b']) ?? '', /type fast/);
+  assert.equal(hotkeyWarning(['a', 'left-ctrl']), null);
 });
 
 test('nothing in the app sends key or mouse input to the system (only to its own windows): no keyToggle, keyTap, SendInput or the like in src or scripts', () => {

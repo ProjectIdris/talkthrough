@@ -5,13 +5,16 @@ import { dirname } from 'node:path';
 export type Prefs = {
   /** Keep a picture of the screen with each pin. Off until the person ticks it. */
   pinScreenshot: boolean;
+  /** The first-run window has been shown and finished (or closed): it is not shown again. */
+  firstRunDone: boolean;
 };
 
 export function createPrefs(file: string) {
-  let prefs: Prefs = { pinScreenshot: false };
+  let prefs: Prefs = { pinScreenshot: false, firstRunDone: false };
   try {
     const raw = JSON.parse(readFileSync(file, 'utf8')) as Partial<Prefs>;
-    if (raw && typeof raw.pinScreenshot === 'boolean') prefs = { pinScreenshot: raw.pinScreenshot };
+    if (raw && typeof raw.pinScreenshot === 'boolean') prefs = { ...prefs, pinScreenshot: raw.pinScreenshot };
+    if (raw && typeof raw.firstRunDone === 'boolean') prefs = { ...prefs, firstRunDone: raw.firstRunDone };
   } catch {
     // none yet, or unreadable: the defaults
   }

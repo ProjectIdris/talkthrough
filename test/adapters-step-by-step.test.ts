@@ -445,3 +445,22 @@ test('every spoken sentence is told to open short, in the guide (the one-call an
   assert.match(questionText({ ...request, stage: { part: 'first', plan: true } }), /: what the page is and what the question is about, not a label. Open the sentence with a short first sentence/);
 
 });
+
+test('every call of a step-by-step answer asks for the chain schema, so a route that reads the schema from the request (Codex, an API key, a local model) gets plan and done', async () => {
+  const seen: unknown[] = [];
+  const step = (say: string, plan: string[] | null, done: boolean) => JSON.stringify({ steps: [{ say, actions: [] }], plan, done, escalate: null });
+  const texts = [step('One.', ['Two'], false), step('Two.', null, true)];
+  const inner: Model = {
+    id: 'reads-the-request',
+    async *ask(req: ModelRequest) {
+      seen.push(req.schema);
+      const text = texts.shift() as string;
+      req.onRaw?.(text);
+      yield { type: 'step', step: (JSON.parse(text) as { steps: unknown[] }).steps[0] };
+    },
+  };
+  const out = await collect(createStepByStepModel(inner), { schema: sceneSchemaLean });
+  assert.deepEqual(says(out), ['One.', 'Two.']);
+  assert.equal(seen.length, 2);
+  for (const schema of seen) assert.equal(schema, sceneSchemaChain);
+});

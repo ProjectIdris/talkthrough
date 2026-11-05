@@ -252,9 +252,9 @@ export function createSession(deps: SessionDeps) {
     }
   }
 
-  const notice = (displayId: number, text: string, level: 'info' | 'error' = 'info') => {
+  const notice = (displayId: number, text: string, level: 'info' | 'error' | 'warning' = 'info', action?: 'hearing' | 'settings') => {
     send(displayId, { kind: 'status', status: 'idle' });
-    send(displayId, { kind: 'notice', text, level });
+    send(displayId, { kind: 'notice', text, level, ...(action ? { action } : {}) });
   };
 
   function dropAttempt(why: string): void {
@@ -344,7 +344,7 @@ export function createSession(deps: SessionDeps) {
     // The window in front is one the person asked us not to look at (or cannot be told): nothing is recorded or captured, and they are told.
     if (attempt) dropAttempt('a press was refused');
     deps.log(`press ignored: ${why.kind === 'listed' ? 'the window in front is on the list of windows to skip' : `the window in front could not be told (${why.why})`}`);
-    notice(deps.pointerDisplayId(), refusal(why));
+    notice(deps.pointerDisplayId(), refusal(why), 'warning');
   });
   const stop = (): void => gated(stopNow, (why) => {
     const a = attempt;
@@ -352,7 +352,7 @@ export function createSession(deps: SessionDeps) {
     // The person moved to a window that is refused while holding the keys: what was grabbed before is thrown away.
     dropAttempt('a press was refused');
     penOff(a.displayId);
-    notice(a.displayId, refusal(why));
+    notice(a.displayId, refusal(why), 'warning');
   });
 
   /** Both keys are down. */
@@ -484,7 +484,7 @@ export function createSession(deps: SessionDeps) {
     const open = () => {
       if (begun) return;
       begun = true;
-      send(displayId, detail ? { kind: 'begin', turn, detail: true } : { kind: 'begin', turn });
+      send(displayId, detail ? { kind: 'begin', turn, detail: true } : { kind: 'begin', turn, ...(question.trim() ? { question: question.trim().slice(0, 160) } : {}) });
     };
     let escalate: string | undefined;
     let failure: unknown;
@@ -625,7 +625,7 @@ export function createSession(deps: SessionDeps) {
       r.error = `${source.kind}: ${code}: ${failure instanceof Error ? failure.message : String(failure)}`;
       if (walk) walk.streamEnded();
       else if (begun) send(displayId, { kind: 'end' });
-      return notice(displayId, failure instanceof ModelError && code === 'auth' && failure.message === NO_KEY_MESSAGE ? 'No API key is set. Open the tray menu and choose API key.' : source.kind === 'backend' ? backendMessage(code) : modelMessage(code), 'error');
+      return notice(displayId, failure instanceof ModelError && code === 'auth' && failure.message === NO_KEY_MESSAGE ? 'No API key is set.' : source.kind === 'backend' ? backendMessage(code) : modelMessage(code), 'error', source.kind !== 'backend' && (code === 'unavailable' || code === 'auth') ? 'settings' : undefined);
     }
     r.steps = shown.length;
     if (written.length > 0) {
@@ -801,7 +801,7 @@ export function createSession(deps: SessionDeps) {
       }
       if (!deps.speech) {
         r.error = 'no speech server';
-        return notice(a.displayId, "No speech server is set up, so I can't hear questions yet. Add its address to the settings.", 'error');
+        return notice(a.displayId, "I can't hear you yet: no way to hear questions is set up.", 'error', 'hearing');
       }
       let question: string;
       try {
@@ -813,7 +813,7 @@ export function createSession(deps: SessionDeps) {
         r.error = `speech: ${code}`;
         if (code === 'aborted') return;
         if (code === 'empty') return notice(a.displayId, "I didn't catch that. Try again?");
-        if (code === 'unavailable') return notice(a.displayId, "The speech server isn't running, so I couldn't hear you. Start it and try again.", 'error');
+        if (code === 'unavailable') return notice(a.displayId, "I can't hear you yet: the speech recogniser isn't available.", 'error', 'hearing');
         return notice(a.displayId, 'Speech recognition failed. Try again.', 'error');
       }
       if (controller.signal.aborted) return;

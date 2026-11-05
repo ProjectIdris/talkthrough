@@ -1,7 +1,18 @@
 // What the settings window shows and sends: the settings a person may change there, as plain values. The same shape goes both
 // ways; main checks it with the very checks the settings file goes through (main/settings.ts) before anything is written.
 
-export type Route = 'codex' | 'claude' | 'openai';
+export type Route = 'codex' | 'claude' | 'openai' | 'local';
+
+/** Where a local model is looked for when no address is set: Ollama's own. */
+export const DEFAULT_LOCAL_URL = 'http://127.0.0.1:11434/v1';
+
+/** The models each connector is known to offer, for the pick lists; any other name can still be typed. A local model is whatever the user's server holds, so it has no list. */
+export const KNOWN_MODELS: Record<Route, readonly string[]> = {
+  claude: ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5', 'claude-fable-5-1'],
+  codex: ['gpt-6-luna', 'gpt-6.1-sol'],
+  openai: ['gpt-6-luna', 'gpt-6.1-sol'],
+  local: [],
+};
 export type SplitMode = 'off' | 'two' | 'steps';
 export type { CaptionMode } from './captions.ts';
 import type { CaptionMode } from './captions.ts';
@@ -12,7 +23,18 @@ export type SettingsForm = {
   codexModel: string;
   claudeModel: string;
   openaiModel: string;
+  /** The local route: the model's name on a server on this computer, and that server's address (empty: not set). */
+  localModel: string;
+  localBaseUrl: string;
   codexFast: boolean;
+  /** The route and model that write the steps after step 1; empty: the same as step 1. */
+  laterRoute: '' | Route;
+  laterModel: string;
+  /** The microphone and the speaker, by the system's id and name; empty: the system's default. */
+  microphone: string;
+  microphoneName: string;
+  speaker: string;
+  speakerName: string;
   /** The route that writes the richer "more detail" version; empty: there is no detail pass. */
   detailRoute: '' | Route;
   /** Empty: that route's own default. */
@@ -22,7 +44,7 @@ export type SettingsForm = {
   voiceServerVoice: string;
   /** Empty: the app cannot hear questions yet. */
   speechServerUrl: string;
-  /** "first+second", see CHORD_KEYS. */
+  /** One key, or up to four joined by "+" ("right-ctrl+right-shift"), see src/shared/chord-keys.ts. */
   hotkey: string;
   /** One word or name per entry. */
   captureBlocklist: string[];
@@ -39,7 +61,7 @@ export type SettingsForm = {
 };
 
 export const FORM_KEYS: ReadonlyArray<keyof SettingsForm> = [
-  'model', 'codexModel', 'claudeModel', 'openaiModel', 'codexFast', 'detailRoute', 'detailModel',
+  'model', 'codexModel', 'claudeModel', 'openaiModel', 'localModel', 'localBaseUrl', 'codexFast', 'laterRoute', 'laterModel', 'microphone', 'microphoneName', 'speaker', 'speakerName', 'detailRoute', 'detailModel',
   'voiceServerUrl', 'voiceServerVoice', 'speechServerUrl', 'hotkey', 'captureBlocklist', 'guideNavigation', 'controlSnap', 'splitAnswer', 'captions', 'keepRecord', 'recordFolder',
 ];
 

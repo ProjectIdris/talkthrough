@@ -200,23 +200,59 @@ let chunks: Blob[] = [];
 let startedAt = 0;
 let startLatencyMs = 0;
 
+/** The recording constraints, for the microphone the person chose (exact) or the system's default. */
+const audioConstraints = (deviceId: string): MediaTrackConstraints => ({ channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false, ...(deviceId ? { deviceId: { exact: deviceId } } : {}) });
+
+/**
+ * The microphone the person chose; when it has gone (unplugged, renamed) the system's default is used and main is told once, so it can say so.
+ * Only a missing or unusable device falls back: a refusal of permission is not hidden behind the default.
+ */
+async function openMicrophone(deviceId: string): Promise<MediaStream> {
+  try {
+    return await navigator.mediaDevices.getUserMedia({ audio: audioConstraints(deviceId) });
+  } catch (error) {
+    const name = error instanceof DOMException ? error.name : '';
+    if (!deviceId || (name !== 'OverconstrainedError' && name !== 'NotFoundError')) throw error;
+    window.talkthroughAudio.micFallback();
+    return navigator.mediaDevices.getUserMedia({ audio: audioConstraints('') });
+  }
+}
+
+/** The microphones and speakers the system lists; labels need the microphone permission, so a stream is opened for a moment (and closed) when they are empty. */
+async function listDevices(requestId: number): Promise<void> {
+  const read = async () => (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.deviceId !== 'default' && d.deviceId !== 'communications');
+  let all = await read();
+  if (all.some((d) => (d.kind === 'audioinput' || d.kind === 'audiooutput') && d.label === '')) {
+    try {
+      const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
+      for (const track of probe.getTracks()) track.stop();
+      all = await read();
+    } catch {
+      // no permission: the list stays as it is, without names
+    }
+  }
+  const named = (kind: MediaDeviceKind, fallback: string) => all.filter((d) => d.kind === kind && d.deviceId !== '').map((d, i) => ({ id: d.deviceId, name: d.label || `${fallback} ${i + 1}` }));
+  window.talkthroughAudio.devices(requestId, {
+    microphones: [{ id: '', name: 'System default' }, ...named('audioinput', 'Microphone')],
+    speakers: [{ id: '', name: 'System default' }, ...named('audiooutput', 'Speaker')],
+  });
+}
+
 let generation = 0; // bumped by abort, so a start still waiting for the device gives it back
 let starting: Promise<void> | null = null;
 
-function start(): Promise<void> {
-  starting = open();
+function start(deviceId?: string): Promise<void> {
+  starting = open(deviceId);
   return starting;
 }
 
-async function open(): Promise<void> {
+async function open(deviceId = ''): Promise<void> {
   if (recorder) return;
   const mine = ++generation;
   const asked = performance.now();
   let device: MediaStream;
   try {
-    device = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-    });
+    device = await openMicrophone(deviceId);
   } catch (error) {
     if (mine === generation) window.talkthroughAudio.error(`microphone unavailable: ${error instanceof Error ? error.message : String(error)}`);
     return;
@@ -330,7 +366,8 @@ async function grab(request: { id: number; sourceId: string; maxEdge: number; na
   }
 }
 
-window.talkthroughAudio.onStart(() => void start());
+window.talkthroughAudio.onStart((deviceId) => void start(deviceId));
+window.talkthroughAudio.onListDevices((requestId) => void listDevices(requestId));
 window.talkthroughAudio.onAbort(abort);
 window.talkthroughAudio.onGrab((request) => void grab(request));
 window.talkthroughAudio.onCompose((request) => void compose(request));
