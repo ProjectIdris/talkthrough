@@ -236,7 +236,74 @@ test('a tag keeps off the app\'s own buttons: where a button will be, no tag is 
   assert.ok(all.rect.w > 0 && all.alpha > 0);
 });
 
-// The model's card (the frame drawn round it) is no place for a tag to straddle: a tag is wholly inside it, or the card is too small and the tag goes where it can.
+const SMALL_VIEW = { width: 1000, height: 700 };
+const FULL_CARD_CONTROL: Rect = { x: 400, y: 300, w: 240, h: 100 };
+const FULL_CARD_REQUEST = { anchor: { x: 520, y: 350 }, w: 100, h: 30 };
+const smallViewEnv = (keepOut?: readonly Rect[]) => ({ occ: new Occupancy(SMALL_VIEW.width, SMALL_VIEW.height), ...(keepOut ? { keepOut } : {}) });
+const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+test('first label placement prefers a clear viewport slot over a card-only slot under a control', () => {
+  const b = new LabelBoard();
+  b.beginFrame({ ...SMALL_VIEW, model: undefined, dragging: false, now: 0, within: FULL_CARD_CONTROL });
+  const placed = b.place(1, FULL_CARD_REQUEST, () => smallViewEnv([FULL_CARD_CONTROL]));
+  assert.equal(overlaps(placed.rect, FULL_CARD_CONTROL), false, `clear viewport space exists outside the card: ${JSON.stringify(placed.rect)}`);
+  assert.equal(placed.rect.w, FULL_CARD_REQUEST.w);
+  assert.equal(placed.rect.h, FULL_CARD_REQUEST.h);
+  assert.equal(placed.alpha, 1);
+});
+
+test('retained label escapes a control covering its card when the viewport has room', () => {
+  const b = new LabelBoard();
+  b.beginFrame({ ...SMALL_VIEW, model: undefined, dragging: false, now: 0, within: FULL_CARD_CONTROL });
+  const before = b.place(1, FULL_CARD_REQUEST, () => smallViewEnv());
+  assert.deepEqual(before.rect, { x: 537, y: 335, w: 100, h: 30 });
+
+  let placed = before;
+  for (let frame = 1; frame <= 140; frame++) {
+    b.beginFrame({ ...SMALL_VIEW, model: undefined, dragging: false, now: frame * 16, within: FULL_CARD_CONTROL });
+    placed = b.place(1, FULL_CARD_REQUEST, () => smallViewEnv([FULL_CARD_CONTROL]));
+  }
+  assert.equal(overlaps(placed.rect, FULL_CARD_CONTROL), false, `clear viewport space exists outside the card: ${JSON.stringify(placed.rect)}`);
+  assert.equal(placed.rect.w, FULL_CARD_REQUEST.w);
+  assert.equal(placed.rect.h, FULL_CARD_REQUEST.h);
+  assert.equal(placed.alpha, 1);
+  assert.equal(b.moving, false);
+});
+
+test('an impossible control keep-out keeps the full label visible as a fallback', () => {
+  const b = new LabelBoard();
+  const wholeViewport: Rect = { x: 0, y: 0, w: SMALL_VIEW.width, h: SMALL_VIEW.height };
+  b.beginFrame({ ...SMALL_VIEW, model: undefined, dragging: false, now: 0, within: FULL_CARD_CONTROL });
+  const placed = b.place(1, FULL_CARD_REQUEST, () => smallViewEnv([wholeViewport]));
+  assert.equal(placed.rect.w, FULL_CARD_REQUEST.w);
+  assert.equal(placed.rect.h, FULL_CARD_REQUEST.h);
+  assert.ok(placed.alpha > 0, 'when no clear position exists, keep the label visible');
+});
+
+test('a moving visible overlay control repositions a retained pin label without dropping it', () => {
+  const b = new LabelBoard();
+  const overlapsMeasured = (a: Rect, c: Rect, pad = 0) => a.x < c.x + c.w + pad && c.x < a.x + a.w + pad && a.y < c.y + c.h + pad && c.y < a.y + a.h + pad;
+  const anchor = { x: 1000, y: 360 };
+  const request = { anchor, ...SIZE };
+  let now = 0;
+  const frame = () => b.beginFrame({ width: W, height: H, model: MODEL, dragging: false, now: (now += 16) });
+  frame();
+  const before = b.place(1, request, () => env()).rect;
+  const measuredControl: Rect = { ...before };
+  assert.ok(overlapsMeasured(before, measuredControl), 'the measured control starts over the retained label');
+
+  let visible = b.place(1, request, () => ({ ...env(), keepOut: [measuredControl] }));
+  assert.ok(visible.rect.w > 0 && visible.alpha > 0, 'the pin label remains visible while its destination changes');
+  assert.ok(!overlapsMeasured(visible.rect, measuredControl, 4) || b.moving, 'the retained label begins reflowing away from the new control');
+  for (let i = 0; i < 180; i++) {
+    frame();
+    visible = b.place(1, request, () => ({ ...env(), keepOut: [measuredControl] }));
+  }
+  assert.ok(!overlapsMeasured(visible.rect, measuredControl, 4), `the settled label is clear of the control: ${JSON.stringify(visible.rect)}`);
+  assert.ok(visible.alpha > 0);
+});
+
+// The model's card (the frame drawn round it) is no place for a tag to straddle: a tag is wholly inside it, or the card was too small and the tag goes where it can.
 const CARD: Rect = { x: 700, y: 300, w: 700, h: 260 };
 const inCard = (r: Rect, c: Rect = CARD) => r.x >= c.x && r.y >= c.y && r.x + r.w <= c.x + c.w && r.y + r.h <= c.y + c.h;
 const cardEnv = () => {
