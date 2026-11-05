@@ -8,11 +8,16 @@
 import type { Rect } from './consent-card.ts';
 
 /** The buttons the page may report. */
-export const BUTTON_IDS = ['offer', 'explode', 'cut', 'detail', 'fix', 'copy', 'pin', 'close'] as const;
+export const BUTTON_IDS = ['offer', 'explode', 'cut', 'detail', 'fix', 'copy', 'pin', 'close', 'ask-more', 'send-followup', 'cancel-followup', 'undo'] as const;
 export type ButtonId = (typeof BUTTON_IDS)[number];
 
 /** Where a button is on the overlay page (CSS pixels from the page's top left, which is the display's top left). */
 export type ButtonRect = { id: ButtonId; x: number; y: number; w: number; h: number };
+
+/** During pen capture only explicit recording controls stay over the pen. */
+export function buttonsForMode(rects: readonly ButtonRect[], penOn: boolean): readonly ButtonRect[] {
+  return penOn ? rects.filter((r) => r.id === 'send-followup' || r.id === 'cancel-followup' || r.id === 'undo') : rects;
+}
 
 /** What the page sent, read strictly: only the known ids, each once, with sane numbers. Anything else is dropped. */
 export function validRects(input: unknown): ButtonRect[] {

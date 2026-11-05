@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { CATCHER_WINDOW_OPTIONS, catcherHtml, createButtonCatchers, pressOf, PRESS_SCHEME, validRects } from '../src/main/button-catchers.ts';
+import { buttonsForMode, CATCHER_WINDOW_OPTIONS, catcherHtml, createButtonCatchers, pressOf, PRESS_SCHEME, validRects } from '../src/main/button-catchers.ts';
 import type { ButtonId, ButtonRect, CatcherWindow } from '../src/main/button-catchers.ts';
 import type { Rect } from '../src/main/consent-card.ts';
 
 const R = (id: ButtonId, x: number, y: number, w = 80, h = 26): ButtonRect => ({ id, x, y, w, h });
+
+test('capture-mode catchers retain recording controls and exclude ordinary overlay buttons', () => {
+  const all = validRects(['send-followup', 'cancel-followup', 'undo', 'ask-more', 'explode'].map((id, i) => ({ id, x: i * 90, y: 10, w: 80, h: 26 })));
+  assert.deepEqual(buttonsForMode(all, true).map((x) => x.id), ['send-followup', 'cancel-followup', 'undo']);
+  assert.equal(buttonsForMode(all, false).length, 5);
+});
 
 function rig() {
   const windows = new Map<ButtonId, { shown: Rect[]; hides: number; destroyed: number; press: () => void }>();
@@ -107,7 +113,7 @@ test('the catcher window takes a click with no move before it, and the overlay i
   assert.ok(/javascript:\s*false/.test(catcher) && !/preload/.test(catcher.replace(/\/\/.*$/gm, '')), 'no script, no preload');
   const overlay = readFileSync(new URL('../src/main/overlay-windows.ts', import.meta.url), 'utf8');
   assert.ok(/window\.setIgnoreMouseEvents\(true, \{ forward: true \}\)/.test(overlay), 'the overlay window still starts click-through');
-  assert.ok(/ignoreMouse\(overlay\.pageWantsClicks, overlay\.pen\)/.test(overlay), 'and still decides by the page and the pen');
+  assert.ok(/ignoreMouse\(overlay\.pageWantsClicks, overlay\.pen,/.test(overlay), 'and considers pen and current pointer routing');
 });
 
 test('the buttons of a notice and of a words-only answer are known to the catchers: Set up / Open (fix), Copy, Pin, Close', () => {

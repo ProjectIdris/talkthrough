@@ -77,3 +77,25 @@ test('tags are drawn smaller beside a small stage, down to 70%, and not at all s
   assert.ok(tiny < usual && tiny >= usual * 0.69, `${tiny} against ${usual}`);
   assert.ok(sizeFor({ w: 600, h: 480 }) > tiny);
 });
+
+test('pin reports its actually drawn leader and anchor for hit testing', () => {
+  const scene: Scene = { steps: [{ say: '', actions: [
+    { op: 'add', shape: 'box', id: 'b', size: [1, 1, 1] },
+    { op: 'pin', id: 'p', on: 'b', text: 'Part' },
+  ] }] };
+  const mark = frameAt(scene.steps, 0, 99).marks[0]!;
+  const ctx = new Proxy({ measureText: () => ({ width: 60 }) } as Record<string, unknown>, {
+    get(t, key: string) { return key in t ? t[key] : () => undefined; },
+    set(t, key: string, v) { t[key] = v; return true; },
+  }) as unknown as CanvasRenderingContext2D;
+  let hit: any;
+  drawPin(ctx, { ...mark, appear: 1 }, {
+    view: { width: 1000, height: 1000, dpr: 1 },
+    project: () => ({ x: 300, y: 400, visible: true }),
+    place: () => ({ rect: { x: 500, y: 400, w: 100, h: 40 }, attach: { x: 500, y: 420 }, alpha: 1 }),
+    onPinGeometry: (v: unknown) => { hit = v; },
+  } as any, 0);
+  assert.ok(hit);
+  assert.deepEqual(hit.anchor, { x: 300, y: 400 });
+  assert.deepEqual(hit.leaderEnd, { x: 500, y: 420 });
+});

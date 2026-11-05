@@ -7,6 +7,79 @@ import type { SceneMessage } from '../src/shared/ipc.ts';
 import { GRID_COLS, GRID_ROWS } from '../src/shared/screen-diff.ts';
 import type { Grid } from '../src/shared/screen-diff.ts';
 
+test('guide disarms click observation after one matched click and keeps Escape', async () => {
+  let listener!: GuideListener;
+  const switches: boolean[] = [];
+  const statuses: string[] = [];
+  let captures = 0;
+  let resolveCapture!: (value: Frame) => void;
+  const held = new Promise<Frame>((r) => { resolveCapture = r; });
+  const g = createGuide({ displayId: 7, send: (m) => { if (m.kind === 'status') statuses.push(m.status); }, capture: () => { captures++; return held; },
+    listen: (l) => { listener = l; return Object.assign(() => {}, { clicks: (on: boolean) => switches.push(on) }); },
+    replan: async () => {}, finish: () => {}, onEnd: () => {}, log: () => {}, sleep: async () => {}, after: () => () => {} });
+  g.push(guideStep('one', TARGET));
+  listener.up(on);
+  assert.equal(captures, 1, 'orphan release must not start a check');
+  assert.equal(statuses.at(-1), 'waiting', 'orphan release must leave the step waiting');
+  listener.down({ ...on, button: 1 }); listener.up({ ...on, button: 2 });
+  assert.equal(statuses.at(-1), 'waiting', 'a different button cannot complete the press');
+  listener.up({ ...on, button: 1 });
+  assert.equal(switches.at(-1), false, 'mouse observer disarmed on accepted release');
+  const n = captures; listener.down(on); listener.up(on);
+  assert.equal(captures, n, 'extra callbacks while checking are discarded');
+  listener.escape(); resolveCapture(SAME);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(g.active, false, 'Escape stays active and stale work cannot rearm');
+});
+
+test('a delayed replan ignores clicks until its next waiting step arrives', async () => {
+  let listener!: GuideListener;
+  const switches: boolean[] = [];
+  let screen = SAME;
+  let finishResponse!: () => void;
+  const response = new Promise<void>((r) => { finishResponse = r; });
+  let replans = 0;
+  let g!: ReturnType<typeof createGuide>;
+  g = createGuide({ displayId: 7, send: () => {}, capture: async () => screen,
+    listen: (l) => { listener = l; return Object.assign(() => {}, { clicks: (on: boolean) => switches.push(on) }); },
+    replan: async () => { replans++; await response; g.push(guideStep('new', TARGET)); },
+    finish: () => {}, onEnd: () => {}, log: () => {}, sleep: async () => {}, after: () => () => {} });
+  g.push(guideStep('one', TARGET));
+  listener.down(away); await Promise.resolve(); screen = TURNED; listener.up(away);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(replans, 1);
+  assert.equal(switches.at(-1), false, 'clicks stay disarmed while the next response is unavailable');
+  listener.down(on); listener.up(on);
+  assert.equal(replans, 1, 'extra click does not start a second request');
+  finishResponse(); await new Promise((r) => setTimeout(r, 5));
+  assert.equal(switches.at(-1), true, 'the live next wait rearms after response');
+  g.end('superseded');
+});
+
+test('a superseded replan failure cannot end a newer guide interaction', async () => {
+  let listener!: GuideListener, screen = SAME, calls = 0;
+  let rejectOld!: (error: Error) => void;
+  const old = new Promise<void>((_, reject) => { rejectOld = reject; });
+  const never = new Promise<void>(() => {});
+  const events: SceneMessage[] = [];
+  let g!: ReturnType<typeof createGuide>;
+  g = createGuide({ displayId: 7, send: (m) => events.push(m), capture: async () => screen,
+    listen: (l) => { listener = l; return Object.assign(() => {}, { clicks: () => {} }); },
+    replan: async () => { calls++; if (calls === 1) { g.push(guideStep('next', TARGET)); await old; } else await never; },
+    finish: () => {}, onEnd: () => {}, log: () => {}, sleep: async () => {}, after: () => () => {} });
+  g.push(guideStep('first', TARGET));
+  listener.down(away); await Promise.resolve(); screen = TURNED; listener.up(away);
+  await new Promise((r) => setTimeout(r, 5));
+  listener.down(away); await Promise.resolve(); screen = OTHER; listener.up(away);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(calls, 2);
+  rejectOld(new Error('stale failure'));
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(g.active, true, 'old request failure must not end the current guide');
+  assert.equal(events.some((m) => m.kind === 'clear'), false);
+  g.end('superseded');
+});
+
 const flat = (v: number): Grid => ({ cols: GRID_COLS, rows: GRID_ROWS, luma: new Uint8Array(GRID_COLS * GRID_ROWS).fill(v) });
 const frame = (v: number): Frame => ({ screenshot: { mime: 'image/png', base64: `f${v}`, width: 10, height: 10 }, grid: flat(v) });
 /** The same screen again; a page that turned (every block differs); another page. */

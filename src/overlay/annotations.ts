@@ -24,6 +24,8 @@ export type Annotator = {
   source?: { image: CanvasImageSource; width: number; height: number };
   /** Where the tag of a pin goes (stable between frames). Without it a tag sits where the author's offset says. */
   place?: (key: number, request: PinRequest) => Placement;
+  /** Geometry actually drawn this frame, used for pointer ownership. */
+  onPinGeometry?: (geometry: { key: number; anchor: Pt; leaderEnd: Pt; radius: number; alpha: number }) => void;
 };
 
 type Ctx = CanvasRenderingContext2D;
@@ -184,6 +186,9 @@ export function drawPin(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): vo
   const dot = easeOut(p / 0.25);
   const lead = easeOut((p - 0.12) / 0.5);
   const show = easeOut((p - 0.45) / 0.55);
+  if (alpha > 0.02 && p > 0) a.onPinGeometry?.({ key: m.key, anchor,
+    leaderEnd: { x: anchor.x + (spot.attach.x - anchor.x) * lead, y: anchor.y + (spot.attach.y - anchor.y) * lead },
+    radius: 5.5 * (0.5 + 0.5 * dot) * (1 + 0.5 * m.pulse) * beside, alpha });
   drawLeader(ctx, [anchor, spot.attach], color, alpha * spot.alpha, lead);
   drawAnchor(ctx, anchor, color, alpha * Math.min(1, p / 0.2), (0.5 + 0.5 * dot) * (1 + 0.5 * m.pulse) * beside);
 

@@ -163,6 +163,8 @@ type Attempt = {
   open: Set<number>;
   micStarted: boolean;
   chord: boolean;
+  followup?: boolean;
+  keepThread?: boolean;
   timer: NodeJS.Timeout | null;
 };
 
@@ -204,6 +206,7 @@ export function createSession(deps: SessionDeps) {
   let attempt: Attempt | null = null;
   let nextId = 1;
   let asking: AbortController | null = null;
+  const visibleAnswers = new Set<number>();
   let thread: ThreadTurn[] = [];
   /** The picture each kept turn was asked about (as grabbed, no pen stroke), so a pin saves the right one. */
   const pictures = new WeakMap<ThreadTurn, Screenshot>();
@@ -302,6 +305,57 @@ export function createSession(deps: SessionDeps) {
     return a;
   }
 
+  /** Start the visible Ask more route: speech only, with the current answer kept for its follow-up. */
+  function startFollowup(): boolean {
+    if (attempt || asking !== null || walking !== null) return false;
+    const a = begin(false);
+    a.followup = true;
+    a.keepThread = thread.length > 0;
+    send(a.displayId, { kind: 'status', status: 'hush' });
+    send(a.displayId, { kind: 'status', status: 'listening' });
+    return true;
+  }
+
+  function sendFollowup(): boolean {
+    const a = attempt;
+    if (!a || (!a.followup && !a.chord)) return false;
+    if (a.chord) {
+      stopNow();
+      return true;
+    }
+    attempt = null;
+    releasedAt = now();
+    void ask(a, a.keepThread === true);
+    return true;
+  }
+
+  /** The recording Cancel control discards this unsent question and retains the explanation. */
+  function cancelFollowup(): boolean {
+    const a = attempt;
+    if (!a || (!a.followup && !a.chord)) return false;
+    const displayId = a.displayId;
+    dropAttempt('the follow-up recording was cancelled');
+    if (a.chord) {
+      penFor = null;
+      penOff(displayId);
+    }
+    send(displayId, { kind: 'status', status: 'idle' });
+    return true;
+  }
+
+  /** A true outside dismiss cancels any unsent attempt and clears the explanation's retained thread. */
+  function dismiss(): void {
+    const a = attempt;
+    if (a) {
+      dropAttempt('the explanation was dismissed');
+      if (a.chord) {
+        penFor = null;
+        penOff(a.displayId);
+      }
+    }
+    resetThread();
+  }
+
   /** Right Ctrl went down first: open the microphone and start the screen grab now. */
   function armNow(): void {
     if (attempt) dropAttempt('a new press began');
@@ -371,7 +425,9 @@ export function createSession(deps: SessionDeps) {
     startControls(a);
     // The chord is complete, so a question is on its way: let the model load its instructions while it is
     // spoken. Not for a follow-up, which continues a thread that already holds them.
-    const following = thread.length > 0 && now() - lastActivity < THREAD_WINDOW_MS;
+    const visibleFollowup = thread.length > 0 && visibleAnswers.has(a.displayId);
+    const following = thread.length > 0 && (visibleFollowup || now() - lastActivity < THREAD_WINDOW_MS);
+    a.keepThread = visibleFollowup;
     if (!following) {
       try {
         deps.model().prime?.();
@@ -407,7 +463,7 @@ export function createSession(deps: SessionDeps) {
     releasedAt = now();
     penOff(a.displayId);
     deps.log('chord released');
-    void ask(a);
+    void ask(a, a.keepThread === true);
   }
 
   /** Pins the answer in the thread (the last one, if it is still in memory). */
@@ -540,7 +596,9 @@ export function createSession(deps: SessionDeps) {
         ...(deps.guide?.options ? { options: deps.guide.options } : {}),
         ...(deps.guide?.navigation ? { navigation: deps.guide.navigation } : {}),
       });
-      walking = { guide: g, controller: new AbortController() };
+      // The initial answer is already producing this walk; a replacement
+      // replan must be able to cancel that producer as well as later ones.
+      walking = { guide: g, controller };
       return g;
     };
     const handOver = (step: Step, wasHeld: boolean): void => {
@@ -707,6 +765,9 @@ export function createSession(deps: SessionDeps) {
     if (!w || w.guide !== g) return;
     // The old marks and checklist are about to go from the page; the new plan may write the same ids again.
     for (const id of info.clears) applyClear(state, id);
+    // A previous streamed plan may still be waiting for its next step. Its
+    // output must not reach this guide after a newer replan owns it.
+    w.controller.abort();
     const controller = new AbortController();
     w.controller = controller;
     const model = deps.model();
@@ -757,7 +818,7 @@ export function createSession(deps: SessionDeps) {
     await answer(displayId, controller, r, since, base.question, source, true, true);
   }
 
-  async function ask(a: Attempt): Promise<void> {
+  async function ask(a: Attempt, keepThread = false): Promise<void> {
     const controller = new AbortController();
     // A new question ends the walk, unless the app is waiting for a yes: a short answer is then the answer, not a question, so the
     // walk stays until the words are known.
@@ -915,7 +976,7 @@ export function createSession(deps: SessionDeps) {
           superseded: hold.superseded,
         };
       asked = !toBackend;
-      await answer(a.displayId, controller, r, since, asking, source, false);
+      await answer(a.displayId, controller, r, since, asking, source, keepThread);
     } finally {
       if (penFor === a) penFor = null;
       if (!asked) model.unprime?.(); // the chord came to nothing: the spare thread is let go (and counted)
@@ -938,6 +999,14 @@ export function createSession(deps: SessionDeps) {
     cancel,
     start,
     stop,
+    startFollowup,
+    sendFollowup,
+    cancelFollowup,
+    dismiss,
+    setVisible(displayId: number, on: boolean): void {
+      if (on) visibleAnswers.add(displayId);
+      else visibleAnswers.delete(displayId);
+    },
     micStarted,
     /** A piece of a pen stroke from the page on `displayId`; only the press being held (or just released) takes it. */
     stroke(displayId: number, piece: Stroke): void {
@@ -1037,7 +1106,7 @@ export function createSession(deps: SessionDeps) {
     reset: resetThread,
     /** True while a question is being asked (keys held), answered or walked through: Escape is ours for as long (see escape.ts). */
     busy(): boolean {
-      return attempt?.chord === true || asking !== null || walking !== null;
+      return attempt !== null || asking !== null || walking !== null;
     },
     /**
      * Escape. While the keys are held it cancels the question as a right click does (nothing is captured or heard, the strokes go, the person is told).
@@ -1046,6 +1115,11 @@ export function createSession(deps: SessionDeps) {
      */
     escape(): 'cancelled' | 'stopped' | 'nothing' {
       const a = attempt;
+      if (a && !a.chord) {
+        dropAttempt('the follow-up recording was cancelled with Escape');
+        send(a.displayId, { kind: 'status', status: 'idle' });
+        return 'cancelled';
+      }
       if (a?.chord) {
         dropAttempt('the question was cancelled with Escape');
         penFor = null;

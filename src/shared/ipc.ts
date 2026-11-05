@@ -19,6 +19,14 @@ export const CHANNEL = {
   engage: 'tt:engage',
   /** overlay -> main: boolean, a drawing of an answer is up (true; repeated while it is) or gone (false). While it is, the Escape key is ours (main/escape.ts). */
   showing: 'tt:showing',
+  /** The renderer's current visible interaction regions. */
+  visibleRegions: 'tt:visible-regions',
+  /** A follow-up recording control was pressed. */
+  followup: 'tt:followup',
+  /** Pointer capture is held through an owned press and its release. */
+  pointerHeld: 'tt:pointer-held',
+  modelHit: 'tt:model-hit',
+  guideReady: 'tt:guide-ready',
   /** overlay -> main: the token of a `seek` whose frame is now painted. */
   rendered: 'tt:rendered',
   /** overlay -> main: the played scene has finished (all steps spoken and drawn). */
@@ -129,6 +137,8 @@ export type SceneMessage =
    * The stroke stays until the first `step` of the answer arrives, then fades; a new `pen on` removes it.
    */
   | { kind: 'pen'; on: boolean }
+  | { kind: 'model-hit-query'; x: number; y: number; revision: number }
+  | { kind: 'guide-arm'; token: number }
   /**
    * A streamed turn begins. `detail` marks the detail pass: a richer version of the scene already on screen is
    * coming, so nothing is cleared (whatever `turn` says), nothing is spoken, and an object whose id is on screen is
@@ -342,6 +352,11 @@ export interface TalkthroughApi {
   engage(on: boolean): void;
   /** A drawing of an answer is up (true, repeated while it is) or gone (false). */
   showing(on: boolean): void;
+  visibleRegions(snapshot: unknown): void;
+  followup(command: 'start' | 'send' | 'cancel' | 'dismiss'): void;
+  pointerHeld(on: boolean): void;
+  modelHit(result: { x: number; y: number; revision: number; hit: boolean }): void;
+  guideReady(token: number, revision: number): void;
   rendered(token: number): void;
   done(): void;
   /** The user clicked the escalation offer. */

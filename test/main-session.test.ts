@@ -92,6 +92,55 @@ test('a second question soon after continues the thread (turn 2); a reset starts
   assert.deepEqual(r.sent.filter((m) => m.kind === 'begin').at(-1), { kind: 'begin', turn: 1, question: 'what is this' });
 });
 
+test('visible follow-up starts without pen, hushes old speech, and keeps the thread past its normal window', async () => {
+  const r = rig();
+  await question(r);
+  const pensBeforeFollowup = [...r.pens];
+  await wait(16_000);
+  assert.equal(r.session.startFollowup(), true);
+  assert.ok(r.calls.includes('startMic'));
+  assert.deepEqual(r.pens, pensBeforeFollowup, 'click-to-record must not enable pen capture');
+  assert.ok(r.sent.some((m) => m.kind === 'status' && m.status === 'hush'), 'old voice is stopped at recording start');
+  assert.equal(r.session.sendFollowup(), true);
+  await wait(60);
+  assert.deepEqual(r.sent.filter((m) => m.kind === 'begin').map((m) => m.kind === 'begin' && m.turn), [1, 2]);
+});
+
+test('a held chord on a visible explanation also keeps its thread past the normal window', async () => {
+  const r = rig();
+  await question(r);
+  await wait(16_000);
+  r.session.setVisible(7, true);
+  r.session.start();
+  r.session.stop();
+  await wait(60);
+  assert.deepEqual(r.sent.filter((m) => m.kind === 'begin').map((m) => m.kind === 'begin' && m.turn), [1, 2]);
+});
+
+test('recording Cancel drops only the unsent follow-up, while whole-explanation dismiss resets its thread', async () => {
+  const r = rig();
+  await question(r);
+  assert.equal(r.session.startFollowup(), true);
+  assert.equal(r.session.cancelFollowup(), true);
+  assert.equal(r.sent.some((m) => m.kind === 'begin' && m.turn === 2), false, 'Cancel sends no model request');
+
+  assert.equal(r.session.startFollowup(), true);
+  assert.equal(r.session.sendFollowup(), true);
+  await wait(60);
+  await question(r);
+  assert.equal(r.sent.some((m) => m.kind === 'begin' && m.turn === 2), true, 'Cancel retained the previous answer context');
+
+  assert.equal(r.session.startFollowup(), true);
+  r.session.dismiss();
+  assert.equal(r.session.sendFollowup(), false);
+  await question(r);
+  assert.deepEqual(r.sent.filter((m) => m.kind === 'begin').map((m) => m.kind === 'begin' && m.turn), [1, 2, 3, 1]);
+
+  assert.equal(r.session.startFollowup(), true);
+  assert.equal(r.session.escape(), 'cancelled', 'Escape cancels an unsent recording');
+  assert.equal(r.session.busy(), false);
+});
+
 test('Right Ctrl alone drops the early microphone after the window, and releasing it alone cancels at once', async () => {
   const r = rig();
   r.session.arm();
@@ -1015,6 +1064,64 @@ test('guide mode, one step to a call: a click elsewhere replaces the plan; the h
   assert.ok(!w.sent.some((m) => m.kind === 'end'), 'the walk is not over: the new plan is still waiting for a click');
   await w.click(450, 120, flat(40));
   assert.ok(w.sent.some((m) => m.kind === 'step' && (m.step as { say: string }).say === 'Then Save.'), 'the new plan goes on');
+});
+
+test('a newer guide replan aborts the old stream and discards its late step', async () => {
+  let releaseOld!: () => void;
+  const old = new Promise<void>((resolve) => { releaseOld = resolve; });
+  const never = new Promise<void>(() => {});
+  const w = walkRig([], undefined, undefined, undefined, async function* (_req, asked) {
+    if (asked === 0) { yield { type: 'step', step: guided('initial', 'Initial') }; return; }
+    if (asked === 1) {
+      yield { type: 'step', step: guided('next', 'First replan') };
+      await old;
+      yield { type: 'step', step: guided('stale', 'Stale step') };
+      return;
+    }
+    await never;
+  });
+  await question(w);
+  await w.click(800, 800, flat(90));
+  assert.ok(w.sent.some((m) => m.kind === 'step' && m.step.say === 'First replan'));
+  await w.click(800, 800, flat(40));
+  assert.equal(w.requests.length, 3);
+  assert.equal(w.requests[1]!.signal?.aborted, true, 'the previous producer is cancelled');
+  releaseOld(); await wait(50);
+  assert.equal(w.sent.some((m) => m.kind === 'step' && m.step.say === 'Stale step'), false);
+  assert.equal(w.sent.some((m) => m.kind === 'clear'), false, 'old producer cannot clear the new walk');
+  w.session.dispose();
+});
+
+test('off-target replan also aborts the original answer producer', async () => {
+  let releaseOld!: () => void;
+  const old = new Promise<void>((resolve) => { releaseOld = resolve; });
+  const never = new Promise<void>(() => {});
+  const w = walkRig([], undefined, undefined, undefined, async function* (_req, asked) {
+    if (asked === 0) { yield { type: 'step', step: guided('initial', 'Initial') }; await old; yield { type: 'step', step: guided('staleInitial', 'Stale initial') }; return; }
+    await never;
+  });
+  await question(w); await w.click(800, 800, flat(90));
+  assert.equal(w.requests.length, 2);
+  releaseOld(); await wait(80);
+  assert.equal(w.sent.some((m) => m.kind === 'step' && m.step.say === 'Stale initial'), false);
+  w.session.dispose();
+});
+
+test('a late failure from an aborted guide producer cannot clear the newer replan', async () => {
+  let rejectOld!: (error: Error) => void;
+  const old = new Promise<void>((_, reject) => { rejectOld = reject; });
+  const never = new Promise<void>(() => {});
+  const w = walkRig([], undefined, undefined, undefined, async function* (_req, asked) {
+    if (asked === 0) { yield { type: 'step', step: guided('initial', 'Initial') }; return; }
+    if (asked === 1) { yield { type: 'step', step: guided('next', 'First replan') }; await old; return; }
+    await never;
+  });
+  await question(w); await w.click(800, 800, flat(90)); await w.click(800, 800, flat(40));
+  assert.equal(w.requests.length, 3);
+  rejectOld(new Error('late stale failure')); await wait(50);
+  assert.equal(w.sent.some((m) => m.kind === 'clear'), false);
+  assert.equal(w.sent.some((m) => m.kind === 'notice' && m.level === 'error'), false);
+  w.session.dispose();
 });
 
 test('guide mode, one step to a call: Escape while the next call is held lets it go', async () => {

@@ -4,8 +4,25 @@
  * on the window always takes the mouse, whatever the page says: a drag must reach the pen, never the
  * app beneath.
  */
-export function ignoreMouse(pageWantsClicks: boolean, penOn: boolean): boolean {
+export function ignoreMouse(pageWantsClicks: boolean, penOn: boolean, route?: { active: boolean; guideTarget: boolean; control: boolean; held: boolean; modelPossible?: boolean; modelHit?: boolean }): boolean {
+  if (penOn || route?.held) return false;
+  if (route?.active) return route.guideTarget && !route.control && (!route.modelPossible || route.modelHit === false);
   return !(penOn || pageWantsClicks);
+}
+
+/** A later wait owns its own renderer acknowledgment; old target hits cannot rearm it. */
+export function createGuideArmGate() {
+  let epoch = 0, waiting = false, ready = false;
+  return {
+    begin(): number { waiting = true; ready = false; return ++epoch; },
+    disable(): void { waiting = false; ready = false; epoch++; },
+    ack(token: unknown, revision: unknown, currentRevision: number, hasTarget: boolean): boolean {
+      if (!waiting || token !== epoch || revision !== currentRevision || !hasTarget) return false;
+      ready = true;
+      return true;
+    },
+    get ready(): boolean { return ready; },
+  };
 }
 
 /** How long the page's "the pointer is over the model" holds without being said again (the page repeats it while it is true). */

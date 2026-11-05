@@ -12,6 +12,7 @@ export const DISMISS_FADE_MS = 300;
 
 export class AutoFade {
   private since: number | undefined;
+  private pausedRemaining: number | undefined;
   private fadeMs = FADE_MS;
   private readonly hold: number;
 
@@ -21,22 +22,26 @@ export class AutoFade {
 
   /** True from the moment a scene finishes until new content arrives. */
   get armed(): boolean {
-    return this.since !== undefined;
+    return this.since !== undefined || this.pausedRemaining !== undefined;
   }
+  get paused(): boolean { return this.pausedRemaining !== undefined; }
 
   /** A scene has finished: start counting. */
   arm(now: number): void {
+    this.pausedRemaining = undefined;
     this.since = now;
   }
 
   /** New content is coming or has arrived: it is shown in full and nothing is counting. */
   disarm(): void {
     this.since = undefined;
+    this.pausedRemaining = undefined;
     this.fadeMs = FADE_MS;
   }
 
   /** Escape: no more holding; the scene fades out at once, quickly. */
   dismiss(now: number): void {
+    this.pausedRemaining = undefined;
     this.since = now - this.hold;
     this.fadeMs = DISMISS_FADE_MS;
   }
@@ -51,8 +56,23 @@ export class AutoFade {
     if (this.since !== undefined && !this.dismissed) this.since = now; // Escape is not taken back by the pointer being on the scene
   }
 
+  /** Pause the existing deadline while a follow-up is recorded; repeated status updates do not replace its saved time. */
+  pause(now: number): void {
+    if (this.since === undefined || this.pausedRemaining !== undefined) return;
+    this.pausedRemaining = Math.max(0, this.hold + this.fadeMs - (now - this.since));
+    this.since = undefined;
+  }
+
+  /** Restore the same remaining hold/fade interval after a canceled follow-up. */
+  resume(now: number): void {
+    if (this.pausedRemaining === undefined) return;
+    this.since = now - (this.hold + this.fadeMs - this.pausedRemaining);
+    this.pausedRemaining = undefined;
+  }
+
   /** 1 while shown, falling to 0 over FADE_MS once HOLD_MS has passed. */
   alpha(now: number): number {
+    if (this.pausedRemaining !== undefined) return 1;
     if (this.since === undefined) return 1;
     const late = now - this.since - this.hold;
     if (late <= 0) return 1;
@@ -61,6 +81,7 @@ export class AutoFade {
 
   /** Milliseconds until `alpha` next changes, 0 while it is changing, undefined when nothing is counting or it is all gone. */
   untilChange(now: number): number | undefined {
+    if (this.pausedRemaining !== undefined) return undefined;
     if (this.since === undefined) return undefined;
     const late = now - this.since - this.hold;
     if (late < 0) return -late;

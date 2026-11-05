@@ -3,6 +3,7 @@
 // to physical pixels so lines stay crisp at any display scaling.
 
 import { drawCard, drawImage, drawPin } from './annotations.ts';
+import { arrowHeadPoints, markRotationRadians, underlineBand } from './mark-geometry.ts';
 import type { Annotator } from './annotations.ts';
 import { pathLength, smoothPath } from './shapes.ts';
 import type { Pt } from './shapes.ts';
@@ -133,7 +134,7 @@ function drawBox(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, red
   ctx.save();
   if (tilt !== 0) {
     ctx.translate(x + w / 2, y + h / 2);
-    ctx.rotate((tilt * Math.PI) / 180);
+    ctx.rotate(markRotationRadians(tilt));
     ctx.translate(-(x + w / 2), -(y + h / 2));
   }
   if (mk.op === 'box') {
@@ -276,13 +277,12 @@ function drawUnderline(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: numbe
   const st = strokeState(m, w, reduce);
   // A highlighter: a band over the line of letters (y is just under them), drawn along like the pen, translucent so the words show
   // through it as if it sat behind them, and a hairline at its foot.
-  const bandH = snap(Math.max(11, Math.min(34, v.height * 0.02)), v.dpr);
-  const from = Math.max(0, Math.min(w, st.tail)), to = Math.max(0, Math.min(w, st.head));
-  if (to - from > 0.5 && st.alpha > 0.002) {
+  const band = underlineBand(x, y, w, v.height, v.dpr, st.head, st.tail);
+  if (band && st.alpha > 0.002) {
     ctx.save();
     ctx.globalAlpha = st.alpha;
     ctx.fillStyle = rgbCss(m.color, 0.36);
-    roundRectPath(ctx, x + from - 2, y - bandH + 3, to - from + 4, bandH, Math.min(4, bandH / 3));
+    roundRectPath(ctx, band.x, band.y, band.w, band.h, Math.min(4, band.h / 3));
     ctx.fill();
     ctx.restore();
   }
@@ -315,17 +315,13 @@ function drawArrow(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, r
     ctx.lineTo(x1 + ux * shaft, y1 + uy * shaft);
   });
   if (p > 0.55) {
-    const hp = Math.min(1, (p - 0.55) / 0.45);
-    const s = head * (0.4 + 0.6 * hp);
-    const tipX = x1 + ux * reach, tipY = y1 + uy * reach;
-    const tip = reach >= len - 0.5 ? [x2, y2] : [tipX, tipY];
-    const bx = (tip[0] ?? x2) - ux * s, by = (tip[1] ?? y2) - uy * s;
-    const nx = -uy * s * 0.5, ny = ux * s * 0.5;
+    const [tip, left, right] = arrowHeadPoints(x1, y1, x2, y2, lw, p);
+    if (!tip || !left || !right) return;
     const path = () => {
       ctx.beginPath();
-      ctx.moveTo(tip[0] ?? x2, tip[1] ?? y2);
-      ctx.lineTo(bx + nx, by + ny);
-      ctx.lineTo(bx - nx, by - ny);
+      ctx.moveTo(tip.x, tip.y);
+      ctx.lineTo(left.x, left.y);
+      ctx.lineTo(right.x, right.y);
       ctx.closePath();
     };
     ctx.save();
@@ -342,14 +338,13 @@ function drawArrow(ctx: Ctx, m: MarkFrame, v: View, alpha: number, lw: number, r
   }
 }
 
-function drawLabel(ctx: Ctx, m: MarkFrame, v: View, alpha: number): void {
+/** Use the same measured pill geometry for drawing and pointer hit testing. */
+export function labelLayout(ctx: Ctx, m: MarkFrame, v: View) {
   const mk = m.mark;
-  if (mk.op !== 'label') return;
+  if (mk.op !== 'label') return undefined;
   const textPx = snap(Math.max(11, ((mk.size ?? 24) / 1000) * v.height), v.dpr);
   const padX = textPx * 0.72, padY = textPx * 0.42;
-  ctx.save();
   ctx.font = `650 ${textPx}px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif`;
-  ctx.textBaseline = 'middle';
   const tw = ctx.measureText(mk.text).width;
   const dot = textPx * 0.3, dotRoom = dot * 2 + textPx * 0.42;
   const w = tw + padX * 2 + dotRoom, h = textPx + padY * 2;
@@ -357,6 +352,16 @@ function drawLabel(ctx: Ctx, m: MarkFrame, v: View, alpha: number): void {
   const y = px(mk.y, v.height, v.dpr) + (1 - m.appear) * 8;
   x = Math.max(4, Math.min(x, v.width - w - 4));
   const grow = 1 + 0.12 * m.pulse;
+  return { textPx, padX, dot, dotRoom, x, y, w, h, grow,
+    hit: { x: x - (grow - 1) * w / 2, y: y - (grow - 1) * h / 2, w: w * grow, h: h * grow } };
+}
+
+function drawLabel(ctx: Ctx, m: MarkFrame, v: View, alpha: number): void {
+  const mk = m.mark;
+  if (mk.op !== 'label') return;
+  ctx.save();
+  const { textPx, padX, dot, dotRoom, x, y, w, h, grow } = labelLayout(ctx, m, v)!;
+  ctx.textBaseline = 'middle';
   ctx.translate(x + w / 2, y + h / 2);
   ctx.scale(grow, grow);
   ctx.translate(-(x + w / 2), -(y + h / 2));

@@ -21,7 +21,7 @@ import { inTarget, screenChanged } from '../shared/screen-diff.ts';
 import type { Box, Grid } from '../shared/screen-diff.ts';
 
 /** A click, on the 0..1000 scale of the display it landed on. */
-export type Click = { x: number; y: number; displayId: number };
+export type Click = { x: number; y: number; displayId: number; button?: number };
 
 /** The screen at one moment: the picture the model would be shown, and its brightness grid. */
 export type Frame = { screenshot: Screenshot; grid: Grid };
@@ -62,7 +62,8 @@ export type GuideNavigation = {
 
 export type GuideEnd = 'finished' | 'escape' | 'superseded' | 'idle' | 'failed';
 
-export type GuideListener = { down(click: Click): void; up(click: Click): void; escape(): void; /** Any other key: while the app is about to act for the person, typing stops it. */ key?(): void };
+export type GuideListener = { down(click: Click): void; up(click: Click): void; outside?(click: Click): void; cancelClick?(): void; escape(): void; /** Any other key: while the app is about to act for the person, typing stops it. */ key?(): void };
+export type GuideWatch = (() => void) & { clicks?(on: boolean): void };
 
 export type GuideDeps = {
   displayId: number;
@@ -72,7 +73,7 @@ export type GuideDeps = {
   /** A fresh screenshot of the display (and its grid). May throw. */
   capture(): Promise<Frame>;
   /** Starts listening for clicks and Escape; returns how to stop. Called when the first waiting step is shown. */
-  listen(listener: GuideListener): () => void;
+  listen(listener: GuideListener): GuideWatch;
   /**
    * The click landed away from where the step pointed and the screen changed: make a new plan from `frame`.
    * Its steps come back through push(), and streamEnded() ends them. Rejecting ends the guide.
@@ -215,7 +216,9 @@ export function createGuide(deps: GuideDeps) {
   let current: { step: Step; target: Box | null; start: Promise<Frame | null> } | null = null;
   let baseline: Promise<Frame | null> | null = null;
   let streamDone = false;
-  let stopListening: (() => void) | null = null;
+  let stopListening: GuideWatch | null = null;
+  let clickDown: Click | null = null;
+  let replanGeneration = 0;
   let cancelIdle: (() => void) | null = null;
   let told = false;
   // Navigation: how many moves the app has made for the person in this walk, why the one being prepared was stopped, and a
@@ -303,6 +306,8 @@ export function createGuide(deps: GuideDeps) {
   function end(why: GuideEnd): void {
     if (phase === 'ended') return;
     phase = 'ended';
+    replanGeneration++;
+    clickDown = null;
     cancelIdle?.();
     stopListening?.();
     stopListening = null;
@@ -374,12 +379,16 @@ export function createGuide(deps: GuideDeps) {
     phase = 'waiting';
     deps.send({ kind: 'status', status: 'waiting' });
     stopListening ??= deps.listen(listener);
+    clickDown = null;
+    stopListening.clicks?.(true);
     armIdle();
   }
 
   const listener: GuideListener = {
     down: (click) => onDown(click),
     up: (click) => onUp(click),
+    outside: (click) => { if (phase === 'navigating') onDown(click); },
+    cancelClick: () => { clickDown = null; baseline = null; },
     // Escape while the app is about to act stops that move only; the walk goes on, waiting for the person. Escape again ends it.
     escape: () => {
       if (phase === 'navigating') {
@@ -415,8 +424,10 @@ export function createGuide(deps: GuideDeps) {
       if (click.displayId === deps.displayId) baseline = safeCapture();
       return;
     }
-    if (phase !== 'waiting' || click.displayId !== deps.displayId) return;
-    baseline = safeCapture();
+    if (phase !== 'waiting') return;
+    if (clickDown) return;
+    clickDown = click;
+    if (click.displayId === deps.displayId) baseline = safeCapture();
   }
 
   function onUp(click: Click): void {
@@ -424,12 +435,17 @@ export function createGuide(deps: GuideDeps) {
       pendingUp = click;
       return;
     }
-    if (phase !== 'waiting' || !current) return;
+    if (phase !== 'waiting' || !current || !clickDown) return;
+    if (clickDown.displayId !== click.displayId) { clickDown = null; return; }
+    if (clickDown.button !== click.button) return;
+    clickDown = null;
     void checkClick(click, current, baseline ?? current.start);
   }
 
   async function checkClick(click: Click, now: NonNullable<typeof current>, before: Promise<Frame | null>, via?: GoRequest): Promise<void> {
     phase = 'checking';
+    clickDown = null;
+    stopListening?.clicks?.(false);
     cancelIdle?.();
     deps.send({ kind: 'status', status: 'checking' });
     // A scroll moves the whole page, so what the next steps point at is gone whatever the target was.
@@ -468,6 +484,8 @@ export function createGuide(deps: GuideDeps) {
       }
       // Nothing happened: keep waiting for another try, and say so once.
       phase = 'waiting';
+      clickDown = null;
+      stopListening?.clicks?.(true);
       deps.send({ kind: 'status', status: 'waiting' });
       if (onTarget && !told) {
         told = true;
@@ -505,9 +523,11 @@ export function createGuide(deps: GuideDeps) {
     taken = follows; // the wait that was not followed is given up with its plan
     letGo(null); // whoever waited for the next step of the old plan will not get it
     deps.send({ kind: 'status', status: 'working' });
+    const generation = ++replanGeneration;
     try {
       await deps.replan({ frame: seen, click, history: [...history], shown: [...shown], clears: [...live, ...pendingClears] });
     } catch (error) {
+      if (generation !== replanGeneration) return;
       deps.log(`guide: could not make a new plan (${error instanceof Error ? error.message : String(error)})`);
       deps.send({ kind: 'notice', text: "I couldn't work out the next step. Hold the keys and ask me again.", level: 'error' });
       end('failed');
@@ -550,6 +570,8 @@ export function createGuide(deps: GuideDeps) {
     if (!c) return;
     if (waitOf(c.step)) {
       phase = 'waiting';
+      clickDown = null;
+      stopListening?.clicks?.(true);
       deps.send({ kind: 'status', status: 'waiting' });
       armIdle();
       const up = pendingUp;
@@ -578,6 +600,8 @@ export function createGuide(deps: GuideDeps) {
     current = { step, target: waitOf(step)?.target ?? null, start: safeCapture() };
     deps.send({ kind: 'status', status: 'waiting' });
     stopListening ??= deps.listen(listener);
+    clickDown = null;
+    stopListening.clicks?.(true);
     armIdle();
     let plan: NavPlan;
     try {
@@ -642,6 +666,8 @@ export function createGuide(deps: GuideDeps) {
     if (basis && before && screenChanged(basis.grid, before.grid, around(go)).changed) return stepBack('the screen is not the one the model saw');
     if (consent?.paused()) return stepBack('paused');
     navCount++;
+    // The app's own navigation must not be fed back as a person's click.
+    stopListening?.clicks?.(false);
     let did = false;
     try {
       did = await nav.act(plan);

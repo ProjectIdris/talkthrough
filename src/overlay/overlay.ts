@@ -7,7 +7,7 @@ import { NeutralToneMapping, PMREMGenerator, SRGBColorSpace, VSMShadowMap, WebGL
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { DisplayInfo, SceneMessage } from '../shared/ipc.ts';
-import type { Action, Scene } from '../scene/types.ts';
+import type { Action, Mark, Scene } from '../scene/types.ts';
 import type { Voice } from '../adapters/voice.ts';
 import { createSpeechSynthesisVoice } from '../adapters/speech-synthesis-voice.ts';
 import { createServerVoice } from './server-voice.ts';
@@ -30,12 +30,16 @@ import type { Busy } from './labels.ts';
 import { StageGrowth, cardShows, panelRect } from './layout.ts';
 import { createHold, modelButtonRects, overModel, wheelFactor } from './orbit.ts';
 import { DiagramPainter } from './diagram-draw.ts';
-import { drawMarks } from './marks.ts';
+import { drawMarks, labelLayout } from './marks.ts';
 import type { View } from './marks.ts';
 import { TIERS } from './materials.ts';
 import { Finishing } from './post.ts';
 import type { Tier } from './materials.ts';
 import { PenLayer, drawPen, routePenPointer, undoPlace } from './pen.ts';
+import { clearVisibleRegions, containsVisiblePoint, publishVisibleRegions, readVisibleRegions, regionsForMark } from './visible-regions.ts';
+import { createDismissCapture, createPointerOwner, routePointer } from './pointer-owner.ts';
+import { hitVisibleModel } from './model-hit.ts';
+import type { VisibleRegion, VisibleRegionSnapshot } from './visible-regions.ts';
 import { Player, VOICE_PATIENCE_MARGIN_MS, createSilentVoice } from './player.ts';
 import { captionSpot, createCaptionDriver } from './captions.ts';
 import type { CaptionDriver, CaptionState, Rect } from './captions.ts';
@@ -56,6 +60,10 @@ const statusEl = byId<HTMLDivElement>('status');
 const offerEl = byId<HTMLDivElement>('offer');
 const offerText = byId<HTMLSpanElement>('offer-text');
 const offerButton = byId<HTMLButtonElement>('offer-button');
+const askMoreEl = byId<HTMLButtonElement>('ask-more');
+const captureControlsEl = byId<HTMLDivElement>('capture-controls');
+const sendFollowupEl = byId<HTMLButtonElement>('send-followup');
+const cancelFollowupEl = byId<HTMLButtonElement>('cancel-followup');
 const noticeEl = byId<HTMLDivElement>('notice');
 const explodeEl = byId<HTMLButtonElement>('explode');
 const detailEl = byId<HTMLButtonElement>('detail');
@@ -72,6 +80,13 @@ const answerSpoken = byId<HTMLSpanElement>('answer-spoken');
 const answerCopy = byId<HTMLButtonElement>('answer-copy');
 const answerPin = byId<HTMLButtonElement>('answer-pin');
 const answerClose = byId<HTMLButtonElement>('answer-close');
+
+type FollowupCommand = 'start' | 'send' | 'cancel' | 'dismiss';
+type RendererInteractionBridge = {
+  visibleRegions?(snapshot: VisibleRegionSnapshot): void;
+  followup?(command: FollowupCommand): void;
+};
+const interactionBridge = window.talkthrough as typeof window.talkthrough & RendererInteractionBridge;
 /** The label inside one of the capsule's segments. */
 const labelOf = (el: HTMLElement): HTMLElement => el.querySelector('.lbl') as HTMLElement;
 const marksCtx = marksCanvas.getContext('2d') as CanvasRenderingContext2D;
@@ -188,10 +203,21 @@ let display: DisplayInfo | undefined;
  */
 /** A guide walk is on (a step waits for the person's click, or the next is being made): the page stays until it ends. */
 let guiding = false;
+let guideTarget: { x: number; y: number; w: number; h: number } | undefined;
+let guideTargetLive = false;
+let guideArmToken: number | undefined;
+function rememberGuideTarget(action: Action): void {
+  if (action.op !== 'wait') return;
+  guideTarget = action.x !== undefined && action.y !== undefined && action.w !== undefined && action.h !== undefined
+    ? { x: action.x, y: action.y, w: action.w, h: action.h } : { x: 0, y: 0, w: 1000, h: 1000 };
+}
 let detailState: 'none' | 'asked' | 'running' | 'done' = 'none';
 let view: View = { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 };
 /** Where the model is on screen (for the pointer), and the stage's frame when it has one. */
 let modelRect: ScreenRect | undefined;
+/** The projected model bounds before any optional framing card expands around it. */
+let modelHitRect: ScreenRect | undefined;
+let pinGeometry: VisibleRegion[] = [];
 /** The model's card, when the panel is drawn in a frame: tags stay inside it. */
 let cardRect: ScreenRect | undefined;
 // Whether the window is solid for the pointer (orbit.ts): worked out from where the pointer is and where the model is.
@@ -239,6 +265,7 @@ function draw(frame: Frame): Frame {
   renderer.clear();
   const rect = panelRect(frame.panel, view);
   modelRect = undefined;
+  modelHitRect = undefined;
   cardRect = undefined;
   stageSize = undefined;
   if (rect && frame.panel) {
@@ -262,6 +289,7 @@ function draw(frame: Frame): Frame {
       frameEl.style.display = 'none';
     }
     if (bounds) {
+      modelHitRect = bounds.model;
       modelRect = frame.panel.frame ? card : bounds.model;
       if (frame.panel.frame) cardRect = card;
       // Development: `?scissor=off` draws over the whole window, to see what the rectangle would cut (scripts/overlay-frames.cjs --scissor off).
@@ -334,11 +362,16 @@ function draw(frame: Frame): Frame {
   lastDisplayedFrame = frame;
   board.beginFrame({ width: view.width, height: view.height, model: modelRect, dragging, now: labelClock(), ...(cardRect ? { within: cardRect } : {}) });
   board.keep(new Set(frame.marks.filter((m) => m.mark.op === 'pin').map((m) => m.key)));
+  pinGeometry = [];
   const annotator = {
     view,
     ...(stageSize ? { stage: stageSize } : {}),
     place: (key: number, request: Parameters<typeof board.place>[1]) => board.place(key, request, labelEnvironment),
     project: (key: number, point: Parameters<typeof panelScene.project>[1], anchor?: Parameters<typeof panelScene.project>[4]) => panelScene.project(key, point, view.width, view.height, anchor),
+    onPinGeometry: (g: { key: number; anchor: { x: number; y: number }; leaderEnd: { x: number; y: number }; radius: number; alpha: number }) => {
+      pinGeometry.push({ id: `pin-anchor:${g.key}`, kind: 'content', alpha: g.alpha, shape: { type: 'circle', x: g.anchor.x, y: g.anchor.y, r: g.radius } });
+      if (g.anchor.x !== g.leaderEnd.x || g.anchor.y !== g.leaderEnd.y) pinGeometry.push({ id: `pin-leader:${g.key}`, kind: 'content', alpha: g.alpha, shape: { type: 'line', x1: g.anchor.x, y1: g.anchor.y, x2: g.leaderEnd.x, y2: g.leaderEnd.y, width: Math.max(6, THEME.leaderWidth) } });
+    },
     ...(cropSource() ? { source: cropSource()! } : {}),
   };
   // A mark that lies on a flat diagram (a ring on a chart's crossing, an arrow at a bar) is drawn above the diagram's opaque card, or it would be hidden by it.
@@ -350,7 +383,7 @@ function draw(frame: Frame): Frame {
   drawPen(marksCtx, pen.view(labelClock(), { reduceMotion: reduceMotion.matches }), view);
   syncUndo();
   if (pointerX >= 0) hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY))); // a button can fade under a resting pointer
-  hold.model(modelRect);
+  hold.model(modelHitRect);
 
   if (!milestones.mark && (frame.marks.some((m) => m.appear > 0) || frame.diagrams.some((d) => d.appear > 0) || frame.objects.some((o) => o.appear > 0))) {
     milestones.mark = true;
@@ -546,6 +579,79 @@ function showHud(): void {
   }
 }
 
+function showFollowupControls(frame: Frame, k: number): void {
+  const hasExplanation = k > 0 && (frame.panel !== null || frame.marks.length > 0 || frame.diagrams.length > 0 || frame.objects.length > 0 || textBoxUp());
+  const status = statusEl.className;
+  const waiting = ['listening', 'working', 'backend', 'detail', 'waiting', 'checking'].includes(status);
+  askMoreEl.style.display = hasExplanation && !waiting && !pen.active && !guiding ? 'flex' : 'none';
+  captureControlsEl.style.display = status === 'listening' ? 'flex' : 'none';
+}
+
+function elementRect(el: HTMLElement): { x: number; y: number; w: number; h: number } | undefined {
+  if (getComputedStyle(el).display === 'none' || getComputedStyle(el).visibility === 'hidden') return undefined;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 ? { x: r.left, y: r.top, w: r.width, h: r.height } : undefined;
+}
+
+let lastVisibleSignature = '';
+function publishRenderedRegions(frame: Frame): void {
+  const regions: VisibleRegion[] = [];
+  const addRect = (id: string, kind: VisibleRegion['kind'], rect: { x: number; y: number; w: number; h: number }, alpha = 1): void => {
+    if (rect.w > 0 && rect.h > 0 && alpha > 0.02) regions.push({ id, kind, alpha, shape: { type: 'rect', ...rect } });
+  };
+  const unitRect = (id: string, kind: VisibleRegion['kind'], rect: { x: number; y: number; w: number; h: number }, alpha = 1): void => {
+    addRect(id, kind, { x: rect.x * view.width / 1000, y: rect.y * view.height / 1000, w: rect.w * view.width / 1000, h: rect.h * view.height / 1000 }, alpha);
+  };
+
+  // Use the model's projected bounds, never the optional framing card or requested panel rectangle.
+  if (modelHitRect && frame.panel) addRect('model-geometry', 'content', modelHitRect, frame.panel.appear * frame.panel.fade);
+  const source = cropSource();
+  const aspect = view.width / view.height;
+  const sourceAspect = source ? source.width / source.height : aspect;
+  for (const m of frame.marks) {
+    const alpha = m.opacity * m.appear * m.fade;
+    if (alpha <= 0.02) continue;
+    if (m.mark.op === 'card' || m.mark.op === 'image') {
+      for (const [i, b] of cardFootprint(m.mark, view.height, aspect, sourceAspect, placer()?.captionMeasure()).entries()) unitRect(`card:${m.key}:${i}`, 'content', b, alpha);
+    } else if (m.mark.op === 'label') {
+      marksCtx.save();
+      const layout = labelLayout(marksCtx, m, view);
+      marksCtx.restore();
+      if (layout) addRect(`mark:${m.mark.id}`, 'content', layout.hit, alpha);
+    } else regions.push(...regionsForMark(m.mark, view.width, view.height, alpha, m.appear, view.dpr, m.fade, reduceMotion.matches));
+  }
+  for (const d of frame.diagrams) unitRect(`diagram:${d.key}`, 'content', d.def, d.appear * d.fade);
+  regions.push(...pinGeometry);
+  for (const [i, rect] of board.shownRects().entries()) addRect(`pin-label:${i}`, 'content', rect);
+
+  for (const [id, el] of buttonEls) {
+    const rect = elementRect(el);
+    if (!rect) continue;
+    const capture = id === 'ask-more' || id === 'send-followup' || id === 'cancel-followup' || id === 'undo';
+    addRect(`button:${id}`, capture ? 'capture-control' : 'pill', rect, Number.parseFloat(el.style.opacity || '1'));
+  }
+  for (const [id, el] of [['status', statusEl], ['offer-pill', offerEl], ['notice-pill', noticeEl], ['answer-card', answerEl], ['caption', captionEl]] as const) {
+    const rect = elementRect(el);
+    if (rect) addRect(id, id === 'status' || id.includes('pill') ? 'pill' : 'content', rect, Number.parseFloat(el.style.opacity || '1'));
+  }
+  if (guideTargetLive && guideTarget) unitRect('guide-target', 'guide-target', guideTarget);
+
+  const signature = JSON.stringify({ width: view.width, height: view.height, regions });
+  if (signature === lastVisibleSignature) return;
+  lastVisibleSignature = signature;
+  const snapshot = publishVisibleRegions({ width: view.width, height: view.height, regions });
+  interactionBridge.visibleRegions?.(snapshot);
+  if (guideArmToken !== undefined && guideTargetLive && guideTarget) {
+    window.talkthrough.guideReady(guideArmToken, snapshot.revision);
+    guideArmToken = undefined;
+  }
+}
+
+function clearPublishedRegions(): void {
+  lastVisibleSignature = '';
+  interactionBridge.visibleRegions?.(clearVisibleRegions());
+}
+
 /** The model's region in page pixels, with its buttons: what main checks the real cursor against before it lets the page keep the E key. */
 function keyRegion(): { x: number; y: number; w: number; h: number } | undefined {
   if (!modelRect) return undefined;
@@ -727,7 +833,7 @@ function placeExplode(frame: Frame): void {
 }
 
 /** The buttons the page shows, by the name main knows them by. */
-const buttonEls: Array<[string, HTMLElement]> = [['offer', offerButton], ['explode', explodeEl], ['cut', cutEl], ['detail', detailEl], ['fix', noticeAction], ['copy', answerCopy], ['pin', answerPin], ['close', answerClose]];
+const buttonEls: Array<[string, HTMLElement]> = [['offer', offerButton], ['ask-more', askMoreEl], ['send-followup', sendFollowupEl], ['cancel-followup', cancelFollowupEl], ['undo', undoEl], ['explode', explodeEl], ['cut', cutEl], ['detail', detailEl], ['fix', noticeAction], ['copy', answerCopy], ['pin', answerPin], ['close', answerClose]];
 let lastButtons = '';
 /**
  * Tells main where the buttons are, when that changes. The window is click-through and learns the pointer is over a button only
@@ -753,6 +859,10 @@ function pressButton(id: string): void {
 }
 
 function clearEverything(): void {
+  cancelOwnedPointer();
+  guideTarget = undefined;
+  guideTargetLive = false;
+  guideArmToken = undefined;
   pen.fade(labelClock());
   shot.removeAttribute('src');
   player.clear();
@@ -762,6 +872,7 @@ function clearEverything(): void {
   pendingOffer = undefined;
   detailState = 'none';
   guiding = false;
+  clearPublishedRegions();
 }
 
 function loop(): void {
@@ -781,6 +892,8 @@ function loop(): void {
   showCaption(frame);
   if (pen.active) sendPen();
   showHud();
+  showFollowupControls(frame, k);
+  publishRenderedRegions(frame);
   reportButtons();
   const fading = fader.armed && k < 1 && k > 0;
   const captionFading = captionState?.endedAt !== undefined && now > captionState.endedAt + CAPTION_HOLD_MS;
@@ -812,7 +925,54 @@ setInterval(() => {
   if (showingSent) window.talkthrough.showing(true);
 }, 1000);
 
-const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl, cutEl, detailEl, answerEl];
+const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl, cutEl, detailEl, answerEl, askMoreEl, sendFollowupEl, cancelFollowupEl, undoEl];
+let dragPointer: number | undefined;
+let dismissPointer: number | undefined;
+let dismissPausedFade = false;
+function resumeDismissFade(): void {
+  if (dismissPausedFade) fader.resume(performance.now());
+  dismissPausedFade = false;
+}
+const dragOwner = createPointerOwner((on) => {
+  dragging = on;
+  hold.drag(on);
+  document.body.classList.toggle('dragging', on);
+  if (!on) {
+    const id = dragPointer;
+    dragPointer = undefined;
+    if (id !== undefined && document.documentElement.hasPointerCapture(id)) document.documentElement.releasePointerCapture(id);
+    window.talkthrough.engage(false);
+    window.talkthrough.pointerHeld(false);
+  }
+  request();
+});
+const dismissOwner = createDismissCapture(() => interactionBridge.followup?.('dismiss'), { onTimeout: () => {
+  dismissPointer = undefined;
+  resumeDismissFade();
+  window.talkthrough.pointerHeld(false);
+} });
+
+function cancelOwnedPointer(): void {
+  dragOwner.cancel();
+  if (dismissOwner.held) {
+    // A new turn must not receive the old click, but its release is still ours.
+    dismissOwner.suppress();
+    resumeDismissFade();
+  }
+}
+
+function modelAt(x: number, y: number): boolean {
+  if (!modelHitRect || !overModel(modelHitRect, x, y) || !lastDisplayedFrame) return false;
+  const objects = lastDisplayedFrame.objects.flatMap((object) => { const node = panelScene.nodeOf(object.key); return node ? [node] : []; });
+  return hitVisibleModel(objects, panelScene.camera, view.width, view.height, x, y);
+}
+
+function visibleHit(x: number, y: number, kind: VisibleRegion['kind']): boolean {
+  const snapshot = readVisibleRegions();
+  if (kind !== 'content') return containsVisiblePoint(snapshot, x, y, kind);
+  const withoutModel = { ...snapshot, regions: snapshot.regions.filter((r) => r.id !== 'model-geometry') };
+  return containsVisiblePoint(withoutModel, x, y, kind) || modelAt(x, y);
+}
 
 /** True for a moment after the pen goes off, so a button released then still ends its stroke. */
 let penEnding = false;
@@ -880,6 +1040,7 @@ document.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     return;
   }
+  if (visibleHit(e.clientX, e.clientY, 'capture-control') && e.target instanceof Node && interactiveEls.some((el) => el.contains(e.target as Node))) return;
   if (pen.active) {
     // While the chord is held the mouse draws; it never turns the model or clicks the app's own words.
     const route = routePenPointer({ button: e.button, onUndo: e.target instanceof Node && undoEl.contains(e.target) });
@@ -902,12 +1063,25 @@ document.addEventListener('pointerdown', (e) => {
     request();
     return;
   }
-  if (e.button !== 0 || !overModel(modelRect, e.clientX, e.clientY)) return;
-  dragging = true;
-  hold.drag(true);
+  if (e.button !== 0) return;
+  const hit = routePointer({ pill: overHud(e.target) || visibleHit(e.clientX, e.clientY, 'pill'), guideTarget: visibleHit(e.clientX, e.clientY, 'guide-target'), content: visibleHit(e.clientX, e.clientY, 'content') });
+  if (hit === 'control' || hit === 'guide') return;
+  if (hit === 'dismiss') {
+    if (!showingSent || !dismissOwner.begin(e.pointerId)) return;
+    e.preventDefault();
+    dismissPausedFade = !fader.paused;
+    fader.pause(performance.now());
+    dismissPointer = e.pointerId;
+    window.talkthrough.pointerHeld(true);
+    document.documentElement.setPointerCapture(e.pointerId);
+    return;
+  }
+  if (!modelAt(e.clientX, e.clientY)) return;
+  dragPointer = e.pointerId;
+  window.talkthrough.pointerHeld(true);
+  dragOwner.begin(e.pointerId);
   player.stopIdle(); // the slow turn stops while the model is held
   window.talkthrough.engage(true);
-  document.body.classList.add('dragging');
   document.documentElement.setPointerCapture(e.pointerId);
   request();
 });
@@ -918,6 +1092,7 @@ document.addEventListener('pointermove', (e) => {
     return;
   }
   if (!dragging) return;
+  dragOwner.move(e.pointerId);
   player.dragCamera(-e.movementX * DRAG_DEGREES_PER_PIXEL, e.movementY * DRAG_DEGREES_PER_PIXEL);
   if (fader.armed) fader.touch(performance.now());
   request();
@@ -931,6 +1106,15 @@ const endDrag = (e: PointerEvent): void => {
     e.preventDefault();
     return;
   }
+  if (dismissOwner.held && dismissPointer === e.pointerId) {
+    e.preventDefault();
+    if (e.type === 'pointercancel') { dismissOwner.lost(e.pointerId); return; }
+    dismissPointer = undefined;
+    dismissPausedFade = false; dismissOwner.release(e.pointerId);
+    if (document.documentElement.hasPointerCapture(e.pointerId)) document.documentElement.releasePointerCapture(e.pointerId);
+    window.talkthrough.pointerHeld(false);
+    return;
+  }
   if (pen.active || penEnding) {
     endPenStroke();
     return;
@@ -940,30 +1124,31 @@ const endDrag = (e: PointerEvent): void => {
   try {
     if (document.documentElement.hasPointerCapture(e.pointerId)) document.documentElement.releasePointerCapture(e.pointerId);
   } finally {
-    dragging = false;
-    document.body.classList.remove('dragging');
     hold.pointer(e.clientX, e.clientY, overHud(document.elementFromPoint(e.clientX, e.clientY)));
-    hold.drag(false);
+    dragOwner.lost(e.pointerId);
     request();
   }
 };
 document.addEventListener('pointerup', endDrag);
 document.addEventListener('pointercancel', endDrag);
 // Capture lost some other way (the window went click-through under a held button): the stroke ends there.
-document.documentElement.addEventListener('lostpointercapture', () => {
+document.documentElement.addEventListener('lostpointercapture', (e) => {
   if (penPointer !== undefined) endPenStroke();
+  dragOwner.lost(e.pointerId);
+  if (dismissPointer === e.pointerId) dismissOwner.lost(e.pointerId);
 });
+window.addEventListener('blur', () => { dragOwner.blur(); if (dismissPointer !== undefined) dismissOwner.lost(dismissPointer); if (penPointer !== undefined) endPenStroke(); });
 
 // The wheel zooms the model, a double click puts the camera back (and closes the model), E opens and closes it.
 document.addEventListener('wheel', (e) => {
-  if (pen.active || dragging || !overModel(modelRect, e.clientX, e.clientY)) return;
+  if (pen.active || dragging || !modelAt(e.clientX, e.clientY)) return;
   e.preventDefault();
   player.zoomCamera(wheelFactor(e.deltaY, e.deltaMode));
   if (fader.armed) fader.touch(performance.now());
   request();
 }, { passive: false });
 document.addEventListener('dblclick', (e) => {
-  if (pen.active || !overModel(modelRect, e.clientX, e.clientY)) return;
+  if (pen.active || !modelAt(e.clientX, e.clientY)) return;
   player.resetCamera();
   if (fader.armed) fader.touch(performance.now());
   request();
@@ -1001,6 +1186,9 @@ offerButton.addEventListener('click', () => {
   hold.release();
   request();
 });
+askMoreEl.addEventListener('click', () => interactionBridge.followup?.('start'));
+sendFollowupEl.addEventListener('click', () => interactionBridge.followup?.('send'));
+cancelFollowupEl.addEventListener('click', () => interactionBridge.followup?.('cancel'));
 noticeEl.addEventListener('click', (e) => {
   if (e.target instanceof Node && noticeAction.contains(e.target)) return; // the button has its own
   hud.dismissNotice();
@@ -1037,6 +1225,10 @@ answerClose.addEventListener('click', () => {
 const painted = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
 function beginTurn(turn: number, detail = false): void {
+  cancelOwnedPointer();
+  guideTarget = undefined;
+  guideTargetLive = false;
+  guideArmToken = undefined;
   seekClock = undefined;
   fader.disarm();
   // A detail pass adds to what is on screen: nothing is cleared, and the offer and notices stay as they are.
@@ -1130,6 +1322,13 @@ function handleScene(message: SceneMessage): void {
 
 function applyScene(message: SceneMessage): void {
   switch (message.kind) {
+    case 'model-hit-query':
+      if (message.revision === readVisibleRegions().revision) window.talkthrough.modelHit({ x: message.x, y: message.y, revision: message.revision, hit: modelAt(message.x, message.y) });
+      break;
+    case 'guide-arm':
+      guideArmToken = message.token;
+      lastVisibleSignature = '';
+      break;
     case 'play':
       beginTurn(message.turn);
       box.reset('');
@@ -1162,6 +1361,8 @@ function applyScene(message: SceneMessage): void {
       player.beginTurn(message.detail === true);
       break;
     case 'step':
+      guideTarget = undefined;
+      for (const action of message.step.actions) rememberGuideTarget(action);
       pen.fade(labelClock());
       fader.disarm();
       hud.stopWorking();
@@ -1174,12 +1375,14 @@ function applyScene(message: SceneMessage): void {
       player.pushStep({ ...message.step, actions: message.step.actions.map(placedAction) });
       break;
     case 'step-open':
+      guideTarget = undefined;
       pen.fade(labelClock());
       fader.disarm();
       hud.stopWorking();
       player.openStep(message.say);
       break;
     case 'action':
+      rememberGuideTarget(message.action);
       box.drew();
       player.addAction(placedAction(message.action));
       break;
@@ -1199,8 +1402,14 @@ function applyScene(message: SceneMessage): void {
       player.endTurn();
       break;
     case 'status':
-      if (message.status === 'hush') player.hush();
+      guideTargetLive = message.status === 'waiting';
+      if (message.status === 'waiting') lastVisibleSignature = '';
+      if (message.status === 'hush') {
+        player.hush();
+        fader.pause(performance.now());
+      }
       else if (message.status === 'idle') {
+        fader.resume(performance.now());
         hud.setStatus('idle');
         guiding = false;
         pen.fade(labelClock());
@@ -1212,6 +1421,7 @@ function applyScene(message: SceneMessage): void {
       }
       else {
         hud.setStatus(message.status);
+        if (message.status === 'listening') fader.pause(performance.now());
         if (message.status === 'waiting' || message.status === 'checking') {
           guiding = true;
           fader.disarm();
@@ -1240,6 +1450,10 @@ function applyScene(message: SceneMessage): void {
       clearEverything();
       break;
     case 'dismiss':
+      cancelOwnedPointer();
+      guideTarget = undefined;
+      guideTargetLive = false;
+      guideArmToken = undefined;
       // Escape: the voice stops, what was still to be said is dropped, and what is drawn fades away quickly and goes.
       player.silence();
       pen.fade(labelClock());
@@ -1251,6 +1465,7 @@ function applyScene(message: SceneMessage): void {
       pendingOffer = undefined;
       detailState = 'none';
       guiding = false;
+      clearPublishedRegions();
       fader.dismiss(performance.now());
       break;
     case 'seek':

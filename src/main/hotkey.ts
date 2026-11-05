@@ -31,19 +31,24 @@ export function startHotkey(events: ChordEvents, keys?: ChordKeys, escapeWhileHe
  * While guide mode waits for the person's click: their mouse button going down and up, as screen points, and Escape.
  * Nothing is kept or logged; the listeners are taken off as soon as the returned function is called.
  */
-export function watchGuideInput(handlers: { down(point: { x: number; y: number }): void; up(point: { x: number; y: number }): void; escape(): void; /** Any other key (only told that one was pressed, never which). */ key?(): void }): () => void {
-  const down = (event: { x: number; y: number }): void => handlers.down({ x: event.x, y: event.y });
-  const up = (event: { x: number; y: number }): void => handlers.up({ x: event.x, y: event.y });
+export function watchGuideInput(handlers: { down(point: { x: number; y: number; button?: number }): void; up(point: { x: number; y: number; button?: number }): void; escape(): void; /** Any other key (only told that one was pressed, never which). */ key?(): void }): (() => void) & { clicks(on: boolean): void } {
+  const down = (event: { x: number; y: number; button?: unknown }): void => handlers.down({ x: event.x, y: event.y, ...(typeof event.button === 'number' ? { button: event.button } : {}) });
+  const up = (event: { x: number; y: number; button?: unknown }): void => handlers.up({ x: event.x, y: event.y, ...(typeof event.button === 'number' ? { button: event.button } : {}) });
   const key = (event: { keycode: number }): void => {
     if (event.keycode === UiohookKey.Escape) handlers.escape();
     else handlers.key?.();
   };
-  uIOhook.on('mousedown', down);
-  uIOhook.on('mouseup', up);
-  uIOhook.on('keydown', key);
-  return () => {
-    uIOhook.off('mousedown', down);
-    uIOhook.off('mouseup', up);
-    uIOhook.off('keydown', key);
+  let observing = false;
+  const clicks = (on: boolean): void => {
+    if (observing === on) return;
+    observing = on;
+    if (on) { uIOhook.on('mousedown', down); uIOhook.on('mouseup', up); }
+    else { uIOhook.off('mousedown', down); uIOhook.off('mouseup', up); }
   };
+  clicks(true);
+  uIOhook.on('keydown', key);
+  return Object.assign(() => {
+    clicks(false);
+    uIOhook.off('keydown', key);
+  }, { clicks });
 }

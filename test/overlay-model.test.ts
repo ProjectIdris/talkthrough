@@ -255,6 +255,18 @@ test('a finished scene holds, then fades out, and the pointer on it starts the c
   assert.ok(short.alpha(1000) < 1, 'a shorter hold fades sooner');
 });
 
+test('follow-up pause preserves the old fade deadline and cancel can resume its remaining time', () => {
+  const fade = new AutoFade(4000);
+  fade.arm(1000);
+  fade.pause(2500);
+  assert.equal(fade.alpha(9000), 1, 'the explanation stays fully visible while recording/responding');
+  assert.equal(fade.untilChange(9000), undefined, 'no fade timer runs while paused');
+  fade.resume(9000);
+  assert.equal(fade.untilChange(9000), 2500, 'resume keeps the original remaining hold');
+  assert.equal(fade.alpha(9000 + 2500 + FADE_MS), 0, 'the original end time is retained');
+  assert.equal(fade.alpha(9000 + 2500 + FADE_MS / 2), 0.5);
+});
+
 test('a faded frame dims marks, objects and the stage together, and a faded stage takes no clicks', async () => {
   const frame = settled({ op: 'add', shape: 'box', id: 'a', size: [1, 1, 1] }, { op: 'label', id: 'l', x: 1, y: 1, text: 'hi', color: 'red' });
   const half = fadeFrame(frame, 0.5);

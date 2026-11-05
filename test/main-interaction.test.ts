@@ -3,7 +3,29 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { CLICK_LEASE_MS, createClickGuard, createKeyGate, createKeyHold, ignoreMouse, keyWanted } from '../src/main/interaction.ts';
+import { CLICK_LEASE_MS, createClickGuard, createGuideArmGate, createKeyGate, createKeyHold, ignoreMouse, keyWanted } from '../src/main/interaction.ts';
+
+test('guide targets rearm only after the current generation and snapshot are acknowledged', () => {
+  const gate = createGuideArmGate();
+  const old = gate.begin(); gate.disable(); const next = gate.begin();
+  assert.equal(gate.ack(old, 2, 2, true), false);
+  assert.equal(gate.ack(next, 1, 2, true), false, 'stale target snapshot cannot arm');
+  assert.equal(gate.ack(next, 2, 2, false), false, 'missing target cannot arm');
+  assert.equal(gate.ack(next, 2, 2, true), true);
+  assert.equal(gate.ready, true); gate.disable(); assert.equal(gate.ready, false);
+  assert.equal(gate.ack(next, 2, 2, true), false, 'late acknowledgment cannot rearm');
+});
+
+test('active explanation owns background clicks but a guide target reaches the page', () => {
+  assert.equal(ignoreMouse(false, false, { active: true, guideTarget: false, control: false, held: false }), false);
+  assert.equal(ignoreMouse(false, false, { active: true, guideTarget: true, control: false, held: false }), true);
+  assert.equal(ignoreMouse(false, false, { active: true, guideTarget: true, control: true, held: false }), false);
+  assert.equal(ignoreMouse(false, true, { active: true, guideTarget: true, control: false, held: false }), false);
+  assert.equal(ignoreMouse(false, false, { active: true, guideTarget: true, control: false, held: true }), false, 'held release stays owned');
+  assert.equal(ignoreMouse(false, false, { active: true, guideTarget: true, control: false, held: false, modelPossible: true }), false, 'unknown model hit is not leaked to the page');
+  assert.equal(ignoreMouse(false, false, { active: true, guideTarget: true, control: false, held: false, modelPossible: true, modelHit: true }), false);
+  assert.equal(ignoreMouse(false, false, { active: true, guideTarget: true, control: false, held: false, modelPossible: true, modelHit: false }), true, 'a verified hole can reach the target');
+});
 
 test('click-through unless the page wants clicks, and never click-through while the pen is on', () => {
   assert.equal(ignoreMouse(false, false), true);

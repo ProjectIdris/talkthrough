@@ -194,7 +194,8 @@ async function main(): Promise<void> {
     : undefined;
   // The voice server is woken with the recogniser when they share a warm-up route, and by its own otherwise.
   const voiceWaker = voice && settings.voiceServerUrl && !options.voiceDir ? createVoiceWaker({ speakUrl: settings.voiceServerUrl, ...(settings.speechServerUrl ? { except: `${settings.speechServerUrl.replace(/\/+$/, '')}/warm` } : {}), log }) : undefined;
-  const overlays = createOverlayManager({
+  let overlays!: ReturnType<typeof createOverlayManager>;
+  overlays = createOverlayManager({
     preload,
     page: overlayPage,
     ...(options.backdrop ? { backdrop: options.backdrop } : {}),
@@ -227,6 +228,20 @@ async function main(): Promise<void> {
     onEscape: () => pressEscape(),
     answerBusy: () => session?.busy() === true,
     onOffer: (displayId) => void session?.offer(displayId),
+    onFollowup: (displayId: number, command: 'start' | 'send' | 'cancel' | 'dismiss') => {
+      if (command === 'start') session?.startFollowup();
+      else if (command === 'send') session?.sendFollowup();
+      else if (command === 'cancel') session?.cancelFollowup();
+      else {
+        session?.dismiss();
+        overlays.dismissAll();
+      }
+    },
+    onDismiss: () => {
+      session?.dismiss();
+      overlays.dismissAll();
+    },
+    onShowing: (displayId: number, on: boolean) => session?.setVisible(displayId, on),
     // A button on a notice or on a words-only answer: the settings (at the hearing section for a fault of hearing), the words on the clipboard, a pin.
     onAction: (displayId, action) => {
       if (action.what === 'settings') settingsWindow.open();
@@ -236,6 +251,10 @@ async function main(): Promise<void> {
     },
     ...(settings.detailRoute ? { onDetail: (displayId: number) => void session?.detail(displayId) } : {}),
     onMilestone: (m) => session?.milestone(m),
+  } as Parameters<typeof createOverlayManager>[0] & {
+    onFollowup?: (displayId: number, command: 'start' | 'send' | 'cancel' | 'dismiss') => void;
+    onDismiss?: (displayId: number) => void;
+    onShowing?: (displayId: number, on: boolean) => void;
   });
   /** Escape: the question being asked is cancelled, or the answer stopped and its drawing faded away. */
   function pressEscape(): void {
@@ -454,12 +473,20 @@ async function main(): Promise<void> {
       gridOf,
       listen: (_displayId, listener) => {
         // Screen pixels from the hook, on the 0..1000 scale of the display they landed on.
-        const clickOf = (p: { x: number; y: number }): Click => {
+        const clickOf = (p: { x: number; y: number; button?: number }): Click => {
           const dip = screen.screenToDipPoint(p);
           const d = screen.getDisplayNearestPoint(dip);
-          return { x: ((dip.x - d.bounds.x) / d.bounds.width) * 1000, y: ((dip.y - d.bounds.y) / d.bounds.height) * 1000, displayId: d.id };
+          return { x: ((dip.x - d.bounds.x) / d.bounds.width) * 1000, y: ((dip.y - d.bounds.y) / d.bounds.height) * 1000, displayId: d.id, ...(p.button !== undefined ? { button: p.button } : {}) };
         };
-        return watchGuideInput({ down: (p) => listener.down(clickOf(p)), up: (p) => listener.up(clickOf(p)), escape: () => listener.escape(), key: () => listener.key?.() });
+        const onGuideTarget = (p: { x: number; y: number }): boolean => {
+          const dip = screen.screenToDipPoint(p), d = screen.getDisplayNearestPoint(dip);
+          return overlays.isGuideTargetAt(d.id, dip.x, dip.y);
+        };
+        return watchGuideInput({
+          down: (p) => { if (onGuideTarget(p)) listener.down(clickOf(p)); else listener.outside?.(clickOf(p)); },
+          up: (p) => { if (onGuideTarget(p)) listener.up(clickOf(p)); else listener.cancelClick?.(); },
+          escape: () => listener.escape(), key: () => listener.key?.(),
+        });
       },
       ...(navigator && navConsent
         ? {
