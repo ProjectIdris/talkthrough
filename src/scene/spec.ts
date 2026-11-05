@@ -454,10 +454,10 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'loop', op: 'loop',
-    doc: 'Repeat a motion on any object: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, about the hinge pivot) or pulse (swell to amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint\'s. Another loop replaces it; stop ends it. id is an object already in the scene, never a name for the loop.',
+    doc: 'Repeat a motion on any object: slide (back and forth along axis, positive amount units in all), swing (rock about axis by signed amount degrees each side, -180 to 180, about the hinge pivot; negative reverses it, zero holds still) or pulse (swell to positive amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint\'s. Another loop replaces it; stop ends it. id is an object already in the scene, never a name for the loop.',
     fields: {
       id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['slide', 'swing', 'pulse', 'stop'], opt: true },
-      amount: { k: 'num', min: 0.01, max: 360, opt: true, doc: 'slide: total travel in units; swing: degrees each side; pulse: the size factor (1.3 is 30% bigger, 0.8 smaller)' },
+      amount: { k: 'num', min: -360, max: 360, opt: true, doc: 'slide: positive total travel in units; swing: signed degrees each side (negative reverses the swing, zero holds still); pulse: positive size factor (1.3 is 30% bigger, 0.8 smaller)' },
       axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true },
       by: { k: 'ref', of: 'object3d', opt: true }, ratio: { k: 'num', min: -20, max: 20, opt: true, doc: 'with by: cycles per turn (default 1)' },
       phase: { k: 'num', min: -3600, max: 3600, opt: true, doc: 'degrees ahead (180 is half a cycle behind another loop at 0)' },

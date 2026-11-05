@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSceneState, validateScene } from '../src/scene/index.ts';
+import { beginLiveStep, createSceneState, validateScene, validateStep } from '../src/scene/index.ts';
 import type { Scene, Step } from '../src/scene/index.ts';
-import { emptyFrame, evaluate, planStep } from '../src/overlay/timeline.ts';
+import { emptyFrame, evaluate, frameAt, planStep } from '../src/overlay/timeline.ts';
+import { PanelScene } from '../src/overlay/scene3d.ts';
+import { Vector3 } from 'three';
 import { rodEnds } from '../src/overlay/mechanism-geometry.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
 
@@ -263,4 +265,88 @@ test('a kit crankshaft draws its own pin already: the crank adds none', () => {
   const plan = run(part('crank', 'crankshaft', { size: [4, 4, 2], pos: [0, -2, 0] }), part('rod', 'connecting-rod', { size: [0.8, 4, 0.5] }), part('pis', 'piston', { size: [2, 2, 2], pos: [0, 3, 0] }),
     { op: 'spin', id: 'crank', rpm: 10, dur: 0 }, { op: 'crank', id: 'pis', shaft: 'crank', rod: 'rod' });
   assert.equal(evaluate(plan, 1).objects.length, 3);
+});
+
+test('a negative swing remains an inverse motion instead of becoming nearly still', () => {
+  // The saved mirrored-wing answer asked for -30 degrees on this z hinge.
+  const result = validateScene({ steps: [step(box('a'), { op: 'joint', id: 'a', kind: 'hinge', axis: 'z', min: -35, max: 35 }, { op: 'loop', id: 'a', kind: 'swing', amount: -30, axis: 'z', period: 1.2 })] });
+  assert.ok(result.scene);
+  const loop = result.scene.steps[0]!.actions.find((a) => a.op === 'loop');
+  assert.equal(loop?.op === 'loop' && loop.amount, -30);
+  const plan = planStep(emptyFrame(), result.scene.steps[0]!);
+  near(rotOf(evaluate(plan, .3), 'a')[2], -30);
+  near(rotOf(evaluate(plan, .9), 'a')[2], 30);
+});
+
+test('signed swing composes with phase, a shared driver, followers and limits', () => {
+  const plan = run(box('shaft'), box('neg'), box('positive'), box('follower'), spin('shaft', 30),
+    { op: 'joint', id: 'neg', kind: 'hinge', axis: 'z', min: -12, max: 12 },
+    { op: 'loop', id: 'neg', kind: 'swing', amount: -30, by: 'shaft', phase: 45 },
+    { op: 'loop', id: 'positive', kind: 'swing', amount: 30, by: 'shaft', phase: 45 },
+    { op: 'couple', id: 'follower', by: 'neg', ratio: 1 });
+  for (const t of [0, .17, .31, .63, 1.1]) {
+    const f = evaluate(plan, t);
+    const positive = rotOf(f, 'positive')[2];
+    near(rotOf(f, 'neg')[2], Math.max(-12, Math.min(12, -positive)));
+    // A coupling takes the source driver's value before its own joint limits.
+    near(rotOf(f, 'follower')[2], -positive);
+  }
+});
+
+test('signed swing and inverse phase preserve mirrored wing endpoints across seeking', () => {
+  const actions = [
+    { op:'panel',x:100,y:100,w:800,h:800 },
+    { op:'add',shape:'group',id:'left',pos:[.5,0,0] },
+    { op:'add',shape:'group',id:'right',pos:[-.5,0,0],rot:[0,180,0] },
+    box('left-tip',{ parent:'left',pos:[2,0,0] }), box('right-tip',{ parent:'right',pos:[2,0,0] }),
+    { op:'joint',id:'left',kind:'hinge',axis:'z' }, { op:'joint',id:'right',kind:'hinge',axis:'z' },
+    { op:'loop',id:'left',kind:'swing',amount:30,axis:'z',period:1.2,phase:35 },
+    { op:'loop',id:'right',kind:'swing',amount:-30,axis:'z',period:1.2,phase:35 },
+  ];
+  const checked=validateScene({steps:[step(...actions)]}); assert.ok(checked.scene);
+  const scene = new PanelScene();
+  for (const t of [.3,.9,.1,.3]) {
+    const f=frameAt(checked.scene.steps,0,t);scene.sync(f,1,{rect:{x:100,y:100,w:800,h:800},width:1000,height:1000});
+    const left=obj(f,'left-tip')!,right=obj(f,'right-tip')!;
+    const l=scene.nodeOf(left.key)!.getWorldPosition(new Vector3()),r=scene.nodeOf(right.key)!.getWorldPosition(new Vector3());
+    near(l.x,-r.x);near(l.y,r.y);near(l.z,r.z);
+  }
+});
+
+test('kind-specific bounds preserve signed swing but not negative slide or pulse', () => {
+  const r=validate(box('a'),box('b'),box('c'),box('d'),box('e'),
+    {op:'loop',id:'a',kind:'swing',amount:-999}, {op:'loop',id:'b',kind:'swing',amount:0},
+    {op:'loop',id:'c',kind:'slide',amount:-30}, {op:'loop',id:'d',kind:'pulse',amount:-30},
+    {op:'joint',id:'e',kind:'hinge'}, {op:'loop',id:'e',amount:-30});
+  const loops=ops(r,'loop');assert.deepEqual(loops.map(x=>x.amount),[-180,0,.01,.1,-30]);
+});
+
+test('live validation retains negative inferred swing and agrees with completed validation', () => {
+  const actions=[box('a'),{op:'joint',id:'a',kind:'hinge'},{op:'loop',id:'a',amount:-30,phase:45}];
+  const expected=validateStep(step(...actions),createSceneState());const streamed: unknown[]=[];
+  const live=beginLiveStep(createSceneState(),{open:()=>undefined,action:a=>streamed.push(a)});live.say('x');for(const a of actions)live.action(a);
+  const done=live.finish();assert.deepEqual(done.step,expected.step);assert.deepEqual(streamed,expected.step?.actions);assert.deepEqual(done.issues,[]);
+});
+
+test('negative swing carries into later steps and stops or clears without leaving motion', () => {
+  const first=step(box('a'),{op:'loop',id:'a',kind:'swing',amount:-30,period:2});
+  const second=step({op:'wait',for:'click',x:0,y:0,w:1,h:1});
+  const stop=step({op:'loop',id:'a',kind:'stop'});const clear=step({op:'clear',target:'a'});
+  const f=frameAt([first,second],1,.5);assert.ok(Math.abs(rotOf(f,'a')[2])>1);
+  const stopped=frameAt([first,stop],1,1);near(rotOf(stopped,'a')[2],0);
+  const cleared=frameAt([first,clear],1,1);assert.equal(obj(cleared,'a'),undefined);
+});
+
+test('a negative free swing with phase composes as an inverse without changing the phase', () => {
+  const plan=run(box('inverse'),box('reference'),
+    {op:'loop',id:'inverse',kind:'swing',amount:-30,phase:37,period:1.2},
+    {op:'loop',id:'reference',kind:'swing',amount:30,phase:37,period:1.2});
+  for(const t of [0,.1,.3,.7,1.2]) { const f=evaluate(plan,t);near(rotOf(f,'inverse')[2],-rotOf(f,'reference')[2]); }
+});
+
+test('replacing a swinging object preserves its inverse motion', () => {
+  const first=step(box('a'),{op:'loop',id:'a',kind:'swing',amount:-30,period:2});
+  const replacement=step(box('a',{size:[2,2,2]}));
+  const at=frameAt([first,replacement],1,.4);const moving=at.objects.filter(o=>o.id==='a' && o.pose?.rot);
+  assert.ok(moving.length>0);assert.ok(moving.some(o=>Math.abs(o.pose!.rot![2])>1));
 });

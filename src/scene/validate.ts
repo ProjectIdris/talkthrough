@@ -491,7 +491,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
       note(notes, 'dropped', path, 'loop needs an amount');
       return null;
     }
-    const [low, high] = kind === 'slide' ? [0.01, 100] : kind === 'swing' ? [0.01, 180] : [0.1, 5];
+    const [low, high] = kind === 'slide' ? [0.01, 100] : kind === 'swing' ? [-180, 180] : [0.1, 5];
     const held = Math.min(high, Math.max(low, amount));
     if (held !== amount) {
       note(notes, 'clamped', `${path}.amount`, `${kind} amount ${amount} held to ${held}`);

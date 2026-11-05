@@ -3141,7 +3141,7 @@
             "number",
             "null"
           ],
-          "description": "slide: total travel in units; swing: degrees each side; pulse: the size factor (1.3 is 30% bigger, 0.8 smaller); 0.01 to 360"
+          "description": "slide: positive total travel in units; swing: signed degrees each side (negative reverses the swing, zero holds still); pulse: positive size factor (1.3 is 30% bigger, 0.8 smaller); -360 to 360"
         },
         "axis": {
           "enum": [
@@ -3210,7 +3210,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Repeat a motion on any object: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, about the hinge pivot) or pulse (swell to amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint's. Another loop replaces it; stop ends it. id is an object already in the scene, never a name for the loop."
+      "description": "Repeat a motion on any object: slide (back and forth along axis, positive amount units in all), swing (rock about axis by signed amount degrees each side, -180 to 180, about the hinge pivot; negative reverses it, zero holds still) or pulse (swell to positive amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint's. Another loop replaces it; stop ends it. id is an object already in the scene, never a name for the loop."
     },
     "joint": {
       "type": "object",
