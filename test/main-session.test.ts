@@ -72,6 +72,16 @@ test('an answer streams as begin, steps opened and closed around their actions, 
   assert.deepEqual(begin, { kind: 'begin', turn: 1 });
 });
 
+test('a hotkey of one key has no early step: start with no arm before it asks the same question, with the pen on and the mic opened by the start', async () => {
+  const r = rig();
+  r.session.start();
+  r.session.stop();
+  await wait(60);
+  assert.deepEqual(r.kinds().slice(0, 4), ['pen', 'status:hush', 'pen', 'status:working']);
+  assert.ok(r.sent.some((m) => m.kind === 'begin'), 'an answer came');
+  assert.ok(r.calls.includes('startMic'), 'the microphone was opened by the start itself');
+});
+
 test('a second question soon after continues the thread (turn 2); a reset starts again', async () => {
   const r = rig();
   await question(r);

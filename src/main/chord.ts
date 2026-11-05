@@ -2,36 +2,27 @@
 // This keeps two booleans and nothing else: every other key is ignored on arrival, never stored
 // or logged, and no key text is ever formed.
 
+import { CHORD_KEYS, DEFAULT_HOTKEY, splitHotkey } from '../shared/chord-keys.ts';
+export { CHORD_KEYS, DEFAULT_HOTKEY };
+
 /** Scan codes as the global hook reports them (libuiohook). */
 export const KEY_RIGHT_CTRL = 3613;
 export const KEY_RIGHT_SHIFT = 54;
 
-/**
- * The keys a chord may be made of: modifiers only, so holding one types nothing. The first key of the pair is the one that, held
- * alone, opens the microphone and the screen grab early.
- */
-export const CHORD_KEYS = {
-  'right-ctrl': { code: 3613, label: 'Right Ctrl' },
-  'right-shift': { code: 54, label: 'Right Shift' },
-  'right-alt': { code: 3640, label: 'Right Alt' },
-  'left-ctrl': { code: 29, label: 'Left Ctrl' },
-  'left-shift': { code: 42, label: 'Left Shift' },
-  'left-alt': { code: 56, label: 'Left Alt' },
-} as const;
-export type ChordKeyName = keyof typeof CHORD_KEYS;
-export const DEFAULT_HOTKEY = 'right-ctrl+right-shift';
+export type ChordKeys = {
+  /** Every key of the hotkey: one, two or more, as the hook reports them. The hotkey is held while all of them are down. */
+  keys: readonly number[];
+  label: string;
+  /** The first key, held alone, may open the microphone and the screen grab early. Only for a chord (two or more keys) whose first key is Ctrl, Shift or Alt: a key that types would open the microphone with every letter. */
+  early: boolean;
+};
 
-export type ChordKeys = { lead: number; second: number; label: string };
-
-/** "right-ctrl+right-shift" -> the two scan codes and the words for it; null for anything else (an unknown key, the same key twice). */
+/** "right-ctrl+right-shift" (or one key, or up to four) -> the scan codes and the words for them; null for anything else (an unknown key, the same key twice). */
 export function parseHotkey(text: unknown): ChordKeys | null {
-  if (typeof text !== 'string') return null;
-  const parts = text.split('+').map((p) => p.trim().toLowerCase());
-  if (parts.length !== 2) return null;
-  const [a, b] = parts as [string, string];
-  if (a === b || !(a in CHORD_KEYS) || !(b in CHORD_KEYS)) return null;
-  const first = CHORD_KEYS[a as ChordKeyName], second = CHORD_KEYS[b as ChordKeyName];
-  return { lead: first.code, second: second.code, label: `${first.label} + ${second.label}` };
+  const parts = splitHotkey(text);
+  if (!parts) return null;
+  const defs = parts.names.map((n) => CHORD_KEYS[n]!);
+  return { keys: defs.map((d) => d.code), label: parts.label, early: defs.length > 1 && defs[0]!.modifier };
 }
 
 export type ChordEvents = {
@@ -40,11 +31,11 @@ export type ChordEvents = {
    * microphone and the screen grab start early. Followed by either start() or cancel().
    */
   arm?(): void;
-  /** Right Ctrl came up before the chord was made. */
+  /** The first key came up before the chord was made. */
   cancel?(): void;
-  /** Both keys are down (called once per press of the chord). */
+  /** Every key is down (called once per press). */
   start(): void;
-  /** One of the two keys went up while the chord was held. */
+  /** One of the keys went up while the hotkey was held. */
   stop(): void;
 };
 
@@ -57,8 +48,9 @@ export type ChordTracker = {
   reset(): void;
 };
 
+
 /**
- * Development checks: makes the chord (both keys down, held, both up) by feeding the tracker itself, the way the key hook does, so nothing is
+ * Development checks: makes the chord (every key down, held, all up) by feeding the tracker itself, the way the key hook does, so nothing is
  * sent to the system (a press made through the operating system reaches whatever window the person is using, and a run that ends mid-hold
  * leaves the keys down). Gives the release back, so a run that ends can call it at once.
  */
@@ -67,31 +59,29 @@ export function pressChord(tracker: Pick<ChordTracker, 'keyDown' | 'keyUp'>, key
   const release = (): void => {
     if (released) return;
     released = true;
-    tracker.keyUp(keys.second);
-    tracker.keyUp(keys.lead);
+    for (const code of [...keys.keys].reverse()) tracker.keyUp(code);
   };
-  tracker.keyDown(keys.lead);
-  tracker.keyDown(keys.second);
+  for (const code of keys.keys) tracker.keyDown(code);
   later(release, holdMs);
   return release;
 }
 
 export function createChordTracker(events: ChordEvents, keys: ChordKeys = parseHotkey(DEFAULT_HOTKEY)!): ChordTracker {
-  let leadDown = false;
-  let secondDown = false;
+  const down = new Set<number>();
+  const lead = keys.keys[0]!;
   let held = false;
   let armed = false;
 
   function update(): void {
-    const both = leadDown && secondDown;
-    if (both && !held) {
+    const all = keys.keys.every((code) => down.has(code));
+    if (all && !held) {
       held = true;
       armed = false;
       events.start();
-    } else if (!both && held) {
+    } else if (!all && held) {
       held = false;
       events.stop();
-    } else if (armed && !leadDown) {
+    } else if (armed && !down.has(lead)) {
       armed = false;
       events.cancel?.();
     }
@@ -99,29 +89,26 @@ export function createChordTracker(events: ChordEvents, keys: ChordKeys = parseH
 
   return {
     keyDown(keycode) {
-      if (keycode === keys.lead) {
-        const first = !leadDown && !secondDown;
-        leadDown = true;
-        if (first) {
-          armed = true;
-          events.arm?.();
-        }
-      } else if (keycode === keys.second) secondDown = true;
-      else return;
+      if (!keys.keys.includes(keycode)) return;
+      // The first key of the chord down while none of the others is: the chord may be about to be made.
+      const first = keycode === lead && down.size === 0;
+      down.add(keycode);
+      if (first && keys.early) {
+        armed = true;
+        events.arm?.();
+      }
       update();
     },
     keyUp(keycode) {
-      if (keycode === keys.lead) leadDown = false;
-      else if (keycode === keys.second) secondDown = false;
-      else return;
+      if (!keys.keys.includes(keycode)) return;
+      down.delete(keycode);
       update();
     },
     get held() {
       return held;
     },
     reset() {
-      leadDown = false;
-      secondDown = false;
+      down.clear();
       update();
       if (armed) {
         armed = false;
