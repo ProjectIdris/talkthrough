@@ -9,7 +9,7 @@
 
 import {
   AmbientLight, Box3, BufferGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight, EdgesGeometry, Euler,
-  Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Material, Matrix4, Mesh, MeshBasicMaterial, Object3D,
+  FrontSide, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Material, Matrix4, Mesh, MeshBasicMaterial, Object3D,
   PerspectiveCamera, PlaneGeometry, Raycaster, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3,
 } from 'three';
 import type { Texture } from 'three';
@@ -890,11 +890,33 @@ export class PanelScene {
       const blocker = ray.intersectObjects(occluders, false).find(allowed);
       if (blocker && blocker.distance < hit.distance - 1e-5) continue;
       if (explicit) {
-        // A point on the far-facing surface is occluded by the object's own
-        // front. Interior points still project to the visible target surface.
+        // Do not snap a point in front of the target onto its visible face.
+        const distance = world.distanceTo(this.camera.position);
+        if (distance < hit.distance - 1e-4) {
+          // A cut can expose the interior before the remaining back surface.
+          const material = (hit.object as Mesh).material;
+          const mats = Array.isArray(material) ? material : [material];
+          const throughCut = mats.some((m) => (m.clippingPlanes ?? []).some((plane) => {
+            const at = ray.ray.intersectPlane(plane, new Vector3());
+            return at !== null && at.distanceTo(this.camera.position) < distance;
+          }));
+          if (!throughCut) continue;
+        }
+        // A reverse ray from the requested point sees a back face only when
+        // the point is on or beyond it; an interior point can still project
+        // to the visible front surface without being moved in screen space.
         const away = world.clone().sub(this.camera.position).normalize();
-        const reverse = new Raycaster(world.clone().addScaledVector(away, 1e-4), away.negate(), 0, 2e-4);
-        if (reverse.intersectObjects(target, false).some(allowed)) continue;
+        const reverse = new Raycaster(world.clone().addScaledVector(away, 1e-4), away.negate(), 0, distance + 1e-4);
+        // Cut surfaces render both sides, but the reverse test must still
+        // distinguish a back face from the front face of an interior point.
+        const sides = new Map<Material, Material['side']>();
+        for (const mesh of target) for (const m of (Array.isArray(mesh.material) ? mesh.material : [mesh.material])) {
+          if (!sides.has(m)) { sides.set(m, m.side); m.side = FrontSide; }
+        }
+        let beyond = false;
+        try { beyond = reverse.intersectObjects(target, false).some(allowed); }
+        finally { for (const [m, side] of sides) m.side = side; }
+        if (beyond) continue;
       }
       this.pinWarnings.delete(key);
       return { x: ((ndc.x + 1) / 2) * width, y: ((1 - ndc.y) / 2) * height, visible: true };

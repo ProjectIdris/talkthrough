@@ -54,3 +54,18 @@ test('an object moved outside the camera frustum has no visible anchor',()=>{
 test('an explicit point on the back of an opaque solid is not treated as visible',()=>{
  const f=frame({op:'add',shape:'box',id:'a',size:[2,2,2]},{op:'orbit',az:0,el:0,dur:0});const s=new PanelScene();s.sync(f,1,view);assert.equal(s.project(key(f,'a'),[0,0,-1],1000,1000)?.visible,false);
 });
+
+test('explicit points behind or in front of a target are not snapped to its visible face',()=>{
+ const f=frame({op:'add',shape:'box',id:'a',size:[2,2,2]},{op:'orbit',az:0,el:0,dur:0});const s=new PanelScene();s.sync(f,1,view);const k=key(f,'a');
+ for(const z of [-1.2,-2,-5,1.2,2,5]) assert.equal(s.project(k,[0,0,z],1000,1000)?.visible,false,`outside z=${z}`);
+ for(const z of [-.8,0,.8,1]) assert.equal(s.project(k,[0,0,z],1000,1000)?.visible,true,`inside/front z=${z}`);
+});
+
+test('an interior point on the retained side of a cut remains visible',()=>{
+ const f=frame({op:'add',shape:'box',id:'a',size:[2,2,2]},{op:'cut',id:'a',axis:'z',to:0,dur:0},{op:'orbit',az:0,el:0,dur:0});const s=new PanelScene();s.sync(f,1,view);assert.equal(s.project(key(f,'a'),[0,0,-.5],1000,1000)?.visible,true);
+});
+
+test('the named piston crown remains visible',()=>{
+ const f=frame({op:'add',shape:'part',id:'p',part:'piston',size:[3,3.4,3.2],pos:[1,2,0]});const s=new PanelScene();s.sync(f,1,view);
+ assert.equal(s.project(key(f,'p'),undefined,1000,1000,'crown')?.visible,true);
+});
