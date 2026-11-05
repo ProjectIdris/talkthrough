@@ -87,3 +87,37 @@ test('a flow diagram cleared takes its streams and their running with it', () =>
   assert.equal(isMoving(gone.motion), false);
   assert.equal(gone.diagrams.length, 0);
 });
+
+// The markers on the flat diagram are drawn along the arrow, where the lap count puts them.
+import { DiagramPainter } from '../src/overlay/diagram-draw.ts';
+
+function dotsOf(frame: Frame): Array<[number, number]> {
+  const dots: Array<[number, number]> = [];
+  const state: Record<string, unknown> = { font: '10px x' };
+  const ctx = new Proxy(state, {
+    get(t, k: string) {
+      if (k === 'createLinearGradient') return () => ({ addColorStop: () => {} });
+      if (k === 'measureText') return (s: string) => ({ width: s.length * 7 });
+      if (k === 'arc') return (x: number, y: number) => { dots.push([Math.round(x * 10) / 10, Math.round(y * 10) / 10]); };
+      if (k in t) return t[k];
+      return () => undefined;
+    },
+    set(t, k: string, v) { t[k] = v; return true; },
+  }) as unknown as CanvasRenderingContext2D;
+  new DiagramPainter().draw(ctx, frame.diagrams, { width: 1920, height: 804, dpr: 1 }, 0);
+  return dots;
+}
+
+test('dots are drawn along the arrow, and are in other places a moment later', () => {
+  const first = settle(run(...flow, { op: 'add', shape: 'stream', id: 's', along: 'e', mark: 'dot', count: 3, period: 4 }));
+  const none = dotsOf(settle(run(...flow)));
+  const a = dotsOf(first), b = dotsOf(withMotion(first, 0.6));
+  assert.equal(none.length, 0, 'no dots without a stream');
+  assert.ok(a.length >= 2 && b.length >= 2, `${a.length} ${b.length}`);
+  assert.notDeepEqual(a, b);
+  assert.deepEqual(dotsOf(first), a, 'the same lap count draws the same places');
+  // they run along one line from the first node toward the second: left to right here
+  const xs = a.map((d) => d[0]).sort((p, q) => p - q);
+  const moved = b.map((d) => d[0]).sort((p, q) => p - q);
+  assert.ok((moved[moved.length - 1] as number) > (xs[xs.length - 1] as number) - 1e-6 || (moved[0] as number) < (xs[0] as number), 'they have gone on, or one has come round to the start');
+});

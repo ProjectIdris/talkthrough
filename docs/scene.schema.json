@@ -1807,6 +1807,280 @@
       "additionalProperties": false,
       "description": "A thin line through the points, or an arrow from the first to the last point."
     },
+    "addConnector": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "connector"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+        },
+        "from": {
+          "type": "string",
+          "description": "the object one end is on"
+        },
+        "to": {
+          "type": "string",
+          "description": "the object the other end is on"
+        },
+        "kind": {
+          "enum": [
+            "straight",
+            "slack",
+            "wrapped",
+            null
+          ]
+        },
+        "fromSide": {
+          "enum": [
+            "left",
+            "right",
+            "top",
+            "bottom",
+            "front",
+            "back",
+            null
+          ]
+        },
+        "toSide": {
+          "enum": [
+            "left",
+            "right",
+            "top",
+            "bottom",
+            "front",
+            "back",
+            null
+          ]
+        },
+        "fromAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 24 characters"
+        },
+        "toAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 24 characters"
+        },
+        "sag": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "slack: how far it hangs, as a fraction of its length (default 0.2); 0 to 1"
+        },
+        "radius": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.01 to 2"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "draw": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "how much is drawn at first, 0 to 1 (default 1); grow it with reveal; 0 to 1"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "from",
+        "to",
+        "kind",
+        "fromSide",
+        "toSide",
+        "fromAnchor",
+        "toAnchor",
+        "sag",
+        "radius",
+        "color",
+        "material",
+        "draw",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A rope, belt, wire, chain or pipe between two objects, following them as they move. kind straight (default) is taut and shortens as a weight rises; slack hangs in a sag; wrapped is a flat belt round two wheels. fromSide and toSide say where an end meets its object, as seen from the front (left, right, top, bottom, front, back; the rim of a wheel), else its middle; fromAnchor and toAnchor name a point of a ready-made part. radius is its thickness."
+    },
+    "addStream": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "stream"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "along": {
+          "type": "string",
+          "description": "the id of the tube, line, arrow, connector or flow-diagram edge they travel along"
+        },
+        "mark": {
+          "enum": [
+            "dot",
+            "dash",
+            "arrow",
+            null
+          ]
+        },
+        "count": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 40"
+        },
+        "size": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.01 to 5"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "toColor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "shiftAt": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-120 to 120"
+        },
+        "by": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a spinning part to run in step with"
+        },
+        "ratio": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-100 to 100"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "along",
+        "mark",
+        "count",
+        "size",
+        "color",
+        "toColor",
+        "shiftAt",
+        "period",
+        "by",
+        "ratio",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Dots, dashes or arrows travelling along a tube, line, arrow, connector or an edge of a flow diagram, running on by themselves. period is the seconds a marker takes for the whole way (negative runs backwards, default 4); or by a spinning part, ratio laps for each turn. color changes to toColor along the way (shiftAt, 0 to 1, is where). size is for 3D: markers narrower than an opaque pipe are hidden in it."
+    },
     "addPart": {
       "type": "object",
       "properties": {
@@ -3460,6 +3734,12 @@
         },
         {
           "$ref": "#/$defs/addPath"
+        },
+        {
+          "$ref": "#/$defs/addConnector"
+        },
+        {
+          "$ref": "#/$defs/addStream"
         },
         {
           "$ref": "#/$defs/addPart"

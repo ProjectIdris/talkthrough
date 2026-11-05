@@ -11,7 +11,8 @@ import { THEME, fontAt } from './theme.ts';
 import { parseColor, rgbCss } from './timeline.ts';
 import { refine } from './style.ts';
 import type { Rgb } from './timeline.ts';
-import type { EdgeAction, NodeAction, SeriesAction, DotAction } from '../scene/types.ts';
+import { markerPlaces, markerSize, polylinePoint, streamColour } from './stream.ts';
+import type { EdgeAction, NodeAction, SeriesAction, DotAction, StreamPiece } from '../scene/types.ts';
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -295,6 +296,58 @@ function glow(ctx: Ctx, it: DiagramItemFrame, accent: Rgb): void {
   }
 }
 
+/** The markers of a stream along the arrow it runs on (the arrow as far as it has been drawn), by the lap count it has run. */
+function drawStream(env: Env, s: DiagramItemFrame & { def: StreamPiece }, diagramAppear: number, runs: ReadonlyMap<string, { pts: Pt[]; appear: number }>): void {
+  const run = runs.get(s.def.along);
+  const alpha = pieceAlpha(s) * diagramAppear * Math.min(1, s.appear * 1.6);
+  if (!run || run.appear <= 0.02 || alpha <= 0.01) return;
+  const { ctx } = env;
+  const from: Rgb = s.color !== undefined ? refine(parseColor(s.color)) : [240, 244, 250];
+  const to = s.def.toColor !== undefined ? refine(parseColor(s.def.toColor)) : undefined;
+  const size = Math.max(3, env.px * 0.3);
+  const kind = s.def.mark ?? 'dot';
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (const u of markerPlaces(s.phase ?? 0, s.def.count ?? 5)) {
+    const k = markerSize(u);
+    if (k <= 0.05) continue;
+    const at = polylinePoint(run.pts, u * run.appear);
+    const color = streamColour(from, to, u, s.def.shiftAt ?? 0.5);
+    ctx.globalAlpha = alpha * Math.min(1, k * 1.5);
+    ctx.fillStyle = rgbCss(color, 1);
+    ctx.strokeStyle = 'rgba(10,14,24,0.55)';
+    ctx.lineWidth = 1;
+    const r = size * k;
+    if (kind === 'dot') {
+      ctx.beginPath();
+      ctx.arc(at.x, at.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    } else if (kind === 'dash') {
+      const dx = Math.cos(at.angle) * r * 1.9, dy = Math.sin(at.angle) * r * 1.9;
+      ctx.strokeStyle = rgbCss(color, 1);
+      ctx.lineWidth = r * 1.3;
+      ctx.beginPath();
+      ctx.moveTo(at.x - dx, at.y - dy);
+      ctx.lineTo(at.x + dx, at.y + dy);
+      ctx.stroke();
+    } else {
+      const ca = Math.cos(at.angle), sa = Math.sin(at.angle);
+      const h = r * 2.2;
+      ctx.beginPath();
+      ctx.moveTo(at.x + ca * h * 0.6, at.y + sa * h * 0.6);
+      ctx.lineTo(at.x - ca * h * 0.4 - sa * h * 0.5, at.y - sa * h * 0.4 + ca * h * 0.5);
+      ctx.lineTo(at.x - ca * h * 0.2, at.y - sa * h * 0.2);
+      ctx.lineTo(at.x - ca * h * 0.4 + sa * h * 0.5, at.y - sa * h * 0.4 - ca * h * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 // ---- Flow ------------------------------------------------------------------------------------------
 
 function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<string>): void {
@@ -310,6 +363,7 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
     if (t) boxes.set(n.id, { ...painter.ease(`${d.key}:${n.key}`, t, env.dt, seen), layer: t.layer, ...(t.row !== undefined ? { row: t.row, ...(t.rev ? { rev: true } : {}) } : {}) });
   }
   // Edges first, so a node sits over the end of its own arrows.
+  const runs = new Map<string, { pts: Pt[]; appear: number }>();
   edges.forEach((e, k) => {
     const s = boxes.get(e.def.from), t = boxes.get(e.def.to);
     if (!s || !t || e.appear <= 0) return;
@@ -317,6 +371,7 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
     const color = accentOf(e.color, 0);
     const a = pieceAlpha(e) * d.appear;
     const pts = bezierPoints(route.a, route.b, route.c, route.d);
+    runs.set(e.id, { pts, appear: easeOut(e.appear) });
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -363,6 +418,7 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
     ctx.restore();
     void k;
   });
+  for (const s of d.items) if (s.def.op === 'stream') drawStream(env, s as DiagramItemFrame & { def: StreamPiece }, d.appear, runs);
   nodes.forEach((n, i) => {
     const b = boxes.get(n.id);
     if (!b || n.appear <= 0) return;
