@@ -158,3 +158,20 @@ export function parseSize(text: string): { width: number; height: number } {
   if (!m) throw new Error(`bad --size "${text}" (expected 1280x720)`);
   return { width: Number(m[1]), height: Number(m[2]) };
 }
+
+/** The options a person's own run may carry: everything else on the command line is for a check or a development run. */
+const PRODUCT_OPTIONS: ReadonlySet<string> = new Set(['settings', 'gpu', 'logSteps']);
+
+/**
+ * Whether this run was started with any development or check option (a self-made key press, a saved page in place of the screen, a recording,
+ * a replay, a hidden window...). Such a run takes no system-wide shortcut at all: its pages are driven with synthetic pointer events, and a
+ * check must never hold a key the person is typing. Any option not listed as a person's own counts, so a new flag is covered when it is added.
+ */
+export function isCheckRun(options: Options): boolean {
+  const defaults = parseArgs([]) as unknown as Record<string, unknown>;
+  for (const [key, value] of Object.entries(options as unknown as Record<string, unknown>)) {
+    if (PRODUCT_OPTIONS.has(key) || value === undefined) continue;
+    if (JSON.stringify(value) !== JSON.stringify(defaults[key])) return true;
+  }
+  return false;
+}

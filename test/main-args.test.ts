@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, parseSize, parseSteps } from '../src/main/args.ts';
+import { isCheckRun, parseArgs, parseSize, parseSteps } from '../src/main/args.ts';
 
 test('a normal launch has no options set', () => {
   const o = parseArgs(['.']);
@@ -41,4 +41,14 @@ test('a check can ask for more detail a while after the first answer', () => {
   assert.equal(parseArgs([]).detailAfter, undefined);
   assert.equal(parseArgs(['--detail-after', '2']).detailAfter, 2);
   assert.throws(() => parseArgs(['--detail-after', '-1']), /zero or more/);
+});
+
+test('a run with any development or check option is a check run (it takes no system-wide key); a person\'s own run is not', () => {
+  assert.equal(isCheckRun(parseArgs(['.'])), false);
+  assert.equal(isCheckRun(parseArgs(['.', '--gpu', '--log-steps', '--settings', 'prefs.json'])), false, 'options a person may use');
+  const flags: string[][] = [['--self-chord'], ['--capture-image', 'page.png'], ['--exit-after-chord', '1'], ['--hidden'], ['--silent-voice'], ['--fake-mic'], ['--play-sample'], ['--no-hotkey'],
+    ['--frames-dir', 'f'], ['--question', 'q'], ['--backdrop', 'b.png'], ['--max-seconds', '5'], ['--save-pen', 'p'], ['--fake-stroke', '1,1 2,2'], ['--chord-hold', '3000'], ['--detail-after', '2']];
+  for (const flag of flags) assert.equal(isCheckRun(parseArgs(['.', ...flag])), true, flag.join(' '));
+  // An option added later (a recording, a replay) counts without anyone remembering to list it.
+  for (const extra of [{ replayAnswer: 'tape.json' }, { record: 'take.mp4' }, { drive: 'steps.json' }]) assert.equal(isCheckRun({ ...parseArgs(['.']), ...extra } as never), true, Object.keys(extra)[0]);
 });

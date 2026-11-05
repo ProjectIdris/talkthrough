@@ -250,7 +250,7 @@ export interface TalkthroughApi {
   onDisplay(listener: (display: DisplayInfo) => void): void;
   onScene(listener: (message: SceneMessage) => void): void;
   /** True while the pointer is over the draggable 3D panel; main stops clicks passing through. */
-  setInteractive(over: boolean): void;
+  setInteractive(over: boolean, region?: { x: number; y: number; w: number; h: number }): void;
   /** True after the user presses on the 3D model, so the window takes the keyboard; false when they leave it. */
   engage(on: boolean): void;
   rendered(token: number): void;

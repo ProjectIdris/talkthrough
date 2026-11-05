@@ -174,7 +174,7 @@ let modelRect: ScreenRect | undefined;
 /** The model's card, when the panel is drawn in a frame: tags stay inside it. */
 let cardRect: ScreenRect | undefined;
 // Whether the window is solid for the pointer (orbit.ts): worked out from where the pointer is and where the model is.
-const hold = createHold((over) => window.talkthrough.setInteractive(over));
+const hold = createHold((over) => window.talkthrough.setInteractive(over, over ? keyRegion() : undefined));
 let pointerX = -1, pointerY = -1;
 let dragging = false;
 let raf = 0;
@@ -447,6 +447,21 @@ function showHud(): void {
     noticeEl.style.opacity = String(v.notice.alpha);
     if (noticeEl.textContent !== v.notice.text) noticeEl.textContent = v.notice.text;
   }
+}
+
+/** The model's region in page pixels, with its buttons: what main checks the real cursor against before it lets the page keep the E key. */
+function keyRegion(): { x: number; y: number; w: number; h: number } | undefined {
+  if (!modelRect) return undefined;
+  let x0 = modelRect.x, y0 = modelRect.y, x1 = modelRect.x + modelRect.w, y1 = modelRect.y + modelRect.h;
+  for (const el of [explodeEl, cutEl, detailEl]) {
+    if (el.style.display === 'none' || el.style.display === '') continue;
+    const r = el.getBoundingClientRect();
+    x0 = Math.min(x0, r.left);
+    y0 = Math.min(y0, r.top);
+    x1 = Math.max(x1, r.right);
+    y1 = Math.max(y1, r.bottom);
+  }
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
 /** Shows the Explode / Assemble control at the corner of a finished model with parts to spread, and hides it otherwise. */
