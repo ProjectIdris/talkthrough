@@ -42,3 +42,11 @@ test('the card never grows off the display and never shrinks into the panel', ()
   const near = new StageGrowth().card(panel, { x: 1700, y: 900, w: 300, h: 300 }, view)!;
   assert.ok(near.x <= panel.x && near.y <= panel.y && near.x + near.w >= panel.x + panel.w && near.y + near.h >= panel.y + panel.h);
 });
+
+test('the card is not shown until there is a model to hold: no empty card for the frames before the first part', async () => {
+  const { cardShows } = await import('../src/overlay/layout.ts');
+  assert.equal(cardShows(true, undefined), false, 'a framed stage with nothing drawn yet');
+  assert.equal(cardShows(true, { x: 0, y: 0, w: 0, h: 0 }), false, 'a model with no size');
+  assert.equal(cardShows(true, { x: 10, y: 10, w: 100, h: 80 }), true, 'a framed stage with a part drawn');
+  assert.equal(cardShows(false, { x: 10, y: 10, w: 100, h: 80 }), false, 'a stage with no frame');
+});

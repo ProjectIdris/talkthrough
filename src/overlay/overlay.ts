@@ -24,7 +24,7 @@ import { snapActions } from './snap.ts';
 import type { Snapper } from './snap.ts';
 import type { PageGrid } from './placement.ts';
 import type { Busy } from './labels.ts';
-import { StageGrowth, panelRect } from './layout.ts';
+import { StageGrowth, cardShows, panelRect } from './layout.ts';
 import { createHold, modelButtonRects, overModel, wheelFactor } from './orbit.ts';
 import { DiagramPainter } from './diagram-draw.ts';
 import { drawMarks } from './marks.ts';
@@ -231,7 +231,7 @@ function draw(frame: Frame): void {
     const bounds = panelScene.screenBounds(view.width, view.height);
     // The card is not a frame the model is cut to: it grows to hold the whole model (see StageGrowth). The camera keeps the panel's own rectangle.
     const card = stageGrowth.card({ x, y, w, h }, bounds?.model, view) ?? { x, y, w, h };
-    if (frame.panel.frame) {
+    if (cardShows(frame.panel.frame, bounds?.model)) {
       frameEl.style.display = 'block';
       frameEl.style.left = `${card.x}px`;
       frameEl.style.top = `${card.y}px`;
