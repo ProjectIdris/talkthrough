@@ -133,7 +133,7 @@ test('a second set of marks drawn over the diagrams (append) leaves what is on t
 test('the model is told to name the parts and places of a picture with a point and a label (in the first rule, where the shapes were first taken up), that a pin is for a 3D object only, and the example shows a label', () => {
   const first = sceneGuide.split('\n').find((l) => l.startsWith('- Step 1'))!;
   assert.match(first, /When the parts or places of a picture are the point of the question/);
-  for (const part of ['a point well inside the part (on the land of an island, never on its edge or out at sea) and a label of one to three words beside it, inside the frame of the picture',
+  for (const part of ['a point well inside the part (on the land of an island, never on its edge or out at sea) and a label of one to three words beside it, on the picture it names',
     'enlarge it first, in the step before the names: an image of its own box (sx, sy, sw, sh) as a card of dw at least 1.5 * sw',
     'the card is dw * sh / sw tall, keep that at most 700',
     'dx + (x - sx) * dw / sw, dy + (y - sy) * dw / sw']) assert.ok(first.includes(part), part);
