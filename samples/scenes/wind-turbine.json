@@ -16,8 +16,8 @@
         {"op": "add", "shape": "box", "id": "cover", "parent": "lid", "pos": [1.1, 0.55, 0], "size": [2.2, 1.1, 6.0], "color": "#e8edf2", "bevel": 0.25, "at": 0.8},
         {"op": "add", "shape": "group", "id": "rotor", "parent": "head", "pos": [0, 0.45, 3.4], "at": 1.2},
         {"op": "add", "shape": "sphere", "id": "hub", "parent": "rotor", "size": [1.7, 1.7, 1.7], "color": "#e8edf2", "at": 1.2},
-        {"op": "add", "shape": "cone", "id": "spinner", "parent": "rotor", "pos": [0, 0, 0.95], "rot": [90, 0, 0], "size": [1.3, 1.4, 1.3], "color": "#e8edf2", "edges": false, "at": 1.3},
-        {"op": "add", "shape": "extrude", "id": "blade", "parent": "rotor", "outline": [[-0.5, 0.8], [0.5, 0.8], [0.16, 7.6], [-0.1, 7.6], [-0.55, 2.4]], "depth": 0.14, "bevel": 0.04, "color": "#f6f8fb", "at": 1.6},
+        {"op": "add", "shape": "cone", "id": "spinner", "parent": "hub", "pos": [0, 0, 0.95], "rot": [90, 0, 0], "size": [1.3, 1.4, 1.3], "color": "#e8edf2", "edges": false, "at": 1.3},
+        {"op": "add", "shape": "extrude", "id": "blade", "parent": "hub", "outline": [[-0.5, 0.8], [0.5, 0.8], [0.16, 7.6], [-0.1, 7.6], [-0.55, 2.4]], "depth": 0.14, "bevel": 0.04, "color": "#f6f8fb", "at": 1.6},
         {"op": "add", "shape": "array", "id": "blades", "of": "blade", "count": 3, "turn": [0, 0, 120], "at": 1.6},
         {"op": "pin", "id": "p-blade", "on": "blade", "point": [0, 5.2, 0], "text": "Blade", "at": 2.2},
         {"op": "pin", "id": "p-hub", "on": "hub", "text": "Hub", "at": 2.6},
@@ -28,7 +28,7 @@
     {
       "say": "The wind pushes on the blades and turns the rotor slowly, only a few times a minute.",
       "actions": [
-        {"op": "turn", "id": "rotor", "to": [0, 0, 240], "dur": 5},
+        {"op": "spin", "id": "hub", "rpm": 8, "axis": "z", "dur": 0.8},
         {"op": "orbit", "az": 50, "el": 10, "dur": 4}
       ]
     },
@@ -46,28 +46,41 @@
     {
       "say": "The blades are joined to a heavy main shaft. The shaft turns slowly but with great force.",
       "actions": [
-        {"op": "add", "shape": "cylinder", "id": "shaft", "parent": "head", "pos": [0, 0.45, 2.0], "rot": [90, 0, 0], "size": [0.5, 3.0, 0.5], "material": "metal", "color": "#b9c0cc"},
+        {"op": "add", "shape": "sphere", "id": "slow-driver", "parent": "head", "pos": [0, 0.45, 2.0], "size": [0.15, 0.15, 0.15], "color": "#b9c0cc"},
+        {"op": "add", "shape": "cylinder", "id": "shaft", "parent": "slow-driver", "pos": [0, 0, 0], "rot": [90, 0, 0], "size": [0.5, 3.0, 0.5], "material": "metal", "color": "#b9c0cc"},
+        {"op": "add", "shape": "box", "id": "slow-index", "parent": "slow-driver", "pos": [0.31, 0, 0.4], "size": [0.12, 0.18, 0.7], "color": "#e68032", "edges": false},
+        {"op": "spin", "id": "slow-driver", "by": "hub", "axis": "z"},
         {"op": "add", "shape": "cylinder", "id": "bearing", "parent": "head", "pos": [0, 0.45, 1.3], "rot": [90, 0, 0], "size": [0.9, 0.5, 0.9], "material": "metal", "color": "#6f7a8c", "at": 0.3},
         {"op": "highlight", "id": "shaft", "color": "orange", "at": 0.4, "dur": 1.2},
         {"op": "pin", "id": "p-shaft", "on": "shaft", "text": "Main shaft", "at": 0.8}
       ]
     },
     {
-      "say": "A gearbox raises the speed. Many turns of a fast shaft come out for each slow turn that goes in.",
+      "say": "Inside the gearbox, this illustrative two-to-one gear pair makes the output turn twice for each turn of the slow shaft, in the opposite direction.",
       "actions": [
-        {"op": "add", "shape": "box", "id": "gearbox", "parent": "head", "pos": [0, 0.4, 0.1], "size": [1.5, 1.3, 1.8], "material": "metal", "color": "#5d6e88", "bevel": 0.12},
-        {"op": "add", "shape": "cylinder", "id": "fast", "parent": "head", "pos": [0, 0.45, -1.15], "rot": [90, 0, 0], "size": [0.28, 1.0, 0.28], "material": "metal", "color": "#d4d9e2", "at": 0.3},
-        {"op": "add", "shape": "cylinder", "id": "brake", "parent": "head", "pos": [0, 0.45, -0.95], "rot": [90, 0, 0], "size": [0.95, 0.1, 0.95], "material": "metal", "color": "#c1493a", "at": 0.5},
+        {"op": "add", "shape": "box", "id": "gearbox", "parent": "head", "pos": [0, 0.4, 0.1], "size": [1.5, 1.3, 1.8], "material": "metal", "color": "#5d6e88", "bevel": 0.12, "opacity": 0.2},
+        {"op": "add", "shape": "group", "id": "output-driver", "parent": "fast-gear", "pos": [0, 0, -1.85]},
+        {"op": "add", "shape": "cylinder", "id": "brake", "parent": "head", "pos": [0.75, 0.45, -0.95], "rot": [90, 0, 0], "size": [0.95, 0.1, 0.95], "material": "metal", "color": "#c1493a", "at": 0.5},
+        {"op": "add", "shape": "part", "part": "gear", "id": "slow-gear", "parent": "head", "pos": [0, 0.45, 0.7], "size": [1.0, 1.0, 0.18], "n": 16, "color": "#d8aa48"},
+        {"op": "add", "shape": "part", "part": "gear", "id": "fast-gear", "parent": "head", "pos": [0.75, 0.45, 0.7], "size": [0.5, 0.5, 0.18], "n": 8, "color": "#61b5e6"},
+        {"op": "add", "shape": "box", "id": "slow-gear-mark", "parent": "slow-gear", "pos": [0, 0.33, 0.14], "size": [0.11, 0.17, 0.08], "color": "#ffffff", "edges": false},
+        {"op": "add", "shape": "box", "id": "fast-gear-mark", "parent": "fast-gear", "pos": [0, 0.15, 0.14], "size": [0.07, 0.10, 0.08], "color": "#ffffff", "edges": false},
+        {"op": "spin", "id": "slow-gear", "by": "slow-driver", "axis": "z"},
+        {"op": "spin", "id": "fast-gear", "by": "slow-gear", "ratio": -2, "axis": "z"},
+        {"op": "add", "shape": "cylinder", "id": "fast", "parent": "output-driver", "pos": [0, 0, 0], "rot": [90, 0, 0], "size": [0.28, 1.0, 0.28], "material": "metal", "color": "#d4d9e2"},
+        {"op": "add", "shape": "box", "id": "fast-index", "parent": "output-driver", "pos": [0.23, 0, 0.1], "size": [0.1, 0.16, 0.4], "color": "#39b7e8", "edges": false},
         {"op": "highlight", "id": "gearbox", "color": "orange", "at": 0.5, "dur": 1.2},
         {"op": "pin", "id": "p-gear", "on": "gearbox", "text": "Gearbox", "at": 0.8},
-        {"op": "pin", "id": "p-brake", "on": "brake", "text": "Brake", "at": 1.2}
+        {"op": "pin", "id": "p-brake", "on": "brake", "text": "Brake", "at": 1.2},
+        {"op": "focus", "id": "gearbox", "dur": 1.0},
+        {"op": "zoom", "to": 2.3, "dur": 1.0}
       ]
     },
     {
       "say": "The fast shaft spins the generator, which turns that motion into electricity.",
       "actions": [
-        {"op": "add", "shape": "cylinder", "id": "generator", "parent": "head", "pos": [0, 0.45, -2.25], "rot": [90, 0, 0], "size": [1.4, 1.6, 1.4], "color": "#e08a2c", "material": "metal"},
-        {"op": "add", "shape": "cylinder", "id": "gen-ring", "parent": "head", "pos": [0, 0.45, -2.6], "rot": [90, 0, 0], "size": [1.5, 0.12, 1.5], "material": "metal", "color": "#4d5666", "at": 0.3},
+        {"op": "add", "shape": "cylinder", "id": "generator", "parent": "head", "pos": [0.75, 0.45, -2.25], "rot": [90, 0, 0], "size": [1.4, 1.6, 1.4], "color": "#e08a2c", "material": "metal"},
+        {"op": "add", "shape": "cylinder", "id": "gen-ring", "parent": "head", "pos": [0.75, 0.45, -2.6], "rot": [90, 0, 0], "size": [1.5, 0.12, 1.5], "material": "metal", "color": "#4d5666", "at": 0.3},
         {"op": "highlight", "id": "generator", "color": "yellow", "at": 0.4, "dur": 1.4},
         {"op": "pin", "id": "p-gen", "on": "generator", "text": "Generator", "at": 0.8}
       ]
