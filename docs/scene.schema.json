@@ -1980,7 +1980,7 @@
         },
         "along": {
           "type": "string",
-          "description": "what they travel along"
+          "description": "id of an existing tube, line, arrow, connector or flow-diagram edge that they travel along"
         },
         "mark": {
           "enum": [
