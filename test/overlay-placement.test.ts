@@ -280,3 +280,23 @@ test('a diagram that has to grow is placed again for its new size: off the page\
   const verdict = full.regrow('t', big);
   assert.ok(verdict === undefined || !overlaps(verdict, figure), `no better place: ${JSON.stringify(verdict)}`);
 });
+
+test('a stage the model asked for small is given more room where the page is blank, but not on text, over what is pointed at, or past a comfortable size', () => {
+  const small = { x: 700, y: 200, w: 130, h: 200 };
+  const grown = placer().panel(small);
+  assert.ok(grown.w >= 130 * 1.5 && grown.w <= 260 && grown.h <= 440 && inside(grown), `grown on blank page: ${JSON.stringify(grown)}`);
+  assert.ok(placer().busy({ x: grown.x - 6, y: grown.y - 10, w: grown.w + 12, h: grown.h + 20 }) < 0.02, 'and still on blank page');
+  // Narrow blank room: it grows only as far as the blank goes.
+  const tight = new Placer(textPage(0.85), { aspect: 16 / 9 }).panel({ x: 880, y: 200, w: 100, h: 200 });
+  assert.ok(tight.x >= 0.85 * 1000 - 10 && tight.x + tight.w <= 1000, `kept to the blank strip: ${JSON.stringify(tight)}`);
+  // What the answer points at is not covered by the growth.
+  const p = placer();
+  const pointed: Box = { x: 700, y: 440, w: 200, h: 60 };
+  p.reserve(pointed);
+  const beside = p.panel(small);
+  assert.ok(!overlaps(beside, pointed), JSON.stringify(beside));
+  // A stage already of a comfortable size is left alone, and so is one with no blank page to grow into.
+  assert.deepEqual(placer().panel({ x: 600, y: 150, w: 280, h: 460 }), { x: 600, y: 150, w: 280, h: 460 });
+  const crowded = new Placer(textPage(1), { aspect: 16 / 9 }).panel(small);
+  assert.ok(crowded.w <= small.w + 1, JSON.stringify(crowded));
+});

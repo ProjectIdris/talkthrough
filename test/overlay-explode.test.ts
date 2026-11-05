@@ -339,21 +339,29 @@ test("a detail turn leaves the person's opened model and the camera a double cli
   assert.ok(Math.abs(player.update().camera.az) < 1e-6, 'a double click goes back to where the scene left the camera, not to where the person had turned it');
 });
 
-test('the buttons beside a model: Explode inside its top-right corner, Cut under it at the same right edge, More detail to the left, none on another, all on screen', () => {
+test('the buttons beside a model sit clear of its bounds (above, else beside or below), keep their order, and stay on screen', () => {
   const view = { width: 1920, height: 1080 };
   const sizes = { explode: { w: 74, h: 26 }, cut: { w: 50, h: 26 }, detail: { w: 90, h: 26 } };
   const model = { x: 760, y: 300, w: 560, h: 380 };
+  const meets = (p: { x: number; y: number; w: number; h: number }, q: { x: number; y: number; w: number; h: number }) => p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h;
   const r = modelButtonRects(model, view, sizes);
-  assert.deepEqual({ x: r.explode.x, y: r.explode.y }, explodeButtonBox(model, view, sizes.explode));
+  const all = [r.explode, r.cut, r.detail!];
+  for (const b of all) assert.ok(!meets(b, model), `a button over the model: ${JSON.stringify(b)}`);
+  assert.ok(all.every((b) => b.y + b.h <= model.y), 'above the model when there is room');
   assert.equal(r.cut.x + r.cut.w, r.explode.x + r.explode.w, 'Cut shares the right edge');
   assert.ok(r.cut.y >= r.explode.y + r.explode.h, 'Cut is under Explode');
   assert.ok(r.detail && r.detail.x + r.detail.w <= r.explode.x, 'More detail is to the left');
-  const all = [r.explode, r.cut, r.detail!];
-  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
-    const a = all[i]!, b = all[j]!;
-    assert.ok(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y, `${i} ${j} overlap`);
-  }
+  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert.ok(!meets(all[i]!, all[j]!), `${i} ${j} overlap`);
   assert.equal(modelButtonRects(model, view, { explode: sizes.explode, cut: sizes.cut }).detail, undefined, 'no detail model, no detail button');
+  // No room above: beside it on the right; none there either: below.
+  const top = modelButtonRects({ x: 600, y: 20, w: 500, h: 400 }, view, sizes);
+  assert.ok(top.explode.x >= 1100 && !meets(top.explode, { x: 600, y: 20, w: 500, h: 400 }), JSON.stringify(top.explode));
+  const corner = { x: 1000, y: 10, w: 910, h: 400 };
+  const below = modelButtonRects(corner, view, sizes);
+  assert.ok(below.explode.y >= corner.y + corner.h, 'below when neither above nor the right has room: ' + JSON.stringify(below.explode));
+  // A model that fills the screen leaves them in its top-right corner, on screen.
+  const full = modelButtonRects({ x: 0, y: 0, w: 1920, h: 1080 }, view, sizes);
+  for (const b of [full.explode, full.cut, full.detail!]) assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= view.width && b.y + b.h <= view.height, JSON.stringify(b));
   const edge = modelButtonRects({ x: 1800, y: -50, w: 600, h: 200 }, view, sizes);
   for (const b of [edge.explode, edge.cut, edge.detail!]) assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= view.width && b.y + b.h <= view.height, JSON.stringify(b));
 });
