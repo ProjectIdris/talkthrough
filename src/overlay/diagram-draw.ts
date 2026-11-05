@@ -789,6 +789,7 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
     if (p.appear <= 0) return;
     const color = accentOf(p.color, series.length + i);
     const c = lay.toPx(p.def.x, p.def.y);
+    if (c.x < plot.x || c.x > plot.x + plot.w || c.y < plot.y || c.y > plot.y + plot.h) return;
     const a = pieceAlpha(p) * d.appear;
     const pop = easeOut(p.appear / 0.5);
     ctx.save();

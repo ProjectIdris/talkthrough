@@ -112,6 +112,59 @@ test('a chart: round tick values, ranges from the data or as given, and a map fr
   assert.deepEqual(lay.xTicks.map((t) => t.v), [0, 5, 10], 'about one tick to every 90 pixels');
 });
 
+test('supply and demand curves keep their values and equilibrium fixed as pieces arrive at two sizes', () => {
+  const demand = { pts: [[0, 100], [25, 75], [50, 50], [75, 25], [100, 0]] as Array<[number, number]> };
+  const supply = { pts: [[0, 0], [25, 25], [50, 50], [75, 75], [100, 100]] as Array<[number, number]> };
+  const stages = [
+    { series: [demand], dots: [] },
+    { series: [demand, supply], dots: [] },
+    { series: [demand, supply], dots: [{ x: 50, y: 50 }] },
+  ];
+  for (const area of [{ x: 0, y: 0, w: 420, h: 280 }, { x: 0, y: 0, w: 520, h: 340 }]) {
+    const layouts = stages.map((stage) => chartLayout({ ...stage, xrange: [0, 100], yrange: [0, 100] }, area, { left: 66, bottom: 60, top: 18, right: 96 }));
+    for (const next of layouts.slice(1)) {
+      assert.deepEqual(next.plot, layouts[0]!.plot);
+      assert.deepEqual(next.xTicks, layouts[0]!.xTicks);
+      assert.deepEqual(next.yTicks, layouts[0]!.yTicks);
+      assert.deepEqual(next.toPx(50, 50), layouts[0]!.toPx(50, 50), 'the equilibrium coordinate does not jump');
+    }
+    const demandCross = layouts[2]!.toPx(...demand.pts[2]!);
+    const supplyCross = layouts[2]!.toPx(...supply.pts[2]!);
+    const equilibriumDot = layouts[2]!.toPx(stages[2]!.dots[0]!.x, stages[2]!.dots[0]!.y);
+    assert.deepEqual(demandCross, supplyCross);
+    assert.deepEqual(equilibriumDot, demandCross, 'the equilibrium dot is at the two-curve intersection');
+    const points = [...demand.pts, ...supply.pts].map(([x, y]) => layouts[2]!.toPx(x, y));
+    assert.ok(points.every((p) => p.x >= layouts[2]!.plot.x && p.x <= layouts[2]!.plot.x + layouts[2]!.plot.w && p.y >= layouts[2]!.plot.y && p.y <= layouts[2]!.plot.y + layouts[2]!.plot.h));
+  }
+});
+
+test('a dot outside fixed chart axes is not drawn in the chart margins', () => {
+  const frame = settle(planStep(emptyFrame(), step(
+    { op: 'diagram', id: 'market', kind: 'chart', x: 180, y: 140, w: 350, h: 320, title: 'Supply and demand', xlabel: 'Quantity', ylabel: 'Price', xrange: [0, 100], yrange: [0, 100] },
+    { op: 'dot', id: 'outside', of: 'market', x: 105, y: 50, text: 'Outside' },
+    { op: 'dot', id: 'edge', of: 'market', x: 100, y: 50, text: 'At boundary' },
+  )));
+  const arcs: Array<{ x: number; y: number }> = [];
+  const texts: string[] = [];
+  const state: Record<string, unknown> = { font: '10px x' };
+  const ctx = new Proxy(state, {
+    get(t, k: string) {
+      if (k === 'createLinearGradient') return () => ({ addColorStop: () => {} });
+      if (k === 'measureText') return (s: string) => ({ width: s.length * 7 });
+      if (k === 'arc') return (x: number, y: number) => { arcs.push({ x, y }); };
+      if (k === 'fillText') return (s: string) => { texts.push(s); };
+      if (k in t) return t[k];
+      return () => undefined;
+    },
+    set(t, k: string, v) { t[k] = v; return true; },
+  }) as unknown as CanvasRenderingContext2D;
+  new DiagramPainter().draw(ctx, frame.diagrams, view, 0);
+  assert.equal(arcs.length, 2, 'only the in-range boundary marker draws its two circles');
+  assert.ok(arcs.every((p) => p.x === arcs[0]!.x && p.y === arcs[0]!.y), 'the two circles belong to the boundary marker');
+  assert.ok(!texts.includes('Outside'), 'a label must not float in the axis margin without its data point');
+  assert.ok(texts.includes('At boundary'), 'a marker on the axis boundary remains visible');
+});
+
 // ---- Plan and frame --------------------------------------------------------------------------------
 
 test('a diagram comes in at its time, its pieces at theirs; a piece not there yet counts toward the layout at appear 0', () => {
