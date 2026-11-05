@@ -42,7 +42,7 @@ Talkthrough needs two things outside itself: a way to hear you and a model.
 
 ## Graphics
 
-The overlay is drawn by the graphics card by default, with antialiasing, soft shadows and ambient occlusion. A machine with no usable card runs on Chromium's software rasteriser by itself, at a lighter quality tier. To force the software path (to see what such a machine sees, or to rule the driver out), start with `--software` or set `TALKTHROUGH_SOFTWARE=1`. `--gpu` and `TALKTHROUGH_GPU=1`, the old switch for leaving the card on, are still accepted and now change nothing.
+The overlay uses the graphics card by default, with antialiasing, soft shadows and ambient occlusion. A machine with no usable card falls back to Chromium's software rasteriser at a lighter quality tier. To force software rendering, start with `--software` or set `TALKTHROUGH_SOFTWARE=1`. The old `--gpu` and `TALKTHROUGH_GPU=1` switches are accepted but no longer change anything.
 
 ## Settings
 
@@ -82,7 +82,7 @@ The window writes a JSON file, `%APPDATA%\talkthrough\settings.json` (the app lo
 | `captions` | What an answer's words are given as: `"both"` speaks each step and shows its words on screen as they are said, `"text"` speaks nothing and keeps each step up for its reading time (no voice is asked, no sound is made), `"voice"` speaks only. See [Captions](overlay.md#captions). | `"both"` |
 | `splitAnswer` | Claude route only, so the first words come sooner: `"steps"` writes one step to a call, each asked for when the one before has ended (the first words come in about three to four seconds); `"two"` writes step 1 alone, then the rest in a second call while step 1 is spoken; `"off"` writes the whole answer in one call (the first words come later, in six to ten seconds on a rich page). Each question under `steps` or `two` uses two or more calls of your Claude allowance. If a later call fails, the answer ends where it was. Choosing "In one call" in the settings window writes `"off"` to the file. (The older `twoStepAnswer: true` means `"two"`, `false` means `"off"`.) | `"steps"` |
 | `keepRecord` | Keep a record of each question (see *A record of each question* above). Off until you turn it on, also in **Settings…** | `false` |
-| `recordFolder` | A full folder path for that record | the app's data folder, `questions` inside it |
+| `recordFolder` | Optional full folder path for that record | the app's data folder, `questions` inside it |
 | `detailRoute` | Turns on the **detail pass**: `"codex"`, `"claude"`, `"openai"` or `"local"`, the route that writes a much richer version of the scene on screen when you ask for more detail (see below) | none (off) |
 | `detailModel` | Model the detail route uses | `"gpt-6.1-sol"` for `codex` and `openai`, `"claude-sonnet-5-5"` for `claude` |
 | `detailEffort` | Reasoning effort for the detail pass | `"medium"` |
@@ -125,7 +125,7 @@ A busy server may answer `503` with `Retry-After` (seconds, or a date; a wait ov
 
 Any other answer is an error (a text body is shown in the log), and that includes a redirect: the app never follows one, so the words go only to the address you set. The app asks for each step as soon as it arrives, so the next sentence is usually ready when the last one ends, and it starts playing after about a tenth of a second of sound has arrived.
 
-When the keys first go down the app wakes the server: `POST` with no body to the speak address with its last segment replaced by `warm` (`.../voice-shared/speak` is woken at `.../voice-shared/warm`), at most once in 30 seconds, and any answer, or none, is fine; it is skipped when that is the same address as the recogniser's `/warm`, which was just sent. A server that makes a sentence whole before sending it (its first byte comes with the first sentence) takes one to six seconds for the first sound of a step, so the picture waits for it as long as `voiceFirstAudioMs` says, and a second or two more for the system voice to begin.
+When the keys first go down the app wakes the server: `POST` with no body to the speak address with its last segment replaced by `warm` (`.../voice-shared/speak` is woken at `.../voice-shared/warm`), at most once in 30 seconds, and any answer, or none, is fine; it is skipped when that is the same address as the recogniser's `/warm`, which was just sent. A server that makes a sentence whole before sending it (its first byte comes with the first sentence) takes one to six seconds for the first sound of a step, so the picture waits for up to 10 seconds by default (`voiceFirstAudioMs`), then uses the system voice for that step if no sound has arrived.
 
 If the server does not make a sound within `voiceFirstAudioMs`, or answers an error, that step is spoken by the system voice, and the server is left alone for `voiceCooldownMs` so a down server costs one short wait, not one per step; then it is tried again. A stream that breaks half-way ends that step (it is not spoken again). Pick a first-sound limit well under the 2.5 seconds after which a step is drawn anyway.
 

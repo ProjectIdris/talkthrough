@@ -151,6 +151,8 @@ All take `id` and optionally `at` and `dur`. These apply to 3D objects (`move`, 
 
 ### Machines
 
+Parts can hinge, slide or ride with another part using `joint`; `loop` gives a repeating motion and `couple` makes one joint follow another. `connector` adds a rope, belt, wire or pipe between moving parts, and `stream` sends markers along a connector, other path, or flow-diagram arrow.
+
 Parts that keep moving once started, in the x,y plane with the shafts along z (the kit's own layout). Put the parts of one machine in the same group. A machine stops when a group holding it is exploded, and when the user takes hold of the model; a finished scene leaves it running.
 
 | op | fields | |

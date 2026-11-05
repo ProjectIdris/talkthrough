@@ -64,7 +64,7 @@ The settings choose what an answer's words are given as (`captions`: `both`, `te
 
 When a turn has finished, the scene stays at full strength for `FADE_AFTER_MS` (set in `src/shared/ipc.ts`), then fades over 1.2 s, unless the pointer is on the model or the app's words; touching it starts the count again. A faded scene takes no clicks. It is hidden, not cleared, so a follow-up still reaches its ids; the next question or Clear removes it. `fade.ts` is the logic and is tested without a clock.
 
-**Escape.** Escape stops an answer: the voice stops, steps still to come are dropped (the model is told to stop, so nothing more is written), and what is drawn fades away in a fraction of a second. Pressed while the keys are held it cancels the question as a right click does. Talkthrough takes Escape from the system only while an answer is being asked for, written or on screen, and gives it back the moment the drawing is gone; the rest of the time it is the key of whatever you are typing into. One limit: Windows reads Escape with both modifier keys held as Ctrl+Shift+Esc and opens Task Manager, which no program can stop; the question is cancelled all the same.
+**Escape.** Escape cancels a question while recording, or stops an answer while it is being written or shown: speech and captions stop, pending steps are dropped, and the drawing fades. Talkthrough takes Escape from the system only while a question is active or a drawing is visible, then gives it back. One limit: Windows reads Escape with both modifier keys held as Ctrl+Shift+Esc and opens Task Manager; Talkthrough still cancels the question.
 
 ## Turning, zooming and opening the finished model
 
