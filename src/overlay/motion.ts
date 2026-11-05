@@ -137,12 +137,22 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     edit(s.key).rot = rot;
   }
 
+  // What holds a machine never rides on it: a cylinder block or housing, a group, or anything a block sits inside. A crank or cam that names one
+  // (the validator binds them to the right part, but a scene can reach here by other roads) leaves it still.
+  const holders = new Set<number>();
+  for (const o of objects) {
+    const d = o.def;
+    if (d.shape === 'group' || (d.shape === 'part' && (d.part === 'cylinder-block' || d.part === 'housing'))) {
+      for (let k: number | null = o.key, n = 0; k !== null && n < 64 && !holders.has(k); k = byKey.get(k)?.parentKey ?? null, n++) holders.add(k);
+    }
+  }
+
   for (const c of motion.cranks) {
     const piston = byKey.get(c.key);
     const shaft = byKey.get(c.shaftKey);
-    if (!piston || !shaft || piston.parentKey !== shaft.parentKey) continue;
+    if (!piston || !shaft || piston.parentKey !== shaft.parentKey || holders.has(c.key)) continue;
     const rod = c.rodKey !== null ? byKey.get(c.rodKey) : undefined;
-    if (rod && rod.parentKey !== shaft.parentKey) continue;
+    if (rod && (rod.parentKey !== shaft.parentKey || holders.has(rod.key))) continue;
     const shaftSize = sizeOf(shaft.def, [1, 1, 1]);
     const throws = Math.max(1, Math.min('n' in shaft.def && shaft.def.n ? shaft.def.n : 1, 8));
     const theta = (turnZ(c.shaftKey) + (throws > 1 ? ((c.pin - 1) * 360) / throws : 0)) * DEG;
@@ -166,7 +176,7 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
 
   for (const cam of motion.cams) {
     const valve = byKey.get(cam.key);
-    if (!valve) continue;
+    if (!valve || holders.has(cam.key)) continue;
     const d = Math.abs(wrap180(turnZ(cam.byKey) - cam.phase));
     const half = cam.open / 2;
     const bump = d < half ? 0.5 * (1 + Math.cos((Math.PI * d) / half)) : 0;

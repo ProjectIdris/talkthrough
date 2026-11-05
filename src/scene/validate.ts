@@ -3,6 +3,7 @@
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
 import { nearestPaletteColor } from './colors.ts';
+import { bindParts, BINDINGS } from './bind.ts';
 import { DIAGRAM_PARTS, ID_PATTERN, LIMITS, PALETTE, RESERVED_IDS, SCREEN_KINDS, VARIANTS } from './spec.ts';
 import type { DiagramKind, Field, ObjectKind, Variant } from './spec.ts';
 import type { Action, Issue, IssueKind, Scene, Step } from './types.ts';
@@ -14,6 +15,8 @@ export type SceneState = {
   depth: Map<string, number>;
   /** What each flat diagram on screen is (flow, timeline, steps or chart), which says what may be drawn in it. */
   diagramKinds: Map<string, DiagramKind>;
+  /** The ready-made part (piston, valve, cylinder-block...) that each id made by `add` part is; ids of anything else are not here. */
+  parts: Map<string, string>;
   turnSteps: number;
   turnActions: number;
   /** Copies made by `array` actions so far. */
@@ -36,7 +39,7 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 export function createSceneState(): SceneState {
-  return { ids: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), turnSteps: 0, turnActions: 0, copies: 0 };
+  return { ids: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), parts: new Map(), turnSteps: 0, turnActions: 0, copies: 0 };
 }
 
 /**
@@ -45,7 +48,7 @@ export function createSceneState(): SceneState {
  */
 export function createDetailState(onScreen: SceneState): SceneState {
   return {
-    ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds),
+    ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts),
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
   };
 }
@@ -253,13 +256,14 @@ function removeWithDescendants(state: SceneState, id: string): void {
     state.parents.delete(d);
     state.depth.delete(d);
     state.diagramKinds.delete(d);
+    state.parts.delete(d);
   }
 }
 
 /** Takes a cleared id (or "all", "marks", "panel") out of what the scene holds; the guide clears the page by id between steps and tells the scene here. */
 export function applyClear(state: SceneState, target: string): void {
   if (target === 'all') {
-    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.copies = 0;
+    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.copies = 0;
   } else if (target === 'marks' || target === 'panel') {
     // Marks, pins and flat diagrams are the screen's; the 3D stage is the rest.
     const wantMark = target === 'marks';
@@ -283,7 +287,11 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     return null;
   }
   const out: Record<string, unknown> = { op: variant.op };
+  // Fields that name a part already in the scene are bound in one place (bind.ts) once the others are read.
+  const bindings = BINDINGS[variant.name];
+  const bound = new Set(bindings?.flatMap((b) => (b.alias === undefined ? [b.field] : [b.field, b.alias])));
   for (const [name, f] of Object.entries(variant.fields)) {
+    if (bound.has(name)) continue;
     const v = own(raw, name);
     const optional = 'opt' in f && f.opt === true;
     if (v === undefined || v === null) {
@@ -300,6 +308,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     }
     out[name] = p.value;
   }
+  if (bindings && !bindParts(bindings, (n) => own(raw, n), out, state, path, (kind, at, why) => note(notes, kind, at, why))) return null;
   for (const key of ownKeys(raw)) {
     if (key !== 'op' && !(key in variant.fields)) note(notes, 'trimmed', `${path}.${key.slice(0, 40)}`, 'unknown field ignored');
   }
@@ -356,6 +365,8 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     state.ids.set(id, variant.creates);
     if (variant.creates === 'diagram') state.diagramKinds.set(id, out.kind as DiagramKind);
     else state.diagramKinds.delete(id);
+    if (variant.name === 'addPart') state.parts.set(id, out.part as string);
+    else state.parts.delete(id);
     state.parents.set(id, parent);
     state.depth.set(id, parent === undefined ? 1 : (state.depth.get(parent) ?? 0) + 1);
   } else if (variant.op === 'clear') {

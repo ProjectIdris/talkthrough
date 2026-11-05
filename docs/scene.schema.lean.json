@@ -2328,8 +2328,17 @@
             "crank"
           ]
         },
+        "piston": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "id": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "shaft": {
           "type": "string"
@@ -2355,6 +2364,7 @@
       },
       "required": [
         "op",
+        "piston",
         "id",
         "shaft",
         "rod",
@@ -2371,8 +2381,17 @@
             "cam"
           ]
         },
+        "valve": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "id": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "by": {
           "type": "string"
@@ -2404,6 +2423,7 @@
       },
       "required": [
         "op",
+        "valve",
         "id",
         "by",
         "lift",
