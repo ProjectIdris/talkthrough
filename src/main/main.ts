@@ -34,7 +34,7 @@ import { createGuideNavigation } from './guide-nav.ts';
 import { createConsentCard } from './consent-card.ts';
 import { electronCardWindow } from './consent-window.ts';
 import { createNavConsent } from './nav-consent.ts';
-import { createVoiceBridge } from './voice-bridge.ts';
+import { createVoiceBridge, createVoiceWaker } from './voice-bridge.ts';
 import { createStageModel } from '../adapters/stage-model.ts';
 import { createRecorder, recordedVoice, replayModel, runDrive, saveVoice, tapeModel } from './showcase.ts';
 import { createLoopback } from './loopback.ts';
@@ -45,7 +45,7 @@ import { createUiaReader, toDisplayBoxes } from './uia.ts';
 import { DETAIL_EFFORT, DETAIL_MODELS, DETAIL_TIMEOUT_MS, loadSettings } from './settings.ts';
 import { createTray } from './tray.ts';
 import { createQuestionRecord, recordDir } from './record.ts';
-import { recordModel } from './record-model.ts';
+import { observeModel } from './record-model.ts';
 
 // Nothing in this process may ever pop an error dialog on the user's screen: log it and leave.
 dialog.showErrorBox = () => undefined;
@@ -172,6 +172,8 @@ async function main(): Promise<void> {
       cooldownMs: settings.voiceCooldownMs,
     }
     : undefined;
+  // The voice server is woken with the recogniser when they share a warm-up route, and by its own otherwise.
+  const voiceWaker = voice && settings.voiceServerUrl && !options.voiceDir ? createVoiceWaker({ speakUrl: settings.voiceServerUrl, ...(settings.speechServerUrl ? { except: `${settings.speechServerUrl.replace(/\/+$/, '')}/warm` } : {}), log }) : undefined;
   const overlays = createOverlayManager({
     preload,
     page: overlayPage,
@@ -250,7 +252,7 @@ async function main(): Promise<void> {
   /** One route's model, locked down the same way whichever it is; the detail pass uses the same code with its own choices. */
   const makeModel = (route: 'codex' | 'claude' | 'openai', name: string, effort: string, quick: boolean, chain = false): Model => {
     const made = makeRouteModel(route, name, effort, quick, chain);
-    return record ? recordModel(made, record, quick ? (chain ? 'a step' : 'quick answer') : 'detail pass') : made;
+    return observeModel(made, { ...(record ? { record } : {}), log }, quick ? (chain ? 'a step' : 'quick answer') : 'detail pass');
   };
   const makeRouteModel = (route: 'codex' | 'claude' | 'openai', name: string, effort: string, quick: boolean, chain = false): Model => route === 'claude'
     ? createClaudeModel({ model: name, effort, ...(chain ? { schema: sceneSchemaChain } : {}), ...(quick ? {} : { timeoutMs: DETAIL_TIMEOUT_MS }), ...(settings.claudeCommand ? { command: settings.claudeCommand } : {}) })
@@ -423,6 +425,7 @@ async function main(): Promise<void> {
     },
     log,
     ...(record ? { record } : {}),
+    ...(voiceWaker ? { wakeVoice: () => voiceWaker.wake() } : {}),
     logText: options.logSteps,
     micWindowMs: settings.micWindowMs,
     onReport: (report) => {

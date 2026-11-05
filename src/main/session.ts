@@ -54,6 +54,8 @@ export type SessionDeps = {
   backend?: Backend;
   send(displayId: number, message: SceneMessage): void;
   log(line: string): void;
+  /** Wakes the voice server when the keys first go down (see voice-bridge.ts); absent: no voice server, or one woken with the recogniser. */
+  wakeVoice?(): Promise<void>;
   /** The record of each question (the person's setting, off by default): what was sent, heard and drawn goes to a folder of its own. Absent: nothing is kept. */
   record?: QuestionRecord;
   /** Checks only: put the question text in the log. Off by default, so a spoken question never reaches the console. */
@@ -290,6 +292,7 @@ export function createSession(deps: SessionDeps) {
     // A speech or voice server that sleeps starts waking now, while the person is still speaking; whatever it does, the press goes on.
     try {
       void Promise.resolve(deps.speech?.wake?.()).catch(() => undefined);
+      void Promise.resolve(deps.wakeVoice?.()).catch(() => undefined);
     } catch {
       // a wake-up that throws at once is no matter
     }

@@ -17,6 +17,8 @@ import type { Action, Step } from '../scene/types.ts';
 
 /** If a voice neither starts nor ends within this long, the step plays anyway. */
 export const VOICE_PATIENCE_MS = 2500;
+/** The wait a voice server is given before the system voice takes over is the patience too, with this much more for the system voice to begin. */
+export const VOICE_PATIENCE_MARGIN_MS = 1500;
 const MIN_SPEED = 0.6;
 const MAX_SPEED = 1.6;
 /** A machine left running when the scene is done keeps turning this long, then rests where it is. */
@@ -108,6 +110,8 @@ export class Player {
   private idleAt: number | undefined;
   private speechEnded = false;
   private waitingSince = 0;
+  /** How long a step waits for its voice to begin before it plays on without it. */
+  private patienceMs = VOICE_PATIENCE_MS;
   private startedAt = 0;
   private speed = 1;
   private frozen: Frame | undefined;
@@ -131,6 +135,11 @@ export class Player {
   setCaptions(captions: CaptionDriver | undefined): void {
     this.captions?.clear();
     this.captions = captions;
+  }
+
+  /** A voice that is a server may be given longer to make its first sound (see VOICE_PATIENCE_MARGIN_MS): the step waits as long. */
+  setPatience(ms: number): void {
+    this.patienceMs = Math.max(VOICE_PATIENCE_MS, Math.round(ms));
   }
 
   /** Swaps the voice (a development run with no speech). */
@@ -377,7 +386,7 @@ export class Player {
   private frameNow(): Frame {
     if (this.frozen) return this.frozen;
     const now = this.clock.now();
-    if (this.phase === 'waiting' && now - this.waitingSince > VOICE_PATIENCE_MS) {
+    if (this.phase === 'waiting' && now - this.waitingSince > this.patienceMs) {
       // A voice that never answers must not stall the picture.
       this.speechEnded = true;
       this.startClock(now, undefined);

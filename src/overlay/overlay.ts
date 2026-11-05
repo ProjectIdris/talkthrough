@@ -33,7 +33,7 @@ import { TIERS } from './materials.ts';
 import { Finishing } from './post.ts';
 import type { Tier } from './materials.ts';
 import { PenLayer, drawPen, routePenPointer, undoPlace } from './pen.ts';
-import { Player, createSilentVoice } from './player.ts';
+import { Player, VOICE_PATIENCE_MARGIN_MS, createSilentVoice } from './player.ts';
 import { captionSpot, createCaptionDriver } from './captions.ts';
 import type { CaptionDriver, CaptionState, Rect } from './captions.ts';
 import { readingSeconds } from '../shared/captions.ts';
@@ -1056,6 +1056,8 @@ window.talkthrough.onDisplay((info) => {
   if (info.voice && !serverVoiceSet) {
     serverVoiceSet = true;
     player.setVoice(createServerVoice(window.talkthrough.voice, info.voice, chooseVoice(), (line) => console.info(`talkthrough: ${line}`)));
+    // The step waits as long for the server's first sound as the voice does before the system voice speaks instead.
+    player.setPatience(info.voice.firstAudioMs + VOICE_PATIENCE_MARGIN_MS);
   }
   if (info.silent) player.setVoice(createSilentVoice());
   setCaptions(info.captions ?? 'voice');

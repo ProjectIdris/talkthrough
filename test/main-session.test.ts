@@ -1185,3 +1185,15 @@ test('with the record of questions on, a question leaves a folder with what was 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('the voice server is woken when the keys first go down, and a wake-up that fails does not disturb the press', async () => {
+  let woke = 0;
+  const r = rig({ wakeVoice: async () => void woke++ });
+  r.session.arm();
+  assert.equal(woke, 1);
+  r.session.cancel();
+  const failing = rig({ wakeVoice: async () => { throw new Error('down'); } });
+  assert.doesNotThrow(() => failing.session.arm());
+  const throwing = rig({ wakeVoice: (() => { throw new Error('at once'); }) as never });
+  assert.doesNotThrow(() => throwing.session.arm());
+});

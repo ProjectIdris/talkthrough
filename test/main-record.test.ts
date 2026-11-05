@@ -7,7 +7,7 @@ import type { Model, ModelOutput } from '../src/adapters/model.ts';
 import { ModelError } from '../src/adapters/model.ts';
 import { createFallbackVoice } from '../src/adapters/fallback-voice.ts';
 import { createQuestionRecord, folderName, pruneRecord, RECORD_KEEP, recordDir } from '../src/main/record.ts';
-import { recordModel } from '../src/main/record-model.ts';
+import { observeModel } from '../src/main/record-model.ts';
 import { DEFAULT_SETTINGS, settingsFromRaw } from '../src/main/settings.ts';
 import { createSettingsService, formFromSettings } from '../src/main/settings-service.ts';
 
@@ -123,10 +123,12 @@ test('a model call goes into the record with its model, timings, raw text and us
       },
     };
     const seen: string[] = [];
-    for await (const out of recordModel(good, rec, 'quick answer').ask({ question: 'q', screenshot: { mime: 'image/png', base64: 'AA', width: 1, height: 1 }, thread: [], schema: {}, stage: { part: 'next', n: 3, shown: [], plan: [] }, onRaw: (t) => seen.push(t) })) void out;
+    const said: string[] = [];
+    for await (const out of observeModel(good, { record: rec, log: (l) => said.push(l) }, 'quick answer').ask({ question: 'q', screenshot: { mime: 'image/png', base64: 'AA', width: 1, height: 1 }, thread: [], schema: {}, stage: { part: 'next', n: 3, shown: [], plan: [] }, onRaw: (t) => seen.push(t) })) void out;
     assert.deepEqual(seen, ['{"steps":[]}'], 'the wrapped call still hands its raw text on');
+    assert.match(said.join('\n'), /model call 1: fake-model \(quick answer, next 3\) first output \d+ ms, ended \d+ ms/, 'the log names the model on every call');
     const bad: Model = { id: 'bad-model', async *ask(): AsyncGenerator<ModelOutput> { throw new ModelError('auth', 'sign in again'); } };
-    await assert.rejects(async () => { for await (const out of recordModel(bad, rec, 'detail pass').ask({ question: 'q', screenshot: { mime: 'image/png', base64: 'AA', width: 1, height: 1 }, thread: [], schema: {} })) void out; });
+    await assert.rejects(async () => { for await (const out of observeModel(bad, { record: rec, log: () => undefined }, 'detail pass').ask({ question: 'q', screenshot: { mime: 'image/png', base64: 'AA', width: 1, height: 1 }, thread: [], schema: {} })) void out; });
     const folder = rec.folder()!;
     const one = JSON.parse(read(folder, 'call-1.json'));
     assert.equal(one.model, 'fake-model');

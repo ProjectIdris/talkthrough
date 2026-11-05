@@ -82,16 +82,17 @@ test('the app acting for the person (guide navigation) is off until the settings
 test('the voice is the system voice unless a server is named; its address must be https or loopback, and its limits stay in range', () => {
   const none = settingsFrom(null).settings;
   assert.equal(none.voiceServerUrl, undefined);
-  assert.deepEqual([none.voiceFirstAudioMs, none.voiceCooldownMs, none.voiceTimeoutMs], [2000, 20_000, 30_000]);
+  assert.deepEqual([none.voiceFirstAudioMs, none.voiceCooldownMs, none.voiceTimeoutMs], [10_000, 20_000, 30_000]);
   const ok = settingsFrom(JSON.stringify({ voiceServerUrl: 'http://127.0.0.1:4850/speak', voiceServerVoice: 'warm', voiceFirstAudioMs: 1500, voiceCooldownMs: 60000, voiceTimeoutMs: 20000 })).settings;
   assert.deepEqual([ok.voiceServerUrl, ok.voiceServerVoice, ok.voiceFirstAudioMs, ok.voiceCooldownMs, ok.voiceTimeoutMs], ['http://127.0.0.1:4850/speak', 'warm', 1500, 60000, 20000]);
   const remote = settingsFrom(JSON.stringify({ voiceServerUrl: 'http://voice.example.com/speak' }));
   assert.equal(remote.settings.voiceServerUrl, undefined, 'the words of an answer are not sent in the clear to another machine');
   assert.equal(remote.warnings.length, 1);
   assert.equal(settingsFrom(JSON.stringify({ voiceServerUrl: 'https://voice.example.com/speak' })).settings.voiceServerUrl, 'https://voice.example.com/speak');
-  // The first sound has to come inside the player's own patience (2.5 s), so the limit cannot be set past it.
-  const wild = settingsFrom(JSON.stringify({ voiceFirstAudioMs: 9000, voiceCooldownMs: 5, voiceTimeoutMs: 1, voiceServerVoice: 'x'.repeat(200) })).settings;
-  assert.deepEqual([wild.voiceFirstAudioMs, wild.voiceCooldownMs, wild.voiceTimeoutMs, wild.voiceServerVoice], [2000, 20_000, 30_000, undefined]);
+  // A voice server is given ten seconds for its first sound unless told otherwise (Alex, 5 Nov); the limit is 30 s and the player waits as long.
+  assert.equal(settingsFrom(JSON.stringify({ voiceFirstAudioMs: 12_000 })).settings.voiceFirstAudioMs, 12_000);
+  const wild = settingsFrom(JSON.stringify({ voiceFirstAudioMs: 90_000, voiceCooldownMs: 5, voiceTimeoutMs: 1, voiceServerVoice: 'x'.repeat(200) })).settings;
+  assert.deepEqual([wild.voiceFirstAudioMs, wild.voiceCooldownMs, wild.voiceTimeoutMs, wild.voiceServerVoice], [10_000, 20_000, 30_000, undefined]);
 });
 
 test('a second Claude model for the steps after step 1 is off unless named, and naming the same model as the first is the same as not naming one', () => {
