@@ -29,6 +29,8 @@ Everything below is drawn by the overlay from a small JSON scene a model writes.
 - **Soft, organic forms.** Shapes like a heart or a plant are built as blended lumps with tapering tubes for vessels and stems, not as boxes (the samples include a heart and a plant).
 - **Guide mode.** For "how do I do this in that app", the answer becomes a walk: it marks where to click, waits for your click, checks the screen really changed, and shows the next step. A checklist of the moves ticks along. It never clicks for you unless you turn on `guideNavigation` (off by default; native windows only, and the first move waits for your yes).
 - **Captions.** The words of each step can be shown on screen as well as spoken, in a pill that keeps clear of the marks: *voice and text* (the default; a word appears only as it is said), *text only* (nothing is spoken, each step stays up as long as it takes to read) or *voice only*. Choose in Settings.
+- **Moving parts and flow.** Joints let parts hinge, slide or ride together; loops and couplings make them move together. Ropes, belts, wires and pipes can connect parts, with markers flowing along them or diagram arrows.
+- **Question record (optional).** Turn on **Keep a record of each question** in Settings to save local diagnostic folders, including screenshots and question data. It is off by default; see [setup](docs/setup.md#a-record-of-each-question).
 - **More detail.** If you set up a second, stronger model, a **More detail** button rebuilds what is on screen in much finer detail.
 
 ![A four-stroke engine built over the Wikipedia article, with its parts labelled.](docs/media/frame-engine.jpg)
@@ -112,7 +114,7 @@ Talkthrough starts the tool you already have and gives it no tools of its own: i
 3. **Model.** A vision model gets the screenshot, your question and the earlier turns of the thread, and answers in the **scene language**: timed steps, each with something to say and things to draw. The model can also say a question is beyond it.
 4. **Scene language.** A small JSON format (boxes, ovals, arrows, labels, and 3D shapes with tweens and camera moves). It is data, validated before anything is drawn; no code is ever run. See [docs/scene-language.md](docs/scene-language.md).
 5. **Renderer.** A transparent, click-through overlay draws marks over your screen and 3D models over the page with [three.js](https://threejs.org). A framed 3D panel is optional.
-6. **Voice.** Each step is spoken as it arrives; the default is your system voice, or a local text-to-speech server you name in the settings (the system voice takes over if it is down or slow).
+6. **Voice and captions.** Each step uses your chosen output: system voice, a local text-to-speech server, captions, or both. If a voice server takes more than 10 seconds to produce its first sound, the system voice speaks that step instead.
 
 Models, voices, speech recognition and backends are adapters in `src/adapters/`, so you can plug in your own. A question that is beyond the fast model can go to a **deeper backend** you point the app at (a plain HTTP address; see [docs/backend.md](docs/backend.md)): click the offer, or say "ask the backend".
 

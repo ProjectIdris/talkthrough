@@ -170,12 +170,22 @@ test('the script acts only on the very control it was shown, only in the window 
   }
 });
 
-test('a browser window (here an Electron page of our own) is never looked into, nor acted on: not a tab, not a link, not a scroll', { skip: !onWindows || !haveElectron, timeout: 90000 }, async () => {
+test('a browser window (here an Electron page of our own) is never looked into, nor acted on: not a tab, not a link, not a scroll', { skip: !onWindows ? 'Windows only' : !haveElectron ? 'Electron is not installed' : false, timeout: 90000 }, async (t) => {
   const page = await startPage();
   const helper = createHelper({ nav: true })!;
   try {
     const nav = createNavigator({ hwnd: page.hwnd, helper })!;
+    const first = await nav.probe(page.at('tab-b'), { kind: 'tab' });
+    if (!first.facts.ok && first.facts.why === 'not the window in front') {
+      t.skip('No foreground Electron test window is available; leaving focus unchanged');
+      return;
+    }
+    assert.equal(first.facts.ok, false, 'a foreground Electron page must be refused as a browser');
+    assert.equal(first.facts.ok ? '' : first.facts.why, 'a browser window');
+    assert.equal(decideNav(first.facts, { kind: 'tab' }).verdict, 'show');
+    assert.equal((await nav.act(page.at('tab-b'), { kind: 'tab' }, 'a token it could not have')).acted, false);
     for (const [name, intent] of [['tab-b', { kind: 'tab' }], ['tall', { kind: 'scroll', dir: 'down' }], ['nav-docs', { kind: 'open' }], ['save', { kind: 'tab' }]] as Array<[string, NavIntent]>) {
+      if (name === 'tab-b') continue;
       const p = await nav.probe(page.at(name), intent);
       assert.equal(p.facts.ok, false, `${name}: no facts from a browser`);
       assert.equal(p.facts.ok ? '' : p.facts.why, 'a browser window');
