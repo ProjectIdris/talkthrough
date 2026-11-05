@@ -102,16 +102,24 @@ test('the guide asks for a short first step and its example keeps to it', () => 
   assert.ok(JSON.stringify(sceneGuideExample).length < 1200, 'the example stays lean');
 });
 
-test('the guide says a figure adds what the page lacks and follows what the page shows, and that a label starts beside its point', () => {
-  const rule = sceneGuide.split('\n').find((l) => l.startsWith('- A figure adds what the page lacks'));
+test('the guide says the question sets the task and the page is material, never a subject (no talk of where knowledge comes from), that a figure adds what the page lacks, and that a label starts beside its point', () => {
+  const rule = sceneGuide.split(String.fromCharCode(10)).find((l) => l.startsWith('- The question sets the task'));
   assert.ok(rule, 'a rule of its own');
   for (const part of [
+    'is material to use, never a subject to report on. Never open with what the page or picture is, and never say where your knowledge comes from or what the page does or does not contain, unless asked',
     'Do not draw again what the page already has (its graph, its table, its list of steps): point at it with marks',
-    'the proof the figure on the page shows (not another proof of the same theorem)',
-    'Where the page does not give the content (the method of a recipe that lists only ingredients), say in the step that it is general knowledge',
-    'a step that explains such a thing draws it (a diagram, or marks that show it), it does not only speak it',
+    'Where the page gives the content (the proof its figure shows, the steps and amounts it lists), use that, not another',
+    'a step that explains such a thing draws it, it does not only speak it',
     'A label starts just to the right of its point, at the height of the point',
   ]) assert.ok(rule!.includes(part), part);
+  assert.ok(!sceneGuide.includes('general knowledge and not from this page'), 'the old instruction to announce general knowledge is gone');
+});
+
+test('the guide says a photo is stated from only when clear, no angle or size is quoted that cannot be measured, and a diagram of a physical thing is a 3D scene, not a flowchart', () => {
+  assert.ok(sceneGuide.includes('State as fact only what a picture clearly shows'));
+  assert.ok(sceneGuide.includes('Never quote an angle, size or distance you cannot measure: show a direction by drawing along a real edge or line in the picture'));
+  assert.ok(sceneGuide.includes('a 3D scene for any physical thing, place or natural process (the water cycle, a heart, an engine, a river forming: its parts as shapes, streams for what moves), also when a diagram or drawing of it is asked for'));
+  assert.ok(sceneGuide.includes('one sentence that begins the answer itself (never a description of the page or of what was circled)'));
 });
 
 test('what the prompt leaves out (loop pivot) is still in the language: the validator keeps it, the full schema asks for it, the guide and the lean schema do not; a joint keeps its dir (a tilted slide) in the prompt', () => {

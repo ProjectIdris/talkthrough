@@ -82,7 +82,7 @@ const run = spawnSync(process.execPath, [
   '--capture-image', resolve(page), '--backdrop', resolve(page), '--question', question,
   ...(args.has('fake-stroke') ? ['--fake-stroke', args.get('fake-stroke')] : []),
   ...(args.has('fake-stroke') || args.has('save-pen') ? ['--save-pen', join(out, 'pen')] : []),
-  '--settings', settingsFile, '--user-data-dir', data, '--frames-dir', frames, '--frame-every', '2000',
+  '--settings', settingsFile, `--user-data-dir=${data}`, '--frames-dir', frames, '--frame-every', '2000',
 ], { cwd: root, env, stdio: ['ignore', logFd, logFd], timeout: 240_000 });
 closeSync(logFd);
 const log = readFileSync(logFile, 'utf8');
