@@ -35,7 +35,7 @@ export function createPointerOwner(onDrag: (on: boolean) => void, options: { tim
       onDrag(true);
       renew();
     },
-    move(pointerId: number): void { if (id === pointerId) renew(); },
+    move(pointerId: number): boolean { if (id !== pointerId) return false; renew(); return true; },
     lost(pointerId: number): void { if (id === pointerId) end(); },
     cancel: end,
     blur: end,

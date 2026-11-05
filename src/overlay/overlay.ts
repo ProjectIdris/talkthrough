@@ -961,6 +961,7 @@ setInterval(() => {
 
 const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl, cutEl, detailEl, answerEl, askMoreEl, sendFollowupEl, cancelFollowupEl, undoEl];
 let dragPointer: number | undefined;
+let dragPoint: { x: number; y: number } | undefined;
 let dismissPointer: number | undefined;
 let dismissPausedFade = false;
 function resumeDismissFade(): void {
@@ -974,6 +975,7 @@ const dragOwner = createPointerOwner((on) => {
   if (!on) {
     const id = dragPointer;
     dragPointer = undefined;
+    dragPoint = undefined;
     if (id !== undefined && document.documentElement.hasPointerCapture(id)) document.documentElement.releasePointerCapture(id);
     window.talkthrough.engage(false);
     window.talkthrough.pointerHeld(false);
@@ -1098,7 +1100,7 @@ document.addEventListener('pointerdown', (e) => {
     request();
     return;
   }
-  if (e.button !== 0) return;
+  if (e.button !== 0 || dragging) return;
   const hit = routePointer({ pill: overHud(e.target) || visibleHit(e.clientX, e.clientY, 'pill'), guideTarget: visibleHit(e.clientX, e.clientY, 'guide-target'), content: visibleHit(e.clientX, e.clientY, 'content') });
   if (hit === 'control' || hit === 'guide') return;
   if (hit === 'dismiss') {
@@ -1111,8 +1113,9 @@ document.addEventListener('pointerdown', (e) => {
     document.documentElement.setPointerCapture(e.pointerId);
     return;
   }
-  if (!modelAt(e.clientX, e.clientY)) return;
+  if (!Number.isFinite(e.clientX) || !Number.isFinite(e.clientY) || !modelAt(e.clientX, e.clientY)) return;
   dragPointer = e.pointerId;
+  dragPoint = { x: e.clientX, y: e.clientY };
   window.talkthrough.pointerHeld(true);
   dragOwner.begin(e.pointerId);
   player.stopIdle(); // the slow turn stops while the model is held
@@ -1127,9 +1130,14 @@ document.addEventListener('pointermove', (e) => {
     return;
   }
   if (!dragging) return;
-  dragOwner.move(e.pointerId);
+  if (!Number.isFinite(e.clientX) || !Number.isFinite(e.clientY) || !dragOwner.move(e.pointerId)) return;
+  const previous = dragPoint;
+  dragPoint = { x: e.clientX, y: e.clientY };
+  if (!previous) return;
+  const dx = e.clientX - previous.x, dy = e.clientY - previous.y;
+  if (dx === 0 && dy === 0) return;
   controlBounds.reset();
-  player.dragCamera(-e.movementX * DRAG_DEGREES_PER_PIXEL, e.movementY * DRAG_DEGREES_PER_PIXEL);
+  player.dragCamera(-dx * DRAG_DEGREES_PER_PIXEL, dy * DRAG_DEGREES_PER_PIXEL);
   if (fader.armed) fader.touch(performance.now());
   request();
 });
