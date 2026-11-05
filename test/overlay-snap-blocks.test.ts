@@ -192,9 +192,20 @@ test('a narrow box around one dense paragraph line does not grow into the adjoin
   page.fill(311, 35, 460, 130, 70); // adjacent photo/figure content, separated by a narrow gutter
   const s = page.snapper();
   const out = s.snapMark(box(58, 38, 302, 51));
-  const b = out as Extract<Mark, { op: 'box' }>;
-  assert.ok((b.x + b.w) * kx <= 310, `paragraph fit stays left of adjacent content, got ${(b.x + b.w) * kx}`);
-  assert.ok(cellsOfBox(out).y1 < 64, `one selected line stays a one-line mark, got ${cellsOfBox(out).y1}`);
+  const assertFitsSelectedLine = (mark: Mark): void => {
+    const b = mark as Extract<Mark, { op: 'box' }>;
+    const x0 = b.x * kx, x1 = (b.x + b.w) * kx;
+    const { y0, y1 } = cellsOfBox(mark);
+    assert.ok(x0 <= 60 && x1 >= 300, `the selected line (x 60..300) stays inside, got ${x0.toFixed(1)}..${x1.toFixed(1)}`);
+    assert.ok(y0 <= 40 && y1 >= 44, `the selected line (y 40..44) stays inside, got ${y0.toFixed(1)}..${y1.toFixed(1)}`);
+    assert.ok(x1 <= 310, `paragraph fit stays left of adjacent content, got ${x1.toFixed(1)}`);
+    assert.ok(y1 < 64, `one selected line stays a one-line mark, got ${y1.toFixed(1)}`);
+  };
+  assertFitsSelectedLine(out);
+
+  // Exercise the same geometry contract against plausible bad outputs, not just the real snap result.
+  assert.throws(() => assertFitsSelectedLine(box(0, 0, 1, 1)), /selected line/);
+  assert.throws(() => assertFitsSelectedLine(box(100, 40, 200, 44)), /selected line/);
 });
 
 test('where the gap between lines is only a few cells, the air at a cut line is no more than half of it: an edge never lands inside the next line', () => {
