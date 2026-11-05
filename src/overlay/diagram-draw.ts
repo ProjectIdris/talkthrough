@@ -3,8 +3,8 @@
 // go comes from diagram-layout.ts; a piece that is moved by a later arrival eases to its new place instead of jumping.
 
 import type { DiagramFrame, DiagramItemFrame } from './diagram-plan.ts';
-import { bezierPoints, chartLayout, flowGrowth, flowLayout, flowReadable, formatTick, smoothPoints, stepsLayout, timelineLayout, routeEdge } from './diagram-layout.ts';
-import type { FlowBox, Pt, Px } from './diagram-layout.ts';
+import { bezierPoints, chartDotLabelPlacements, chartLayout, flowGrowth, flowLayout, flowReadable, formatTick, smoothPoints, stepsLayout, timelineLayout, routeEdge } from './diagram-layout.ts';
+import type { ChartDotLabel, FlowBox, Pt, Px } from './diagram-layout.ts';
 import type { View } from './marks.ts';
 import { softShadow } from './style.ts';
 import { THEME, fontAt } from './theme.ts';
@@ -688,6 +688,28 @@ function drawSteps(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<s
 
 // ---- Chart -----------------------------------------------------------------------------------------
 
+/** Wraps a chart label without dropping words, splitting long unbroken values only when needed. */
+function chartLabelLines(text: string, measure: (s: string) => number, maxW: number): string[] {
+  const lines: string[] = [];
+  let line = '';
+  const addWord = (word: string): void => {
+    const next = line ? `${line} ${word}` : word;
+    if (measure(next) <= maxW || !line) {
+      if (measure(next) <= maxW) { line = next; return; }
+    } else {
+      lines.push(line);
+      line = '';
+    }
+    for (const char of [...word]) {
+      if (line && measure(line + char) > maxW) { lines.push(line); line = ''; }
+      line += char;
+    }
+  };
+  for (const word of text.split(/\s+/).filter(Boolean)) addWord(word);
+  if (line) lines.push(line);
+  return lines;
+}
+
 function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
   const { ctx } = env;
   const theme = THEME;
@@ -712,6 +734,7 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
     area, room,
   );
   const { plot } = lay;
+  const chartLabelObstacles: Px[] = [];
   ctx.save();
   ctx.globalAlpha = d.appear;
   // Grid and axes.
@@ -733,22 +756,33 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
   ctx.textBaseline = 'middle';
   for (const t of lay.yTicks) {
     const s = formatTick(t.v);
-    ctx.fillText(s, plot.x - 6 - ctx.measureText(s).width, t.px);
+    const w = ctx.measureText(s).width, x = plot.x - 6 - w;
+    ctx.fillText(s, x, t.px);
+    chartLabelObstacles.push({ x, y: t.px - tickPx * 0.6, w, h: tickPx * 1.2 });
   }
   ctx.textBaseline = 'alphabetic';
   for (const t of lay.xTicks) {
     const s = formatTick(t.v);
-    ctx.fillText(s, t.px - ctx.measureText(s).width / 2, plot.y + plot.h + tickPx * 1.45);
+    const w = ctx.measureText(s).width, x = t.px - w / 2, y = plot.y + plot.h + tickPx * 1.45;
+    ctx.fillText(s, x, y);
+    chartLabelObstacles.push({ x, y: y - tickPx, w, h: tickPx * 1.2 });
   }
   ctx.font = fontAt(theme.font, tickPx * 1.05);
   ctx.fillStyle = theme.ink;
-  if (d.def.xlabel) ctx.fillText(d.def.xlabel, plot.x + plot.w / 2 - ctx.measureText(d.def.xlabel).width / 2, plot.y + plot.h + tickPx * 3.2);
+  if (d.def.xlabel) {
+    const w = ctx.measureText(d.def.xlabel).width, x = plot.x + plot.w / 2 - w / 2, y = plot.y + plot.h + tickPx * 3.2;
+    ctx.fillText(d.def.xlabel, x, y);
+    chartLabelObstacles.push({ x, y: y - tickPx * 1.05, w, h: tickPx * 1.25 });
+  }
   if (d.def.ylabel) {
+    const w = ctx.measureText(d.def.ylabel).width;
+    const cx = area.x + pad * 0.6 + tickPx * 0.5, cy = plot.y + plot.h / 2 + w / 2;
     ctx.save();
-    ctx.translate(area.x + pad * 0.6 + tickPx * 0.5, plot.y + plot.h / 2 + ctx.measureText(d.def.ylabel).width / 2);
+    ctx.translate(cx, cy);
     ctx.rotate(-Math.PI / 2);
     ctx.fillText(d.def.ylabel, 0, 0);
     ctx.restore();
+    chartLabelObstacles.push({ x: cx - tickPx * 0.6, y: cy - w / 2, w: tickPx * 1.2, h: w });
   }
   ctx.restore();
   // Lines and curves, drawn along from their first point; they stay inside the plot.
@@ -780,11 +814,36 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
       const end = pts[pts.length - 1]!;
       const w = ctx.measureText(s.def.label).width;
       const x = end.x + 8 + w <= area.x + area.w - 4 ? end.x + 8 : end.x - 8 - w;
-      ctx.fillText(s.def.label, x, Math.max(plot.y + 6, Math.min(plot.y + plot.h - 6, end.y - (x < end.x ? 12 : 0))));
+      const y = Math.max(plot.y + 6, Math.min(plot.y + plot.h - 6, end.y - (x < end.x ? 12 : 0)));
+      ctx.fillText(s.def.label, x, y);
+      chartLabelObstacles.push({ x: x - 3, y: y - tickPx * 0.75, w: w + 6, h: tickPx * 1.5 });
       ctx.restore();
     }
     void tip;
   });
+  const markerDots = dots.filter((p) => p.appear > 0).map((p) => ({ item: p, at: lay.toPx(p.def.x, p.def.y) }))
+    .filter(({ at }) => at.x >= plot.x && at.x <= plot.x + plot.w && at.y >= plot.y && at.y <= plot.y + plot.h);
+  const labelRequests: ChartDotLabel[] = [];
+  const labelLines = new Map<string, { lines: string[]; px: number; color: Rgb }>();
+  for (const { item: p, at } of markerDots) {
+    if (!p.def.text || p.appear <= 0.5) continue;
+    const color = accentOf(p.color, series.length + dots.indexOf(p));
+    const px = tickPx * 1.05;
+    ctx.font = fontAt(theme.font, px);
+    const measure = (s: string): number => ctx.measureText(s).width;
+    const lines = chartLabelLines(p.def.text, measure, Math.max(1, area.w - 24));
+    const textW = Math.max(0, ...lines.map(measure));
+    const lineH = px * 1.2;
+    const labelH = Math.max(px * 1.5, lines.length * lineH);
+    const boxW = textW + 12;
+    const right = at.x + 12 + boxW <= area.x + area.w - 4;
+    const x = right ? at.x + 12 : at.x - 12 - boxW;
+    const above = at.y - px * 1.6 > area.y;
+    const y = above ? at.y - px * 1.4 : at.y + px * 0.2;
+    labelRequests.push({ id: p.id, at, w: boxW, h: labelH, preferred: { x, y, w: boxW, h: labelH } });
+    labelLines.set(p.id, { lines, px, color });
+  }
+  const labelPlacements = new Map(chartDotLabelPlacements(labelRequests, area, chartLabelObstacles, markerDots.map(({ at }) => at)).map((placement) => [placement.id, placement.rect]));
   dots.forEach((p, i) => {
     if (p.appear <= 0) return;
     const color = accentOf(p.color, series.length + i);
@@ -804,25 +863,39 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
     ctx.beginPath();
     ctx.arc(c.x, c.y, 3.6 * pop, 0, Math.PI * 2);
     ctx.fill();
-    if (p.def.text && p.appear > 0.5) {
+    const textLayout = labelLines.get(p.id);
+    if (p.def.text && p.appear > 0.5 && textLayout) {
       ctx.globalAlpha = a * Math.min(1, (p.appear - 0.5) / 0.5);
-      const px = tickPx * 1.05;
-      ctx.font = fontAt(theme.font, px);
-      const w = ctx.measureText(p.def.text).width;
-      // Beside the dot, on the side with room, kept inside the diagram.
-      const right = c.x + 12 + w + 12 <= area.x + area.w - 4;
-      const lx = right ? c.x + 12 : c.x - 12 - w - 12;
-      const above = c.y - px * 1.6 > area.y;
-      const ly = above ? c.y - px * 1.4 : c.y + px * 0.2;
+      const { lines, px, color: labelColor } = textLayout;
+      const textW = Math.max(0, ...lines.map((line) => ctx.measureText(line).width));
+      const labelH = Math.max(px * 1.5, lines.length * px * 1.2);
+      const w = textW + 12;
+      const fallback = labelRequests.find((request) => request.id === p.id)?.preferred;
+      const rect = labelPlacements.get(p.id) ?? (fallback ? {
+        ...fallback,
+        x: Math.max(area.x + 4, Math.min(area.x + area.w - fallback.w - 4, fallback.x)),
+        y: Math.max(area.y + 4, Math.min(area.y + area.h - fallback.h - 4, fallback.y)),
+      } : { x: c.x + 12, y: c.y - labelH / 2, w, h: labelH });
+      const end = { x: Math.max(rect.x, Math.min(rect.x + rect.w, c.x)), y: Math.max(rect.y, Math.min(rect.y + rect.h, c.y)) };
+      const distance = Math.hypot(end.x - c.x, end.y - c.y);
+      if (distance > 0.5) {
+        ctx.strokeStyle = rgbCss(labelColor, 0.58);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(c.x + (end.x - c.x) * Math.min(1, 8 / distance), c.y + (end.y - c.y) * Math.min(1, 8 / distance));
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+      }
       ctx.fillStyle = theme.surface;
-      roundRect(ctx, lx, ly, w + 12, px * 1.5, px * 0.7);
+      roundRect(ctx, rect.x, rect.y, rect.w, rect.h, px * 0.7);
       ctx.fill();
       ctx.strokeStyle = theme.line;
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.fillStyle = theme.ink;
       ctx.textBaseline = 'middle';
-      ctx.fillText(p.def.text, lx + 6, ly + px * 0.78);
+      ctx.font = fontAt(theme.font, px);
+      lines.forEach((line, lineIndex) => ctx.fillText(line, rect.x + 6, rect.y + rect.h / 2 + px * 0.03 + (lineIndex - (lines.length - 1) / 2) * px * 1.2));
     }
     ctx.restore();
   });

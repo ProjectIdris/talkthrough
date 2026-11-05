@@ -165,6 +165,58 @@ test('a dot outside fixed chart axes is not drawn in the chart margins', () => {
   assert.ok(texts.includes('At boundary'), 'a marker on the axis boundary remains visible');
 });
 
+test('measured chart dot labels stay separate and inside the card at compact and wide sizes, with stable labels as dots arrive', () => {
+  const render = (w: number, h: number, includeBoundary: boolean) => {
+    const chart = { op: 'diagram', id: 'market', kind: 'chart', x: 70, y: 80, w, h, title: 'Supply and demand', xlabel: 'Quantity', ylabel: 'Price', xrange: [0, 100], yrange: [0, 100] };
+    const demand = { op: 'series', id: 'demand', of: 'market', pts: [[0, 100], [25, 75], [50, 50], [75, 25], [100, 0]], label: 'Demand', color: 'red' };
+    const supply = { op: 'series', id: 'supply', of: 'market', pts: [[0, 0], [25, 25], [50, 50], [75, 75], [100, 100]], label: 'Supply', color: 'blue' };
+    const labels = ['Equilibrium 50/50', ...(includeBoundary ? ['At boundary'] : [])];
+    const frame = settle(planStep(emptyFrame(), step(
+      chart, demand, supply,
+      { op: 'dot', id: 'equil', of: 'market', x: 50, y: 50, text: labels[0] },
+      ...(includeBoundary ? [{ op: 'dot', id: 'edge', of: 'market', x: 100, y: 50, text: 'At boundary' }] : []),
+    )));
+    const drawn: Array<{ text: string; box: Px }> = [];
+    const arcs: Array<{ x: number; y: number }> = [];
+    const state: Record<string, unknown> = { font: '10px x' };
+    const ctx = new Proxy(state, {
+      get(t, k: string) {
+        if (k === 'createLinearGradient') return () => ({ addColorStop: () => {} });
+        if (k === 'measureText') return (s: string) => ({ width: s.length * 7 });
+        if (k === 'arc') return (x: number, y: number) => { arcs.push({ x, y }); };
+        if (k === 'fillText') return (text: string, x: number, y: number) => {
+          if (!labels.includes(text)) return;
+          const px = Number(/([\d.]+)px/.exec(String(t.font))?.[1]);
+          const width = text.length * 7;
+          drawn.push({ text, box: { x: x - 6, y: y - px * 0.78, w: width + 12, h: px * 1.5 } });
+        };
+        if (k in t) return t[k];
+        return () => undefined;
+      },
+      set(t, k: string, v) { t[k] = v; return true; },
+    }) as unknown as CanvasRenderingContext2D;
+    const screen = { width: 1000, height: 800, dpr: 1 };
+    new DiagramPainter().draw(ctx, frame.diagrams, screen, 0);
+    return { drawn, arcs, card: { x: 70, y: 64, w, h: h * 0.8 } };
+  };
+
+  for (const size of [{ w: 420, h: 350 }, { w: 520, h: 425 }]) {
+    const single = render(size.w, size.h, false);
+    const together = render(size.w, size.h, true);
+    assert.deepEqual(together.drawn.map((d) => d.text), ['Equilibrium 50/50', 'At boundary'], 'both labels retain their data association');
+    assert.equal(together.arcs.length, 4, 'the two in-range markers remain on the chart');
+    assert.deepEqual(together.arcs[0], together.arcs[1]);
+    assert.deepEqual(together.arcs[2], together.arcs[3]);
+    assert.notDeepEqual(together.arcs[0], together.arcs[2], 'each label still belongs to its own data point');
+    assert.deepEqual(together.arcs.slice(0, 2), single.arcs, 'adding a boundary dot leaves the equilibrium point fixed');
+    for (const { box } of together.drawn) {
+      assert.ok(box.x >= together.card.x && box.y >= together.card.y && box.x + box.w <= together.card.x + together.card.w && box.y + box.h <= together.card.y + together.card.h, `label remains inside its card: ${JSON.stringify(box)}`);
+    }
+    assert.ok(!overlap(together.drawn[0]!.box, together.drawn[1]!.box), `dot labels do not cover each other: ${JSON.stringify(together.drawn.map((d) => d.box))}`);
+    assert.deepEqual(together.drawn[0]!.box, single.drawn[0]!.box, 'an added dot does not move the existing equilibrium label');
+  }
+});
+
 // ---- Plan and frame --------------------------------------------------------------------------------
 
 test('a diagram comes in at its time, its pieces at theirs; a piece not there yet counts toward the layout at appear 0', () => {

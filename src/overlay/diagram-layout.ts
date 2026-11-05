@@ -497,6 +497,50 @@ export function chartLayout(data: ChartData, area: Px, room: { left: number; bot
   };
 }
 
+export type ChartDotLabel = { id: string; at: Pt; w: number; h: number; preferred: Px };
+export type ChartDotLabelPlacement = { id: string; at: Pt; rect: Px };
+
+/** Places measured dot labels in their chart card, preserving earlier placements as new dots arrive. */
+export function chartDotLabelPlacements(labels: readonly ChartDotLabel[], area: Px, reserved: readonly Px[] = [], markers: readonly Pt[] = labels.map((l) => l.at)): ChartDotLabelPlacement[] {
+  const gap = 6, inset = 4, placed: ChartDotLabelPlacement[] = [];
+  const overlaps = (a: Px, b: Px, extra = 0): boolean =>
+    a.x - extra < b.x + b.w && a.x + a.w + extra > b.x && a.y - extra < b.y + b.h && a.y + a.h + extra > b.y;
+  const hitsPoint = (box: Px, p: Pt): boolean => {
+    const x = Math.max(box.x, Math.min(box.x + box.w, p.x));
+    const y = Math.max(box.y, Math.min(box.y + box.h, p.y));
+    return Math.hypot(p.x - x, p.y - y) < 10;
+  };
+  for (const label of labels) {
+    const { at, w, h } = label;
+    const xs = new Set([label.preferred.x, at.x + 12, at.x - w - 12, at.x - w / 2]);
+    const ys = new Set([label.preferred.y, at.y - h - 8, at.y + 8, at.y - h / 2]);
+    const cols = Math.max(1, Math.floor((area.w - 2 * inset + gap) / (w + gap)));
+    const rows = Math.max(1, Math.floor((area.h - 2 * inset + gap) / (h + gap)));
+    const grid: Px[] = [];
+    for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) {
+      grid.push({ x: area.x + inset + col * (w + gap), y: area.y + inset + row * (h + gap), w, h });
+    }
+    const candidates: Px[] = [...grid];
+    for (const x of xs) for (const y of ys) candidates.push({ x, y, w, h });
+    const side = label.preferred.x + w / 2 < at.x ? -1 : 1;
+    const vertical = label.preferred.y + h / 2 < at.y ? -1 : 1;
+    const score = (box: Px): number => {
+      const dx = Math.max(box.x - at.x, 0, at.x - box.x - box.w);
+      const dy = Math.max(box.y - at.y, 0, at.y - box.y - box.h);
+      const boxSide = box.x + box.w / 2 < at.x ? -1 : 1;
+      const boxVertical = box.y + box.h / 2 < at.y ? -1 : 1;
+      const isPreferred = Math.abs(box.x - label.preferred.x) < 0.01 && Math.abs(box.y - label.preferred.y) < 0.01;
+      return Math.hypot(dx, dy) + (boxSide === side ? 0 : 60) + (boxVertical === vertical ? 0 : 30) + (isPreferred ? -200 : 0);
+    };
+    candidates.sort((a, b) => score(a) - score(b));
+    const inBounds = (box: Px): boolean => box.x >= area.x + inset && box.y >= area.y + inset && box.x + box.w <= area.x + area.w - inset && box.y + box.h <= area.y + area.h - inset;
+    const free = (box: Px): boolean => inBounds(box) && !reserved.some((r) => overlaps(box, r, gap / 2)) && !placed.some((p) => overlaps(box, p.rect, gap / 2)) && !markers.some((p) => hitsPoint(box, p));
+    const rect = candidates.find(free);
+    if (rect) placed.push({ id: label.id, at, rect });
+  }
+  return placed;
+}
+
 /** A smooth curve through points (Catmull-Rom), as a polyline with `per` segments between points. */
 export function smoothPoints(pts: readonly Pt[], per = 12): Pt[] {
   if (pts.length < 3) return [...pts];
