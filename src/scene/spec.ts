@@ -315,7 +315,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addConnector', op: 'add', shapes: ['connector'], creates: 'path',
-    doc: 'A physical rope, belt, wire, chain or pipe between two parts of one 3D model, with its ends on them, following them as they move (use it, not a hand-placed tube, when its ends must touch the parts; it never links panels, cards or marks, and flat diagram arrows are edge). kind straight (default) is taut and shortens as a weight rises; slack hangs in a sag; wrapped is a flat belt round two wheels. fromSide and toSide say where an end meets its object, as seen from the front (left, right, top, bottom, front, back; the rim of a wheel), else its middle; fromAnchor and toAnchor name a point of a ready-made part. radius is its thickness.',
+    doc: 'A physical rope, belt, wire, chain or pipe between two parts of one 3D model, its ends on them, following them as they move (it never links panels, cards or marks: flat diagram arrows are edge). kind straight (default) is taut and shortens as a weight rises; slack hangs in a sag; wrapped is a flat belt round two wheels. fromSide and toSide say where an end meets its object, as seen from the front (left, right, top, bottom, front, back; the rim of a wheel), else its middle; fromAnchor and toAnchor name a point of a ready-made part.',
     fields: {
       shape: { k: 'enum', values: ['connector'] }, id: { k: 'newId' }, parent: PARENT,
       from: { k: 'ref', of: 'object3d', doc: 'the object one end is on' }, to: { k: 'ref', of: 'object3d', doc: 'the object the other end is on' },
@@ -328,9 +328,9 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addStream', op: 'add', shapes: ['stream'], creates: 'solid', attach: 'along',
-    doc: 'Dots, dashes or arrows travelling along a tube, line, arrow, connector or an edge of a flow diagram, running on by themselves. period is the seconds a marker takes for the whole way (negative runs backwards, default 4); or by a spinning part, ratio laps for each turn. color changes to toColor along the way (shiftAt, 0 to 1, is where). size is for 3D (never less than a bead wider than the pipe).',
+    doc: 'Dots, dashes or arrows travelling along a tube, line, arrow, connector or an edge of a flow diagram, running on by themselves. period is the seconds a marker takes for the whole way (negative runs backwards, default 4); or by a spinning part, ratio laps for each turn. color changes to toColor along the way (shiftAt, 0 to 1, is where).',
     fields: {
-      shape: { k: 'enum', values: ['stream'] }, id: { k: 'newId' }, along: { k: 'ref', of: 'any', doc: 'the id of the tube, line, arrow, connector or flow-diagram edge they travel along' },
+      shape: { k: 'enum', values: ['stream'] }, id: { k: 'newId' }, along: { k: 'ref', of: 'any', doc: 'what they travel along' },
       mark: { k: 'enum', values: ['dot', 'dash', 'arrow'], opt: true }, count: { k: 'num', min: 1, max: LIMITS.maxMarkers, int: true, opt: true },
       size: { k: 'num', min: 0.01, max: 5, opt: true }, color: COLOR_OPT, toColor: COLOR_OPT, shiftAt: { k: 'num', min: 0, max: 1, opt: true },
       period: { k: 'num', min: -120, max: 120, opt: true }, by: { k: 'ref', of: 'object3d', opt: true, doc: 'a spinning part to run in step with' },
@@ -418,33 +418,27 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'spin', op: 'spin',
-    doc: 'Make a part turn round its own axis and keep turning, until another spin on it says otherwise. rpm is turns a minute (negative the other way; 0 stops; dur is the time to get up to speed). Or give by, another part that drives it: it then turns ratio times as far as that part (0.5 half as fast, -1 a meshed gear) and phase degrees ahead. axis is x, y or z, default z (the axis of a crankshaft, camshaft, gear and bearing; use y for a fan).',
+    doc: 'Make a part turn round its own axis and keep turning, until another spin on it says otherwise. rpm is turns a minute (negative the other way; 0 stops; dur is the time to get up to speed). Or give by, another part that drives it: it then turns ratio times as far as that part (0.5 half as fast, -1 a meshed gear) and phase degrees ahead. axis is x, y or z, default z (use y for a fan).',
     fields: {
       id: { k: 'ref', of: 'object3d' }, rpm: { k: 'num', min: -600, max: 600, opt: true },
-      by: { k: 'ref', of: 'object3d', opt: true, doc: 'the part that drives this one' },
-      ratio: { k: 'num', min: -20, max: 20, opt: true, doc: 'with by: turns per turn of that part (default 1)' },
-      phase: { k: 'num', min: -3600, max: 3600, opt: true, doc: 'with by: degrees ahead of that part' },
+      by: { k: 'ref', of: 'object3d', opt: true }, ratio: { k: 'num', min: -20, max: 20, opt: true }, phase: { k: 'num', min: -3600, max: 3600, opt: true },
       axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT, dur: DUR,
     },
   },
   {
     name: 'crank', op: 'crank',
-    doc: 'Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. This acts on parts you have already added, by their ids; it adds nothing and a new name does nothing. Name the piston with piston (the cylinder block never moves), the crankshaft with shaft and the connecting rod with rod. Put the three in one group, the crankshaft turning with spin. On a plain cylinder laid on its side as the crankshaft, the crank draws the pin and runs the rod on it in front of the disc: add no pin of your own. pin is which throw (1 is the first).',
+    doc: 'Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. piston, shaft and rod are the ids of the piston (never the cylinder block), the crankshaft and the connecting rod. Put the three in one group, the crankshaft turning with spin. On a plain cylinder laid on its side as the crankshaft, the crank draws the pin and runs the rod on it in front of the disc: add no pin of your own. pin is which throw (1 is the first).',
     fields: {
-      piston: { k: 'ref', of: 'object3d', opt: true, doc: 'the id of the piston part already added (not the cylinder block, not a group)' },
-      id: { k: 'ref', of: 'object3d', opt: true, doc: 'the same as piston; piston is clearer' },
-      shaft: { k: 'ref', of: 'object3d', doc: 'the id of the crankshaft part already added' },
-      rod: { k: 'ref', of: 'object3d', opt: true, doc: 'the id of the connecting-rod part already added, joining them' },
+      piston: { k: 'ref', of: 'object3d', opt: true }, id: { k: 'ref', of: 'object3d', opt: true, doc: 'the same as piston' },
+      shaft: { k: 'ref', of: 'object3d' }, rod: { k: 'ref', of: 'object3d', opt: true },
       pin: { k: 'num', min: 1, max: 8, int: true, opt: true }, at: AT,
     },
   },
   {
     name: 'cam', op: 'cam',
-    doc: 'A valve (or any follower) that a spinning camshaft pushes down along y: it is down by lift while the cam nose points down at it, and back up otherwise. open is how many degrees of the turn of the cam it stays open (default 110), phase the cam angle where it is most open (default 180: the nose pointing down). This acts on parts you have already added, by their ids; it adds nothing and a new name does nothing. Name the valve with valve and the camshaft with by.',
+    doc: 'A valve (or any follower) that a spinning camshaft pushes down along y: it is down by lift while the cam nose points down at it, and back up otherwise. open is how many degrees of the turn of the cam it stays open (default 110), phase the cam angle where it is most open (default 180: the nose pointing down). valve is the id of the valve, by of the camshaft.',
     fields: {
-      valve: { k: 'ref', of: 'object3d', opt: true, doc: 'the id of the valve part already added' },
-      id: { k: 'ref', of: 'object3d', opt: true, doc: 'the same as valve; valve is clearer' },
-      by: { k: 'ref', of: 'object3d', doc: 'the id of the camshaft part already added' },
+      valve: { k: 'ref', of: 'object3d', opt: true }, id: { k: 'ref', of: 'object3d', opt: true, doc: 'the same as valve' }, by: { k: 'ref', of: 'object3d' },
       lift: { k: 'num', min: 0.01, max: 50, opt: true, doc: 'how far it moves down in units (default a fifth of its length)' },
       open: { k: 'num', min: 10, max: 350, opt: true }, phase: { k: 'num', min: -3600, max: 3600, opt: true }, at: AT,
     },
@@ -460,20 +454,19 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'loop', op: 'loop',
-    doc: 'Repeat a motion on any object: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, round pivot) or pulse (swell to amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint\'s. Another loop replaces it; stop ends it.',
+    doc: 'Repeat a motion on any object: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, about the hinge pivot) or pulse (swell to amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint\'s. Another loop replaces it; stop ends it.',
     fields: {
-      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['slide', 'swing', 'pulse', 'stop'], opt: true, doc: 'left out, the kind of the joint the object has' },
+      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['slide', 'swing', 'pulse', 'stop'], opt: true },
       amount: { k: 'num', min: 0.01, max: 360, opt: true, doc: 'slide: total travel in units; swing: degrees each side; pulse: the size factor (1.3 is 30% bigger, 0.8 smaller)' },
-      axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true, doc: 'seconds for one cycle (default 2)' },
-      by: { k: 'ref', of: 'object3d', opt: true, doc: 'a spinning part to stay in step with' },
-      ratio: { k: 'num', min: -20, max: 20, opt: true, doc: 'with by: cycles per turn of that part (default 1)' },
+      axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true },
+      by: { k: 'ref', of: 'object3d', opt: true }, ratio: { k: 'num', min: -20, max: 20, opt: true, doc: 'with by: cycles per turn (default 1)' },
       phase: { k: 'num', min: -3600, max: 3600, opt: true, doc: 'degrees ahead (180 is half a cycle behind another loop at 0)' },
       pivot: { k: 'vec3', ...WORLD, opt: true, doc: 'swing: from the object to the point it turns about' }, at: AT,
     },
   },
   {
     name: 'joint', op: 'joint',
-    doc: 'Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it.',
+    doc: 'Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it.',
     fields: {
       id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['hinge', 'slide', 'fixed'] }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true },
       dir: { k: 'vec3', ...WORLD, opt: true, doc: 'slide: the direction, [x,y,z]' }, pivot: { k: 'vec3', ...WORLD, opt: true, doc: 'hinge: from the object to the point it turns about' },
@@ -485,8 +478,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'couple', op: 'couple',
     doc: 'One joint follows another: its value is ratio times that of by, plus phase. Use ratio between two of a kind (gear, belt, lever) and pitch between a hinge and a slide (units of travel for one turn: a screw, a rack, a rope on a wheel is 2 x pi x radius). stop ends it.',
     fields: {
-      id: { k: 'ref', of: 'object3d' }, by: { k: 'ref', of: 'object3d', opt: true, doc: 'the part that drives it' },
-      ratio: { k: 'num', min: -100, max: 100, opt: true, doc: 'default 1' }, pitch: { k: 'num', min: -100, max: 100, opt: true, doc: 'units of travel for one turn, between a hinge and a slide' },
+      id: { k: 'ref', of: 'object3d' }, by: { k: 'ref', of: 'object3d', opt: true }, ratio: { k: 'num', min: -100, max: 100, opt: true }, pitch: { k: 'num', min: -100, max: 100, opt: true },
       phase: { k: 'num', min: -3600, max: 3600, opt: true }, stop: { k: 'bool', opt: true }, at: AT,
     },
   },

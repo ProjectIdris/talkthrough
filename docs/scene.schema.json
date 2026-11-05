@@ -1960,7 +1960,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A physical rope, belt, wire, chain or pipe between two parts of one 3D model, with its ends on them, following them as they move (use it, not a hand-placed tube, when its ends must touch the parts; it never links panels, cards or marks, and flat diagram arrows are edge). kind straight (default) is taut and shortens as a weight rises; slack hangs in a sag; wrapped is a flat belt round two wheels. fromSide and toSide say where an end meets its object, as seen from the front (left, right, top, bottom, front, back; the rim of a wheel), else its middle; fromAnchor and toAnchor name a point of a ready-made part. radius is its thickness."
+      "description": "A physical rope, belt, wire, chain or pipe between two parts of one 3D model, its ends on them, following them as they move (it never links panels, cards or marks: flat diagram arrows are edge). kind straight (default) is taut and shortens as a weight rises; slack hangs in a sag; wrapped is a flat belt round two wheels. fromSide and toSide say where an end meets its object, as seen from the front (left, right, top, bottom, front, back; the rim of a wheel), else its middle; fromAnchor and toAnchor name a point of a ready-made part."
     },
     "addStream": {
       "type": "object",
@@ -1980,7 +1980,7 @@
         },
         "along": {
           "type": "string",
-          "description": "the id of the tube, line, arrow, connector or flow-diagram edge they travel along"
+          "description": "what they travel along"
         },
         "mark": {
           "enum": [
@@ -2079,7 +2079,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Dots, dashes or arrows travelling along a tube, line, arrow, connector or an edge of a flow diagram, running on by themselves. period is the seconds a marker takes for the whole way (negative runs backwards, default 4); or by a spinning part, ratio laps for each turn. color changes to toColor along the way (shiftAt, 0 to 1, is where). size is for 3D (never less than a bead wider than the pipe)."
+      "description": "Dots, dashes or arrows travelling along a tube, line, arrow, connector or an edge of a flow diagram, running on by themselves. period is the seconds a marker takes for the whole way (negative runs backwards, default 4); or by a spinning part, ratio laps for each turn. color changes to toColor along the way (shiftAt, 0 to 1, is where)."
     },
     "addPart": {
       "type": "object",
@@ -2890,22 +2890,21 @@
           "type": [
             "string",
             "null"
-          ],
-          "description": "the part that drives this one"
+          ]
         },
         "ratio": {
           "type": [
             "number",
             "null"
           ],
-          "description": "with by: turns per turn of that part (default 1); -20 to 20"
+          "description": "-20 to 20"
         },
         "phase": {
           "type": [
             "number",
             "null"
           ],
-          "description": "with by: degrees ahead of that part; -3600 to 3600"
+          "description": "-3600 to 3600"
         },
         "axis": {
           "enum": [
@@ -2942,7 +2941,7 @@
         "dur"
       ],
       "additionalProperties": false,
-      "description": "Make a part turn round its own axis and keep turning, until another spin on it says otherwise. rpm is turns a minute (negative the other way; 0 stops; dur is the time to get up to speed). Or give by, another part that drives it: it then turns ratio times as far as that part (0.5 half as fast, -1 a meshed gear) and phase degrees ahead. axis is x, y or z, default z (the axis of a crankshaft, camshaft, gear and bearing; use y for a fan)."
+      "description": "Make a part turn round its own axis and keep turning, until another spin on it says otherwise. rpm is turns a minute (negative the other way; 0 stops; dur is the time to get up to speed). Or give by, another part that drives it: it then turns ratio times as far as that part (0.5 half as fast, -1 a meshed gear) and phase degrees ahead. axis is x, y or z, default z (use y for a fan)."
     },
     "crank": {
       "type": "object",
@@ -2956,26 +2955,23 @@
           "type": [
             "string",
             "null"
-          ],
-          "description": "the id of the piston part already added (not the cylinder block, not a group)"
+          ]
         },
         "id": {
           "type": [
             "string",
             "null"
           ],
-          "description": "the same as piston; piston is clearer"
+          "description": "the same as piston"
         },
         "shaft": {
-          "type": "string",
-          "description": "the id of the crankshaft part already added"
+          "type": "string"
         },
         "rod": {
           "type": [
             "string",
             "null"
-          ],
-          "description": "the id of the connecting-rod part already added, joining them"
+          ]
         },
         "pin": {
           "type": [
@@ -3002,7 +2998,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. This acts on parts you have already added, by their ids; it adds nothing and a new name does nothing. Name the piston with piston (the cylinder block never moves), the crankshaft with shaft and the connecting rod with rod. Put the three in one group, the crankshaft turning with spin. On a plain cylinder laid on its side as the crankshaft, the crank draws the pin and runs the rod on it in front of the disc: add no pin of your own. pin is which throw (1 is the first)."
+      "description": "Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. piston, shaft and rod are the ids of the piston (never the cylinder block), the crankshaft and the connecting rod. Put the three in one group, the crankshaft turning with spin. On a plain cylinder laid on its side as the crankshaft, the crank draws the pin and runs the rod on it in front of the disc: add no pin of your own. pin is which throw (1 is the first)."
     },
     "cam": {
       "type": "object",
@@ -3016,19 +3012,17 @@
           "type": [
             "string",
             "null"
-          ],
-          "description": "the id of the valve part already added"
+          ]
         },
         "id": {
           "type": [
             "string",
             "null"
           ],
-          "description": "the same as valve; valve is clearer"
+          "description": "the same as valve"
         },
         "by": {
-          "type": "string",
-          "description": "the id of the camshaft part already added"
+          "type": "string"
         },
         "lift": {
           "type": [
@@ -3070,7 +3064,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A valve (or any follower) that a spinning camshaft pushes down along y: it is down by lift while the cam nose points down at it, and back up otherwise. open is how many degrees of the turn of the cam it stays open (default 110), phase the cam angle where it is most open (default 180: the nose pointing down). This acts on parts you have already added, by their ids; it adds nothing and a new name does nothing. Name the valve with valve and the camshaft with by."
+      "description": "A valve (or any follower) that a spinning camshaft pushes down along y: it is down by lift while the cam nose points down at it, and back up otherwise. open is how many degrees of the turn of the cam it stays open (default 110), phase the cam angle where it is most open (default 180: the nose pointing down). valve is the id of the valve, by of the camshaft."
     },
     "flash": {
       "type": "object",
@@ -3140,8 +3134,7 @@
             "pulse",
             "stop",
             null
-          ],
-          "description": "left out, the kind of the joint the object has"
+          ]
         },
         "amount": {
           "type": [
@@ -3163,21 +3156,20 @@
             "number",
             "null"
           ],
-          "description": "seconds for one cycle (default 2); 0.1 to 60"
+          "description": "0.1 to 60"
         },
         "by": {
           "type": [
             "string",
             "null"
-          ],
-          "description": "a spinning part to stay in step with"
+          ]
         },
         "ratio": {
           "type": [
             "number",
             "null"
           ],
-          "description": "with by: cycles per turn of that part (default 1); -20 to 20"
+          "description": "with by: cycles per turn (default 1); -20 to 20"
         },
         "phase": {
           "type": [
@@ -3218,7 +3210,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Repeat a motion on any object: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, round pivot) or pulse (swell to amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint's. Another loop replaces it; stop ends it."
+      "description": "Repeat a motion on any object: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, about the hinge pivot) or pulse (swell to amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint's. Another loop replaces it; stop ends it."
     },
     "joint": {
       "type": "object",
@@ -3308,7 +3300,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it."
+      "description": "Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it."
     },
     "couple": {
       "type": "object",
@@ -3325,22 +3317,21 @@
           "type": [
             "string",
             "null"
-          ],
-          "description": "the part that drives it"
+          ]
         },
         "ratio": {
           "type": [
             "number",
             "null"
           ],
-          "description": "default 1; -100 to 100"
+          "description": "-100 to 100"
         },
         "pitch": {
           "type": [
             "number",
             "null"
           ],
-          "description": "units of travel for one turn, between a hinge and a slide; -100 to 100"
+          "description": "-100 to 100"
         },
         "phase": {
           "type": [

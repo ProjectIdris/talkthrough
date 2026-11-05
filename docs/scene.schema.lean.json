@@ -2784,15 +2784,6 @@
             "null"
           ]
         },
-        "pivot": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
         "at": {
           "type": [
             "number",
@@ -2810,7 +2801,6 @@
         "by",
         "ratio",
         "phase",
-        "pivot",
         "at"
       ],
       "additionalProperties": false
