@@ -8,3 +8,12 @@ test('flex cycle rejects mismatched closure, excessive angles and accessor input
 test('nested array reads do not invoke a proxy get trap',()=>{
  let gets=0;const jointProxy=new Proxy(surface.joints,{get(){gets++;throw Error('unexpected property get');}});const out=parseFlexDefinition({...surface,joints:jointProxy});assert.ok(out);assert.equal(gets,0);
 });
+
+test('fast cycle accepts the exact 0.05s boundary and retains the 12s upper cap',()=>{
+ const def=parseFlexDefinition(surface)!;
+ assert.equal(parseFlexCycle({period:.049999,keys},def),undefined);
+ assert.ok(parseFlexCycle({period:.05,keys},def));
+ assert.ok(parseFlexCycle({period:.125,keys},def));
+ assert.ok(parseFlexCycle({period:12,keys},def));
+ assert.equal(parseFlexCycle({period:12.000001,keys},def),undefined);
+});

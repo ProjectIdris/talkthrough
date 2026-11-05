@@ -478,7 +478,7 @@ export const VARIANTS: readonly Variant[] = [
   {
     name: 'flexCycle', op: 'flexCycle',
     doc: 'Drive one or two compatible articulated surfaces together on one periodic clock. Keys close exactly at t=1.',
-    fields: { ids: {k:'flexIds'}, period: {k:'flexNumber'}, phase: {k:'flexNumber',opt:true}, keys: {k:'flexKeys'}, at: AT },
+    fields: { ids: {k:'flexIds'}, period: {k:'flexNumber',doc:'cycle period in seconds, 0.05 to 12'}, phase: {k:'flexNumber',opt:true}, keys: {k:'flexKeys'}, at: AT },
   },
   { name: 'flexStop', op: 'flexStop', doc: 'Stop articulated motion and restore the targets to their bind pose.', fields: {ids:{k:'flexIds'},at:AT} },
   { name: 'flexAttach', op: 'flexAttach', doc: 'Attach one existing feature to an exact point on an articulated surface.', fields: {id:{k:'flexId'},on:{k:'flexId'},u:{k:'flexNumber'},v:{k:'flexNumber'},side:{k:'enum',values:['front','back']},tangentAngle:{k:'flexNumber'},at:AT} },

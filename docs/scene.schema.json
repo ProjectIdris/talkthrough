@@ -3436,7 +3436,8 @@
           }
         },
         "period": {
-          "type": "number"
+          "type": "number",
+          "description": "cycle period in seconds, 0.05 to 12"
         },
         "phase": {
           "type": [

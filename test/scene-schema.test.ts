@@ -145,3 +145,10 @@ test('what the prompt leaves out (loop pivot) is still in the language: the vali
   assert.ok(/- joint \{[^}]*dir/.test(sceneGuide));
   assert.ok(/- joint \{[^}]*pivot/.test(sceneGuide));
 });
+
+test('full and lean schemas and guide expose the fast flex clock consistently',()=>{
+ const full=(sceneSchema as any).$defs.flexCycle.properties.period;
+ const lean=(sceneSchemaLean as any).$defs.flexCycle.properties.period;
+ assert.equal(full.type,'number');assert.match(full.description,/0\.05 to 12/);
+ assert.deepEqual(lean,{type:'number'});assert.ok(sceneGuide.includes('period in seconds from 0.05 to 12'));
+});

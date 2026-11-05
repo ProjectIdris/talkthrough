@@ -29,7 +29,7 @@ export function parseFlexDefinition(raw:unknown):FlexDefinition|undefined {
 export function parseFlexCycle(raw:unknown,def:FlexDefinition):FlexCycle|undefined {
  try {
   const period=data(raw,'period'),phase=data(raw,'phase')??0,rawKeys=array(data(raw,'keys'),3,8);
-  if(!num(period,.25,12)||!num(phase,0,1)||phase===1||!rawKeys)return;
+  if(!num(period,.05,12)||!num(phase,0,1)||phase===1||!rawKeys)return;
   const keys:FlexCycle['keys']=[];
   for(const key of rawKeys){const t=data(key,'t'),profile=data(key,'profile'),angles=array(data(key,'angles'),def.joints.length,def.joints.length);
     if(!num(t,0,1)||!num(profile,0,1)||!angles||!angles.every((a,i)=>num(a,def.joints[i]!.min,def.joints[i]!.max))||(keys.length&&t<=keys.at(-1)!.t))return;
