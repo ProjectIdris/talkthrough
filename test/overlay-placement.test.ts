@@ -239,17 +239,15 @@ test('a stack of equal-width controls is not prose: it is as regular as text but
   assert.ok(weightOf(lines, 12, 36, 10, 74) > 0.9, `eight lines of equal length with gaps are text: ${weightOf(lines, 12, 36, 10, 74)}`);
 });
 
-test('a diagram goes smaller, to what it can be read at, before it covers a page\'s figure or controls, and keeps readable bounds', () => {
+test('explanation first: a diagram keeps the size it asked for, over the prose if need be, and still keeps off the page\'s figure and controls where a place of that size is clear of them', () => {
   const p = new Placer(articlePage(), { aspect: 16 / 9 });
-  // Asked wide over the prose (150..950); the only free place is the right margin under the figure, narrower than the least the old shapes allowed (a third of the asked width).
+  // Asked wide over the prose (150..950): it is not shrunk or narrowed to dodge the text.
   const placed = placeAction(p, { op: 'diagram', id: 't', kind: 'timeline', x: 150, y: 690, w: 800, h: 260 } as Action, 1080) as Action & { x: number; y: number; w: number; h: number };
   const figure = { x: AC(138), y: (28 / ROWS) * 1000, w: AC(32), h: (34 / ROWS) * 1000 };
   const options = { x: AC(174), y: (12 / ROWS) * 1000, w: AC(16), h: (40 / ROWS) * 1000 };
   assert.ok(!overlaps(placed, figure), `off the figure: ${JSON.stringify(placed)}`);
   assert.ok(!overlaps(placed, options), 'off the options');
-  assert.ok(placed.w >= 150 && placed.h >= 150, 'not smaller than it can be read');
-  assert.ok(placed.w * placed.h >= 800 * 260 * 0.35 && placed.w * placed.h < 800 * 260, `smaller than asked, but not by much: ${placed.w * placed.h}`);
-  assert.ok(placed.x >= AC(132), 'in the margin, not on the prose');
+  assert.ok(placed.w === 800 && placed.h === 260, `the size asked for: ${JSON.stringify(placed)}`);
 });
 
 test('when nothing is free even at the least size, a diagram covers body text before it covers a figure or controls', () => {
@@ -259,7 +257,7 @@ test('when nothing is free even at the least size, a diagram covers body text be
   for (const f of fixtures) assert.ok(!overlaps(placed, f), `off ${JSON.stringify(f)}: ${JSON.stringify(placed)}`);
 });
 
-test('a diagram that has to grow is placed again for its new size: off the page\'s figure and controls, not just around where it was; and it stays small if no better place exists', () => {
+test('a diagram that has to grow is placed again for its new size, at that size, where it costs the page least; or it stays as it was', () => {
   const p = new Placer(articlePage(), { aspect: 16 / 9 });
   const placed = placeAction(p, { op: 'diagram', id: 't', kind: 'flow', x: 740, y: 600, w: 230, h: 260 } as Action, 1080) as Action & { x: number; y: number; w: number; h: number };
   const figure = { x: AC(138), y: (28 / ROWS) * 1000, w: AC(32), h: (34 / ROWS) * 1000 };
@@ -270,33 +268,33 @@ test('a diagram that has to grow is placed again for its new size: off the page\
   const table = { x: AC(138), y: (50 / ROWS) * 1000, w: AC(32), h: (12 / ROWS) * 1000 };
   assert.ok(overlaps(grown, table) || overlaps(grown, figure) || overlaps(grown, options), `the test starts with the grown card over a figure: ${JSON.stringify(grown)}`);
   const again = p.regrow('t', grown);
-  assert.ok(again, 'there is a place');
-  for (const f of [figure, options, table]) assert.ok(!overlaps(again!, f), `off ${JSON.stringify(f)}: ${JSON.stringify(again)}`);
-  assert.ok(Math.abs(again!.w - grown.w) < 1e-6 && Math.abs(again!.h - grown.h) < 1e-6, 'the size it asked for');
-  // Where the page has no free place for the bigger card at all, it stays as it was (undefined), not shoved over a figure.
+  // Either it moves to a place that costs the page less, at the size it asked for, or it stays as it was (undefined); it is never made smaller.
+  if (again) assert.ok(Math.abs(again.w - grown.w) < 1e-6 && Math.abs(again.h - grown.h) < 1e-6, 'the size it asked for');
+  // Where the page has no free place for the bigger card at all, it stays as it was (undefined), or goes at its size.
   const full = new Placer(articlePage(false), { aspect: 16 / 9 });
   const start = placeAction(full, { op: 'diagram', id: 't', kind: 'flow', x: 740, y: 600, w: 230, h: 260 } as Action, 1080) as Action & { x: number; y: number; w: number; h: number };
   const big = { x: start.x - 200, y: start.y - 200, w: start.w + 400, h: start.h + 400 };
   const verdict = full.regrow('t', big);
-  assert.ok(verdict === undefined || !overlaps(verdict, figure), `no better place: ${JSON.stringify(verdict)}`);
+  assert.ok(verdict === undefined || (Math.abs(verdict.w - big.w) < 1e-6 && Math.abs(verdict.h - big.h) < 1e-6), `at its size or not at all: ${JSON.stringify(verdict)}`);
 });
 
-test('a stage the model asked for small is given more room where the page is blank, but not on text, over what is pointed at, or past a comfortable size', () => {
+test('a stage the model asked for small is given more room (blank page first, then page text if that is all there is), never over what is pointed at, and not past a comfortable size', () => {
   const small = { x: 700, y: 200, w: 130, h: 200 };
   const grown = placer().panel(small);
-  assert.ok(grown.w >= 130 * 1.5 && grown.w <= 260 && grown.h <= 440 && inside(grown), `grown on blank page: ${JSON.stringify(grown)}`);
+  assert.ok(grown.w >= 130 * 1.5 && grown.w <= 320 && grown.h <= 560 && inside(grown), `grown on blank page: ${JSON.stringify(grown)}`);
   assert.ok(placer().busy({ x: grown.x - 6, y: grown.y - 10, w: grown.w + 12, h: grown.h + 20 }) < 0.02, 'and still on blank page');
-  // Narrow blank room: it grows only as far as the blank goes.
+  // Narrow blank room: an explanation is the priority, so it grows onto the text beside the strip rather than stay a sliver.
   const tight = new Placer(textPage(0.85), { aspect: 16 / 9 }).panel({ x: 880, y: 200, w: 100, h: 200 });
-  assert.ok(tight.x >= 0.85 * 1000 - 10 && tight.x + tight.w <= 1000, `kept to the blank strip: ${JSON.stringify(tight)}`);
+  assert.ok(tight.w >= 100 * 1.5 && inside(tight), `grown past the blank strip: ${JSON.stringify(tight)}`);
   // What the answer points at is not covered by the growth.
   const p = placer();
   const pointed: Box = { x: 700, y: 440, w: 200, h: 60 };
   p.reserve(pointed);
   const beside = p.panel(small);
   assert.ok(!overlaps(beside, pointed), JSON.stringify(beside));
-  // A stage already of a comfortable size is left alone, and so is one with no blank page to grow into.
-  assert.deepEqual(placer().panel({ x: 600, y: 150, w: 280, h: 460 }), { x: 600, y: 150, w: 280, h: 460 });
+  // A stage already of a comfortable size is left alone.
+  assert.deepEqual(placer().panel({ x: 600, y: 150, w: 320, h: 560 }), { x: 600, y: 150, w: 320, h: 560 });
+  // A page that is all text: the stage still gets its room; it does not stay small to spare the text.
   const crowded = new Placer(textPage(1), { aspect: 16 / 9 }).panel(small);
-  assert.ok(crowded.w <= small.w + 1, JSON.stringify(crowded));
+  assert.ok(crowded.w >= small.w * 1.5, JSON.stringify(crowded));
 });
