@@ -43,12 +43,13 @@ export type SceneState = {
   stage?: { w: number; h: number };
   /** Set only while an action that named an id the scene does not have is tried once more, after the rest had their chance to make it. */
   bindUnknown?: boolean;
+  bindOp?: string;
 };
 
 export type StepResult = { step: Step | null; issues: Issue[] };
 export type SceneResult = { ok: boolean; scene: Scene | null; issues: Issue[] };
 
-const MAX_ISSUES = 100;
+const MAX_ISSUES = LIMITS.maxActionsPerTurn + 100;
 const MAX_STRING_SCAN = 10_000;
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 // Control characters, zero-width and bidirectional-override characters.
@@ -80,8 +81,12 @@ export function startTurn(state: SceneState): void {
 type Notes = Issue[];
 
 function note(notes: Notes, kind: IssueKind, path: string, message: string): void {
-  if (notes.length < MAX_ISSUES) notes.push({ kind, path, message });
-  else if (notes.length === MAX_ISSUES) notes.push({ kind: 'trimmed', path: '', message: 'more issues not listed' });
+  if (notes.length < MAX_ISSUES) { notes.push({ kind, path, message }); return; }
+  if (kind === 'dropped') {
+    const replace = notes.findIndex((n) => n.kind !== 'dropped' && n.message !== 'more issues not listed');
+    if (replace >= 0) notes.splice(replace, 1, { kind, path, message });
+  }
+  if (notes.length === MAX_ISSUES) notes.push({ kind: 'trimmed', path: '', message: 'more issues not listed' });
 }
 
 function isObject(v: unknown): v is object {
@@ -182,7 +187,7 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       let kind = state.ids.get(id);
       if (!kind && state.bindUnknown && (f.of === 'object3d' || f.of === 'any')) {
         // A name the model made up for what it acts on: the part it meant, said in a note (bind.ts).
-        const found = bindUnknownId(v, state, f.of === 'any' ? [(k) => !SCREEN_KINDS.has(k), () => true] : [(k) => !SCREEN_KINDS.has(k)]);
+        const found = bindUnknownId(v, state, f.of === 'any' ? [(k) => !SCREEN_KINDS.has(k), () => true] : [(k) => !SCREEN_KINDS.has(k)], state.bindOp ?? '');
         if (found !== undefined) {
           note(notes, 'trimmed', path, `repaired: "${v}" is not in the scene; bound to "${found}"`);
           id = found;
@@ -406,7 +411,11 @@ function fitStage(raw: Record<string, unknown>, state: SceneState, path: string,
   }
   for (const [at, span] of [['x', 'w'], ['y', 'h']] as const) {
     const from = own(next, at), len = own(next, span);
-    if (typeof from === 'number' && typeof len === 'number' && from + len > 1000) next[at] = Math.max(0, 1000 - len);
+    if (typeof from === 'number' && Number.isFinite(from) && typeof len === 'number' && Number.isFinite(len) && from + len > 1000) {
+      const adjusted = Math.max(0, 1000 - len);
+      next[at] = adjusted;
+      if (adjusted !== from) note(notes, 'trimmed', `${path}.${at}`, `repaired: stage ${at} ${from} moved to ${adjusted} to fit`);
+    }
   }
   return next;
 }
@@ -691,16 +700,15 @@ export type LiveStep = {
   readonly refused: boolean;
 };
 
-/** Held actions: how many may wait for the object they name, and for how many later actions. */
-const HELD_MAX = 8;
-const HELD_FOR = 6;
+/** The per-step action cap also bounds held unresolved actions. */
+const HELD_MAX = LIMITS.maxActionsPerStep;
 
-type Held = { raw: unknown; path: string; age: number; why: Notes };
+type Held = { raw: unknown; path: string; why: Notes };
 
 /**
  * A step validated as it is written: the words first, then each action as it arrives, against the ids
  * the scene already holds. An action that names an object not seen yet (an array before the object it
- * copies, a pin before its part) is held for a few more actions, and then dropped with its reason. Actions
+ * copies, a pin before its part) is held until the step ends, then conservatively repaired or dropped with its reason. Actions
  * that arrive before the words are kept until the words come, or the step ends. The same limits apply as
  * to a whole step, so what is drawn as it streams is exactly what validateStep would have kept.
  */
@@ -730,12 +738,15 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
   function attempt(raw: unknown, at: string, bind = false): { action: Action | null; why: Notes; after: Action[] } {
     const why: Notes = [];
     state.after.length = 0;
-    state.bindUnknown = bind && !(isObject(raw) && (raw as { op?: unknown }).op === 'clear');
+    const op = isObject(raw) ? own(raw, 'op') : undefined;
+    state.bindUnknown = bind && op !== 'clear';
+    state.bindOp = typeof op === 'string' ? op : undefined;
     try {
       const a = validateAction(raw, state, at, why);
       return { action: a, why, after: a ? state.after.splice(0) : [] };
     } finally {
       state.bindUnknown = false;
+      state.bindOp = undefined;
     }
   }
 
@@ -759,16 +770,24 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
         if (r.action) {
           accept(r.action, r.why, r.after);
           progress = true;
-        } else if (!final && missing(r.why)) {
+        } else if (missing(r.why)) {
           still.push({ ...h, why: r.why });
-        } else if (final && missing(r.why) && tryBound(h.raw, h.path)) {
-          progress = true;
         } else {
           for (const n of r.why) note(notes, n.kind, n.path, n.message);
         }
       }
       held = still;
     }
+    if (!final) return;
+    // Each recovery can create an id. Give exact references another chance before any next guess.
+    while (held.length > 0) {
+      const at = held.findIndex((h) => tryBound(h.raw, h.path));
+      if (at < 0) break;
+      held.splice(at, 1);
+      retryHeld(false);
+    }
+    for (const h of held) for (const n of h.why) note(notes, n.kind, n.path, n.message);
+    held = [];
   }
 
   /** The last try for an action whose id never came: read as the part it meant. True when that gave an action. */
@@ -797,19 +816,11 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
       accept(r.action, r.why, r.after);
       retryHeld(false);
     } else if (missing(r.why) && held.length < HELD_MAX) {
-      held.push({ raw, path: at, age: 0, why: r.why });
-    } else if (missing(r.why) && tryBound(raw, at)) {
-      // the held list was full: the id is read as the part it meant at once
+      held.push({ raw, path: at, why: r.why });
     } else {
       for (const n of r.why) note(notes, n.kind, n.path, n.message);
     }
-    // A held action that has waited through enough later actions for its object is given up.
-    for (const h of held) h.age++;
-    const expired = held.filter((h) => h.age > HELD_FOR);
-    if (expired.length > 0) {
-      held = held.filter((h) => h.age <= HELD_FOR);
-      for (const h of expired) if (!tryBound(h.raw, h.path)) for (const n of h.why) note(notes, n.kind, n.path, n.message);
-    }
+
   }
 
   function open(raw: unknown): void {

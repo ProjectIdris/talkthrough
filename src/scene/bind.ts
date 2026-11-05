@@ -156,32 +156,20 @@ export function bindParts(
   return true;
 }
 
-/**
- * An id the scene does not have, read as the part the model meant. A model names a loop, a move or a style for what it acts on ("lpra" for the pulse of the
- * right atrium "ra", "move-ra", "rvcolor"): the one part whose id the name ends with or starts with (the rest at most 6 letters), or whose id is one of its
- * words ("rv-pin"). The longest such id wins; two equally good parts, or none, give nothing (the caller refuses the action with a note). `pools` are the
- * kinds of part to try in turn: a 3D part before a mark, never the other way. An id of one letter is never matched.
- */
-export function bindUnknownId(said: string, state: SceneState, pools: ReadonlyArray<(kind: ObjectKind) => boolean>): string | undefined {
+/** Recover only an explicit action designator attached to a whole existing id. */
+export function bindUnknownId(said: string, state: SceneState, pools: ReadonlyArray<(kind: ObjectKind) => boolean>, op: string): string | undefined {
   const lower = said.toLowerCase();
-  const wordsOf = lower.split(/[^a-z0-9]+/).filter((w) => w !== '');
+  const names: Record<string, string[]> = { loop: ['lp', 'loop', 'pulse'], move: ['move'], style: ['style', 'color'], pin: ['pin'], highlight: ['highlight'], turn: ['turn'] };
+  const designators = names[op] ?? [];
+  const candidates = new Set<string>();
   for (const fits of pools) {
-    const ids = [...state.ids].filter(([id, kind]) => id.length >= 2 && id.toLowerCase() !== lower && fits(kind)).map(([id]) => id);
-    if (wordsOf.length > 1) {
-      const named = ids.filter((id) => wordsOf.includes(id.toLowerCase()));
-      if (named.length === 1) return named[0];
-      if (named.length > 1) return undefined;
+    for (const [id, kind] of state.ids) {
+      if (id.length < 2 || !fits(kind)) continue;
+      const part = id.toLowerCase();
+      if (designators.some((d) => [d + part, d + '-' + part, d + '_' + part, part + d, part + '-' + d, part + '_' + d].includes(lower))) candidates.add(id);
     }
-    const near = ids.filter((id) => {
-      const l = id.toLowerCase();
-      return (lower.endsWith(l) || lower.startsWith(l)) && lower.length - l.length <= 6;
-    });
-    if (near.length === 0) continue;
-    const longest = Math.max(...near.map((id) => id.length));
-    const best = near.filter((id) => id.length === longest);
-    return best.length === 1 ? best[0] : undefined;
   }
-  return undefined;
+  return candidates.size === 1 ? [...candidates][0] : undefined;
 }
 
 const article = (what: string): string => `${/^[aeiou]/.test(what) ? 'an' : 'a'} ${what} part`;

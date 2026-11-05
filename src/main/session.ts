@@ -1076,8 +1076,11 @@ const NO_BACKEND_MESSAGE = 'No backend is set up. Add its address to the setting
 export function validatorNotes(issues: readonly Issue[], stepNumber: number): string {
   // What was dropped comes first: an action that vanished must always have its reason in the log.
   const ordered = [...issues.filter((i) => i.kind === 'dropped'), ...issues.filter((i) => i.kind !== 'dropped')];
-  const first = ordered.slice(0, 3).map((i) => `${i.path} ${i.message}`.slice(0, 160)).join('; ');
-  return `validator: ${issues.length} notes on step ${stepNumber}: ${first}${issues.length > 3 ? '; ...' : ''}`;
+  const dropped = ordered.filter((i) => i.kind === 'dropped');
+  const other = ordered.filter((i) => i.kind !== 'dropped');
+  const shown = [...dropped, ...other.slice(0, 3)];
+  const first = shown.map((i) => `${i.path} ${i.message}`.slice(0, 160)).join('; ');
+  return `validator: ${issues.length} notes on step ${stepNumber}: ${first}${other.length > 3 ? '; ...' : ''}`;
 }
 
 function backendMessage(code: string): string {

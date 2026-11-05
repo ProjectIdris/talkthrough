@@ -102,3 +102,29 @@ test('the log line names every dropped action first, so nothing is lost without 
   ];
   assert.match(validatorNotes(issues, 1), /^validator: 5 notes on step 1: steps\[0\]\.actions\[4\] id: unknown id "zzzz"/);
 });
+
+test('unrelated prefix does not bind a missing object', () => {
+  const r = one(blob('arm'), loop('armor'));
+  assert.equal(r.ofOp('loop').length, 0);
+  assert.ok(r.issues.some(i => i.kind === 'dropped' && i.message.includes('armor')));
+});
+
+test('exact id made later than the old hold window wins over a guess', () => {
+  const r = one(blob('ra'), loop('lpra'), ...Array.from({length: 7}, (_, i) => blob(`z${i}`)), blob('lpra'));
+  assert.equal(r.ofOp('loop')[0]?.id, 'lpra');
+});
+
+test('all dropped action reasons are retained and logged even after many repairs', () => {
+  const extras = Object.fromEntries(Array.from({length: 20}, (_, i) => [`extra${i}`, i]));
+  const actions: Raw[] = Array.from({length: 20}, () => ({op:'panel', x:900, y:900, w:0, h:0, ...extras}));
+  actions.push(...Array.from({length: 4}, (_, i) => loop(`missing${i}`)));
+  const r = one(...actions);
+  const log = validatorNotes(r.issues, 1);
+  for (let i = 0; i < 4; i++) assert.match(log, new RegExp(`missing${i}`));
+});
+
+test('repaired panel reports each changed coordinate', () => {
+  const r = one({op:'panel',x:900,y:900,w:0,h:0});
+  assert.ok(r.issues.some(i => i.path.endsWith('.x') && i.message.includes('900') && i.message.includes('670')));
+  assert.ok(r.issues.some(i => i.path.endsWith('.y') && i.message.includes('900') && i.message.includes('580')));
+});
