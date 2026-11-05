@@ -20,10 +20,10 @@ test('main model-hit path intersects the moving skin instead of its bind pose',a
  assert.equal(hitVisibleModel([mesh],p.camera,1000,1000,(pixel.x+1)*500,(1-pixel.y)*500),true);
 });
 
-test('parent clipping suppresses attached skin and restoring it does not retarget',()=>{
+test('global cut preserves attached skin and restoring it does not retarget',()=>{
  const r=validateScene({steps:[{say:'x',actions:[{op:'add',shape:'box',id:'mount',size:[1,1.2,1],bevel:0},{op:'add',shape:'flexSurface',id:'reed',parent:'mount',root:{parentPoint:[.45,0,0],normal:[1,0,0],maxGap:.1},joints:[{id:'a',u:0,offset:[0,0,0],axis:[0,0,1],min:-30,max:30},{id:'b',u:1,offset:[0,0,0],axis:[0,0,1],min:-20,max:20}],sections:[{u:0,center:[.45,0,0],chord:[0,0,1],halfWidth:.2,camber:0,profileDelta:0},{u:.5,center:[1.45,0,0],chord:[0,0,1],halfWidth:.5,camber:0,profileDelta:.05},{u:1,center:[2.45,0,0],chord:[0,0,1],halfWidth:.2,camber:0,profileDelta:0}]}]}]});
  const p=new PanelScene(),f=evaluate(planStep(emptyFrame(),r.scene!.steps[0]!),1),key=f.objects.find(o=>o.id==='reed')!.key;p.sync(f,1);const node=p.nodeOf(key)!;assert.equal(node.visible,true);
- p.sync({...f,userCut:.5},1);assert.equal(node.visible,false);p.sync(f,1);assert.equal(p.nodeOf(key),node);assert.equal(node.visible,true);
+ p.sync({...f,userCut:.5},1);assert.equal(node.visible,true);p.sync(f,1);assert.equal(p.nodeOf(key),node);assert.equal(node.visible,true);
 });
 
 test('model-hit uses cached posed vertices instead of reskinning triangles',async()=>{

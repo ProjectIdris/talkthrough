@@ -74,7 +74,15 @@ export class Cutaway {
       front += 0.01;
       const middle = u.dot(this.box.getCenter(new Vector3()));
       this.userPlane.set(u.clone().negate(), front - (front - middle) * Math.min(1, user));
-      for (const o of frame.objects) if (o.parentKey === null) give(o.key, this.userPlane);
+      // Flexible surfaces cannot be cut by this control. Their surface-bound
+      // features must remain whole too, including descendants of an attached group.
+      const whole = new Set(frame.objects.filter(o => o.shape === 'flexSurface' || o.flexAttachment).map(o => o.key));
+      const giveUser = (key: number): void => {
+        if (whole.has(key)) return;
+        planesFor.set(key, [...(planesFor.get(key) ?? []), this.userPlane]);
+        for (const child of children.get(key) ?? []) giveUser(child);
+      };
+      for (const o of frame.objects) if (o.parentKey === null) giveUser(o.key);
     }
     const live = new Set<number>();
     for (const o of frame.objects) {

@@ -514,7 +514,7 @@ export class PanelScene {
       const uniform=parentObject ? rigidUniform(parentObject.matrixWorld) : false;
       let positive=true;for(let n:Object3D|null=parentObject??null;n;n=n.parent)if(n.scale.x<=0||n.scale.y<=0||n.scale.z<=0){positive=false;break;}
       let cut=false;for(let current=parent,depth=0;current && depth<6;depth++){if(current.cut){cut=true;break;}current=current.parentKey===null?undefined:frame.objects.find(x=>x.key===current!.parentKey);}
-      if (!parent || !parentObject || cut || (frame.userCut??0)>0 || parent.opacity<1 || !uniform || !positive || Math.min(scale.x,scale.y,scale.z)<=0 || parentObject.matrixWorld.determinant()<=0) {
+      if (!parent || !parentObject || cut || parent.opacity<1 || !uniform || !positive || Math.min(scale.x,scale.y,scale.z)<=0 || parentObject.matrixWorld.determinant()<=0) {
         node.obj.visible=false;
         if(!this.flexWarnings.has(o.key)&&this.flexWarnings.size<128){this.flexWarnings.add(o.key);console.warn(`talkthrough: articulated surface ${o.key} suppressed by unsupported parent state`);}
       } else this.flexWarnings.delete(o.key);

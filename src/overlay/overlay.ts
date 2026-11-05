@@ -807,12 +807,14 @@ function placeExplode(frame: Frame): void {
   cutEl.style.display = 'flex';
   const label = player.exploded ? 'Assemble' : 'Explode';
   if (labelOf(explodeEl).textContent !== label) labelOf(explodeEl).textContent = label;
+  const hasFlex = frame.objects.some((object) => object.shape === 'flexSurface');
+  const cutLabel = player.cut ? 'Whole' : hasFlex ? 'Cut rigid parts' : 'Cut';
+  cutEl.title = hasFlex ? 'Cut rigid parts; flexible parts stay whole' : 'Cut the model open to see inside';
+  if (labelOf(cutEl).textContent !== cutLabel) labelOf(cutEl).textContent = cutLabel;
   const rects = modelButtonRects(modelRect, view, buttonSizes());
   explodeEl.style.left = `${rects.explode.x}px`;
   explodeEl.style.top = `${rects.explode.y}px`;
   // Cut touches Explode on its right, and More detail touches Cut: one capsule.
-  const cutLabel = player.cut ? 'Whole' : 'Cut';
-  if (labelOf(cutEl).textContent !== cutLabel) labelOf(cutEl).textContent = cutLabel;
   cutEl.style.left = `${rects.cut.x}px`;
   cutEl.style.top = `${rects.cut.y}px`;
   // "More detail" is the last segment, once per answer, and only where a detail model is set up.
