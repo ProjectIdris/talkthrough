@@ -17,10 +17,11 @@ import { ACTION_LABELS, HudState, STATUS_LABELS } from './hud.ts';
 import type { NoticeAction } from './hud.ts';
 import { answerBox } from './answer-box.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
+import type { Env as LabelEnv } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
 import { PageMemory } from './page-memory.ts';
 import { THEME, fontAt } from './theme.ts';
-import { Placer, cardFootprint, followDiagram, markFootprint, ownedByDiagram, ownedMarkIds, pageGrid, foreseePoints, placeAction, reserveMarks, settleMark, splitOwned } from './placement.ts';
+import { Placer, cardFootprint, displayBoxesFromPixels, followDiagram, markFootprint, ownedByDiagram, ownedMarkIds, pageGrid, foreseePoints, placeAction, reserveMarks, settleMark, splitOwned } from './placement.ts';
 import { snapToControl } from '../shared/controls.ts';
 import type { ControlBox } from '../shared/controls.ts';
 import { snapActions } from './snap.ts';
@@ -334,15 +335,12 @@ function draw(frame: Frame): Frame {
     }
     for (const d of frame.diagrams) if (d.appear > 0 && d.fade > 0) surfaces.push({ id: d.id, key: d.key, box: { x: d.def.x, y: d.def.y, w: d.def.w, h: d.def.h } });
     p.syncVisible(surfaces);
-    if (modelRect) {
-      const units = (r: {x: number; y: number; w: number; h: number}) => ({ x: r.x / view.width * 1000, y: r.y / view.height * 1000, w: r.w / view.width * 1000, h: r.h / view.height * 1000 });
-      const visibleButtons = [explodeEl, cutEl, detailEl].flatMap((el) => {
-        if (el.style.display === 'none' || el.style.display === '') return [];
-        const r = el.getBoundingClientRect();
-        return r.width > 0 && r.height > 0 ? [units({x:r.left, y:r.top, w:r.width, h:r.height})] : [];
-      });
-      p.syncRenderedStage(units(modelRect), visibleButtons);
-    } else if (!frame.panel) p.setStage(undefined);
+    const units = (r: {x: number; y: number; w: number; h: number}) => ({ x: r.x / view.width * 1000, y: r.y / view.height * 1000, w: r.w / view.width * 1000, h: r.h / view.height * 1000 });
+    const visibleButtons = [explodeEl, cutEl, detailEl].flatMap((el) => {
+      const r = elementRect(el);
+      return r ? [units(r)] : [];
+    });
+    p.syncRenderedStage(modelRect ? units(modelRect) : undefined, visibleButtons);
     for (const surface of surfaces) { const current = p.surface(surface.id); if (current) p.syncHomeDisplay(surface.id, surface.box, current); }
     frame = { ...frame,
       marks: frame.marks.map((m) => {
@@ -381,7 +379,6 @@ function draw(frame: Frame): Frame {
   diagramsMoving = frame.diagrams.length > 0 && diagramPainter.draw(marksCtx, frame.diagrams, view, labelClock());
   if (over.length > 0) drawMarks(marksCtx, over, view, annotator, { reduceMotion: reduceMotion.matches, append: true });
   drawPen(marksCtx, pen.view(labelClock(), { reduceMotion: reduceMotion.matches }), view);
-  syncUndo();
   if (pointerX >= 0) hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY))); // a button can fade under a resting pointer
   hold.model(modelHitRect);
 
@@ -484,7 +481,7 @@ function placer(): Placer | undefined {
     }
     return next;
   });
-  p.setControls(realControls);
+  p.setControls([...realControls, ...displayBoxesFromPixels(overlayControlRects(), view.width, view.height)]);
   previousPlacer = p;
   return p;
 }
@@ -520,7 +517,7 @@ function snappedActions(actions: readonly Action[]): Action[] {
   });
 }
 
-function labelEnvironment(): { occ: Occupancy; busy?: Busy } {
+function labelEnvironment(): LabelEnv {
   const occ = new Occupancy(view.width, view.height);
   for (const hull of panelScene.silhouette(view.width, view.height)) occ.fillConvex(hull);
   // The buttons beside the model are not for a tag to sit on.
@@ -531,7 +528,9 @@ function labelEnvironment(): { occ: Occupancy; busy?: Busy } {
     occ.fillConvex([{ x: x - 4, y: y - 4 }, { x: x + w + 4, y: y - 4 }, { x: x + w + 4, y: y + h + 4 }, { x: x - 4, y: y + h + 4 }]);
   }
   const busy = busyMap();
-  const keepOut = buttonKeepOut();
+  // Predicted model buttons keep new labels clear before they appear; measured overlay control regions
+  // also move retained labels when a button arrives or changes position.
+  const keepOut = [...buttonKeepOut(), ...overlayControlRects()];
   return { occ, ...(busy ? { busy } : {}), ...(keepOut.length > 0 ? { keepOut } : {}) };
 }
 
@@ -624,16 +623,7 @@ function publishRenderedRegions(frame: Frame): void {
   regions.push(...pinGeometry);
   for (const [i, rect] of board.shownRects().entries()) addRect(`pin-label:${i}`, 'content', rect);
 
-  for (const [id, el] of buttonEls) {
-    const rect = elementRect(el);
-    if (!rect) continue;
-    const capture = id === 'ask-more' || id === 'send-followup' || id === 'cancel-followup' || id === 'undo';
-    addRect(`button:${id}`, capture ? 'capture-control' : 'pill', rect, Number.parseFloat(el.style.opacity || '1'));
-  }
-  for (const [id, el] of [['status', statusEl], ['offer-pill', offerEl], ['notice-pill', noticeEl], ['answer-card', answerEl], ['caption', captionEl]] as const) {
-    const rect = elementRect(el);
-    if (rect) addRect(id, id === 'status' || id.includes('pill') ? 'pill' : 'content', rect, Number.parseFloat(el.style.opacity || '1'));
-  }
+  for (const region of overlayUiRegions()) addRect(region.id, region.kind, region.rect, region.alpha);
   if (guideTargetLive && guideTarget) unitRect('guide-target', 'guide-target', guideTarget);
 
   const signature = JSON.stringify({ width: view.width, height: view.height, regions });
@@ -834,6 +824,38 @@ function placeExplode(frame: Frame): void {
 
 /** The buttons the page shows, by the name main knows them by. */
 const buttonEls: Array<[string, HTMLElement]> = [['offer', offerButton], ['ask-more', askMoreEl], ['send-followup', sendFollowupEl], ['cancel-followup', cancelFollowupEl], ['undo', undoEl], ['explode', explodeEl], ['cut', cutEl], ['detail', detailEl], ['fix', noticeAction], ['copy', answerCopy], ['pin', answerPin], ['close', answerClose]];
+type OverlayUiRegion = { id: string; kind: VisibleRegion['kind']; rect: ScreenRect; alpha: number };
+
+/** One measured source for the visible overlay controls: placement obstacles and published hit regions share these rectangles. */
+function overlayUiRegions(): OverlayUiRegion[] {
+  const regions: OverlayUiRegion[] = [];
+  for (const [id, el] of buttonEls) {
+    const rect = elementRect(el);
+    const alpha = Number.parseFloat(el.style.opacity || '1');
+    if (!rect || alpha <= 0.02) continue;
+    const capture = id === 'ask-more' || id === 'send-followup' || id === 'cancel-followup' || id === 'undo';
+    regions.push({ id: `button:${id}`, kind: capture ? 'capture-control' : 'pill', rect, alpha });
+  }
+  for (const [id, el] of [['status', statusEl], ['offer-pill', offerEl], ['notice-pill', noticeEl], ['answer-card', answerEl], ['caption', captionEl]] as const) {
+    const rect = elementRect(el);
+    const alpha = Number.parseFloat(el.style.opacity || '1');
+    if (!rect || alpha <= 0.02) continue;
+    regions.push({ id, kind: id === 'status' || id.includes('pill') ? 'pill' : 'content', rect, alpha });
+  }
+  return regions;
+}
+
+/** Visible control and pill bounds in CSS pixels; contained child buttons use their enclosing pill's geometry. */
+function overlayControlRects(): ScreenRect[] {
+  const rects = overlayUiRegions().filter((r) => r.kind === 'pill' || r.kind === 'capture-control').map((r) => r.rect);
+  return rects.filter((rect, i) => !rects.some((other, j) => {
+    if (i === j) return false;
+    const contains = other.x <= rect.x && other.y <= rect.y && other.x + other.w >= rect.x + rect.w && other.y + other.h >= rect.y + rect.h;
+    const larger = other.w * other.h > rect.w * rect.h + 1e-6;
+    return contains && larger;
+  }));
+}
+
 let lastButtons = '';
 /**
  * Tells main where the buttons are, when that changes. The window is click-through and learns the pointer is over a button only
@@ -886,13 +908,14 @@ function loop(): void {
     frame = player.update();
   }
   if (k < 1) frame = fadeFrame(frame, k);
+  showHud();
+  showAnswer();
+  showFollowupControls(frame, k);
+  syncUndo();
   reportShowing(frame, k);
   frame = draw(frame);
-  showAnswer();
   showCaption(frame);
   if (pen.active) sendPen();
-  showHud();
-  showFollowupControls(frame, k);
   publishRenderedRegions(frame);
   reportButtons();
   const fading = fader.armed && k < 1 && k > 0;

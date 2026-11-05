@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Placer, followDiagram, bodyTextOf, cardHeightUnits, markFootprint, pageGrid, placeAction, reserveMarks } from '../src/overlay/placement.ts';
+import { Placer, displayBoxesFromPixels, followDiagram, bodyTextOf, cardHeightUnits, markFootprint, pageGrid, placeAction, reserveMarks } from '../src/overlay/placement.ts';
 import type { Box } from '../src/overlay/placement.ts';
 import type { Action } from '../src/scene/index.ts';
 
@@ -19,6 +19,22 @@ function textPage(textEnd = 0.55) {
 const placer = (grid = textPage()) => new Placer(grid, { aspect: 16 / 9 });
 const overlaps = (a: Box, b: Box) => Math.min(a.x + a.w, b.x + b.w) > Math.max(a.x, b.x) && Math.min(a.y + a.h, b.y + b.h) > Math.max(a.y, b.y);
 const inside = (b: Box) => b.x >= 0 && b.y >= 0 && b.x + b.w <= 1000 && b.y + b.h <= 1000;
+
+test('measured visible rectangles are clipped to the viewport and converted to scene display units', () => {
+  const boxes = displayBoxesFromPixels([
+    { x: 22, y: 480, w: 86, h: 32 },
+    { x: -5, y: 20, w: 10, h: 10 },
+    { x: 1280, y: 10, w: 10, h: 10 },
+    { x: 5, y: 5, w: 0, h: 10 },
+  ], 1280, 536);
+  assert.equal(boxes.length, 2);
+  assert.ok(Math.abs(boxes[0]!.x - 22 * 1000 / 1280) < 1e-9);
+  assert.ok(Math.abs(boxes[0]!.y - 480 * 1000 / 536) < 1e-9);
+  assert.ok(Math.abs(boxes[0]!.w - 86 * 1000 / 1280) < 1e-9);
+  assert.ok(Math.abs(boxes[0]!.h - 32 * 1000 / 536) < 1e-9);
+  assert.deepEqual(boxes[1], { x: 0, y: 20 * 1000 / 536, w: 5 * 1000 / 1280, h: 10 * 1000 / 536 });
+  assert.deepEqual(displayBoxesFromPixels([{ x: 0, y: 0, w: 20, h: 20 }], 0, 536), []);
+});
 
 test('a stage written over the text moves to the blank part of the page, and one already on blank page stays', () => {
   const p = placer();
@@ -401,6 +417,26 @@ test('near viewport sized stage avoids a control when a clear position exists', 
   const stage=placeAction(p,{op:'panel',x:0,y:30,w:990,h:100},800) as Extract<Action,{op:'panel'}>;
   assert.ok(inside(stage) && !overlaps(stage,control),JSON.stringify(stage));
   assert.equal(warnings,0);
+});
+
+test('a newly visible measured control moves an overlapping diagram once, then hide keeps its clear position', () => {
+  const p = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(255), COLS, ROWS), { aspect: 1 });
+  const diagram: Box = { x: 20, y: 850, w: 250, h: 120 };
+  const control: Box = { x: 22, y: 920, w: 86, h: 32 };
+  p.syncVisible([{ id: 'flow', box: diagram }]);
+  p.publishSurface('flow', diagram);
+  p.setControls([control]);
+
+  const moved = p.syncRenderedStage(undefined).get('flow');
+  assert.ok(moved, 'the visible control collision triggers a relocation');
+  assert.ok(!overlaps(moved, control), `clear of measured control: ${JSON.stringify(moved)}`);
+  const settled = p.surface('flow');
+  assert.deepEqual(p.syncRenderedStage(undefined).get('flow'), undefined, 'the same visible region does not cause repeated drift');
+  p.publishSurface('flow', settled!);
+
+  p.setControls([]);
+  assert.deepEqual(p.syncRenderedStage(undefined).get('flow'), undefined, 'hiding the control does not reset a settled diagram');
+  assert.deepEqual(p.surface('flow'), settled);
 });
 
 test('image caption is complete and within a feasible viewport', async () => {

@@ -11,6 +11,20 @@ import type { Pt } from './shapes.ts';
 
 export type Box = { x: number; y: number; w: number; h: number };
 
+/** Visible overlay rectangles in CSS pixels, expressed in the scene's 0..1000 display units. */
+export function displayBoxesFromPixels(rects: readonly Box[], width: number, height: number): Box[] {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return [];
+  const out: Box[] = [];
+  for (const r of rects) {
+    if (![r.x, r.y, r.w, r.h].every(Number.isFinite) || r.w <= 0 || r.h <= 0) continue;
+    const x0 = Math.max(0, r.x), y0 = Math.max(0, r.y);
+    const x1 = Math.min(width, r.x + r.w), y1 = Math.min(height, r.y + r.h);
+    if (x1 <= x0 || y1 <= y0) continue;
+    out.push({ x: x0 * 1000 / width, y: y0 * 1000 / height, w: (x1 - x0) * 1000 / width, h: (y1 - y0) * 1000 / height });
+  }
+  return out;
+}
+
 /** A small picture of the page: gray levels and, from them, where the edges are (text is full of edges). */
 export type PageGrid = { cols: number; rows: number; gray: ArrayLike<number>; edge: Float32Array };
 
@@ -327,18 +341,18 @@ export class Placer {
   surface(id: string): Box | undefined { return this.cards.get(id); }
   publishSurface(id: string, box: Box): void { this.actual.set(id, box); }
 
-  /** The rendered stage can grow after placement; move colliding cards against its actual footprint. */
-  syncRenderedStage(stage: Box, controls: readonly Box[] = []): Map<string, Box> {
+  /** Reflow rendered surfaces that collide with the current stage, stage buttons, or visible controls. */
+  syncRenderedStage(stage: Box | undefined, controls: readonly Box[] = []): Map<string, Box> {
     this.stage = stage;
     this.stageControls = controls;
-    const obstacles = [stage, ...controls];
+    const obstacles = [...(stage ? [stage] : []), ...controls, ...this.controls];
     const moved = new Map<string, Box>();
     for (const [id, box] of this.cards) {
       const shown = this.actual.get(id) ?? box;
       if (!obstacles.some((r) => overlap(shown, r) > 0)) continue;
       const target = this.desired.get(id);
       if (target && !obstacles.some((r) => overlap({ ...target, w: shown.w, h: shown.h }, r) > 0)) continue;
-      const keep = [...this.reserved, ...this.controls, ...[...this.cards].filter(([key]) => key !== id).map(([key, b]) => this.actual.get(key) ?? b), ...obstacles];
+      const keep = [...this.reserved, ...[...this.cards].filter(([key]) => key !== id).map(([key, b]) => this.actual.get(key) ?? b), ...obstacles];
       const next = this.search(shown, [1], keep, [1], 0, true);
       const shifted = { ...box, x: box.x + next.x - shown.x, y: box.y + next.y - shown.y };
       this.cards.set(id, shifted);

@@ -236,7 +236,30 @@ test('a tag keeps off the app\'s own buttons: where a button will be, no tag is 
   assert.ok(all.rect.w > 0 && all.alpha > 0);
 });
 
-// The model's card (the frame drawn round it) is no place for a tag to straddle: a tag is wholly inside it, or the card is too small and the tag goes where it can.
+test('a moving visible overlay control repositions a retained pin label without dropping it', () => {
+  const b = new LabelBoard();
+  const overlapsMeasured = (a: Rect, c: Rect, pad = 0) => a.x < c.x + c.w + pad && c.x < a.x + a.w + pad && a.y < c.y + c.h + pad && c.y < a.y + a.h + pad;
+  const anchor = { x: 1000, y: 360 };
+  const request = { anchor, ...SIZE };
+  let now = 0;
+  const frame = () => b.beginFrame({ width: W, height: H, model: MODEL, dragging: false, now: (now += 16) });
+  frame();
+  const before = b.place(1, request, () => env()).rect;
+  const measuredControl: Rect = { ...before };
+  assert.ok(overlapsMeasured(before, measuredControl), 'the measured control starts over the retained label');
+
+  let visible = b.place(1, request, () => ({ ...env(), keepOut: [measuredControl] }));
+  assert.ok(visible.rect.w > 0 && visible.alpha > 0, 'the pin label remains visible while its destination changes');
+  assert.ok(!overlapsMeasured(visible.rect, measuredControl, 4) || b.moving, 'the retained label begins reflowing away from the new control');
+  for (let i = 0; i < 180; i++) {
+    frame();
+    visible = b.place(1, request, () => ({ ...env(), keepOut: [measuredControl] }));
+  }
+  assert.ok(!overlapsMeasured(visible.rect, measuredControl, 4), `the settled label is clear of the control: ${JSON.stringify(visible.rect)}`);
+  assert.ok(visible.alpha > 0);
+});
+
+// The model's card (the frame drawn round it) is no place for a tag to straddle: a tag is wholly inside it, or the card was too small and the tag goes where it can.
 const CARD: Rect = { x: 700, y: 300, w: 700, h: 260 };
 const inCard = (r: Rect, c: Rect = CARD) => r.x >= c.x && r.y >= c.y && r.x + r.w <= c.x + c.w && r.y + r.h <= c.y + c.h;
 const cardEnv = () => {
