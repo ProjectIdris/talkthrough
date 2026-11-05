@@ -722,6 +722,8 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
   const kept: Action[] = [];
   const early: unknown[] = [];
   let held: Held[] = [];
+  // Names declared in this bounded step remain reserved even if their creator fails.
+  const declared = new Set<string>();
   let said = false;
   let spoken = '';
   let seen = 0;
@@ -793,7 +795,7 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
       });
       const waitsForCreator = (h: Held): boolean => {
         const missingIds = h.why.filter((n) => n.kind === 'dropped').map((n) => /unknown id "([^"]+)"/.exec(n.message)?.[1]);
-        return creators.some((c) => c !== h && isObject(c.raw) && missingIds.includes(own(c.raw, 'id') as string));
+        return missingIds.some((id) => id !== undefined && declared.has(id) && !state.ids.has(id));
       };
       const recover = (h: Held): boolean => !waitsForCreator(h) && tryBound(h.raw, h.path);
       const candidate = creators.find(recover) ?? held.filter((h) => !creators.includes(h)).find(recover);
@@ -822,6 +824,10 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
       return;
     }
     const at = `${path}.actions[${i}]`;
+    if (isObject(raw)) {
+      const op = own(raw, 'op'), id = own(raw, 'id');
+      if (typeof op === 'string' && typeof id === 'string' && VARIANTS.some((v) => v.op === op && !!v.creates)) declared.add(id);
+    }
     if (state.turnActions >= LIMITS.maxActionsPerTurn) {
       note(notes, 'dropped', at, `more than ${LIMITS.maxActionsPerTurn} actions in one turn`);
       return;

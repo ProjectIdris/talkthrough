@@ -149,3 +149,9 @@ test('a recoverable later creator is resolved before a consumer is guessed', () 
   assert.equal(r.ofOp('pin')[0]?.id, 'style-ra');
   assert.equal(r.ofOp('style')[0]?.id, 'style-ra');
 });
+
+test('a failed declared creator prevents guessing its exact id onto an existing part', () => {
+  const r = one(blob('ra'), {op:'style',id:'style-ra',color:'red'}, {op:'pin',id:'style-ra',on:'ra',text:''});
+  assert.equal(r.ofOp('style').length, 0);
+  assert.ok(r.issues.some(i => i.kind === 'dropped' && i.message.includes('style-ra')));
+});
