@@ -19,6 +19,7 @@ import { answerBox } from './answer-box.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
 import { PageMemory } from './page-memory.ts';
+import { THEME, fontAt } from './theme.ts';
 import { Placer, cardFootprint, followDiagram, markFootprint, ownedByDiagram, ownedMarkIds, pageGrid, foreseePoints, placeAction, reserveMarks, settleMark, splitOwned } from './placement.ts';
 import { snapToControl } from '../shared/controls.ts';
 import type { ControlBox } from '../shared/controls.ts';
@@ -231,8 +232,9 @@ const stageGrowth = new StageGrowth();
 
 /** The stage's size in pixels this frame: tags are drawn smaller beside a small stage. */
 let stageSize: { w: number; h: number } | undefined;
+let lastDisplayedFrame: Frame | undefined;
 
-function draw(frame: Frame): void {
+function draw(frame: Frame): Frame {
   renderer.setScissorTest(false);
   renderer.clear();
   const rect = panelRect(frame.panel, view);
@@ -290,6 +292,43 @@ function draw(frame: Frame): void {
     panelScene.sync(frame, 1);
   }
   placeExplode(frame);
+  // Rehydrate from the current visible frame, then use the real grown-stage and button
+  // rectangles rather than the panel requested earlier. Frame keys distinguish replacement.
+  const p = placer();
+  if (p) {
+    const aspect = view.width / view.height;
+    const source = cropSource();
+    const sourceAspect = source ? source.width / source.height : aspect;
+    const surfaces: Array<{ id: string; key: number; box: { x: number; y: number; w: number; h: number } }> = [];
+    for (const m of frame.marks) if (m.appear > 0 && m.fade > 0 && (m.mark.op === 'card' || m.mark.op === 'image')) {
+      const box = cardFootprint(m.mark, view.height, aspect, sourceAspect, p.captionMeasure())[0];
+      if (box) surfaces.push({ id: m.id, key: m.key, box });
+    }
+    for (const d of frame.diagrams) if (d.appear > 0 && d.fade > 0) surfaces.push({ id: d.id, key: d.key, box: { x: d.def.x, y: d.def.y, w: d.def.w, h: d.def.h } });
+    p.syncVisible(surfaces);
+    if (modelRect) {
+      const rects = [modelRect, ...buttonKeepOut()];
+      const x = Math.min(...rects.map((r) => r.x)), y = Math.min(...rects.map((r) => r.y));
+      const right = Math.max(...rects.map((r) => r.x + r.w)), bottom = Math.max(...rects.map((r) => r.y + r.h));
+      p.syncRenderedStage({ x: x / view.width * 1000, y: y / view.height * 1000, w: (right - x) / view.width * 1000, h: (bottom - y) / view.height * 1000 });
+    } else if (!frame.panel) p.setStage(undefined);
+    for (const surface of surfaces) { const current = p.surface(surface.id); if (current) p.home(surface.id, surface.box, current); }
+    frame = { ...frame,
+      marks: frame.marks.map((m) => {
+        const mark = m.mark;
+        if (mark.op === 'card' || mark.op === 'image') {
+          const current = p.surface(m.id);
+          if (!current) return m;
+          return { ...m, mark: mark.op === 'card' ? { ...mark, x: current.x, y: current.y } : { ...mark, dx: current.x, dy: current.y } };
+        }
+        if (!ownedMarks.has(m.id)) return m;
+        const moved = followDiagram(p, mark, aspect);
+        return moved ? { ...m, mark: moved as typeof m.mark } : m;
+      }),
+      diagrams: frame.diagrams.map((d) => { const current = p.surface(d.id); return current ? { ...d, def: { ...d.def, x: current.x, y: current.y } } : d; }),
+    };
+  }
+  lastDisplayedFrame = frame;
   board.beginFrame({ width: view.width, height: view.height, model: modelRect, dragging, now: labelClock(), ...(cardRect ? { within: cardRect } : {}) });
   board.keep(new Set(frame.marks.filter((m) => m.mark.op === 'pin').map((m) => m.key)));
   const annotator = {
@@ -314,6 +353,7 @@ function draw(frame: Frame): void {
     milestones.mark = true;
     milestone('first-mark');
   }
+  return frame;
 }
 
 /** The image crops are taken from: the screenshot the model was given, else the development backdrop. */
@@ -326,6 +366,7 @@ const board = new LabelBoard();
 /** The ids of the marks that belong to a flat diagram (placement.ts): drawn over its card, where the rest stay under it. */
 const ownedMarks = new Set<string>();
 const diagramPainter = new DiagramPainter({
+  onBounds: (id, box) => placer()?.publishSurface(id, { x: box.x / view.width * 1000, y: box.y / view.height * 1000, w: box.w / view.width * 1000, h: box.h / view.height * 1000 }),
   // A flow card that had to grow is placed again for its new size, off the page's text and figures (placement.ts).
   regrow: (id, want) => {
     const p = placer();
@@ -385,14 +426,30 @@ function grayPage(source: { image: CanvasImageSource; width: number; height: num
 /** How busy each part of the page is, from the screenshot (or backdrop): tags keep off its text. */
 const busyMap = (): Busy | undefined => pageFor()?.busy;
 
+let previousPlacer: Placer | undefined;
+
 /** Where the stage and the cards go on this page (placement.ts); there is none without a picture of the page. */
 function placer(): Placer | undefined {
   const page = pageFor();
   const source = cropSource();
   if (!page || !source) return undefined;
   const aspect = view.width / view.height;
-  const p = pageMemory.recall('placer', source.image, `${aspect}:${view.height}`, () => new Placer(page.grid, { aspect, height: view.height, sourceAspect: source.width / source.height, onImpossible: () => console.warn('talkthrough: placement cannot fit all surfaces or targets') }));
+  const p = pageMemory.recall('placer', source.image, `${aspect}:${view.height}`, () => {
+    const next = new Placer(page.grid, { aspect, height: view.height, sourceAspect: source.width / source.height, measureCaption: (text) => { marksCtx.save(); marksCtx.font = fontAt(THEME.font, Math.max(13, view.height * 0.018)); const width = marksCtx.measureText(text).width; marksCtx.restore(); return width; }, onImpossible: () => console.warn('talkthrough: placement cannot fit all surfaces or targets') });
+    if (lastDisplayedFrame) {
+      if (previousPlacer) next.restore(previousPlacer.snapshot());
+      else {
+      const surfaces: Array<{id: string; key: number; box: {x: number; y: number; w: number; h: number}}> = [];
+      for (const m of lastDisplayedFrame.marks) if (m.appear > 0 && m.fade > 0 && (m.mark.op === 'card' || m.mark.op === 'image')) { const b = cardFootprint(m.mark, view.height, aspect, source.width / source.height, next.captionMeasure())[0]; if (b) surfaces.push({id: m.id, key: m.key, box: b}); }
+      for (const d of lastDisplayedFrame.diagrams) if (d.appear > 0 && d.fade > 0) surfaces.push({id: d.id, key: d.key, box: {x:d.def.x, y:d.def.y, w:d.def.w, h:d.def.h}});
+      next.syncVisible(surfaces);
+      if (lastDisplayedFrame.panel) next.setStage(lastDisplayedFrame.panel.rect);
+      }
+    }
+    return next;
+  });
   p.setControls(realControls);
+  previousPlacer = p;
   return p;
 }
 
@@ -528,7 +585,8 @@ function captionKeepOut(frame: Frame): Rect[] {
   const aspect = view.width / view.height;
   const px = (b: { x: number; y: number; w: number; h: number }): Rect => ({ x: (b.x / 1000) * view.width, y: (b.y / 1000) * view.height, w: (b.w / 1000) * view.width, h: (b.h / 1000) * view.height });
   for (const m of frame.marks) if (m.appear > 0.05 && m.fade > 0.05) for (const b of markFootprint(m.mark, aspect)) out.push(px(b));
-  for (const m of frame.marks) if (m.appear > 0.05 && m.fade > 0.05) for (const b of cardFootprint(m.mark, view.height, aspect, cropSource() ? cropSource()!.width / cropSource()!.height : aspect)) out.push(px(b));
+  const source = cropSource();
+  for (const m of frame.marks) if (m.appear > 0.05 && m.fade > 0.05) for (const b of cardFootprint(m.mark, view.height, aspect, source ? source.width / source.height : aspect, placer()?.captionMeasure())) out.push(px(b));
   for (const d of frame.diagrams) if (d.appear > 0.05 && d.fade > 0.05) out.push(px(d.def));
   out.push(...board.shownRects());
   if (modelRect) out.push(modelRect);
@@ -695,6 +753,7 @@ function clearEverything(): void {
   pen.fade(labelClock());
   shot.removeAttribute('src');
   player.clear();
+  lastDisplayedFrame = undefined;
   fader.disarm();
   hud.reset();
   pendingOffer = undefined;
@@ -714,7 +773,7 @@ function loop(): void {
   }
   if (k < 1) frame = fadeFrame(frame, k);
   reportShowing(frame, k);
-  draw(frame);
+  frame = draw(frame);
   showAnswer();
   showCaption(frame);
   if (pen.active) sendPen();
@@ -984,7 +1043,7 @@ function beginTurn(turn: number, detail = false): void {
   detailState = 'none';
   guiding = false;
   // The first turn of a question starts clean; later turns continue it, keeping objects and ids.
-  if (turn <= 1) player.clear();
+  if (turn <= 1) { player.clear(); lastDisplayedFrame = undefined; placer()?.release('all'); }
   milestones.mark = false;
   milestones.word = false;
 }
@@ -994,14 +1053,14 @@ function placedScene(scene: Scene): Scene {
   const p = placer();
   if (!p) return scene;
   p.reset();
-  p.setStage(undefined);
+  if (!lastDisplayedFrame) p.setStage(undefined);
   const aspect = view.width / view.height;
-  ownedMarks.clear();
+  if (!lastDisplayedFrame) ownedMarks.clear();
   const source = cropSource();
   const sourceAspect = source ? source.width / source.height : aspect;
-  for (const id of ownedMarkIds(scene.steps, aspect, view.height, sourceAspect)) ownedMarks.add(id);
+  for (const id of ownedMarkIds(scene.steps, aspect, view.height, sourceAspect, p.captionMeasure())) ownedMarks.add(id);
   // A mark written after a flat diagram and inside the rectangle it was asked for belongs to it (it is not snapped to the page or kept clear of), and goes with it.
-  const owned = ownedByDiagram(scene.steps, aspect, view.height, sourceAspect);
+  const owned = ownedByDiagram(scene.steps, aspect, view.height, sourceAspect, p.captionMeasure());
   const snapped = scene.steps.map((step, i) => ({ ...step, actions: step.actions.map((a, j) => (owned[i]![j] ? a : (snappedActions([a])[0] as Action))) }));
   snapped.forEach((step, i) => reserveMarks(p, step.actions.filter((_, j) => !owned[i]![j]), aspect));
   const placed = snapped.map((step) => ({ ...step, actions: step.actions.map((a) => placeAction(p, a, view.height)) }));

@@ -393,3 +393,101 @@ test('a viewport-sized stage is kept on screen without shrinking', () => {
   const stage=p.panel({x:900,y:100,w:1000,h:300});
   assert.ok(inside(stage), JSON.stringify(stage));
 });
+
+test('near viewport sized stage avoids a control when a clear position exists', () => {
+  let warnings=0;
+  const p=new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1,onImpossible:()=>warnings++});
+  const control={x:100,y:50,w:100,h:100};p.setControls([control]);
+  const stage=placeAction(p,{op:'panel',x:0,y:30,w:990,h:100},800) as Extract<Action,{op:'panel'}>;
+  assert.ok(inside(stage) && !overlaps(stage,control),JSON.stringify(stage));
+  assert.equal(warnings,0);
+});
+
+test('image caption is complete and within a feasible viewport', async () => {
+  const {drawImage}=await import('../src/overlay/annotations.ts');const view={width:1000,height:1000,dpr:1};
+  const cap='A long detailed caption describing the contents of this image';
+  const mark={op:'image',id:'i',sx:0,sy:0,sw:200,sh:100,dx:100,dy:100,dw:80,caption:cap} as const;
+  const output: Array<{text:string;x:number}>=[];
+  const ctx=new Proxy({measureText:(s:string)=>({width:s.length*8}),fillText:(text:string,x:number)=>output.push({text,x})} as Record<string,unknown>,{get(t,k:string){return k in t?t[k]:(..._a:unknown[])=>{};},set(t,k:string,v){t[k]=v;return true;}}) as unknown as CanvasRenderingContext2D;
+  drawImage(ctx,{mark,key:1,id:'i',color:[1,1,1],opacity:1,appear:1,fade:1,pulse:0,pulseColor:undefined,tinted:false},{view,project:()=>undefined,source:{image:{} as CanvasImageSource,width:1000,height:1000}},0);
+  assert.equal(output.map(x=>x.text).join('').replace(/\s/g,''),cap.replace(/\s/g,''));
+  assert.ok(output.every(x=>x.x+x.text.length*8 <= (mark.dx+mark.dw)/1000*view.width+16),'caption stays inside image card background');
+});
+
+test('visible card survives continuing turn and an occupancy reconstruction', () => {
+  const p=new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1});
+  const old=p.card({x:250,y:250,w:300,h:300},'old');
+  (p as unknown as {syncVisible?:(surfaces:Array<{id:string;box:Box}>)=>void}).syncVisible?.([{id:'old',box:old}]);
+  p.reset();
+  const stage=p.panel(old);
+  assert.ok(!overlaps(stage,old),'still-visible card remains occupied');
+});
+
+test('actual expanded stage causes a colliding visible card to reflow', () => {
+  const p=new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1});
+  const card=p.card({x:500,y:250,w:220,h:100},'note');
+  const grown={x:60,y:220,w:900,h:400};
+  const moved=(p as unknown as {syncRenderedStage?:(v:Box)=>Map<string,Box>}).syncRenderedStage?.(grown)?.get('note') ?? card;
+  assert.ok(!overlaps(moved,grown),JSON.stringify(moved));
+});
+
+test('visible occupancy survives placement cache renewal and is pruned after clear', () => {
+  const grid=pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS);
+  const old=new Placer(grid,{aspect:1});const box=old.card({x:250,y:250,w:300,h:300},'old');old.syncVisible([{id:'old',key:1,box}]);
+  const next=new Placer(grid,{aspect:1});next.restore(old.snapshot());next.reset();
+  assert.ok(!overlaps(next.panel(box),box),'continuing scene retains visible occupancy');
+  next.syncVisible([]);next.setStage(undefined);
+  assert.deepEqual(next.card(box,'new'),box,'removed surface is no longer reserved');
+});
+
+test('a replacement identity updates occupied geometry instead of keeping old bounds', () => {
+  const p=new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1});
+  p.syncVisible([{id:'c',key:1,box:{x:100,y:100,w:100,h:100}}]);
+  const replacement={x:700,y:700,w:100,h:100};p.syncVisible([{id:'c',key:2,box:replacement}]);
+  assert.deepEqual(p.surface('c'),replacement);
+});
+
+test('published grown diagram bounds move its origin clear of the actual stage', () => {
+  const p=new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1});
+  const original=p.card({x:500,y:300,w:150,h:100},'d');
+  const drawn={x:500,y:300,w:350,h:250};p.publishSurface('d',drawn);
+  const stage={x:700,y:150,w:250,h:450};
+  p.syncRenderedStage(stage);
+  const relocated=p.surface('d')!;
+  const actual={...drawn,x:drawn.x+relocated.x-original.x,y:drawn.y+relocated.y-original.y};
+  assert.ok(!overlaps(stage,actual));
+});
+
+test('a growing stage does not repeatedly move a diagram while it is still easing', () => {
+  const p=new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1});
+  p.card({x:500,y:300,w:150,h:100},'d');
+  const drawn={x:500,y:300,w:350,h:250},stage={x:700,y:150,w:250,h:450};
+  p.publishSurface('d',drawn);p.syncRenderedStage(stage);const first=p.surface('d');
+  p.publishSurface('d',drawn);p.syncRenderedStage(stage);assert.deepEqual(p.surface('d'),first);
+});
+
+test('visible moving card follows its live frame until it needs collision reflow', () => {
+  const p=new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1});
+  p.syncVisible([{id:'a',key:1,box:{x:100,y:100,w:100,h:100}}]);
+  p.syncVisible([{id:'a',key:1,box:{x:150,y:100,w:100,h:100}}]);
+  assert.equal(p.surface('a')?.x,150);
+});
+
+test('crop ownership mapping survives renewal and is removed on clear', async () => {
+  const {followDiagram}=await import('../src/overlay/placement.ts');
+  const grid=pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS);
+  const p=new Placer(grid,{aspect:1});p.home('image',{x:100,y:100,w:200,h:150},{x:400,y:400,w:200,h:150});
+  const next=new Placer(grid,{aspect:1});next.restore(p.snapshot());next.reset();
+  const point={op:'point',id:'p',x:150,y:130,color:'red'} as Action;
+  const moved=followDiagram(next,point,1) as Extract<Action,{op:'point'}>;
+  assert.deepEqual([moved.x,moved.y],[450,430]);
+  next.release('image');assert.equal(followDiagram(next,point,1),undefined);
+});
+
+test('replaying an existing card clears old reflow targets before stage growth', () => {
+  const p=new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1});
+  const original={x:500,y:250,w:220,h:100},stage={x:60,y:220,w:900,h:400};
+  p.card(original,'note');p.syncVisible([{id:'note',key:1,box:original}]);p.syncRenderedStage(stage);
+  p.reset();p.setStage(undefined);p.card(original,'note');p.syncVisible([{id:'note',key:1,box:original}]);p.syncRenderedStage(stage);
+  assert.ok(!overlaps(p.surface('note')!,stage));
+});
