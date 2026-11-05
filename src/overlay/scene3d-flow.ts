@@ -198,7 +198,7 @@ export function buildStream(node: FlowNode, o: ObjectFrame, addMesh: AddMesh): v
   const group = new Group();
   const markers: Mesh[] = [];
   for (let i = 0; i < count; i++) {
-    const m = addMesh(geo, 'glow', false);
+    const m = addMesh(geo, 'bead', false);
     const piece = node.pieces[node.pieces.length - 1];
     if (piece) piece.tint = false;
     group.add(m);
@@ -211,7 +211,7 @@ export function buildStream(node: FlowNode, o: ObjectFrame, addMesh: AddMesh): v
 /** The least size of the markers of a stream, and their size when the scene does not say: a bead clearly wider than the pipe they run in. */
 function defaultSize(path: ObjectFrame): number {
   const radius = (path.def as { radius?: number }).radius;
-  return Math.max(0.09, (radius ?? ROPE_RADIUS) * 2.4);
+  return Math.max(0.11, (radius ?? ROPE_RADIUS) * 3);
 }
 
 const tmp = { p: new Vector3(), dir: new Vector3() };

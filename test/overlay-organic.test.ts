@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { Vector3 } from 'three';
 import assert from 'node:assert/strict';
 import { blobGeometry, BLOB_CELLS } from '../src/overlay/blob.ts';
 import { swellAt, tubeGeometry } from '../src/overlay/geometry.ts';
@@ -148,4 +149,32 @@ test('ten blobs in one scene stay inside the scene budget of triangles: later on
   // Without the budget the same ten blobs on the low tier would be far over it.
   const free = blobGeometry([[0, 0, 0], [1, 0.4, 0.2], [0.5, 1, -0.2]], [[2, 2, 2], [1.6, 1.6, 1.6], [1.8, 1.8, 1.8]], 0.5, BLOB_CELLS.low);
   assert.ok(free.attributes.position!.count / 3 * 10 > SCENE_BLOB_TRIANGLES.low, 'ten uncapped blobs would exceed the low budget');
+});
+
+test('lumps that overlap by a third, as the guide asks, melt into one mass: no crease deeper than a few percent at the usual softness', () => {
+  // Two lumps of width 2 whose centres are 4/3 apart; the waist is the skin's radius across the middle plane over the radius through a lump's centre.
+  const waist = (soft: number): number => {
+    const d = 4 / 3;
+    const geo = blobGeometry([[-d / 2, 0, 0], [d / 2, 0, 0]], [[2, 2, 2], [2, 2, 2]], soft, BLOB_CELLS.high);
+    const p = geo.attributes.position!;
+    let mid = 0, centre = 0;
+    for (let i = 0; i < p.count; i++) {
+      const r = Math.hypot(p.getY(i), p.getZ(i));
+      if (Math.abs(p.getX(i)) < 0.03) mid = Math.max(mid, r);
+      if (Math.abs(p.getX(i) - d / 2) < 0.03) centre = Math.max(centre, r);
+    }
+    return mid / centre;
+  };
+  assert.ok(waist(0.5) >= 0.97, `the usual blend leaves a waist of ${waist(0.5).toFixed(3)} (a crease between the lumps, a cloverleaf in a heart)`);
+  assert.ok(waist(0.3) < waist(0.5), 'a firmer blend still keeps more of a waist');
+});
+
+test('a flat lump (a leaf) keeps a rounded rim: it is never thinner than a fifth of its width', () => {
+  const geo = blobGeometry([[0, 0, 0]], [[4, 0.2, 2]], 0.5, BLOB_CELLS.high);
+  geo.computeBoundingBox();
+  const size = geo.boundingBox!.getSize(new Vector3());
+  assert.ok(size.y >= 0.2 * size.x - 0.02, `${size.y.toFixed(2)} thick across ${size.x.toFixed(2)}`);
+  const normal = blobGeometry([[0, 0, 0]], [[4, 1, 2]], 0.5, BLOB_CELLS.high);
+  normal.computeBoundingBox();
+  assert.ok(Math.abs(normal.boundingBox!.getSize(new Vector3()).y - 1) < 0.05, 'a lump already thick enough is left as written');
 });

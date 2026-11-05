@@ -171,7 +171,8 @@ export class PanelScene {
       if (ctx) {
         const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
         g.addColorStop(0, 'rgba(255,255,255,1)');
-        g.addColorStop(0.45, 'rgba(255,255,255,0.55)');
+        g.addColorStop(0.4, 'rgba(255,255,255,0.5)');
+        g.addColorStop(0.75, 'rgba(255,255,255,0.12)');
         g.addColorStop(1, 'rgba(255,255,255,0)');
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, 128, 128);
@@ -212,7 +213,7 @@ export class PanelScene {
       node.materials.push(surface);
       const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'torus';
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
-      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow') piece.lines = this.edgeLines(mesh, geo, node);
+      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node);
       node.pieces.push(piece);
       return mesh;
     };
@@ -788,7 +789,8 @@ export class PanelScene {
     (this.floor.material as ShadowMaterial).opacity = 0.24 * presence * weight;
     if (this.blob && this.blobMaterial) {
       this.blob.position.set(centre.x, floorY + 0.002, centre.z);
-      this.blob.scale.set(size.x * 1.15 + 0.6, 1, size.z * 1.15 + 0.6);
+      // Close to the foot of the model: a wider cloud smears across the stage and out of its card.
+      this.blob.scale.set(size.x * 1.05 + 0.3, 1, size.z * 1.05 + 0.3);
       this.blobMaterial.opacity = 0.36 * presence * weight;
     }
     const dir = new Vector3(-0.16, 1, 0.3).normalize();

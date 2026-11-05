@@ -3,7 +3,7 @@
 // soft shadow on the page); marks, tags pinned to parts, and cards are drawn on a 2D canvas above it.
 // Everything is data-driven by validated scenes (see src/scene).
 
-import { NeutralToneMapping, PMREMGenerator, SRGBColorSpace, WebGLRenderer } from 'three';
+import { NeutralToneMapping, PMREMGenerator, SRGBColorSpace, VSMShadowMap, WebGLRenderer } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { DisplayInfo, SceneMessage } from '../shared/ipc.ts';
@@ -24,7 +24,7 @@ import { snapActions } from './snap.ts';
 import type { Snapper } from './snap.ts';
 import type { PageGrid } from './placement.ts';
 import type { Busy } from './labels.ts';
-import { StageGrowth, panelRect } from './layout.ts';
+import { StageGrowth, cardShows, panelRect } from './layout.ts';
 import { createHold, modelButtonRects, overModel, wheelFactor } from './orbit.ts';
 import { DiagramPainter } from './diagram-draw.ts';
 import { drawMarks } from './marks.ts';
@@ -94,6 +94,8 @@ renderer.toneMappingExposure = 0.9;
 renderer.setClearColor(0x000000, 0);
 renderer.autoClear = false;
 renderer.shadowMap.enabled = settings.shadows;
+// A variance map is blurred, so the edge of a shadow is smooth; the default filter's edge is grainy.
+renderer.shadowMap.type = VSMShadowMap;
 
 /** The high tier's occlusion and smoothing; absent on the others, and if the graphics stack will not run it. */
 let finishing: Finishing | undefined;
@@ -229,7 +231,7 @@ function draw(frame: Frame): void {
     const bounds = panelScene.screenBounds(view.width, view.height);
     // The card is not a frame the model is cut to: it grows to hold the whole model (see StageGrowth). The camera keeps the panel's own rectangle.
     const card = stageGrowth.card({ x, y, w, h }, bounds?.model, view) ?? { x, y, w, h };
-    if (frame.panel.frame) {
+    if (cardShows(frame.panel.frame, bounds?.model)) {
       frameEl.style.display = 'block';
       frameEl.style.left = `${card.x}px`;
       frameEl.style.top = `${card.y}px`;

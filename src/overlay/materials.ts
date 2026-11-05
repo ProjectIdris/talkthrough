@@ -29,7 +29,7 @@ export const TIERS: Record<Tier, TierSettings> = {
 };
 
 /** The surfaces a scene can name, and two the parts kit uses inside itself: painted metal and rough cast metal. */
-export type SurfaceName = 'plastic' | 'metal' | 'rubber' | 'pcb' | 'glass' | 'glow' | 'paper' | 'tissue' | 'enamel' | 'cast' | 'section';
+export type SurfaceName = 'plastic' | 'metal' | 'rubber' | 'pcb' | 'glass' | 'glow' | 'bead' | 'paper' | 'tissue' | 'enamel' | 'cast' | 'section';
 
 type Recipe = {
   roughness: number; metalness: number; clearcoat?: number; clearcoatRoughness?: number;
@@ -46,6 +46,8 @@ const RECIPES: Record<SurfaceName, Recipe> = {
   pcb: { roughness: 0.52, metalness: 0, clearcoat: 0.55, clearcoatRoughness: 0.3 },
   glass: { roughness: 0.04, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, opacity: 0.34, envMapIntensity: 1.5, doubleSided: true },
   glow: { roughness: 0.6, metalness: 0, emissive: 1.25 },
+  // A marker that travels along a pipe: a little self-light so it stays bright, but shaded and glossy so it reads as a bead on a pale or see-through tube.
+  bead: { roughness: 0.3, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.1, emissive: 0.4 },
   paper: { roughness: 0.96, metalness: 0, doubleSided: true },
   // Living tissue: soft and a little wet, a gentle sheen over a matte body.
   tissue: { roughness: 0.62, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.55, sheen: 0.8 },

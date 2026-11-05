@@ -71,4 +71,7 @@ export class StageGrowth {
   }
 }
 
+/** Whether the visible card is drawn: only a framed stage with something drawn in it, never an empty card for the frames before the first part. */
+export const cardShows = (framed: boolean, model: Box | undefined): boolean => framed && !!model && model.w > 0 && model.h > 0;
+
 const sameBox = (a: Box, b: Box): boolean => a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;

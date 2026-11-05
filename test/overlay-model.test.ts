@@ -340,3 +340,27 @@ test('a part can carry other parts: the child follows its parent when the parent
   assert.deepEqual(at(0), [0, 2, 0]);
   assert.deepEqual(at(3), [3, 2, 0]);
 });
+
+test('a tube is closed with a rounded cap at each free end that follows its taper, and a flat ribbon is left as cut', () => {
+  const path = samplePath([[0, 0, 0], [0, 1, 0], [0, 2, 0], [0, 3, 0], [0, 4, 0]], false, 20);
+  const round = tubeGeometry(path, 0.5, 1, 12, [[0, 1], [1, 0.4]]);
+  round.computeBoundingBox();
+  const box = round.boundingBox as Box3;
+  assert.ok(Math.abs(box.max.y - (4 + 0.2)) < 0.01 && Math.abs(box.min.y + 0.5) < 0.01, `capped past both ends by the end radius: ${box.min.y}..${box.max.y}`);
+  // The cap closes to a point on the axis: no vertex of the tip ring is off it.
+  const p = round.attributes.position!;
+  let tipOff = 0;
+  for (let i = 0; i < p.count; i++) if (p.getY(i) > 4.1995) tipOff = Math.max(tipOff, Math.hypot(p.getX(i), p.getZ(i)));
+  assert.ok(tipOff < 0.02, `the cap comes to a point (${tipOff})`);
+  // Drawn on, the head is not capped until the tube is whole.
+  const all = round.index!.count;
+  drawFraction(round, 1);
+  assert.equal(round.drawRange.count, all);
+  drawFraction(round, 0.5);
+  assert.ok(round.drawRange.count < all - (round.userData.endCap as number), 'a half-drawn tube has no end cap');
+  drawFraction(round, 0);
+  assert.equal(round.drawRange.count, 0);
+  const ribbon = tubeGeometry(path, 0.5, 0.1, 12);
+  ribbon.computeBoundingBox();
+  assert.ok(Math.abs((ribbon.boundingBox as Box3).max.y - 4) < 0.01, 'a ribbon ends where its path does');
+});

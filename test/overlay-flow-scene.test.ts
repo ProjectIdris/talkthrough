@@ -35,8 +35,8 @@ test('a rope from the rim of a wheel to a weight runs from the rim to the top of
   for (const t of [0.2, 1, 2]) {
     const { bounds } = shown(pulley, t);
     const rope = bounds('rope'), weight = bounds('weight');
-    near(rope.max.y, 3, 0.02); // it hangs from the rim at the wheel's height
-    near(rope.min.y, weight.max.y, 0.04); // and meets the top of the weight wherever that has got to
+    near(rope.max.y, 3.05, 0.02); // it hangs from the rim at the wheel's height (its rounded end reaches one radius further, into the wheel)
+    near(rope.min.y + 0.05, weight.max.y, 0.04); // and meets the top of the weight wherever that has got to (the rounded end is one radius into it)
     near((rope.min.x + rope.max.x) / 2, -1, 0.05); // straight down from the left rim
     heights.push(rope.max.y - rope.min.y);
   }
@@ -184,13 +184,26 @@ test('a hand-built tube that ends on a weight keeps its end on the weight as the
   ];
   const kept = written(actions);
   const rest = shown(written([actions[0], { op: 'add', shape: 'tube', id: 'cord', pts: [[0, 0.56, 0], [0, 2, 0], [0, 5, 0]], radius: 0.05 }]), 1);
-  near(rest.bounds('cord').min.y, 0.5, 0.03); // snapped onto the top face (0.5)
+  near(rest.bounds('cord').min.y + 0.05, 0.5, 0.03); // snapped onto the top face (0.5), its rounded end one radius into the weight
   const heights: number[] = [];
   for (const t of [0.2, 1, 2]) {
     const { bounds } = shown(kept, t);
-    near(bounds('cord').min.y, bounds('weight').max.y, 0.04); // the end is on the weight wherever the weight has got to
-    near(bounds('cord').max.y, 5.05, 0.06); // the far end stays where it was written
+    near(bounds('cord').min.y + 0.05, bounds('weight').max.y, 0.04); // the end is on the weight wherever the weight has got to
+    near(bounds('cord').max.y, 5.05, 0.06); // the far end stays where it was written (and is rounded off)
     heights.push(bounds('cord').min.y);
   }
   assert.ok((heights[1] as number) - (heights[2] as number) > 0.5, `the weight moved, and so did the end: ${heights.join()}`);
+});
+
+test('a bead is shaded, not flat, and clearly wider than the pipe it runs in: it reads on a pale or see-through tube', () => {
+  const pipe = { op: 'add', shape: 'tube', id: 'pipe', pts: [[0, 0, 0], [3, 0, 0]], radius: 0.1, color: 'purple', opacity: 0.55 };
+  const { node } = shown([pipe, { op: 'add', shape: 'stream', id: 's', along: 'pipe', count: 3, period: 3, color: 'blue', toColor: 'red' }], 1);
+  const ms = markersOf(node('s')).filter((m) => m.visible);
+  assert.ok(ms.length > 0);
+  const widest = Math.max(...ms.map((m) => m.scale.x));
+  assert.ok(widest >= 0.28, `a bead is at least 2.8 pipe radii across (${widest.toFixed(3)} for a pipe of radius 0.1)`);
+  for (const m of ms) {
+    const glow = (m.material as unknown as { userData: { glow: number } }).userData.glow;
+    assert.ok(glow <= 0.5, `a bead keeps its shading, so it reads as a bead and not a flat disc (glow ${glow})`);
+  }
 });
