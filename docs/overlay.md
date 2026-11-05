@@ -126,6 +126,17 @@ Offscreen windows always render at a device scale of 1; add `--hidden --dpr 2` t
 
 `samples/pages/` has backdrops drawn to the layouts the samples' marks were written against. A follow-up is rendered after its first scene with `--after samples/scenes/earth-layers.json`.
 
+The app's hidden `--grab` path can also capture a scene at a chosen source time. Build first, then run it from the repository root with the installed Electron dependency:
+
+```sh
+npm run build
+npx --no-install electron . --grab samples/scenes/wind-turbine.json --out frames --steps 0:4:0:10 --size 1000x800 --software --layout-seeks 15 --grab-metadata
+```
+
+`--steps` uses `step:seconds:az:el:zoom:explode`; trailing fields may be omitted. The optional `--layout-seeks N` repeats the same scene, step, source time and requested view N times, where N is an integer from 0 to 120. Each seek advances the overlay's capture clock; waiting in wall time during a seek capture does not advance that clock. With a positive count, the example writes `request0-step0-t4-az0-el10-initial.png` and `request0-step0-t4-az0-el10-layout-attempt-15.png`. Request indexes keep duplicate requested moments distinct. An attempt is a capture after the requested number of seeks, not a guarantee that labels or other layout have settled. With the default count of 0 and no metadata option, existing filenames and single-seek behavior remain unchanged.
+
+`--grab-metadata` also writes a JSON sidecar for each request. It records input and available built-page, overlay and preload hashes, the requested step/time/view, cumulative seek counts, dimensions and the renderer's optional acknowledgement data. When available, the acknowledgement includes observed frame-camera angles and zoom, Three camera position and quaternion, and seek clock. `renderer: null` means the acknowledgement metadata was unavailable or invalid; a null frame camera means there was no drawn 3D stage, and a null world camera with a frame camera means world-camera data was unavailable. The renderer acknowledges after two animation-frame callbacks; `capturePage` occurs at least 120 ms later. The sidecar describes the acknowledgement state and does not certify the pixels, physical interaction, or natural-speed playback. These options apply to `--grab`, not to `scripts/overlay-frames.cjs`.
+
 ## Software rendering
 
 The app uses the graphics card by default and falls back to the system's software rasteriser when there is none; `--software` (or `TALKTHROUGH_SOFTWARE=1`) forces software. The renderer works without a GPU: Electron with hardware acceleration off runs WebGL on the software rasteriser. The mid tier is meant for that; the high tier is judged on a real GPU: the frame tool itself starts in software, and `--gpu yes` on it leaves hardware acceleration on leaves hardware acceleration on, `--clean yes` leaves the app's own buttons out of the picture, and `--metrics yes` prints what the graphics process holds and times twenty seeks.
