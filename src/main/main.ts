@@ -203,10 +203,18 @@ async function main(): Promise<void> {
     },
     onStroke: (displayId, stroke) => session?.stroke(displayId, stroke),
     onCancel: (displayId, released) => session?.cancelQuestion(displayId, released),
+    onEscape: () => pressEscape(),
+    answerBusy: () => session?.busy() === true,
     onOffer: (displayId) => void session?.offer(displayId),
     ...(settings.detailRoute ? { onDetail: (displayId: number) => void session?.detail(displayId) } : {}),
     onMilestone: (m) => session?.milestone(m),
   });
+  /** Escape: the question being asked is cancelled, or the answer stopped and its drawing faded away. */
+  function pressEscape(): void {
+    const what = session?.escape() ?? 'nothing';
+    if (what !== 'cancelled') overlays.dismissAll();
+    overlays.refreshEscape();
+  }
   overlays.start();
   const media = createMedia({ preload: audioPreload, page: audioPage });
   void media.warm();
@@ -520,6 +528,7 @@ async function main(): Promise<void> {
           if (loopback && !loopbackBegan) loopbackBegan = loopback.start();
           recorder?.start();
           session?.start();
+          overlays.refreshEscape();
           if (options.fakeStroke) {
             const strokes = options.fakeStroke;
             const displayId = displayUnderPointer().id;
@@ -530,7 +539,7 @@ async function main(): Promise<void> {
           frames?.start();
           session?.stop();
         },
-      }, chord);
+      }, chord, () => pressEscape());
     } catch (error) {
       log(`the key hook could not start: ${error instanceof Error ? error.message : String(error)}`);
     }

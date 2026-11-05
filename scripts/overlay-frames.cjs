@@ -22,7 +22,7 @@ process.on('uncaughtException', (e) => {
   app.exit(1);
 });
 
-const CHANNEL = { display: 'tt:display', scene: 'tt:scene', ready: 'tt:ready', interactive: 'tt:interactive', rendered: 'tt:rendered', done: 'tt:done' };
+const CHANNEL = { display: 'tt:display', scene: 'tt:scene', ready: 'tt:ready', interactive: 'tt:interactive', rendered: 'tt:rendered', done: 'tt:done', showing: 'tt:showing' };
 
 function parseArgs(argv) {
   const args = { _: [] };
@@ -36,11 +36,12 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2));
 const scenePath = args._[0];
-if (!scenePath || !args.out || !(args.steps || args.play || args.schedule || args.pen || args['pen-clip'])) {
+if (!scenePath || !args.out || !(args.steps || args.play || args.dismiss || args.schedule || args.pen || args['pen-clip'])) {
   console.error('usage: electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 [--size WxH] [--dpr N] [--backdrop img] [--after scene.json]');
   console.error('   or: --schedule frames.json renders every frame of a clip plan (see scripts/clip-schedule.ts) as f00001.png, f00002.png, ...');
   console.error('   or: --pen "x,y;x,y;..." (0..1000) turns the pen on, drags it through the points with real mouse events, saves pen-1.png (with --keys-first yes the keys come up before the button, then a second short stroke is drawn), then ends the answer and saves pen-2.png after the fade');
   console.error('   or: --pen-clip events.json draws pen strokes frame by frame on the 30 fps seek clock (events.json: {"frames": [[ ["on"] | ["down",x,y] | ["move",x,y] | ["up"] | ["rdown"] | ["rup"] | ["clickundo"] | ["notice","text"] | ["off"] | ["end"] ... ] per frame]}, x and y on 0..1000), saves f00001.png...; --reduce-motion yes emulates the reduced-motion setting');
+  console.error('   or: --dismiss <seconds> plays the scene, presses Escape (the page is told to dismiss) after that long, and saves dismiss-0.png (before) and dismiss-1..3.png as the quick fade runs; prints when the page said a drawing is up or gone');
   console.error('   or: --play [--every 2] plays the scene in real time (silently) and saves a frame every few seconds until it finishes');
   process.exit(2);
 }
@@ -118,6 +119,25 @@ app.whenReady().then(async () => {
     console.log('wrote', file, size.width + 'x' + size.height);
   };
   const scene = JSON.parse(fs.readFileSync(scenePath, 'utf8'));
+  if (args.dismiss) {
+    win.webContents.setAudioMuted(true);
+    const started = Date.now();
+    ipcMain.on(CHANNEL.showing, (_e, on) => console.log('page says a drawing is', on ? 'up' : 'gone', 'at', ((Date.now() - started) / 1000).toFixed(2) + 's'));
+    win.webContents.send(CHANNEL.scene, { kind: 'play', scene, turn: 1 });
+    await sleep(Number(args.dismiss) * 1000);
+    const save = async (name) => { fs.writeFileSync(path.join(args.out, name + '.png'), (await capture()).toPNG()); console.log('wrote', name, 'at', ((Date.now() - started) / 1000).toFixed(2) + 's'); };
+    await save('dismiss-0');
+    win.webContents.send(CHANNEL.scene, { kind: 'dismiss' });
+    console.log('dismiss sent at', ((Date.now() - started) / 1000).toFixed(2) + 's');
+    await sleep(100);
+    await save('dismiss-1');
+    await sleep(350);
+    await save('dismiss-2');
+    await sleep(1500);
+    await save('dismiss-3');
+    app.quit();
+    return;
+  }
   if (args.play) {
     win.webContents.setAudioMuted(true);
     const finished = new Promise((r) => ipcMain.once(CHANNEL.done, r));

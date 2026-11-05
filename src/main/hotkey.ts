@@ -5,11 +5,15 @@ import type { ChordEvents, ChordKeys } from './chord.ts';
 /**
  * Installs the global key hook for the push-to-talk chord only. Key events go straight into the
  * chord tracker, which looks at the scan code, keeps two booleans and drops the rest; nothing is
- * logged or buffered. Mouse events are not read here; guide mode reads them only while a step waits (watchGuideInput).
+ * logged or buffered. The one other key it looks at is Escape, and only while the chord is held (a question being asked is cancelled; Windows makes Ctrl+Shift+Esc
+ * of it, which no program can take, so it is watched, not taken). Mouse events are not read here; guide mode reads them only while a step waits (watchGuideInput).
  */
-export function startHotkey(events: ChordEvents, keys?: ChordKeys) {
+export function startHotkey(events: ChordEvents, keys?: ChordKeys, escapeWhileHeld?: () => void) {
   const tracker = createChordTracker(events, keys);
-  uIOhook.on('keydown', (event) => tracker.keyDown(event.keycode));
+  uIOhook.on('keydown', (event) => {
+    tracker.keyDown(event.keycode);
+    if (event.keycode === UiohookKey.Escape && tracker.held) escapeWhileHeld?.();
+  });
   uIOhook.on('keyup', (event) => tracker.keyUp(event.keycode));
   uIOhook.start();
   return {

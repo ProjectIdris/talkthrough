@@ -327,6 +327,25 @@ test('hush stops the speech at once, drops what is queued, and lets the step in 
   assert.equal(v.spoken.length, 2, 'a step that still arrives after a hush opens a new turn instead of joining the old one');
 });
 
+test('silence (Escape) stops the speech and the plan at once, shows the step in progress as it was going to end, and drops what is queued', () => {
+  const { clock, advance } = fakeClock();
+  const v = manualVoice();
+  const player = new Player({ voice: v.voice, clock });
+  player.beginTurn();
+  player.pushStep({ say: 'one', actions: [box('a')] } as never);
+  player.pushStep({ say: 'two', actions: [box('b')] } as never);
+  v.spoken[0]?.listener.start?.({ estimatedMs: 2000 });
+  const before = v.cancels();
+  player.silence();
+  assert.ok(v.cancels() > before, 'the voice is stopped');
+  assert.deepEqual(ids(player.update()), ['a'], 'what was being drawn is whole, ready to be faded');
+  v.spoken[0]?.listener.end?.({ reason: 'cancelled' });
+  advance(5000);
+  assert.deepEqual(ids(player.update()), ['a'], 'the queued step never starts');
+  assert.equal(v.spoken.length, 1, 'nothing more is spoken');
+  assert.equal(player.active, false, 'and nothing keeps animating');
+});
+
 test('the speech-start hook fires when the voice really starts, once for each step', () => {
   const { clock } = fakeClock();
   const v = manualVoice();

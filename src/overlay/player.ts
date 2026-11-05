@@ -158,6 +158,16 @@ export class Player {
     this.steps = this.steps.slice(0, this.index + 1);
   }
 
+  /**
+   * Escape: stop everything now. The voice and captions stop, the step in progress jumps to where it was going (so it can be seen to fade, not
+   * freeze half drawn), and steps still queued, and any the model has yet to send, are dropped. Nothing is cleared; the caller fades it away.
+   */
+  silence(): void {
+    this.stop();
+    this.live = false;
+    this.steps = this.steps.slice(0, this.index + 1);
+  }
+
   /** True while a scene is playing (the caller keeps animating). */
   get active(): boolean {
     return this.phase !== 'idle' || this.idling || this.running || this.explodeValue.moving(this.clock.now()) || this.cutValue.moving(this.clock.now());

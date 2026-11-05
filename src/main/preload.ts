@@ -15,6 +15,7 @@ const api: TalkthroughApi = {
   onScene: (listener) => void ipcRenderer.on(CHANNEL.scene, (_event, message: SceneMessage) => listener(message)),
   setInteractive: (over, region) => ipcRenderer.send(CHANNEL.interactive, over === true, region),
   engage: (on) => ipcRenderer.send(CHANNEL.engage, on === true),
+  showing: (on) => ipcRenderer.send(CHANNEL.showing, on === true),
   rendered: (token) => ipcRenderer.send(CHANNEL.rendered, token),
   done: () => ipcRenderer.send(CHANNEL.done),
   offer: () => ipcRenderer.send(CHANNEL.offer),

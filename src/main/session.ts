@@ -926,6 +926,13 @@ export function createSession(deps: SessionDeps) {
     }
   }
 
+  function resetThread(): void {
+    walking?.guide.end('superseded');
+    asking?.abort();
+    thread = [];
+    state = createSceneState();
+  }
+
   return {
     arm,
     cancel,
@@ -1027,11 +1034,30 @@ export function createSession(deps: SessionDeps) {
       notice(displayId, said.text, said.ok ? 'info' : 'error');
     },
     /** The overlay was cleared by hand: the next question starts a new thread. */
-    reset(): void {
-      walking?.guide.end('superseded');
-      asking?.abort();
-      thread = [];
-      state = createSceneState();
+    reset: resetThread,
+    /** True while a question is being asked (keys held), answered or walked through: Escape is ours for as long (see escape.ts). */
+    busy(): boolean {
+      return attempt?.chord === true || asking !== null || walking !== null;
+    },
+    /**
+     * Escape. While the keys are held it cancels the question as a right click does (nothing is captured or heard, the strokes go, the person is told).
+     * Otherwise it stops the answer: the model call is aborted, so no more steps are written or sent, and a walk through the page ends.
+     * Says which it did; only the second leaves the drawing to be faded away.
+     */
+    escape(): 'cancelled' | 'stopped' | 'nothing' {
+      const a = attempt;
+      if (a?.chord) {
+        dropAttempt('the question was cancelled with Escape');
+        penFor = null;
+        penOff(a.displayId);
+        deps.log('question cancelled with Escape');
+        notice(a.displayId, 'Cancelled.');
+        return 'cancelled';
+      }
+      if (asking === null && walking === null) return 'nothing';
+      deps.log('answer stopped with Escape');
+      resetThread();
+      return 'stopped';
     },
     dispose(): void {
       walking?.guide.end('superseded');
