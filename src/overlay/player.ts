@@ -6,6 +6,7 @@
 // apart from the silent voice's, so tests can drive it with a fake clock and a fake voice.
 
 import type { Voice } from '../adapters/voice.ts';
+import type { CaptionDriver } from './captions.ts';
 import type { Scene } from '../scene/types.ts';
 import { ExplodeValue } from './explode.ts';
 import { IDLE_MAX_SECONDS, emptyFrame, estimateSpeechSeconds, evaluate, frameAt, movedCamera, planStep, settle, shiftCamera, withIdleTurn, withMotion } from './timeline.ts';
@@ -32,12 +33,12 @@ export const realClock: Clock = {
 };
 
 /** A voice that says nothing and takes as long as the words would. */
-export function createSilentVoice(clock: Clock = realClock): Voice {
+export function createSilentVoice(clock: Clock = realClock, seconds: (text: string) => number = estimateSpeechSeconds): Voice {
   const live = new Set<() => void>();
   return {
     id: 'silent',
     speak(text, listener = {}) {
-      const ms = estimateSpeechSeconds(text) * 1000;
+      const ms = seconds(text) * 1000;
       let ended = false;
       let settle!: (e: { reason: 'finished' | 'cancelled' | 'error' }) => void;
       const finished = new Promise<{ reason: 'finished' | 'cancelled' | 'error' }>((r) => (settle = r));
@@ -71,6 +72,8 @@ export type PlayerOptions = {
   onDone?: () => void;
   /** Called each time a step's speech really starts (the voice's start event). */
   onSpeechStart?: () => void;
+  /** Told of each step's words as they are said (or, with text only, as the step begins), for the captions. */
+  captions?: CaptionDriver;
 };
 
 export class Player {
@@ -78,6 +81,7 @@ export class Player {
   private clock: Clock;
   private onDone: (() => void) | undefined;
   private onSpeechStart: (() => void) | undefined;
+  private captions: CaptionDriver | undefined;
 
   private phase: Phase = 'idle';
   /** The Frame before the current step (or the settled world when idle). */
@@ -120,6 +124,13 @@ export class Player {
     this.clock = options.clock ?? realClock;
     this.onDone = options.onDone;
     this.onSpeechStart = options.onSpeechStart;
+    this.captions = options.captions;
+  }
+
+  /** Sets (or removes) the captions, once the page knows what the person chose. */
+  setCaptions(captions: CaptionDriver | undefined): void {
+    this.captions?.clear();
+    this.captions = captions;
   }
 
   /** Swaps the voice (a development run with no speech). */
@@ -396,6 +407,7 @@ export class Player {
     this.openIndex = null;
     this.generation++;
     this.voice.cancel();
+    this.captions?.clear();
     if (this.plan) {
       this.rebase(settle(this.plan, this.phase === 'running' ? this.lastT : Infinity));
       this.resting = this.plan;
@@ -423,6 +435,7 @@ export class Player {
     this.waitingSince = this.clock.now();
     const generation = this.generation;
     const say = this.quiet ? '' : step.say.trim();
+    this.captions?.stepStart(say);
     if (!say) {
       this.speechEnded = true;
       this.startClock(this.clock.now(), undefined);
@@ -432,10 +445,20 @@ export class Player {
       start: (e) => {
         if (generation !== this.generation || this.speechStarted) return;
         this.startClock(this.clock.now(), e.estimatedMs);
+        this.captions?.voiceStart(e.estimatedMs);
         this.onSpeechStart?.();
       },
+      // Word events only when there are captions to give them to (the streamed voice follows the sound for them, which costs a ticker).
+      ...(this.captions
+        ? {
+          boundary: (e: { charIndex: number }) => {
+            if (generation === this.generation) this.captions?.boundary(e.charIndex);
+          },
+        }
+        : {}),
       end: () => {
         if (generation !== this.generation) return;
+        this.captions?.voiceEnd();
         this.speechEnded = true;
         // Ended without ever starting (no voice available): play the drawing now.
         if (!this.speechStarted) this.startClock(this.clock.now(), undefined);

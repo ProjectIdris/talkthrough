@@ -66,6 +66,8 @@ export type DisplayInfo = {
   detail?: boolean;
   /** A voice server is set up: the page speaks with it, and with the system voice when it is down or slow (see adapters/fallback-voice.ts). */
   voice?: { firstAudioMs: number; cooldownMs: number };
+  /** What an answer's words are given as (settings): the page shows them as captions, and with 'text' speaks nothing and keeps each step up for its reading time. Absent: voice only. */
+  captions?: 'voice' | 'text' | 'both';
 };
 
 /**

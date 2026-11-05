@@ -3,6 +3,8 @@
 
 export type Route = 'codex' | 'claude' | 'openai';
 export type SplitMode = 'off' | 'two' | 'steps';
+export type { CaptionMode } from './captions.ts';
+import type { CaptionMode } from './captions.ts';
 
 export type SettingsForm = {
   /** Which route runs the model. */
@@ -28,11 +30,13 @@ export type SettingsForm = {
   controlSnap: boolean;
   /** 'off', 'two' (step 1, then the rest) or 'steps' (one step to a call); Claude route only. */
   splitAnswer: SplitMode;
+  /** What an answer's words are given as: 'voice' (spoken only), 'text' (shown only, no sound) or 'both' (spoken, with the words shown as they are said). */
+  captions: CaptionMode;
 };
 
 export const FORM_KEYS: ReadonlyArray<keyof SettingsForm> = [
   'model', 'codexModel', 'claudeModel', 'openaiModel', 'codexFast', 'detailRoute', 'detailModel',
-  'voiceServerUrl', 'voiceServerVoice', 'speechServerUrl', 'hotkey', 'captureBlocklist', 'guideNavigation', 'controlSnap', 'splitAnswer',
+  'voiceServerUrl', 'voiceServerVoice', 'speechServerUrl', 'hotkey', 'captureBlocklist', 'guideNavigation', 'controlSnap', 'splitAnswer', 'captions',
 ];
 
 /** What main answers a save with. */
@@ -58,4 +62,5 @@ export const SWITCH_WARNINGS = {
   guideNavigation: 'When a guide asks for it, Talkthrough may open a tab, open a menu or scroll for you in desktop apps (never in a browser). It asks first and you can stop it at any time.',
   controlSnap: 'Reads the buttons and tabs of the window in front (only where they are, never their text) to place marks exactly. Never in a browser.',
   splitAnswer: 'On the Claude route each answer is written one step to a call, so the first words come in about three to four seconds, not six to ten; it uses several calls of your Claude allowance a question. "In two calls" writes the first step alone, then the rest while you hear it; "In one call" writes it all at once, and the first words come later.',
+  captions: 'With text and voice the words appear on screen as they are said, never ahead of the voice. With text only nothing is spoken: each step stays up as long as it takes to read, and the drawing keeps time with it. With voice only there are no words on screen.',
 } as const;

@@ -213,3 +213,29 @@ test('a saved "off" stays off: it is written to the file, and a fresh start with
     t.done();
   }
 });
+
+test('captions: both is the default and is not written; text and voice are written and read back; a word that is not a choice is refused in the form and warned about in the file', () => {
+  const t = setup();
+  try {
+    const form = t.service.read();
+    assert.equal(form.captions, 'both');
+    const text = t.service.save({ ...form, captions: 'text' });
+    assert.equal(text.ok, true);
+    assert.equal(t.file().captions, 'text');
+    assert.equal(loadSettings(t.path).captions, 'text');
+    const voice = t.service.save({ ...form, captions: 'voice' });
+    assert.equal(voice.ok, true);
+    assert.equal(loadSettings(t.path).captions, 'voice');
+    const both = t.service.save({ ...form, captions: 'both' });
+    assert.equal(both.ok, true);
+    assert.equal('captions' in t.file(), false, 'the default is not written');
+    const bad = t.service.save({ ...form, captions: 'off' as unknown as SettingsForm['captions'] });
+    assert.equal(bad.ok, false);
+    const warnings: string[] = [];
+    writeFileSync(t.path, JSON.stringify({ captions: 'loud' }));
+    assert.equal(loadSettings(t.path, (m) => warnings.push(m)).captions, 'both', 'a bad word in the file falls back to both');
+    assert.equal(warnings.length, 1);
+  } finally {
+    t.done();
+  }
+});

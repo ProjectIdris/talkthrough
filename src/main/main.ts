@@ -36,6 +36,9 @@ import { electronCardWindow } from './consent-window.ts';
 import { createNavConsent } from './nav-consent.ts';
 import { createVoiceBridge } from './voice-bridge.ts';
 import { createStageModel } from '../adapters/stage-model.ts';
+import { createRecorder, recordedVoice, replayModel, runDrive, saveVoice, tapeModel } from './showcase.ts';
+import { createLoopback } from './loopback.ts';
+import type { DriveStep } from './showcase.ts';
 import { createNavigator } from './nav.ts';
 import { createHelper } from './ps-helper.ts';
 import { createUiaReader, toDisplayBoxes } from './uia.ts';
@@ -145,9 +148,10 @@ async function main(): Promise<void> {
     })
     : undefined;
   // A voice server, when the person has set one up (never in a development run that speaks nothing): the pages ask main for its audio.
-  const voice = settings.voiceServerUrl && !options.silentVoice
+  // With text only nothing is spoken, so no voice server is asked and no system voice is used.
+  const voice = (settings.voiceServerUrl || options.voiceDir) && !options.silentVoice && settings.captions !== 'text'
     ? {
-      bridge: createVoiceBridge({ url: settings.voiceServerUrl, ...(settings.voiceServerVoice ? { voice: settings.voiceServerVoice } : {}), timeoutMs: settings.voiceTimeoutMs, log }),
+      bridge: ((bridge) => (options.saveVoice ? saveVoice(bridge, options.saveVoice, log) : bridge))(options.voiceDir ? recordedVoice(options.voiceDir, log) : createVoiceBridge({ url: settings.voiceServerUrl!, ...(settings.voiceServerVoice ? { voice: settings.voiceServerVoice } : {}), timeoutMs: settings.voiceTimeoutMs, log })),
       firstAudioMs: settings.voiceFirstAudioMs,
       cooldownMs: settings.voiceCooldownMs,
     }
@@ -160,6 +164,9 @@ async function main(): Promise<void> {
     hidden: options.hidden,
     globalKeys: !isCheckRun(options),
     silent: options.silentVoice,
+    captions: settings.captions,
+    ...(options.windowSize ? { size: options.windowSize } : {}),
+    ...(options.record && !options.recordAudio ? { muted: true } : {}),
     ...(voice ? { voice } : {}),
     onReady: log,
     onDone: () => {
@@ -232,7 +239,9 @@ async function main(): Promise<void> {
   const split = settings.model === 'claude' ? settings.splitAnswer : 'off';
   const firstModel = makeModel(settings.model, settings.model === 'claude' ? settings.claudeModel : settings.model === 'openai' ? settings.openaiModel : settings.codexModel, settings.effort, true, split === 'steps');
   // Two models for one answer (claude route, a step at a time, only when the settings name a second): step 1 from the first, the steps after it from the other.
-  const quickModel = split === 'steps' && settings.claudeLaterModel ? createStageModel(firstModel, makeModel('claude', settings.claudeLaterModel, settings.effort, true, true)) : firstModel;
+  const realModel = split === 'steps' && settings.claudeLaterModel ? createStageModel(firstModel, makeModel('claude', settings.claudeLaterModel, settings.effort, true, true)) : firstModel;
+  // Recording (development): the answer can be written to a tape as it comes, or played back from one with its own timing.
+  const quickModel: Model = options.replayAnswer ? replayModel(options.replayAnswer, log) : options.saveAnswer ? tapeModel(realModel, options.saveAnswer, log) : realModel;
   const model: Model = split === 'two' ? createTwoStepModel(quickModel, { log, early: process.env.EXPLAINER_TWO_EARLY === '1' /* tried, not yet a setting: see the Two Call note */ }) : split === 'steps' ? createStepByStepModel(quickModel, { log }) : quickModel;
   // The detail model starts only when the person first asks for more detail (nothing is launched for it before that).
   let detailModel: Model | undefined;
@@ -245,6 +254,8 @@ async function main(): Promise<void> {
 
   const captureImage = options.captureImage ? readFileSync(options.captureImage) : null;
   let chordsDone = 0;
+  /** Recording: the script is run once, after the first answer (a detail pass that follows reports again, and does not start it over). */
+  let driven = false;
   let detailAsked = false;
   let answerEnded = false;
   let pageDone = false;
@@ -253,6 +264,24 @@ async function main(): Promise<void> {
     detailAsked = true;
     setTimeout(() => void session?.detail(displayUnderPointer().id), options.detailAfter * 1000);
   };
+  // Recording (development): the overlay window's picture goes to ffmpeg from the chord press; the file beside it says when it began.
+  const recorder = options.record && options.ffmpeg && options.windowSize
+    ? createRecorder({ source: () => overlays.frame(overlays.displayIds()[0] ?? -1), width: options.windowSize.width, height: options.windowSize.height, fps: options.recordFps, file: options.record, ffmpeg: options.ffmpeg, log })
+    : null;
+  if (options.record && !recorder) log('record: needs --ffmpeg <executable> and --window-size WxH');
+  const loopback = options.recordAudio ? createLoopback(log) : null;
+  let loopbackBegan: Promise<number> | undefined;
+  const finishRun = (): void => {
+    if (!recorder) return quit();
+    void recorder.stop().then(async (first) => {
+      const sound = loopback ? await loopback.stop().catch(() => null) : null;
+      if (sound && options.recordAudio) writeFileSync(options.recordAudio, sound);
+      const soundBegan = loopbackBegan ? await loopbackBegan.catch(() => undefined) : undefined;
+      writeFileSync(`${options.record}.json`, JSON.stringify({ firstFrameEpoch: first, ...(soundBegan !== undefined ? { soundEpoch: soundBegan } : {}), appStartEpoch: Math.round(Date.now() - (performance.now() - startedAt)) }));
+      quit();
+    });
+  };
+  const drive: DriveStep[] | null = options.drive ? (JSON.parse(readFileSync(options.drive, 'utf8')) as DriveStep[]) : null;
   const frames = options.framesDir ? createFrameRecorder(options.framesDir, options.frameEveryMs, overlays, log) : null;
 
   const backend = settings.backendUrl ? createHttpBackend({ url: settings.backendUrl, ...(settings.backendTimeoutMs ? { timeoutMs: settings.backendTimeoutMs } : {}) }) : undefined;
@@ -376,7 +405,18 @@ async function main(): Promise<void> {
         answerEnded = true;
         askDetail();
       }
-      if (options.exitAfterChord && ++chordsDone >= options.exitAfterChord) setTimeout(quit, (report.error ? 3 : options.settleSeconds) * 1000);
+      if (options.exitAfterChord && ++chordsDone >= options.exitAfterChord && !(drive && driven)) {
+        if (drive && !report.error) {
+          driven = true;
+          // Recording: a while after the answer, the scripted mouse (turn the model, Explode, Cut), then the settle, then the end.
+          setTimeout(() => {
+            const id = overlays.displayIds()[0] ?? -1;
+            void runDrive({ input: (e) => overlays.input(id, e), press: (name) => overlays.press(id, name === 'cut' ? 'cut' : name === 'detail' ? 'detail' : 'explode'), rectOf: (name) => overlays.rectOf(id, name) }, drive, log)
+              .catch((e: unknown) => log(`drive: ${String(e)}`))
+              .then(() => setTimeout(finishRun, options.settleSeconds * 1000));
+          }, options.driveAfter * 1000);
+        } else setTimeout(finishRun, (report.error ? 3 : options.settleSeconds) * 1000);
+      }
     },
   });
   media.onStarted = () => session?.micStarted();
@@ -444,6 +484,8 @@ async function main(): Promise<void> {
         cancel: () => session?.cancel(),
         start: () => {
           log('chord pressed');
+          if (loopback && !loopbackBegan) loopbackBegan = loopback.start();
+          recorder?.start();
           session?.start();
           if (options.fakeStroke) {
             const strokes = options.fakeStroke;

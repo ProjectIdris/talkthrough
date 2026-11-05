@@ -565,6 +565,16 @@ export function markFootprint(m: Mark, aspect: number): Box[] {
   }
 }
 
+/**
+ * Where the cards a mark is drawn on are, in units: a note card (its own rectangle) and the enlarged picture an image mark is drawn on (not the part of
+ * the page it was cut from, which markFootprint gives). Something that is shown on the page, and must not be covered by a caption; not a place the answer points at.
+ */
+export function cardFootprint(m: Mark, screenHeight: number): Box[] {
+  if (m.op === 'card') return [{ x: m.x, y: m.y, w: m.w ?? 300, h: cardHeightUnits(m, screenHeight) }];
+  if (m.op === 'image') return [{ x: m.dx, y: m.dy, w: m.dw, h: imageCardHeight(m) }];
+  return [];
+}
+
 const MARK_OPS: ReadonlySet<string> = new Set(['box', 'circle', 'underline', 'arrow', 'poly', 'point', 'trace', 'label']);
 
 /** The middle of what a mark covers, in units. */

@@ -509,3 +509,36 @@ test('a detail turn is not spoken: its words name what a step adds, and nothing 
   player.openStep('Now words.');
   assert.deepEqual(loud.spoken.map((x) => x.text), ['Now words.']);
 });
+
+test('the captions are told of each step: its words at the start, the voice starting, each word as it comes, and the end; a cleared answer clears them', () => {
+  const { clock } = fakeClock();
+  const v = manualVoice();
+  const calls: string[] = [];
+  const captions = {
+    stepStart: (say: string) => calls.push(`step ${say}`),
+    voiceStart: (ms: number | undefined) => calls.push(`start ${ms}`),
+    boundary: (i: number) => calls.push(`word ${i}`),
+    voiceEnd: () => calls.push('end'),
+    clear: () => calls.push('clear'),
+    reveal: () => undefined,
+    current: null,
+  } as unknown as import('../src/overlay/captions.ts').CaptionDriver;
+  const player = new Player({ voice: v.voice, clock, captions });
+  player.play(scene({ say: ' One two. ', actions: [box('a')] }));
+  assert.deepEqual(calls, ['clear', 'step One two.'], 'a new play starts clean');
+  const listener = v.spoken[0]!.listener;
+  listener.start?.({ estimatedMs: 2000 });
+  listener.boundary?.({ charIndex: 4 });
+  listener.end?.({ reason: 'finished' });
+  assert.deepEqual(calls.slice(1), ['step One two.', 'start 2000', 'word 4', 'end']);
+  player.clear();
+  assert.equal(calls[calls.length - 1], 'clear');
+});
+
+test('without captions the voice is given no word listener', () => {
+  const { clock } = fakeClock();
+  const v = manualVoice();
+  const player = new Player({ voice: v.voice, clock });
+  player.play(scene({ say: 'One two.', actions: [box('a')] }));
+  assert.equal(v.spoken[0]!.listener.boundary, undefined);
+});

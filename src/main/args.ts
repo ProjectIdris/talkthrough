@@ -53,6 +53,25 @@ export type Options = {
   hidden: boolean;
   /** Checks: speak nothing. */
   silentVoice: boolean;
+  /** Recording: pipe the overlay window's picture to ffmpeg, from the chord press, into this video file (no sound). */
+  record?: string;
+  /** Recording: the ffmpeg executable, and the frame rate (default 30). */
+  ffmpeg?: string;
+  recordFps: number;
+  /** Recording: give the overlay window this size instead of covering the display. */
+  windowSize?: { width: number; height: number };
+  /** Recording: save each voice utterance's audio (and when it arrived) into this folder. */
+  saveVoice?: string;
+  /** Recording: write what the model said, call by call with its timing, to this file; or (replay) answer from such a file with the same timing, asking no model. */
+  saveAnswer?: string;
+  replayAnswer?: string;
+  /** Recording: speak from audio made beforehand (this folder holds voice.json and the WAV files) instead of asking a voice server. */
+  voiceDir?: string;
+  /** Recording: also keep what the computer plays (the system voice) in this file; the window is then not muted. */
+  recordAudio?: string;
+  /** Recording: a JSON file of mouse steps for the overlay's window (see showcase.ts), run this many seconds after the answer ended. */
+  drive?: string;
+  driveAfter: number;
   /** Checks: write a picture of the overlay to this folder every --frame-every ms after a chord release. */
   framesDir?: string;
   frameEveryMs: number;
@@ -63,7 +82,7 @@ export type Options = {
 export function parseArgs(argv: readonly string[]): Options {
   const options: Options = {
     playSample: false, noHotkey: false, fakeMic: false, visibleToCapture: false, gpu: false, exitAfterChord: 0, selfChord: false,
-    hidden: false, silentVoice: false, chordHoldMs: 2000, logSteps: false, frameEveryMs: 700, settleSeconds: 9,
+    hidden: false, silentVoice: false, chordHoldMs: 2000, logSteps: false, frameEveryMs: 700, settleSeconds: 9, recordFps: 30, driveAfter: 12,
   };
   const value = (i: number, name: string): string => {
     const v = argv[i + 1];
@@ -112,6 +131,17 @@ export function parseArgs(argv: readonly string[]): Options {
       case '--question': options.question = value(i, a); i++; break;
       case '--hidden': options.hidden = true; break;
       case '--silent-voice': options.silentVoice = true; break;
+      case '--record': options.record = value(i, a); i++; break;
+      case '--ffmpeg': options.ffmpeg = value(i, a); i++; break;
+      case '--record-fps': options.recordFps = Number(value(i, a)); i++; break;
+      case '--window-size': options.windowSize = parseSize(value(i, a)); i++; break;
+      case '--save-voice': options.saveVoice = value(i, a); i++; break;
+      case '--save-answer': options.saveAnswer = value(i, a); i++; break;
+      case '--replay-answer': options.replayAnswer = value(i, a); i++; break;
+      case '--voice-dir': options.voiceDir = value(i, a); i++; break;
+      case '--record-audio': options.recordAudio = value(i, a); i++; break;
+      case '--drive': options.drive = value(i, a); i++; break;
+      case '--drive-after': options.driveAfter = Number(value(i, a)); i++; break;
       case '--frames-dir': options.framesDir = value(i, a); i++; break;
       case '--settle-seconds': options.settleSeconds = Number(value(i, a)); i++; break;
       case '--frame-every': options.frameEveryMs = Number(value(i, a)); i++; break;

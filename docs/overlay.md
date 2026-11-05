@@ -51,6 +51,14 @@ In real time (`player.ts`):
 - After the last step a model that is on screen turns slowly by itself (about 5 degrees a second after a pause, easing in) until the user takes hold of it or the scene fades; a follow-up carries on from where it got to.
 - A new turn continues the picture on screen (a follow-up); the first turn of a question clears it first.
 
+## Captions
+
+The settings choose what an answer's words are given as (`captions`: `both`, `text` or `voice`; the choice is made when Talkthrough starts). The page shows the words of the step being said in a dark glass pill (`#caption`, drawn by `showCaption` in `overlay.ts`), clear of the marks, the diagrams, the stage, the buttons and the status pills: `captionSpot` in `captions.ts` takes the bottom middle unless something is there, then the top middle, then a corner, and keeps the place it has while that stays clear. The pill is sized for the whole sentence from its first word, so it does not grow or jump as words come; words not said yet are laid out but not shown. It stays a few seconds after the step has been said and then fades.
+
+- **Voice and text.** A word is shown only when the voice has come to it, never ahead. The system voice gives word boundaries (`boundary`); a server's voice is followed from the sound that has really been heard (`heardMs` of the audio sink: what has played, not what has arrived), measured against the length the server said or, failing that, the length of the sound so far, with the words weighted by length and by the pauses at punctuation (`createSpokenClock` in `shared/captions.ts`); each word is shown at the middle of its share of the time, so an uneven voice makes words a little late and not early. A voice that gives neither is followed by the clock, 1.25 times slower than it should be, from 1.5 s after it started (`createCaptionDriver`).
+- **Text only.** No voice is asked for and nothing is spoken: the step's whole sentence is shown at once and the step lasts as long as it takes to read it (`readingSeconds`: three words a second and a moment to take the page in, at least 3.5 s), and the drawing is timed to that as it is to a voice's length.
+- **Voice only.** No words on screen.
+
 ## Fading
 
 When a turn has finished, the scene stays at full strength for `FADE_AFTER_MS` (set in `src/shared/ipc.ts`), then fades over 1.2 s, unless the pointer is on the model or the app's words; touching it starts the count again. A faded scene takes no clicks. It is hidden, not cleared, so a follow-up still reaches its ids; the next question or Clear removes it. `fade.ts` is the logic and is tested without a clock.
