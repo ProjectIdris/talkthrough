@@ -17,6 +17,8 @@ export const CHANNEL = {
   interactive: 'tt:interactive',
   /** overlay -> main: boolean, the user pressed on the 3D model (true: take the keyboard, so a key such as E reaches it) or let go of it (false). */
   engage: 'tt:engage',
+  /** overlay -> main: boolean, a drawing of an answer is up (true; repeated while it is) or gone (false). While it is, the Escape key is ours (main/escape.ts). */
+  showing: 'tt:showing',
   /** overlay -> main: the token of a `seek` whose frame is now painted. */
   rendered: 'tt:rendered',
   /** overlay -> main: the played scene has finished (all steps spoken and drawn). */
@@ -83,6 +85,8 @@ export type SceneMessage =
   | { kind: 'play'; scene: Scene; turn: number }
   /** Remove everything drawn and stop speaking. */
   | { kind: 'clear' }
+  /** Escape: stop speaking now, and let the drawing fade away quickly and go. */
+  | { kind: 'dismiss' }
   /**
    * Frame grabs: stop the clock and draw the scene as it is `t` seconds into step `step`
    * (earlier steps complete), with no speech. Once painted, answer with `rendered(token)`.
@@ -255,6 +259,8 @@ export interface TalkthroughApi {
   setInteractive(over: boolean, region?: { x: number; y: number; w: number; h: number }): void;
   /** True after the user presses on the 3D model, so the window takes the keyboard; false when they leave it. */
   engage(on: boolean): void;
+  /** A drawing of an answer is up (true, repeated while it is) or gone (false). */
+  showing(on: boolean): void;
   rendered(token: number): void;
   done(): void;
   /** The user clicked the escalation offer. */

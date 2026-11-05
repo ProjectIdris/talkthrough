@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { DEFAULT_HOTKEY, parseHotkey } from './chord.ts';
 import { cleanSkipList, DEFAULT_SKIP_LIST } from './skip-list.ts';
 import type { SplitMode } from '../shared/settings-form.ts';
@@ -37,7 +38,7 @@ export type Settings = {
   voiceServerUrl?: string;
   /** Which voice to ask the server for (sent as `voice`), if it has several. */
   voiceServerVoice?: string;
-  /** How long the server has to make its first sound before the system voice speaks instead, in milliseconds. */
+  /** How long the server has to make its first sound before the system voice speaks instead, in milliseconds (a server that makes a sentence whole and sends it takes 1 to 6 s; the step waits as long). */
   voiceFirstAudioMs: number;
   /** How long the server is then left alone, in milliseconds. */
   voiceCooldownMs: number;
@@ -93,6 +94,14 @@ export type Settings = {
   detailModel?: string;
   /** Reasoning effort for the detail pass (default: DETAIL_EFFORT). */
   detailEffort?: string;
+  /**
+   * Keep a record of each question: a dated folder per question (the screenshot sent, the pen marks, what was said, each model call's raw text and timings,
+   * the steps drawn, what the checks repaired or refused, which voice spoke and why, any error), the newest 50 kept. Off until the person turns it on.
+   * Nothing leaves the computer. It is a setting, not a check run.
+   */
+  keepRecord: boolean;
+  /** Where the record goes (an absolute folder); unset: a folder named `questions` in the app's data folder. */
+  recordFolder?: string;
 };
 
 /** What each route uses for the detail pass when the settings name no model: a stronger one than the quick answers use. */
@@ -116,9 +125,10 @@ export const DEFAULT_SETTINGS: Settings = {
   effort: 'low',
   controlSnap: false,
   guideNavigation: false,
+  keepRecord: false,
   splitAnswer: 'steps',
   captions: DEFAULT_CAPTION_MODE,
-  voiceFirstAudioMs: 2000,
+  voiceFirstAudioMs: 10_000,
   voiceCooldownMs: 20_000,
   voiceTimeoutMs: 30_000,
   hotkey: DEFAULT_HOTKEY,
@@ -177,8 +187,8 @@ export function settingsFromRaw(raw: Record<string, unknown>, warn: (message: st
   }
   const voiceName = str(raw.voiceServerVoice);
   if (voiceName && voiceName.length <= 80) settings.voiceServerVoice = voiceName;
-  // The first sound has to come within the player's own patience (2.5 s), or the step has moved on without it.
-  if (typeof raw.voiceFirstAudioMs === 'number' && raw.voiceFirstAudioMs >= 300 && raw.voiceFirstAudioMs <= 2400) settings.voiceFirstAudioMs = Math.round(raw.voiceFirstAudioMs);
+  // The step waits as long as the voice is given (the player's patience follows this), so the allowance has an upper limit of its own.
+  if (typeof raw.voiceFirstAudioMs === 'number' && raw.voiceFirstAudioMs >= 300 && raw.voiceFirstAudioMs <= 30_000) settings.voiceFirstAudioMs = Math.round(raw.voiceFirstAudioMs);
   if (typeof raw.voiceCooldownMs === 'number' && raw.voiceCooldownMs >= 2000 && raw.voiceCooldownMs <= 600_000) settings.voiceCooldownMs = Math.round(raw.voiceCooldownMs);
   if (typeof raw.voiceTimeoutMs === 'number' && raw.voiceTimeoutMs >= 5000 && raw.voiceTimeoutMs <= 120_000) settings.voiceTimeoutMs = Math.round(raw.voiceTimeoutMs);
   if (raw.hotkey !== undefined) {
@@ -210,6 +220,12 @@ export function settingsFromRaw(raw: Record<string, unknown>, warn: (message: st
   if (detailModel) settings.detailModel = detailModel;
   const detailEffort = str(raw.detailEffort);
   if (detailEffort) settings.detailEffort = detailEffort;
+  if (typeof raw.keepRecord === 'boolean') settings.keepRecord = raw.keepRecord;
+  const recordFolder = str(raw.recordFolder);
+  if (recordFolder) {
+    if (isAbsolute(recordFolder)) settings.recordFolder = recordFolder;
+    else warn('recordFolder must be a full folder path (for example C:\\Users\\you\\Documents\\questions); the app data folder is used');
+  }
   return settings;
 }
 

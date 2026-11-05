@@ -6,6 +6,7 @@ import { createButtonCatchers, validRects } from './button-catchers.ts';
 import type { ButtonCatchers, ButtonRect } from './button-catchers.ts';
 import { electronCatcherWindow } from './button-window.ts';
 import { createClickGuard, createKeyGate, createKeyHold, ignoreMouse, keyWanted } from './interaction.ts';
+import { createEscape } from './escape.ts';
 import type { Region } from './interaction.ts';
 import type { VoiceBridge } from './voice-bridge.ts';
 
@@ -33,6 +34,12 @@ export type OverlayOptions = {
   muted?: boolean;
   /** Called when an overlay page reports ready, with a one-line description of its window. */
   onReady?: (description: string) => void;
+  /** The person pressed Escape while it was ours (an answer is being asked for, written or shown). */
+  onEscape?: () => void;
+  /** A question is being asked, written or heard (the session says): Escape is ours for that, whether or not a drawing is up. */
+  answerBusy?: () => boolean;
+  /** Every line the page says about itself (the voice's choices, its warnings and errors), told to whoever keeps the record of questions. */
+  onPageLine?: (line: string, level: 'info' | 'warning' | 'error') => void;
   /** Called when the renderer reports the end of a played scene. */
   onDone?: (displayId: number) => void;
   /** Called with each piece of a pen stroke the page reports. */
@@ -83,6 +90,27 @@ export function createOverlayManager(options: OverlayOptions) {
       }
     },
   });
+  // The Escape key: taken only while an answer is being asked for, written or shown, and given back at once after (see escape.ts); never in a check run.
+  const escape = createEscape({
+    enabled: options.globalKeys !== false,
+    register: (accelerator, onKey) => {
+      try {
+        return globalShortcut.register(accelerator, onKey);
+      } catch {
+        return false;
+      }
+    },
+    unregister: (accelerator) => {
+      try {
+        globalShortcut.unregister(accelerator);
+      } catch {
+        // already gone
+      }
+    },
+    onKey: () => options.onEscape?.(),
+    busy: () => options.answerBusy?.() === true,
+  });
+  const refreshEscape = (): void => escape.refresh();
   const stateOf = (overlay: Overlay) => ({ engaged: overlay.engaged, held: overlay.guard.held, penOn: overlay.pen, alive: !overlay.window.isDestroyed() });
   /** Everything that decides whether E is ours goes through here after it changes. The real cursor is checked each time: a page that says the pointer is on the model while the cursor is elsewhere does not keep E. */
   const refreshKey = (): void => {
@@ -90,7 +118,12 @@ export function createOverlayManager(options: OverlayOptions) {
     keys.want(keyWanted([...overlays.values()].map(stateOf)));
   };
   // Between the page's renewals: the cursor leaving the region, or ten seconds without it moving there, gives the key back.
-  if (options.globalKeys !== false) setInterval(() => { if (keys.held) refreshKey(); }, 500).unref();
+  if (options.globalKeys !== false) {
+    setInterval(() => {
+      if (keys.held) refreshKey();
+      refreshEscape();
+    }, 500).unref();
+  }
 
   function infoFor(display: Display): DisplayInfo {
     const info: DisplayInfo = { id: display.id, bounds: { ...display.bounds }, scaleFactor: display.scaleFactor };
@@ -141,8 +174,13 @@ export function createOverlayManager(options: OverlayOptions) {
     window.webContents.on('will-navigate', (event) => event.preventDefault());
     // Surface the page's warnings and errors in the app log, and the few lines it says about itself (nothing else the page prints).
     window.webContents.on('console-message', (event) => {
-      if (event.level === 'warning' || event.level === 'error') console.error('[talkthrough] overlay page ' + event.level + ': ' + event.message);
-      else if (event.message.startsWith('talkthrough: ')) console.error('[talkthrough] ' + event.message.slice('talkthrough: '.length));
+      if (event.level === 'warning' || event.level === 'error') {
+        console.error('[talkthrough] overlay page ' + event.level + ': ' + event.message);
+        options.onPageLine?.(event.message, event.level);
+      } else if (event.message.startsWith('talkthrough: ')) {
+        console.error('[talkthrough] ' + event.message.slice('talkthrough: '.length));
+        options.onPageLine?.(event.message.slice('talkthrough: '.length), 'info');
+      }
     });
     window.on('page-title-updated', (event) => event.preventDefault()); // keep our own title
     window.once('ready-to-show', () => {
@@ -173,6 +211,7 @@ export function createOverlayManager(options: OverlayOptions) {
       }),
     };
     overlays.set(display.id, overlay);
+    escape.open(display.id);
     // Its requests to the voice server go with it, instead of being left to run out their time.
     const pageId = window.webContents.id;
     window.on('closed', () => {
@@ -182,6 +221,7 @@ export function createOverlayManager(options: OverlayOptions) {
       overlay.engaged = false;
       overlays.delete(display.id);
       refreshKey();
+      escape.close(display.id);
     });
   }
 
@@ -230,6 +270,12 @@ export function createOverlayManager(options: OverlayOptions) {
     if (!overlay || typeof on !== 'boolean') return;
     overlay.engaged = on && overlay.guard.held && !overlay.pen && overlay.gate.press(overlay.region);
     refreshKey();
+  });
+  // The page says a drawing is up (repeating it while it is); when it says it is gone, or goes quiet, Escape goes back to whatever the person is typing into.
+  ipcMain.on(CHANNEL.showing, (event, on: unknown) => {
+    const overlay = find(event);
+    if (!overlay || typeof on !== 'boolean') return;
+    escape.showing(overlay.display.id, on);
   });
   ipcMain.on(CHANNEL.stroke, (event, stroke: unknown) => {
     const overlay = find(event);
@@ -394,6 +440,15 @@ export function createOverlayManager(options: OverlayOptions) {
     displayIds(): number[] {
       return [...overlays.keys()];
     },
+    /** Whatever changed what Escape is for (the keys went down, a question ended): look again at whether it is ours. */
+    refreshEscape,
+    /** Escape was pressed: every page stops its voice and lets its drawing fade quickly away. */
+    dismissAll(): void {
+      for (const overlay of overlays.values()) {
+        overlay.queue.length = 0;
+        if (overlay.ready && !overlay.window.isDestroyed()) overlay.window.webContents.send(CHANNEL.scene, { kind: 'dismiss' } satisfies SceneMessage);
+      }
+    },
     dispose(): void {
       options.voice?.bridge.dispose();
       screen.off('display-added', sync);
@@ -407,6 +462,7 @@ export function createOverlayManager(options: OverlayOptions) {
       }
       overlays.clear();
       refreshKey();
+      escape.dispose();
     },
   };
 }

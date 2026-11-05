@@ -97,3 +97,51 @@ export function createVoiceBridge(options: VoiceBridgeOptions): VoiceBridge {
     },
   };
 }
+
+/**
+ * Where a voice server is woken: the speak address with its last segment taken off and `warm` put on (`.../api/voice-shared/speak` wakes at
+ * `.../api/voice-shared/warm`), the same convention as the recogniser's `<address>/warm`. Undefined for an address that has no segment to take off.
+ */
+export function voiceWarmUrl(speakUrl: string): string | undefined {
+  try {
+    const url = new URL(speakUrl);
+    const segments = url.pathname.split('/').filter(Boolean);
+    if (segments.length === 0) return undefined;
+    segments.pop();
+    url.pathname = `/${[...segments, 'warm'].join('/')}`;
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+export type VoiceWaker = { wake(): Promise<void> };
+
+/**
+ * Wakes a voice server that sleeps or parks, when the keys first go down, so it is making sound by the time an answer is ready. A POST with no body;
+ * any answer, or none, is fine (a server without the route says 404). At most once in `everyMs`. When the address is the same as one already woken
+ * (`except`, the recogniser's) nothing is sent: one warm-up serves both.
+ */
+export function createVoiceWaker(options: { speakUrl: string; except?: string; everyMs?: number; now?: () => number; fetch?: typeof fetch; log?: (line: string) => void }): VoiceWaker | undefined {
+  const url = voiceWarmUrl(options.speakUrl);
+  if (!url || (options.except !== undefined && url === options.except)) return undefined;
+  const everyMs = options.everyMs ?? 30_000;
+  const now = options.now ?? (() => Date.now());
+  const doFetch = options.fetch ?? globalThis.fetch;
+  let wokeAt = -Infinity;
+  return {
+    async wake() {
+      if (now() - wokeAt < everyMs) return;
+      wokeAt = now();
+      try {
+        const response = await doFetch(url, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15_000) });
+        await response.body?.cancel();
+        options.log?.(`voice server: woken (${response.status})`);
+      } catch {
+        // best effort: if the server is down the step will say so
+      }
+    },
+  };
+}

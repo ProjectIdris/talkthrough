@@ -33,7 +33,7 @@ import { TIERS } from './materials.ts';
 import { Finishing } from './post.ts';
 import type { Tier } from './materials.ts';
 import { PenLayer, drawPen, routePenPointer, undoPlace } from './pen.ts';
-import { Player, createSilentVoice } from './player.ts';
+import { Player, VOICE_PATIENCE_MARGIN_MS, createSilentVoice } from './player.ts';
 import { captionSpot, createCaptionDriver } from './captions.ts';
 import type { CaptionDriver, CaptionState, Rect } from './captions.ts';
 import { readingSeconds } from '../shared/captions.ts';
@@ -609,13 +609,29 @@ function pressButton(id: string): void {
   if (el && el.getBoundingClientRect().width > 0) el.click();
 }
 
+function clearEverything(): void {
+  pen.fade(labelClock());
+  shot.removeAttribute('src');
+  player.clear();
+  fader.disarm();
+  hud.reset();
+  pendingOffer = undefined;
+  detailState = 'none';
+  guiding = false;
+}
+
 function loop(): void {
   raf = 0;
   const now = performance.now();
   let frame = player.update();
   const k = fader.alpha(now);
   if (k <= 0 && player.idling) player.stopIdle();
+  if (fader.dismissed && k <= 0) {
+    clearEverything(); // Escape: the quick fade is over, the drawing goes
+    frame = player.update();
+  }
   if (k < 1) frame = fadeFrame(frame, k);
+  reportShowing(frame, k);
   draw(frame);
   showCaption(frame);
   if (pen.active) sendPen();
@@ -638,6 +654,18 @@ function loop(): void {
 function request(): void {
   if (!raf) raf = requestAnimationFrame(loop);
 }
+
+/** Whether a drawing of an answer is up, told to the program so the Escape key is ours only while it is (and given back the moment it is not). Said again every second while it is: the program lets it lapse if the page goes quiet. */
+let showingSent = false;
+function reportShowing(frame: Frame, k: number): void {
+  const up = k > 0 && (frame.panel !== null || frame.marks.length > 0 || frame.diagrams.length > 0 || frame.objects.length > 0);
+  if (up === showingSent) return;
+  showingSent = up;
+  window.talkthrough.showing(up);
+}
+setInterval(() => {
+  if (showingSent) window.talkthrough.showing(true);
+}, 1000);
 
 const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl, cutEl, detailEl];
 
@@ -1028,14 +1056,18 @@ function applyScene(message: SceneMessage): void {
       hud.showNotice(message.text, message.level, performance.now());
       break;
     case 'clear':
+      clearEverything();
+      break;
+    case 'dismiss':
+      // Escape: the voice stops, what was still to be said is dropped, and what is drawn fades away quickly and goes.
+      player.silence();
       pen.fade(labelClock());
-      shot.removeAttribute('src');
-      player.clear();
-      fader.disarm();
-      hud.reset();
+      hud.stopWorking();
+      hud.setStatus('idle');
       pendingOffer = undefined;
       detailState = 'none';
       guiding = false;
+      fader.dismiss(performance.now());
       break;
     case 'seek':
       seekClock = (seekClock ?? 0) + 1000 / 30;
@@ -1056,6 +1088,8 @@ window.talkthrough.onDisplay((info) => {
   if (info.voice && !serverVoiceSet) {
     serverVoiceSet = true;
     player.setVoice(createServerVoice(window.talkthrough.voice, info.voice, chooseVoice(), (line) => console.info(`talkthrough: ${line}`)));
+    // The step waits as long for the server's first sound as the voice does before the system voice speaks instead.
+    player.setPatience(info.voice.firstAudioMs + VOICE_PATIENCE_MARGIN_MS);
   }
   if (info.silent) player.setVoice(createSilentVoice());
   setCaptions(info.captions ?? 'voice');

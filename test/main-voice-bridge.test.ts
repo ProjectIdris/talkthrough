@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createVoiceBridge, VOICE_IN_FLIGHT_MAX, VOICE_TEXT_MAX } from '../src/main/voice-bridge.ts';
+import { createVoiceBridge, createVoiceWaker, voiceWarmUrl, VOICE_IN_FLIGHT_MAX, VOICE_TEXT_MAX } from '../src/main/voice-bridge.ts';
 import type { VoiceEvent } from '../src/adapters/http-voice.ts';
 import { startFakeVoice } from './support/fake-voice-server.ts';
 
@@ -165,4 +165,29 @@ test('a page that goes away takes its requests with it: they stop on the server,
     bridge.dispose();
     await server.close();
   }
+});
+
+test('the voice server is woken at the speak address\'s own warm route, once in a while, and not when the recogniser\'s warm-up already did it', async () => {
+  assert.equal(voiceWarmUrl('http://127.0.0.1:4821/api/voice-shared/speak'), 'http://127.0.0.1:4821/api/voice-shared/warm');
+  assert.equal(voiceWarmUrl('https://voice.example.com/speak?x=1'), 'https://voice.example.com/warm');
+  assert.equal(voiceWarmUrl('http://127.0.0.1:4821/'), undefined);
+  assert.equal(voiceWarmUrl('not a url'), undefined);
+  const asked: Array<{ url: string; method: string | undefined }> = [];
+  let clock = 0;
+  const fetchFake = (async (url: string, init?: RequestInit) => {
+    asked.push({ url, method: init?.method });
+    return new Response(null, { status: 202 });
+  }) as unknown as typeof fetch;
+  const waker = createVoiceWaker({ speakUrl: 'http://127.0.0.1:4821/api/voice-shared/speak', fetch: fetchFake, now: () => clock })!;
+  await waker.wake();
+  await waker.wake();
+  clock = 31_000;
+  await waker.wake();
+  assert.deepEqual(asked, [
+    { url: 'http://127.0.0.1:4821/api/voice-shared/warm', method: 'POST' },
+    { url: 'http://127.0.0.1:4821/api/voice-shared/warm', method: 'POST' },
+  ], 'once, and again after thirty seconds');
+  assert.equal(createVoiceWaker({ speakUrl: 'http://127.0.0.1:4821/api/voice-shared/speak', except: 'http://127.0.0.1:4821/api/voice-shared/warm' }), undefined, 'the recogniser already sent that warm-up');
+  const failing = createVoiceWaker({ speakUrl: 'http://127.0.0.1:4821/api/voice-shared/speak', fetch: (async () => { throw new Error('down'); }) as unknown as typeof fetch })!;
+  await assert.doesNotReject(failing.wake());
 });

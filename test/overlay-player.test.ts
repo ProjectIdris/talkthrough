@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Player, VOICE_PATIENCE_MS, createSilentVoice } from '../src/overlay/player.ts';
+import { Player, VOICE_PATIENCE_MARGIN_MS, VOICE_PATIENCE_MS, createSilentVoice } from '../src/overlay/player.ts';
 import type { Clock } from '../src/overlay/player.ts';
 import type { SpeechListener, Voice } from '../src/adapters/voice.ts';
 import type { Scene } from '../src/scene/index.ts';
@@ -327,6 +327,25 @@ test('hush stops the speech at once, drops what is queued, and lets the step in 
   assert.equal(v.spoken.length, 2, 'a step that still arrives after a hush opens a new turn instead of joining the old one');
 });
 
+test('silence (Escape) stops the speech and the plan at once, shows the step in progress as it was going to end, and drops what is queued', () => {
+  const { clock, advance } = fakeClock();
+  const v = manualVoice();
+  const player = new Player({ voice: v.voice, clock });
+  player.beginTurn();
+  player.pushStep({ say: 'one', actions: [box('a')] } as never);
+  player.pushStep({ say: 'two', actions: [box('b')] } as never);
+  v.spoken[0]?.listener.start?.({ estimatedMs: 2000 });
+  const before = v.cancels();
+  player.silence();
+  assert.ok(v.cancels() > before, 'the voice is stopped');
+  assert.deepEqual(ids(player.update()), ['a'], 'what was being drawn is whole, ready to be faded');
+  v.spoken[0]?.listener.end?.({ reason: 'cancelled' });
+  advance(5000);
+  assert.deepEqual(ids(player.update()), ['a'], 'the queued step never starts');
+  assert.equal(v.spoken.length, 1, 'nothing more is spoken');
+  assert.equal(player.active, false, 'and nothing keeps animating');
+});
+
 test('the speech-start hook fires when the voice really starts, once for each step', () => {
   const { clock } = fakeClock();
   const v = manualVoice();
@@ -541,4 +560,21 @@ test('without captions the voice is given no word listener', () => {
   const player = new Player({ voice: v.voice, clock });
   player.play(scene({ say: 'One two.', actions: [box('a')] }));
   assert.equal(v.spoken[0]!.listener.boundary, undefined);
+});
+
+test('a voice server given ten seconds for its first sound is waited for that long, and the step plays on without it after that', () => {
+  const { clock, advance } = fakeClock();
+  const v = manualVoice();
+  const player = new Player({ voice: v.voice, clock });
+  player.setPatience(10_000 + VOICE_PATIENCE_MARGIN_MS);
+  player.play(scene({ say: 'hello there', actions: [box('a')] }, { say: 'again', actions: [box('b')] }));
+  advance(VOICE_PATIENCE_MS + 500);
+  assert.deepEqual(ids(player.update()), [], 'still waiting for the voice after the old patience');
+  advance(7_000);
+  assert.deepEqual(ids(player.update()), [], 'and at nine seconds');
+  advance(3_500);
+  assert.deepEqual(ids(player.update()), ['a'], 'then the picture goes on without it');
+  const shorter = new Player({ voice: manualVoice().voice, clock });
+  shorter.setPatience(100);
+  assert.ok(true, 'a patience below the default is the default (a voice never makes the picture jump)');
 });

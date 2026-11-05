@@ -7,9 +7,12 @@ import type { Frame } from './timeline.ts';
 export const HOLD_MS = 4000;
 /** How long it then takes to fade out. */
 export const FADE_MS = 1200;
+/** How long the fade takes when the person pressed Escape: quick, but not a cut. */
+export const DISMISS_FADE_MS = 300;
 
 export class AutoFade {
   private since: number | undefined;
+  private fadeMs = FADE_MS;
   private readonly hold: number;
 
   constructor(holdMs: number = HOLD_MS) {
@@ -29,11 +32,23 @@ export class AutoFade {
   /** New content is coming or has arrived: it is shown in full and nothing is counting. */
   disarm(): void {
     this.since = undefined;
+    this.fadeMs = FADE_MS;
   }
 
-  /** The pointer is on the scene, or the user just used it: the count starts again, and a scene already fading comes back. */
+  /** Escape: no more holding; the scene fades out at once, quickly. */
+  dismiss(now: number): void {
+    this.since = now - this.hold;
+    this.fadeMs = DISMISS_FADE_MS;
+  }
+
+  /** True from `dismiss` until new content arrives. */
+  get dismissed(): boolean {
+    return this.since !== undefined && this.fadeMs === DISMISS_FADE_MS;
+  }
+
+  /** The pointer is on the scene, or the user just used it: the count starts again, and a scene already fading comes back (but not one the person dismissed with Escape). */
   touch(now: number): void {
-    if (this.since !== undefined) this.since = now;
+    if (this.since !== undefined && !this.dismissed) this.since = now; // Escape is not taken back by the pointer being on the scene
   }
 
   /** 1 while shown, falling to 0 over FADE_MS once HOLD_MS has passed. */
@@ -41,7 +56,7 @@ export class AutoFade {
     if (this.since === undefined) return 1;
     const late = now - this.since - this.hold;
     if (late <= 0) return 1;
-    return Math.max(0, 1 - late / FADE_MS);
+    return Math.max(0, 1 - late / this.fadeMs);
   }
 
   /** Milliseconds until `alpha` next changes, 0 while it is changing, undefined when nothing is counting or it is all gone. */
@@ -49,7 +64,7 @@ export class AutoFade {
     if (this.since === undefined) return undefined;
     const late = now - this.since - this.hold;
     if (late < 0) return -late;
-    return late >= FADE_MS ? undefined : 0;
+    return late >= this.fadeMs ? undefined : 0;
   }
 }
 

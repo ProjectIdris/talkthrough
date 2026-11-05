@@ -138,6 +138,16 @@
   <p class="hint" id="warnSnap"></p>
 </section>
 
+<section>
+  <h2>Record of questions</h2>
+  <label class="inline"><input type="checkbox" id="keepRecord">Keep a record of each question</label>
+  <p class="hint" id="warnRecord"></p>
+  <div id="recordbox" class="hide">
+    <label for="recordFolder">Folder (optional)</label><input type="text" id="recordFolder" autocomplete="off" spellcheck="false" placeholder="C:\Users\you\Documents\questions">
+    <p class="hint">A full folder path. Empty: a folder called questions inside Talkthrough's own data folder. Each question gets a dated folder inside it; older ones beyond the newest 50 are deleted, and nothing else in the folder is touched.</p>
+  </div>
+</section>
+
 <ul id="messages" class="hide"></ul>
 <p id="saved" class="hide"></p>
 <button id="save" class="primary" type="button">Save</button><button id="restart" type="button" class="hide">Restart now</button><button id="close" type="button">Close</button>

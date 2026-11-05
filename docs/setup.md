@@ -24,6 +24,10 @@ Use `npm ci` in a folder of its own, not a `node_modules` linked from elsewhere:
 
 The installer puts the program under `%LOCALAPPDATA%\Programs\Talkthrough` and adds a Start menu entry; *Apps > Installed apps* (or the uninstaller in that folder) removes both. It leaves **your own files** on purpose, in `%APPDATA%\Talkthrough`: your settings file, the encrypted API key file (`api-key.bin`), your pins (the `pins` folder), the app's preferences (`prefs.json`) and the browser engine's caches. After uninstalling, delete that folder to remove all of it.
 
+### A record of each question
+
+To see exactly what went wrong with an answer, turn on **Keep a record of each question** in **Settings…** (or `"keepRecord": true`). Each question then gets its own dated folder, named like `2026-11-05_14-32-07`, with what was sent (the screenshot, any closer crops), what was heard, what the model was called with and answered (its name, how long it took, the raw text it wrote), what was drawn, what the checker repaired, which voice spoke each step and why, and what broke. The newest 50 are kept; older ones are deleted, and nothing else in the folder is touched. It is off by default because the folders hold your screenshots and your words: they stay on your computer, but they are there until the 50 are used up. The folder is `questions` in the app's data folder unless `recordFolder` names another (a full path).
+
 ### A log from an installed copy
 
 The app writes its log to the console it was started from, and an installed copy has none. To get one, quit Talkthrough (tray menu, *Quit*), then in a Command Prompt run:
@@ -54,7 +58,7 @@ The window writes a JSON file, `%APPDATA%\talkthrough\settings.json` (the app lo
 | `codexModel` | Model name in your Codex catalog | `"gpt-6-luna"` |
 | `voiceServerUrl` | A local text-to-speech server that makes the voice (https, or a loopback address): the full address a request is POSTed to. Without it the system voice speaks. The words of each spoken step are sent there, and nothing else. See [Voice](#voice). | none |
 | `voiceServerVoice` | Which voice to ask the server for (sent as `voice`), if it has several | none |
-| `voiceFirstAudioMs` | How long the server has to make its first sound before the system voice speaks that step instead, 300 to 2,400 | `2000` |
+| `voiceFirstAudioMs` | How long the server has to make its first sound before the system voice speaks that step instead, 300 to 30,000. The step waits as long. A server that makes each sentence whole before sending it takes one to six seconds for the first | `10000` |
 | `voiceCooldownMs` | How long the server is then left alone before it is tried again, 2,000 to 600,000 | `20000` |
 | `voiceTimeoutMs` | How long one spoken step may take in all, 5,000 to 120,000 | `30000` |
 | `backendUrl` | Where the optional deeper backend listens (https, or a loopback address). Without it there is no backend and nothing is sent anywhere else. See [backend.md](backend.md). | none |
@@ -75,6 +79,8 @@ The window writes a JSON file, `%APPDATA%\talkthrough\settings.json` (the app lo
 | `controlSnap` | On Windows, put marks exactly on the buttons, tabs and menu items of the window in front. The app reads their rectangles (and kind) from the accessibility tree, read-only: it never clicks, never reads names or text, and nothing is sent anywhere. **Off until you turn it on.** It never reads a browser window (Chrome, Edge, Firefox, Electron apps such as Slack or VS Code): asking a browser for its accessibility tree switches accessibility on in the whole browser until it is restarted, and that costs the browser CPU. There, and wherever the setting is off, marks snap to the picture alone | `false` |
 | `captions` | What an answer's words are given as: `"both"` speaks each step and shows its words on screen as they are said, `"text"` speaks nothing and keeps each step up for its reading time (no voice is asked, no sound is made), `"voice"` speaks only. See [Captions](overlay.md#captions). | `"both"` |
 | `splitAnswer` | Claude route only, so the first words come sooner: `"steps"` writes one step to a call, each asked for when the one before has ended (the first words come in about three to four seconds); `"two"` writes step 1 alone, then the rest in a second call while step 1 is spoken; `"off"` writes the whole answer in one call (the first words come later, in six to ten seconds on a rich page). Each question under `steps` or `two` uses two or more calls of your Claude allowance. If a later call fails, the answer ends where it was. Choosing "In one call" in the settings window writes `"off"` to the file. (The older `twoStepAnswer: true` means `"two"`, `false` means `"off"`.) | `"steps"` |
+| `keepRecord` | Keep a record of each question (see *A record of each question* above). Off until you turn it on, also in **Settings…** | `false` |
+| `recordFolder` | A full folder path for that record | the app's data folder, `questions` inside it |
 | `detailRoute` | Turns on the **detail pass**: `"codex"`, `"claude"` or `"openai"`, the route that writes a much richer version of the scene on screen when you ask for more detail (see below) | none (off) |
 | `detailModel` | Model the detail route uses | `"gpt-6.1-sol"` for `codex` and `openai`, `"claude-sonnet-5-5"` for `claude` |
 | `detailEffort` | Reasoning effort for the detail pass | `"medium"` |
@@ -116,6 +122,8 @@ A busy server may answer `503` with `Retry-After` (seconds, or a date; a wait ov
 
 Any other answer is an error (a text body is shown in the log), and that includes a redirect: the app never follows one, so the words go only to the address you set. The app asks for each step as soon as it arrives, so the next sentence is usually ready when the last one ends, and it starts playing after about a tenth of a second of sound has arrived.
 
+When the keys first go down the app wakes the server: `POST` with no body to the speak address with its last segment replaced by `warm` (`.../voice-shared/speak` is woken at `.../voice-shared/warm`), at most once in 30 seconds, and any answer, or none, is fine; it is skipped when that is the same address as the recogniser's `/warm`, which was just sent. A server that makes a sentence whole before sending it (its first byte comes with the first sentence) takes one to six seconds for the first sound of a step, so the picture waits for it as long as `voiceFirstAudioMs` says, and a second or two more for the system voice to begin.
+
 If the server does not make a sound within `voiceFirstAudioMs`, or answers an error, that step is spoken by the system voice, and the server is left alone for `voiceCooldownMs` so a down server costs one short wait, not one per step; then it is tried again. A stream that breaks half-way ends that step (it is not spoken again). Pick a first-sound limit well under the 2.5 seconds after which a step is drawn anyway.
 
-The log says, in numbers only, how long the first sound took after the words (`voice streamed: first sound 173 ms after the words`, and the same for `speech-synthesis`). The words are never logged.
+The log says, in numbers only, how long the first sound took after the words (`voice streamed: first sound 173 ms after the words`, and the same for `speech-synthesis`), and for each step which voice spoke it and why (`voice: this step is spoken with streamed`, or with `speech-synthesis` and the reason the server is being left alone). Each call to a model is told too, with the model's name (`model call 2: claude-sonnet-5-5 (a step, next 2) first output 1220 ms, ended 3910 ms`), so one step written by Haiku and the next by Sonnet can be told apart. The words are never logged.
