@@ -164,7 +164,8 @@ const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim
 /** The settings file as an object; a missing or broken file is an empty one (and says why). */
 export function readRawSettings(path: string, warn: (message: string) => void = () => undefined): Record<string, unknown> {
   try {
-    const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
+    const text = readFileSync(path, 'utf8');
+    const parsed: unknown = JSON.parse(text.startsWith('\uFEFF') ? text.slice(1) : text);
     if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
     warn('the settings file is not an object; using defaults');
   } catch (error) {

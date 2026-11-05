@@ -25,6 +25,16 @@ test('a missing file gives the defaults; the API route and its options are read'
   assert.equal(settings.speechLimitMs, 1000);
 });
 
+test('one leading UTF-8 BOM is ignored while settings and unknown keys are retained', () => {
+  const { settings, warnings } = settingsFrom('\uFEFF' + JSON.stringify({ model: 'openai', effort: 'high', futureOption: { enabled: true } }));
+  assert.equal(settings.model, 'openai');
+  assert.equal(settings.effort, 'high');
+  assert.deepEqual(warnings, []);
+  const doubled = settingsFrom('\uFEFF\uFEFF' + JSON.stringify({ model: 'openai' }));
+  assert.equal(doubled.settings.model, DEFAULT_SETTINGS.model, 'only one leading BOM is stripped');
+  assert.equal(doubled.warnings.length, 1, 'the remaining BOM keeps the malformed-JSON warning path');
+});
+
 test('a key is only ever pointed at https or a loopback address', () => {
   assert.equal(safeBaseUrl('https://api.example.com/v1'), true);
   assert.equal(safeBaseUrl('http://127.0.0.1:8080/v1'), true);

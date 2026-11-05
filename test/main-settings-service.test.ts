@@ -93,6 +93,21 @@ test('the rest of the file is left as it was: other keys, and keys the window do
   }
 });
 
+test('a BOM settings file keeps nondefault and unknown values through a settings save', () => {
+  const t = setup('\uFEFF' + JSON.stringify({ model: 'claude', effort: 'high', futureOption: { enabled: true }, guideNavigation: true }));
+  try {
+    const before = t.service.read();
+    assert.equal(before.model, 'claude');
+    assert.equal(before.guideNavigation, true);
+    const saved = t.service.save(withForm(before, { controlSnap: true }));
+    assert.equal(saved.ok, true);
+    assert.deepEqual(t.file(), { model: 'claude', effort: 'high', futureOption: { enabled: true }, controlSnap: true, guideNavigation: true });
+    assert.equal(t.service.read().model, 'claude');
+  } finally {
+    t.done();
+  }
+});
+
 test('a value the checks refuse is not saved: the file is untouched and the reason is in plain words', () => {
   const t = setup({ model: 'claude' });
   try {
