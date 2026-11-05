@@ -5,6 +5,7 @@ import { createClaudeModel } from '../src/adapters/claude-model.ts';
 import { ModelError } from '../src/adapters/model.ts';
 import type { Model, ModelOutput, ModelRequest } from '../src/adapters/model.ts';
 import { questionText } from '../src/adapters/subscription-shared.ts';
+import { sceneGuide } from '../src/scene/index.ts';
 import { createTwoStepModel } from '../src/adapters/two-step.ts';
 import { sceneSchemaLean } from '../src/scene/index.ts';
 
@@ -42,8 +43,11 @@ test('what each half is told: the first asks for step 1 alone (about 30 words), 
   assert.match(rest, /If step 1 asks for a click, this is a how-do-I walk: .*one move each, in one short sentence with its own mark and wait, as many as the task needs \(up to five more steps, six in all\)/);
   assert.match(rest, /every move has its own mark and wait, even where an earlier move's mark was/);
   assert.match(rest, /when in doubt draw none, except that when the parts or places of a picture are the point of the question/);
-  assert.match(rest, /a point well inside each part and a label of one to three words beside it, inside the frame of the picture so it never covers its caption/);
-  assert.match(rest, /never over its text or its settings and controls/);
+  assert.match(rest, /a point well inside each part and a label of one to three words beside it, on the picture it names/);
+  // explanation first: nothing tells the model to keep clear of page text; a diagram goes where it reads best and large, never over what the answer points at
+  assert.match(rest, /Put a diagram where it reads best and large/);
+  assert.match(rest, /never over what the answer points at \(in a how-do-I walk, never over the controls the walk needs visible\)/);
+  assert.ok(!/never over its text|never covers its caption|clear of the model and of page text|never over the picture or the page text/.test(rest + sceneGuide), 'no line keeps the model clear of page text');
   assert.ok(!/Write only step 1/.test(rest) && !/Step 1 of this answer/.test(questionText(request)), 'a plain question carries neither');
 });
 

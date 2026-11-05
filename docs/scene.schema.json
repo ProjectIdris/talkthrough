@@ -2728,7 +2728,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. This acts on parts you have already added, by their ids; it adds nothing and a new name does nothing. Name the piston with piston (the cylinder block never moves), the crankshaft with shaft and the connecting rod with rod. Put the three in one group, the crankshaft turning with spin. pin is which throw (1 is the first)."
+      "description": "Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. This acts on parts you have already added, by their ids; it adds nothing and a new name does nothing. Name the piston with piston (the cylinder block never moves), the crankshaft with shaft and the connecting rod with rod. Put the three in one group, the crankshaft turning with spin. On a plain cylinder laid on its side as the crankshaft, the crank draws the pin and runs the rod on it in front of the disc: add no pin of your own. pin is which throw (1 is the first)."
     },
     "cam": {
       "type": "object",
@@ -2847,6 +2847,260 @@
       ],
       "additionalProperties": false,
       "description": "A glow that comes on at one point of the cycle of a turning part: the object (a small sphere for a spark, a larger one for the burn) is invisible, flares to its opacity at the crank angle given and dies away over span degrees. by is the crankshaft; angle is degrees into a cycle of cycle degrees (default 720, a four-stroke engine: 0 is the piston at the top starting the intake, 360 the top of the compression)."
+    },
+    "loop": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "loop"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "slide",
+            "swing",
+            "pulse",
+            "stop",
+            null
+          ],
+          "description": "left out, the kind of the joint the object has"
+        },
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "slide: total travel in units; swing: degrees each side; pulse: the size factor (1.3 is 30% bigger, 0.8 smaller); 0.01 to 360"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds for one cycle (default 2); 0.1 to 60"
+        },
+        "by": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a spinning part to stay in step with"
+        },
+        "ratio": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "with by: cycles per turn of that part (default 1); -20 to 20"
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "degrees ahead (180 is half a cycle behind another loop at 0); -3600 to 3600"
+        },
+        "pivot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "swing: from the object to the point it turns about; [x,y,z], each -100 to 100"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "kind",
+        "amount",
+        "axis",
+        "period",
+        "by",
+        "ratio",
+        "phase",
+        "pivot",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Repeat a motion on any object: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, round pivot) or pulse (swell to amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint's. Another loop replaces it; stop ends it."
+    },
+    "joint": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "joint"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "hinge",
+            "slide",
+            "fixed"
+          ]
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "dir": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "slide: the direction, [x,y,z]; [x,y,z], each -100 to 100"
+        },
+        "pivot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "hinge: from the object to the point it turns about; [x,y,z], each -100 to 100"
+        },
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-3600 to 3600"
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-3600 to 3600"
+        },
+        "to": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "fixed: the object it rides with"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "kind",
+        "axis",
+        "dir",
+        "pivot",
+        "min",
+        "max",
+        "to",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it."
+    },
+    "couple": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "couple"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "by": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the part that drives it"
+        },
+        "ratio": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "default 1; -100 to 100"
+        },
+        "pitch": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "units of travel for one turn, between a hinge and a slide; -100 to 100"
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-3600 to 3600"
+        },
+        "stop": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "by",
+        "ratio",
+        "pitch",
+        "phase",
+        "stop",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "One joint follows another: its value is ratio times that of by, plus phase. Use ratio between two of a kind (gear, belt, lever) and pitch between a hinge and a slide (units of travel for one turn: a screw, a rack, a rope on a wheel is 2 x pi x radius). stop ends it."
     },
     "cut": {
       "type": "object",
@@ -3257,6 +3511,15 @@
         },
         {
           "$ref": "#/$defs/flash"
+        },
+        {
+          "$ref": "#/$defs/loop"
+        },
+        {
+          "$ref": "#/$defs/joint"
+        },
+        {
+          "$ref": "#/$defs/couple"
         },
         {
           "$ref": "#/$defs/cut"

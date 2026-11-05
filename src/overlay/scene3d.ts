@@ -453,7 +453,8 @@ export class PanelScene {
     const rot = pose?.rot ?? o.rot;
     node.obj.position.set(at[0] + (offset?.[0] ?? 0), at[1] + (offset?.[1] ?? 0), at[2] + (offset?.[2] ?? 0));
     node.obj.rotation.copy(new Euler(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'XYZ'));
-    node.obj.scale.set(node.baseScale.x * o.scale[0] * grow, node.baseScale.y * o.scale[1] * grow, node.baseScale.z * o.scale[2] * grow);
+    const loop = o.pose?.scale ?? [1, 1, 1]; // a pulse loop swells it on top of its own scale
+    node.obj.scale.set(node.baseScale.x * o.scale[0] * loop[0] * grow, node.baseScale.y * o.scale[1] * loop[1] * grow, node.baseScale.z * o.scale[2] * loop[2] * grow);
     const alpha = Math.max(0, Math.min(1, (o.pose?.opacity ?? o.opacity) * o.appear * o.fade));
     node.obj.visible = alpha > 0.003;
     node.alpha = alpha;

@@ -17,6 +17,10 @@ export type SceneState = {
   diagramKinds: Map<string, DiagramKind>;
   /** The ready-made part (piston, valve, cylinder-block...) that each id made by `add` part is; ids of anything else are not here. */
   parts: Map<string, string>;
+  /** What joint each object has been given (hinge, slide or fixed), what each coupled object follows, and what each fixed object rides with. */
+  joints: Map<string, 'hinge' | 'slide' | 'fixed'>;
+  follows: Map<string, string>;
+  rides: Map<string, string>;
   turnSteps: number;
   turnActions: number;
   /** Copies made by `array` actions so far. */
@@ -39,7 +43,7 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 export function createSceneState(): SceneState {
-  return { ids: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), parts: new Map(), turnSteps: 0, turnActions: 0, copies: 0 };
+  return { ids: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), parts: new Map(), joints: new Map(), follows: new Map(), rides: new Map(), turnSteps: 0, turnActions: 0, copies: 0 };
 }
 
 /**
@@ -48,7 +52,7 @@ export function createSceneState(): SceneState {
  */
 export function createDetailState(onScreen: SceneState): SceneState {
   return {
-    ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts),
+    ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides),
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
   };
 }
@@ -257,13 +261,16 @@ function removeWithDescendants(state: SceneState, id: string): void {
     state.depth.delete(d);
     state.diagramKinds.delete(d);
     state.parts.delete(d);
+    state.joints.delete(d);
+    state.follows.delete(d);
+    state.rides.delete(d);
   }
 }
 
 /** Takes a cleared id (or "all", "marks", "panel") out of what the scene holds; the guide clears the page by id between steps and tells the scene here. */
 export function applyClear(state: SceneState, target: string): void {
   if (target === 'all') {
-    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.copies = 0;
+    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.joints.clear(); state.follows.clear(); state.rides.clear(); state.copies = 0;
   } else if (target === 'marks' || target === 'panel') {
     // Marks, pins and flat diagrams are the screen's; the 3D stage is the rest.
     const wantMark = target === 'marks';
@@ -309,6 +316,14 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     out[name] = p.value;
   }
   if (bindings && !bindParts(bindings, (n) => own(raw, n), out, state, path, (kind, at, why) => note(notes, kind, at, why))) return null;
+  const locked = LOCKS[variant.name] !== undefined ? out[LOCKS[variant.name] as string] : undefined;
+  if (typeof locked === 'string' && state.follows.has(locked)) {
+    // A lock reads the angle the part spins at; a part that only follows another through a coupling has none of its own.
+    let root = locked;
+    for (let n = 0; state.follows.has(root) && n < 64; n++) root = state.follows.get(root) as string;
+    note(notes, 'dropped', `${path}.${LOCKS[variant.name]}`, `"${locked}" follows "${root}" through a coupling, so nothing spins it itself; lock it to "${root}" (ratio sets the speed)`);
+    return null;
+  }
   for (const key of ownKeys(raw)) {
     if (key !== 'op' && !(key in variant.fields)) note(notes, 'trimmed', `${path}.${key.slice(0, 40)}`, 'unknown field ignored');
   }
@@ -320,6 +335,28 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', path, 'spin needs rpm or by');
     return null;
   }
+  if (variant.name === 'loop' && out.kind !== 'stop') {
+    // The kind is the object's joint when left out; an amount is a travel, an angle or a size factor by its kind, each in a range that still reads as that motion.
+    const joint = state.joints.get(out.id as string);
+    const kind = (out.kind as string | undefined) ?? (joint === 'hinge' ? 'swing' : joint === 'slide' ? 'slide' : undefined);
+    if (kind === undefined) {
+      note(notes, 'dropped', path, 'loop needs a kind, or a hinge or slide joint on the object');
+      return null;
+    }
+    const amount = out.amount as number | undefined;
+    if (amount === undefined) {
+      note(notes, 'dropped', path, 'loop needs an amount');
+      return null;
+    }
+    const [low, high] = kind === 'slide' ? [0.01, 100] : kind === 'swing' ? [0.01, 180] : [0.1, 5];
+    const held = Math.min(high, Math.max(low, amount));
+    if (held !== amount) {
+      note(notes, 'clamped', `${path}.amount`, `${kind} amount ${amount} held to ${held}`);
+      out.amount = held;
+    }
+  }
+  if (variant.name === 'joint' && !checkJoint(out, state, path, notes)) return null;
+  if (variant.name === 'couple' && !checkCouple(out, state, path, notes)) return null;
   if (variant.name === 'addBlob') {
     // One size for each lump: a short list repeats its last, a long one is cut.
     const pts = out.pts as unknown[];
@@ -374,6 +411,67 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   }
   return out as Action;
 }
+
+/** Whether a chain of followers (a follows b follows c...) comes back to `start`. */
+function comesBack(links: ReadonlyMap<string, string>, from: string, start: string): boolean {
+  for (let cur: string | undefined = from, n = 0; cur !== undefined && n < 64; cur = links.get(cur), n++) if (cur === start) return true;
+  return false;
+}
+
+/** A joint: a fixed one needs the object it rides with (never in a ride that comes round to itself), limits run low to high; then it is on record. */
+function checkJoint(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const id = out.id as string;
+  if (out.kind === 'fixed') {
+    const to = out.to as string | undefined;
+    if (to === undefined) {
+      note(notes, 'dropped', path, 'a fixed joint needs to, the object it rides with');
+      return false;
+    }
+    if (comesBack(state.rides, to, id)) {
+      note(notes, 'dropped', `${path}.to`, `${id} cannot ride with ${to}: that rides with ${id} already`);
+      return false;
+    }
+    state.rides.set(id, to);
+  } else {
+    delete out.to;
+    state.rides.delete(id);
+  }
+  if (typeof out.min === 'number' && typeof out.max === 'number' && out.min > out.max) {
+    note(notes, 'trimmed', `${path}.min`, 'min was above max; they are swapped');
+    [out.min, out.max] = [out.max, out.min];
+  }
+  state.joints.set(id, out.kind as 'hinge' | 'slide' | 'fixed');
+  return true;
+}
+
+/** A coupling: never an object to itself (bound out already), never a loop of followers, a hinge and a slide only through a pitch. */
+function checkCouple(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const id = out.id as string;
+  const by = out.by as string | undefined;
+  if (out.stop === true) {
+    state.follows.delete(id);
+    return true;
+  }
+  if (by === undefined) {
+    note(notes, 'dropped', path, 'couple needs by, the part that drives it (or stop)');
+    return false;
+  }
+  if (comesBack(state.follows, by, id)) {
+    note(notes, 'dropped', `${path}.by`, `${id} cannot follow ${by}: that follows ${id} already (a coupling loop)`);
+    return false;
+  }
+  const mine = state.joints.get(id);
+  const theirs = state.joints.get(by);
+  if (out.pitch === undefined && mine !== undefined && theirs !== undefined && mine !== 'fixed' && theirs !== 'fixed' && mine !== theirs) {
+    note(notes, 'dropped', path, `a ${theirs} and a ${mine} are coupled with pitch (units of travel for a turn), not ratio`);
+    return false;
+  }
+  state.follows.set(id, by);
+  return true;
+}
+
+/** The field of each machine op that names the part it is locked to. */
+const LOCKS: Readonly<Record<string, string>> = { loop: 'by', spin: 'by', cam: 'by', flash: 'by', crank: 'shaft' };
 
 const DIAGRAM_PIECES: ReadonlySet<string> = new Set(['diagram', 'node', 'edge', 'series', 'dot', 'tick']);
 

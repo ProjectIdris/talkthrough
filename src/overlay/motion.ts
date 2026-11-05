@@ -23,10 +23,31 @@ export type CrankDef = { key: number; shaftKey: number; rodKey: number | null; p
 export type CamDef = { key: number; byKey: number; lift: number | undefined; open: number; phase: number };
 export type FlashDef = { key: number; byKey: number; angle: number; span: number; cycle: number };
 
-export type Motion = { spins: SpinState[]; cranks: CrankDef[]; cams: CamDef[]; flashes: FlashDef[] };
-export type Pose = { pos?: Vec3; rot?: Vec3; opacity?: number };
+/**
+ * A loop: a repeating motion that is not a full turn, for any object. Its phase is an angle kept like a spin's, in `Motion.spins` under the key
+ * `loopDriver(key)` (below zero, so it never meets an object): free, it turns once a period; locked, it follows another part. The pose is a function
+ * of that angle (the cosine of it: 1 at the far end, so a part locked to a crank is at the top when the crank pin is).
+ */
+export type LoopKind = 'slide' | 'swing' | 'pulse';
+export type LoopDef = { key: number; kind: LoopKind; axis: Axis; amount: number; pivot: Vec3 };
+/** The key of the angle that drives the loop on object `key`; the same call gives the object back from the driver's key. */
+export const loopDriver = (key: number): number => -1 - key;
+/** Where a free loop's angle starts, so it begins at rest: the cosine is 0 for slide and swing, and the pulse is at its smallest. */
+export const loopStart = (kind: LoopKind): number => (kind === 'pulse' ? 180 : 270);
 
-export const emptyMotion = (): Motion => ({ spins: [], cranks: [], cams: [], flashes: [] });
+/**
+ * Joints and couplings (the mechanism layer). A joint is a freedom an object has: a hinge about `axis` through `pivot`, a slide along `axis` or `dir`,
+ * or fixed to ride with `toKey`; `min`/`max` stop its value (it is held at the limit, not turned back). Its value comes from a driver: a spin (the angle), a
+ * loop (a swing in degrees, a slide in units) or a coupling to another object's value: ratio x that value + phase, or, between a hinge and a slide,
+ * `pitch` units of travel for a whole turn. Every value is a function of the angles, so frames, clips and the live page agree.
+ */
+export type JointDef = { key: number; kind: 'hinge' | 'slide' | 'fixed'; axis: Axis; dir: Vec3 | null; pivot: Vec3; min: number | undefined; max: number | undefined; toKey: number | null };
+export type CoupleDef = { key: number; byKey: number; ratio: number; pitch: number | undefined; phase: number };
+
+export type Motion = { spins: SpinState[]; cranks: CrankDef[]; cams: CamDef[]; flashes: FlashDef[]; loops: LoopDef[]; joints: JointDef[]; couples: CoupleDef[] };
+export type Pose = { pos?: Vec3; rot?: Vec3; opacity?: number; /** A multiplier on the object's own scale. */ scale?: Vec3 };
+
+export const emptyMotion = (): Motion => ({ spins: [], cranks: [], cams: [], flashes: [], loops: [], joints: [], couples: [] });
 
 // ---- Spins over time ------------------------------------------------------------------------------
 
@@ -116,7 +137,7 @@ const wrap180 = (d: number): number => ((((d + 180) % 360) + 360) % 360) - 180;
 /** Where the machine has put each moving object, given the angles. Objects not moved are not in the result. */
 export function poses(objects: readonly PoseObject[], motion: Motion): Map<number, Pose> {
   const out = new Map<number, Pose>();
-  if (motion.spins.length + motion.cranks.length + motion.cams.length + motion.flashes.length === 0) return out;
+  if (motion.spins.length + motion.cranks.length + motion.cams.length + motion.flashes.length + motion.loops.length + motion.joints.length + motion.couples.length === 0) return out;
   const byKey = new Map(objects.map((o) => [o.key, o] as const));
   const edit = (key: number): Pose => {
     let p = out.get(key);
@@ -126,15 +147,18 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     }
     return p;
   };
-  /** The turn of an object about z, rest and spin together. */
-  const turnZ = (key: number): number => out.get(key)?.rot?.[2] ?? byKey.get(key)?.rot[2] ?? 0;
+  const spinOf = new Map(motion.spins.map((s) => [s.key, s] as const));
+  /** The turn of an object about z, rest and spin together (read from the spin itself, so a part laid on its side still gives its angle). */
+  const turnZ = (key: number): number => {
+    const sp = spinOf.get(key);
+    return sp && sp.axis === 2 ? (byKey.get(key)?.rot[2] ?? 0) + sp.angle : out.get(key)?.rot?.[2] ?? byKey.get(key)?.rot[2] ?? 0;
+  };
 
+  const jointOf = new Map(motion.joints.map((j) => [j.key, j] as const));
   for (const s of motion.spins) {
     const o = byKey.get(s.key);
-    if (!o) continue;
-    const rot: Vec3 = [o.rot[0], o.rot[1], o.rot[2]];
-    rot[s.axis] += s.angle;
-    edit(s.key).rot = rot;
+    if (!o || jointOf.get(s.key)?.kind === 'hinge') continue; // a hinge is turned by the joint pass, about its own axis and pivot
+    edit(s.key).rot = turned(o.rot, s.axis, s.angle);
   }
 
   // What holds a machine never rides on it: a cylinder block or housing, a group, or anything a block sits inside. A crank or cam that names one
@@ -153,7 +177,9 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     if (!piston || !shaft || piston.parentKey !== shaft.parentKey || holders.has(c.key)) continue;
     const rod = c.rodKey !== null ? byKey.get(c.rodKey) : undefined;
     if (rod && (rod.parentKey !== shaft.parentKey || holders.has(rod.key))) continue;
-    const shaftSize = sizeOf(shaft.def, [1, 1, 1]);
+    // A plain cylinder stands on y (its width is x, its thickness y); laid on its side it is the disc the kit's crankshaft is.
+    const written = sizeOf(shaft.def, [1, 1, 1]);
+    const shaftSize: Vec3 = drawsOwnPin(shaft.def) ? [written[0], written[0], written[1]] : written;
     const throws = Math.max(1, Math.min('n' in shaft.def && shaft.def.n ? shaft.def.n : 1, 8));
     const theta = (turnZ(c.shaftKey) + (throws > 1 ? ((c.pin - 1) * 360) / throws : 0)) * DEG;
     const r = crankThrow(shaftSize);
@@ -169,8 +195,17 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
       const a = Math.atan2(-dx, rise);
       edit(c.rodKey as number);
       const pose = out.get(c.rodKey as number) as Pose;
-      pose.pos = [pinX + ends.big * Math.sin(a), pinY - ends.big * Math.cos(a), rod.pos[2]];
+      // On a plain-shape disc the rod runs in front of it, on the pin the crank draws, so the rod and the pin are one thing to look at.
+      const front = drawsOwnPin(shaft.def) ? crankPinSize(shaft.def, rod.def) : undefined;
+      const rodZ = front ? shaft.pos[2] + front.thick / 2 + 0.02 + front.rodD / 2 : rod.pos[2];
+      pose.pos = [pinX + ends.big * Math.sin(a), pinY - ends.big * Math.cos(a), rodZ];
       pose.rot = [rod.rot[0], rod.rot[1], a / DEG];
+    }
+    const pinObj = byKey.get(crankPinKey(c.key));
+    if (pinObj) {
+      const g = crankPinSize(shaft.def, rod?.def);
+      const face = shaft.pos[2] + g.thick / 2;
+      edit(pinObj.key).pos = [pinX, pinY, face + (g.pin[1] / 2) - 0.02];
     }
   }
 
@@ -196,7 +231,178 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     }
     edit(f.key).opacity = o.opacity * v;
   }
+
+  // Joints, loops and couplings go last and ride on whatever a spin, crank or cam already did to the same part.
+  const loopOf = new Map(motion.loops.map((l) => [l.key, l] as const));
+  const coupleOf = new Map(motion.couples.map((c) => [c.key, c] as const));
+  const angleOf = new Map(motion.spins.map((s) => [s.key, s.angle] as const));
+  /** The kind of freedom an object has, if it has one (its joint, else what its loop or coupling needs). */
+  const kindOf = (key: number, depth = 0): 'hinge' | 'slide' | undefined => {
+    const j = jointOf.get(key);
+    if (j) return j.kind === 'fixed' ? undefined : j.kind;
+    const l = loopOf.get(key);
+    if (l) return l.kind === 'slide' ? 'slide' : l.kind === 'swing' ? 'hinge' : undefined;
+    const c = coupleOf.get(key);
+    if (c && depth < 8) {
+      const by = kindOf(c.byKey, depth + 1) ?? 'hinge';
+      return c.pitch === undefined ? by : by === 'hinge' ? 'slide' : 'hinge';
+    }
+    return angleOf.has(key) ? 'hinge' : undefined;
+  };
+  const memo = new Map<number, number | undefined>();
+  /** The value of an object's joint now: degrees for a hinge, units for a slide; undefined when nothing drives it. */
+  const valueOf = (key: number, depth: number): number | undefined => {
+    if (memo.has(key)) return memo.get(key);
+    let v: number | undefined;
+    const c = coupleOf.get(key);
+    const l = loopOf.get(key);
+    if (c) {
+      const b = depth < 8 ? valueOf(c.byKey, depth + 1) : undefined; // a coupling that comes round to itself is cut here
+      if (b !== undefined) {
+        const by = kindOf(c.byKey) ?? 'hinge';
+        v = c.pitch === undefined ? c.ratio * b + c.phase : by === 'hinge' ? (c.pitch * b) / 360 + c.phase : (360 * b) / c.pitch + c.phase;
+      }
+    } else if (l && l.kind !== 'pulse') {
+      const a = angleOf.get(loopDriver(key));
+      if (a !== undefined) v = (Math.cos(a * DEG) * l.amount) / (l.kind === 'slide' ? 2 : 1);
+    } else {
+      v = angleOf.get(key);
+    }
+    memo.set(key, v);
+    return v;
+  };
+  const driven = new Set<number>([...jointOf.keys(), ...coupleOf.keys(), ...[...loopOf.values()].filter((l) => l.kind !== 'pulse').map((l) => l.key)]);
+  for (const key of driven) {
+    const o = byKey.get(key);
+    const joint = jointOf.get(key);
+    if (!o || joint?.kind === 'fixed') continue;
+    const kind = kindOf(key);
+    let q = valueOf(key, 0);
+    if (kind === undefined || q === undefined) continue;
+    const loop = loopOf.get(key);
+    // The limits stop the value where they are; a driver that pushes past them is held there (not turned back).
+    if (joint?.min !== undefined) q = Math.max(joint.min, q);
+    if (joint?.max !== undefined) q = Math.min(joint.max, q);
+    const pose = edit(key);
+    if (kind === 'slide') {
+      const axis = joint ? joint.axis : loop ? loop.axis : 1;
+      const unit: Vec3 = joint?.dir ? unitOf(joint.dir) : axis === 0 ? [1, 0, 0] : axis === 1 ? [0, 1, 0] : [0, 0, 1];
+      const p = pose.pos ?? o.pos;
+      pose.pos = [p[0] + unit[0] * q, p[1] + unit[1] * q, p[2] + unit[2] * q];
+    } else {
+      const axis = joint ? joint.axis : loop ? loop.axis : 2;
+      const pivot: Vec3 = joint ? joint.pivot : loop ? loop.pivot : [0, 0, 0];
+      pose.rot = turned(pose.rot ?? o.rot, axis, q);
+      const [px, py, pz] = pivot;
+      if (px !== 0 || py !== 0 || pz !== 0) {
+        // About the pivot point, not its own middle: the part goes to pivot + R(q) * (part - pivot).
+        const turned = turnAbout(pivot, axis, q);
+        const p = pose.pos ?? o.pos;
+        pose.pos = [p[0] + px - turned[0], p[1] + py - turned[1], p[2] + pz - turned[2]];
+      }
+    }
+  }
+  // A pulse swells the object about its own middle, on top of any scale it has.
+  for (const l of motion.loops) {
+    if (l.kind !== 'pulse') continue;
+    const o = byKey.get(l.key);
+    const a = angleOf.get(loopDriver(l.key));
+    if (!o || a === undefined) continue;
+    const m = 1 + (l.amount - 1) * ((1 + Math.cos(a * DEG)) / 2);
+    const pose = edit(l.key);
+    const base = pose.scale ?? [1, 1, 1];
+    pose.scale = [base[0] * m, base[1] * m, base[2] * m];
+  }
+  // A fixed joint rides with the object it is fixed to: its move and its turn, about that object's middle (chains settle in a few passes).
+  for (let pass = 0; pass < 4; pass++) {
+    for (const j of motion.joints) {
+      if (j.kind !== 'fixed' || j.toKey === null) continue;
+      const o = byKey.get(j.key);
+      const to = byKey.get(j.toKey);
+      const moved = out.get(j.toKey);
+      if (!o || !to || !moved || o.parentKey !== to.parentKey) continue;
+      // The turn it has made is the rotation from the rest orientation to the one it has now, as a matrix (not a difference of angles: with a part laid
+      // on its side the angles do not subtract).
+      const delta = mulM(matOf(moved.rot ?? to.rot), transposeM(matOf(to.rot)));
+      const dPos: Vec3 = [(moved.pos?.[0] ?? to.pos[0]) - to.pos[0], (moved.pos?.[1] ?? to.pos[1]) - to.pos[1], (moved.pos?.[2] ?? to.pos[2]) - to.pos[2]];
+      const v = applyM(delta, [o.pos[0] - to.pos[0], o.pos[1] - to.pos[1], o.pos[2] - to.pos[2]]);
+      const pose = edit(j.key);
+      pose.pos = [to.pos[0] + dPos[0] + v[0], to.pos[1] + dPos[1] + v[1], to.pos[2] + dPos[2] + v[2]];
+      pose.rot = eulerOf(mulM(delta, matOf(o.rot)));
+    }
+  }
   return out;
+}
+
+/**
+ * A turn of `deg` about the parent's axis (0 x, 1 y, 2 z) added to an object's rest turn. With the other two angles at 0 it is just the angle added; with
+ * them set (a cylinder laid on its side is [90,0,0]) the part turns about the parent's axis, as the scene says, and does not tumble about its own: the
+ * result is the same orientation written again as the XYZ turn the renderer draws.
+ */
+type Row = [number, number, number];
+type M3 = [Row, Row, Row];
+
+/** The rotation an XYZ turn (three.js Euler order: Rx * Ry * Rz) stands for. */
+function matOf(rot: Vec3): M3 {
+  const [x, y, z] = [rot[0] * DEG, rot[1] * DEG, rot[2] * DEG];
+  const [cx, sx, cy, sy, cz, sz] = [Math.cos(x), Math.sin(x), Math.cos(y), Math.sin(y), Math.cos(z), Math.sin(z)];
+  return [
+    [cy * cz, -cy * sz, sy],
+    [cx * sz + sx * sy * cz, cx * cz - sx * sy * sz, -sx * cy],
+    [sx * sz - cx * sy * cz, sx * cz + cx * sy * sz, cx * cy],
+  ];
+}
+const mulM = (p: M3, q: M3): M3 => p.map((row) => ([0, 1, 2] as const).map((j) => row[0] * q[0][j] + row[1] * q[1][j] + row[2] * q[2][j])) as M3;
+const transposeM = (m: M3): M3 => [[m[0][0], m[1][0], m[2][0]], [m[0][1], m[1][1], m[2][1]], [m[0][2], m[1][2], m[2][2]]];
+const applyM = (m: M3, v: Vec3): Vec3 => [m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2], m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2], m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2]];
+/** The XYZ turn (degrees) that stands for a rotation. */
+function eulerOf(n: M3): Vec3 {
+  const m13 = Math.max(-1, Math.min(1, n[0][2]));
+  const ey = Math.asin(m13);
+  if (Math.abs(m13) < 0.9999999) return [Math.atan2(-n[1][2], n[2][2]) / DEG, ey / DEG, Math.atan2(-n[0][1], n[0][0]) / DEG];
+  return [Math.atan2(n[2][1], n[1][1]) / DEG, ey / DEG, 0];
+}
+
+/**
+ * A turn of `deg` about the parent's axis (0 x, 1 y, 2 z) added to an object's rest turn. With the other two angles at 0 it is just the angle added; with
+ * them set (a cylinder laid on its side is [90,0,0]) the part turns about the parent's axis, as the scene says, and does not tumble about its own: the
+ * result is the same orientation written again as the XYZ turn the renderer draws.
+ */
+export function turned(rest: Vec3, axis: Axis, deg: number): Vec3 {
+  if (rest[(axis + 1) % 3] === 0 && rest[(axis + 2) % 3] === 0) {
+    const out: Vec3 = [rest[0], rest[1], rest[2]];
+    out[axis] += deg;
+    return out;
+  }
+  const c = Math.cos(deg * DEG), s = Math.sin(deg * DEG);
+  const t: M3 = axis === 2 ? [[c, -s, 0], [s, c, 0], [0, 0, 1]] : axis === 0 ? [[1, 0, 0], [0, c, -s], [0, s, c]] : [[c, 0, s], [0, 1, 0], [-s, 0, c]];
+  return eulerOf(mulM(t, matOf(rest)));
+}
+
+/** The key of the pin a crank draws on a plain-shape crankshaft (below zero, so it never meets an object made by a scene). */
+export const crankPinKey = (crankKey: number): number => -1_000_000 - crankKey;
+/** Whether a crankshaft is a plain shape the crank must draw the pin for (a kit crankshaft draws its own): a cylinder, laid on its side as the disc. */
+export const drawsOwnPin = (shaft: AddAction): boolean => shaft.shape === 'cylinder';
+/** The pin drawn on a plain-shape disc and the room the rod needs on it, from the sizes of the disc and of the rod. */
+export function crankPinSize(shaft: AddAction, rod: AddAction | undefined): { throwR: number; thick: number; rodW: number; rodD: number; pin: Vec3 } {
+  const written = sizeOf(shaft, [1, 1, 1]);
+  const throwR = crankThrow([written[0], written[0], written[1]]);
+  const [rodW, , rodD] = rod ? sizeOf(rod, [0.3, 1, 0.3]) : [Math.max(0.16, throwR * 0.4), 1, Math.max(0.16, throwR * 0.4)];
+  const d = Math.max(0.16, rodW * 0.9);
+  const thick = written[1];
+  return { throwR, thick, rodW, rodD, pin: [d, rodD + 0.18, d] };
+}
+
+const unitOf = (d: Vec3): Vec3 => {
+  const n = Math.hypot(d[0], d[1], d[2]);
+  return n < 1e-9 ? [0, 1, 0] : [d[0] / n, d[1] / n, d[2] / n];
+};
+
+/** A vector turned about an axis (0 x, 1 y, 2 z) by an angle in degrees. */
+function turnAbout(v: Vec3, axis: Axis, deg: number): Vec3 {
+  if (deg === 0) return v;
+  const c = Math.cos(deg * DEG), s = Math.sin(deg * DEG);
+  return axis === 2 ? [v[0] * c - v[1] * s, v[0] * s + v[1] * c, v[2]] : axis === 0 ? [v[0], v[1] * c - v[2] * s, v[1] * s + v[2] * c] : [v[2] * s + v[0] * c, v[1], v[2] * c - v[0] * s];
 }
 
 /** True while any part is turning. */

@@ -22,7 +22,7 @@ export type Binding = {
   /** What the field needs, for the line in the log. */
   what: string;
   /** The ready-made part it is (the one to look for when what was written does not fit). */
-  part: string;
+  part?: string;
   /** Whether an id that exists already is what this field needs. */
   fits(i: PartInfo): boolean;
   /** The field that is bound before this one, and that this part sits beside (same parent). */
@@ -59,6 +59,15 @@ export const BINDINGS: Readonly<Record<string, readonly Binding[]>> = {
   ],
   flash: [
     { field: 'by', what: 'crankshaft', part: 'crankshaft', fits: mover },
+  ],
+  joint: [
+    { field: 'to', what: 'part it rides with', fits: mover, optional: true, not: 'id' },
+  ],
+  couple: [
+    { field: 'by', what: 'driving part', fits: mover, optional: true, not: 'id' },
+  ],
+  loop: [
+    { field: 'by', what: 'driving part', part: 'crankshaft', fits: mover, optional: true, not: 'id' },
   ],
   spin: [
     { field: 'by', what: 'driving part', part: 'crankshaft', fits: mover, optional: true, not: 'id' },
@@ -137,6 +146,7 @@ const article = (what: string): string => `${/^[aeiou]/.test(what) ? 'an' : 'a'}
 
 /** The one part that can stand for what was written, or undefined when none or more than one can. */
 function repair(b: Binding, said: string | undefined, bound: ReadonlyMap<string, string>, state: SceneState, self: unknown, onlyOne = false): string | undefined {
+  if (b.part === undefined) return undefined;
   let candidates: PartInfo[] = [];
   for (const id of state.ids.keys()) {
     const info = infoOf(state, id);
