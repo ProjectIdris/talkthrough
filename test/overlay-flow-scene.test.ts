@@ -194,3 +194,16 @@ test('a hand-built tube that ends on a weight keeps its end on the weight as the
   }
   assert.ok((heights[1] as number) - (heights[2] as number) > 0.5, `the weight moved, and so did the end: ${heights.join()}`);
 });
+
+test('a bead is shaded, not flat, and clearly wider than the pipe it runs in: it reads on a pale or see-through tube', () => {
+  const pipe = { op: 'add', shape: 'tube', id: 'pipe', pts: [[0, 0, 0], [3, 0, 0]], radius: 0.1, color: 'purple', opacity: 0.55 };
+  const { node } = shown([pipe, { op: 'add', shape: 'stream', id: 's', along: 'pipe', count: 3, period: 3, color: 'blue', toColor: 'red' }], 1);
+  const ms = markersOf(node('s')).filter((m) => m.visible);
+  assert.ok(ms.length > 0);
+  const widest = Math.max(...ms.map((m) => m.scale.x));
+  assert.ok(widest >= 0.28, `a bead is at least 2.8 pipe radii across (${widest.toFixed(3)} for a pipe of radius 0.1)`);
+  for (const m of ms) {
+    const glow = (m.material as unknown as { userData: { glow: number } }).userData.glow;
+    assert.ok(glow <= 0.5, `a bead keeps its shading, so it reads as a bead and not a flat disc (glow ${glow})`);
+  }
+});
