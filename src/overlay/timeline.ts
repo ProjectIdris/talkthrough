@@ -797,7 +797,7 @@ export function evaluate(plan: StepPlan, t: number): Frame {
     const id = `${shaft.id}-pin`;
     const g = crankPinSize(shaft.def, rod?.def);
     objects.push({
-      key: crankPinKey(c.key), id, parentKey: shaft.parentKey, shape: 'cylinder', pos: [0, 0, 0], rot: [90, 0, 0], scale: [1, 1, 1], color: [236, 236, 240], opacity: 1,
+      key: crankPinKey(c.key), id, parentKey: shaft.parentKey, shape: 'cylinder', pos: [...shaft.pos], rot: [90, 0, 0], scale: [1, 1, 1], color: [236, 236, 240], opacity: 1,
       appear: shaft.appear, fade: shaft.fade, pulse: 0, pulseColor: undefined, draw: 1, spread: shaft.spread,
       def: { op: 'add', shape: 'cylinder', id, size: g.pin, rot: [90, 0, 0], color: 'white' } as AddAction,
     });

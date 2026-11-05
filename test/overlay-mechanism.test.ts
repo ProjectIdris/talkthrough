@@ -250,6 +250,15 @@ test('on a plain-shape crank the crank draws the pin at the throw, in front of t
   }
 });
 
+test('the pin the crank draws rests where its shaft is, not at the origin (what fits the camera to the model sees the rest values)', () => {
+  const plan = run(
+    { op: 'add', shape: 'cylinder', id: 'wheel', size: [2.2, 0.4, 2.2], pos: [30, -2.6, 0], rot: [90, 0, 0] },
+    { op: 'add', shape: 'box', id: 'pis', size: [2.2, 1, 2], pos: [30, 0.6, 0] },
+    { op: 'spin', id: 'wheel', rpm: 10, dur: 0 }, { op: 'crank', id: 'pis', shaft: 'wheel' });
+  const f = evaluate(plan, 0.5);
+  assert.deepEqual(obj(f, 'wheel-pin')?.pos, [30, -2.6, 0]);
+});
+
 test('a kit crankshaft draws its own pin already: the crank adds none', () => {
   const plan = run(part('crank', 'crankshaft', { size: [4, 4, 2], pos: [0, -2, 0] }), part('rod', 'connecting-rod', { size: [0.8, 4, 0.5] }), part('pis', 'piston', { size: [2, 2, 2], pos: [0, 3, 0] }),
     { op: 'spin', id: 'crank', rpm: 10, dur: 0 }, { op: 'crank', id: 'pis', shaft: 'crank', rod: 'rod' });
