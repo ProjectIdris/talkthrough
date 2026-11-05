@@ -24,7 +24,7 @@ import { snapActions } from './snap.ts';
 import type { Snapper } from './snap.ts';
 import type { PageGrid } from './placement.ts';
 import type { Busy } from './labels.ts';
-import { panelRect } from './layout.ts';
+import { StageGrowth, panelRect } from './layout.ts';
 import { createHold, modelButtonRects, overModel, wheelFactor } from './orbit.ts';
 import { DiagramPainter } from './diagram-draw.ts';
 import { drawMarks } from './marks.ts';
@@ -209,6 +209,9 @@ const clampRect = (r: ScreenRect, pad: number): ScreenRect => {
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 reduceMotion.addEventListener('change', () => request());
 
+/** How far the visible card has grown to hold the model this time it is up. */
+const stageGrowth = new StageGrowth();
+
 /** The stage's size in pixels this frame: tags are drawn smaller beside a small stage. */
 let stageSize: { w: number; h: number } | undefined;
 
@@ -221,25 +224,27 @@ function draw(frame: Frame): void {
   stageSize = undefined;
   if (rect && frame.panel) {
     const { x, y, w, h, alpha } = rect;
+    panelScene.sync(frame, w / h, { rect: { x, y, w, h }, width: view.width, height: view.height, now: labelClock() });
+    stageSize = { w, h };
+    const bounds = panelScene.screenBounds(view.width, view.height);
+    // The card is not a frame the model is cut to: it grows to hold the whole model (see StageGrowth). The camera keeps the panel's own rectangle.
+    const card = stageGrowth.card({ x, y, w, h }, bounds?.model, view) ?? { x, y, w, h };
     if (frame.panel.frame) {
       frameEl.style.display = 'block';
-      frameEl.style.left = `${x}px`;
-      frameEl.style.top = `${y}px`;
-      frameEl.style.width = `${w}px`;
-      frameEl.style.height = `${h}px`;
+      frameEl.style.left = `${card.x}px`;
+      frameEl.style.top = `${card.y}px`;
+      frameEl.style.width = `${card.w}px`;
+      frameEl.style.height = `${card.h}px`;
       frameEl.style.opacity = String(alpha);
       // A frame over a light page is light, over a dark one dark, so it never reads as a black slab on a white article.
-      const under = placer()?.brightness({ x: (x / view.width) * 1000, y: (y / view.height) * 1000, w: (w / view.width) * 1000, h: (h / view.height) * 1000 }) ?? 0;
+      const under = placer()?.brightness({ x: (card.x / view.width) * 1000, y: (card.y / view.height) * 1000, w: (card.w / view.width) * 1000, h: (card.h / view.height) * 1000 }) ?? 0;
       frameEl.classList.toggle('light', under > 150);
     } else {
       frameEl.style.display = 'none';
     }
-    panelScene.sync(frame, w / h, { rect: { x, y, w, h }, width: view.width, height: view.height, now: labelClock() });
-    stageSize = { w, h };
-    const bounds = panelScene.screenBounds(view.width, view.height);
     if (bounds) {
-      modelRect = frame.panel.frame ? { x, y, w, h } : bounds.model;
-      if (frame.panel.frame) cardRect = { x, y, w, h };
+      modelRect = frame.panel.frame ? card : bounds.model;
+      if (frame.panel.frame) cardRect = card;
       // Development: `?scissor=off` draws over the whole window, to see what the rectangle would cut (scripts/overlay-frames.cjs --scissor off).
       const r = params.get('scissor') === 'off' ? { x: 0, y: 0, w: view.width, h: view.height } : clampRect(bounds.drawn, 14);
       if (r.w > 0 && r.h > 0) {
@@ -263,6 +268,7 @@ function draw(frame: Frame): void {
     }
   } else {
     // No stage, or one too faint to see: nothing here may take the pointer.
+    stageGrowth.card(undefined, undefined, view);
     frameEl.style.display = 'none';
     panelScene.sync(frame, 1);
   }

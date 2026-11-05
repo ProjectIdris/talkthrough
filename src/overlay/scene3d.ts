@@ -678,6 +678,33 @@ export class PanelScene {
   }
 
   /**
+   * Where everything drawn is on screen: the box of every visible mesh, line or sprite in the scene (the floor and its shadow blob are the shadow's own rectangle),
+   * projected corner by corner. A box is roomier than the thing in it and never smaller. Something at or behind the camera could be anywhere on screen, so the
+   * whole window is then given.
+   */
+  private looseRect(width: number, height: number): ScreenRect | undefined {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const box = new Box3();
+    const p = new Vector3();
+    const inv = this.camera.matrixWorldInverse;
+    let anywhere = false;
+    this.scene.traverseVisible((o) => {
+      if (o === this.floor || o === this.blob || !((o as Mesh).isMesh || (o as LineSegments).isLineSegments || (o as Sprite).isSprite)) return;
+      box.setFromObject(o);
+      if (box.isEmpty()) return;
+      for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+        p.set(x, y, z);
+        if (p.clone().applyMatrix4(inv).z > -this.camera.near) { anywhere = true; return; }
+        p.project(this.camera);
+        const sx = ((p.x + 1) / 2) * width, sy = ((1 - p.y) / 2) * height;
+        x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy);
+      }
+    });
+    if (anywhere) return { x: 0, y: 0, w: width, h: height };
+    return x0 <= x1 && y0 <= y1 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : undefined;
+  }
+
+  /**
    * Where the camera stands to show the model at rest as large as the stage allows from this direction: the middle of the parts' box and the
    * distance (returned as `radius`, so it eases like the old sphere did) at which every part's sphere sits inside the stage's frustum, with the
    * margin. A tall or long model fills its stage instead of leaving it mostly empty, and, being made from the rest pose, it does not breathe
@@ -812,6 +839,10 @@ export class PanelScene {
     const shadow = rect([-1, 1].flatMap((sx) => [-1, 1].map((sz) => new Vector3(centre.x + sx * span, floorY, centre.z + sz * span))));
     let x0 = Math.min(model.x, shadow.x), y0 = Math.min(model.y, shadow.y);
     let x1 = Math.max(model.x + model.w, shadow.x + shadow.w), y1 = Math.max(model.y + model.h, shadow.y + shadow.h);
+    // Everything that is drawn, not only the parts the camera is fitted to: a line, an arrow, a hose or a stream, a cap on a cut, a part not yet counted.
+    // The tight rectangle above is for where buttons and tags go; the scissor must never be tighter than what is actually drawn.
+    const loose = this.looseRect(width, height);
+    if (loose) { x0 = Math.min(x0, loose.x); y0 = Math.min(y0, loose.y); x1 = Math.max(x1, loose.x + loose.w); y1 = Math.max(y1, loose.y + loose.h); }
     // The text drawn over the model may stand a little beyond it (moved apart from its neighbours): the scissor has to let it through.
     for (const r of this.textRects) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
     // A little room all round: what is drawn (a lit edge, a part a pixel or two past its box) must not be cut by the scissor.
