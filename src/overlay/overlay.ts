@@ -240,7 +240,8 @@ function draw(frame: Frame): void {
     if (bounds) {
       modelRect = frame.panel.frame ? { x, y, w, h } : bounds.model;
       if (frame.panel.frame) cardRect = { x, y, w, h };
-      const r = clampRect(bounds.drawn, 14);
+      // Development: `?scissor=off` draws over the whole window, to see what the rectangle would cut (scripts/overlay-frames.cjs --scissor off).
+      const r = params.get('scissor') === 'off' ? { x: 0, y: 0, w: view.width, h: view.height } : clampRect(bounds.drawn, 14);
       if (r.w > 0 && r.h > 0) {
         renderer.setViewport(0, 0, view.width, view.height);
         renderer.setScissor(r.x, view.height - r.y - r.h, r.w, r.h);
