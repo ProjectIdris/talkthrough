@@ -186,6 +186,17 @@ test('a box over four or more lines of dense body text is not taken for a table:
   assert.ok(y0 <= 38 && y0 >= 30, `and has air above the first line (40): ${y0.toFixed(1)}`);
 });
 
+test('a narrow box around one dense paragraph line does not grow into the adjoining photo column', () => {
+  const page = new Page();
+  page.dense(60, 40, 300, 6);
+  page.fill(311, 35, 460, 130, 70); // adjacent photo/figure content, separated by a narrow gutter
+  const s = page.snapper();
+  const out = s.snapMark(box(58, 38, 302, 51));
+  const b = out as Extract<Mark, { op: 'box' }>;
+  assert.ok((b.x + b.w) * kx <= 310, `paragraph fit stays left of adjacent content, got ${(b.x + b.w) * kx}`);
+  assert.ok(cellsOfBox(out).y1 < 64, `one selected line stays a one-line mark, got ${cellsOfBox(out).y1}`);
+});
+
 test('where the gap between lines is only a few cells, the air at a cut line is no more than half of it: an edge never lands inside the next line', () => {
   const page = new Page();
   page.dense(60, 40, 300, 6, 200); // line bands 37-44, 48-55, 59-66, 70-77, 81-88, 92-99: a gap of three cells
