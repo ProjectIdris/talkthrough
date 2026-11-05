@@ -391,7 +391,9 @@ function placer(): Placer | undefined {
   const source = cropSource();
   if (!page || !source) return undefined;
   const aspect = view.width / view.height;
-  return pageMemory.recall('placer', source.image, `${aspect}:${view.height}`, () => new Placer(page.grid, { aspect, height: view.height }));
+  const p = pageMemory.recall('placer', source.image, `${aspect}:${view.height}`, () => new Placer(page.grid, { aspect, height: view.height, sourceAspect: source.width / source.height, onImpossible: () => console.warn('talkthrough: placement cannot fit all surfaces or targets') }));
+  p.setControls(realControls);
+  return p;
 }
 
 /** The page's edges and corners, for putting marks on what they point at (snap.ts); kept for as long as the picture is the same. */
@@ -526,7 +528,7 @@ function captionKeepOut(frame: Frame): Rect[] {
   const aspect = view.width / view.height;
   const px = (b: { x: number; y: number; w: number; h: number }): Rect => ({ x: (b.x / 1000) * view.width, y: (b.y / 1000) * view.height, w: (b.w / 1000) * view.width, h: (b.h / 1000) * view.height });
   for (const m of frame.marks) if (m.appear > 0.05 && m.fade > 0.05) for (const b of markFootprint(m.mark, aspect)) out.push(px(b));
-  for (const m of frame.marks) if (m.appear > 0.05 && m.fade > 0.05) for (const b of cardFootprint(m.mark, view.height)) out.push(px(b));
+  for (const m of frame.marks) if (m.appear > 0.05 && m.fade > 0.05) for (const b of cardFootprint(m.mark, view.height, aspect, cropSource() ? cropSource()!.width / cropSource()!.height : aspect)) out.push(px(b));
   for (const d of frame.diagrams) if (d.appear > 0.05 && d.fade > 0.05) out.push(px(d.def));
   out.push(...board.shownRects());
   if (modelRect) out.push(modelRect);
@@ -995,9 +997,11 @@ function placedScene(scene: Scene): Scene {
   p.setStage(undefined);
   const aspect = view.width / view.height;
   ownedMarks.clear();
-  for (const id of ownedMarkIds(scene.steps, aspect)) ownedMarks.add(id);
+  const source = cropSource();
+  const sourceAspect = source ? source.width / source.height : aspect;
+  for (const id of ownedMarkIds(scene.steps, aspect, view.height, sourceAspect)) ownedMarks.add(id);
   // A mark written after a flat diagram and inside the rectangle it was asked for belongs to it (it is not snapped to the page or kept clear of), and goes with it.
-  const owned = ownedByDiagram(scene.steps, aspect);
+  const owned = ownedByDiagram(scene.steps, aspect, view.height, sourceAspect);
   const snapped = scene.steps.map((step, i) => ({ ...step, actions: step.actions.map((a, j) => (owned[i]![j] ? a : (snappedActions([a])[0] as Action))) }));
   snapped.forEach((step, i) => reserveMarks(p, step.actions.filter((_, j) => !owned[i]![j]), aspect));
   const placed = snapped.map((step) => ({ ...step, actions: step.actions.map((a) => placeAction(p, a, view.height)) }));

@@ -228,7 +228,7 @@ const MOVE_WORTH = 8;
 const TOP_BAND = 200;
 const TOP_COST = 6;
 
-export type PlacerOptions = { aspect: number; /** Keep this far (units) from the edge of the screen. */ margin?: number; /** The screen's height in pixels: the page draws no text smaller than 11 px, which a label's room allows for. */ height?: number };
+export type PlacerOptions = { aspect: number; /** Keep this far (units) from the edge of the screen. */ margin?: number; /** The screen's height in pixels: the page draws no text smaller than 11 px, which a label's room allows for. */ height?: number; sourceAspect?: number; onImpossible?: () => void };
 
 export class Placer {
   private edge: Sums;
@@ -239,7 +239,11 @@ export class Placer {
   private fixtures: Sums;
   private luma: Sums;
   private reserved: Box[] = [];
+  private controls: readonly Box[] = [];
   private heightPx: number | undefined;
+  private sourceAspect: number;
+  private onImpossible?: () => void;
+  private reportedImpossible = false;
   /** The points marked so far, as they are finally placed, and whether a label has been put beside each. */
   private points: Array<{ id: string; x: number; y: number; color: string; taken: boolean; ahead?: true }> = [];
   /** Where the labels went (their final rectangles), so the next does not land on them. */
@@ -262,11 +266,16 @@ export class Placer {
     this.aspect = options.aspect;
     this.margin = options.margin ?? 12;
     this.heightPx = options.height;
+    this.sourceAspect = options.sourceAspect ?? options.aspect;
+    this.onImpossible = options.onImpossible;
   }
+
+  sourceRatio(): number { return this.sourceAspect; }
 
   /** A new turn: what the last answer pointed at is no longer being kept clear (the stage stays where it is). */
   reset(): void {
     this.reserved = [];
+    this.reportedImpossible = false;
     this.cards.clear();
     this.homes.clear();
     this.points = [];
@@ -277,6 +286,9 @@ export class Placer {
   reserve(box: Box): void {
     this.reserved.push(box);
   }
+
+  /** Control bounds already supplied for this capture; no new accessibility reads. */
+  setControls(boxes: readonly Box[]): void { this.controls = boxes; }
 
   /** The stage's own rectangle (cards keep out of it). */
   setStage(box: Box | undefined): void {
@@ -306,18 +318,27 @@ export class Placer {
     return c;
   }
 
-  private search(want: Box, scales: readonly number[], keepOut: readonly Box[], shapes: readonly number[] = [1], minW = 0, avoidTop = false, minRatio = 0, minSize: { w: number; h: number } = { w: 0, h: 0 }): Box {
+  private search(want: Box, scales: readonly number[], keepOut: readonly Box[], shapes: readonly number[] = [1], minW = 0, avoidTop = false, minRatio = 0, minSize: { w: number; h: number } = { w: 0, h: 0 }, diagnose = true): Box {
     const inside = (b: Box): Box => ({
       x: clamp(b.x, this.margin, 1000 - this.margin - b.w), y: clamp(b.y, this.margin, 1000 - this.margin - b.h), w: b.w, h: b.h,
     });
     const home = inside(want);
     const fits = (b: Box): boolean => b.w <= 1000 - 2 * this.margin && b.h <= 1000 - 2 * this.margin;
-    if (!fits(want)) return want;
+    if (!fits(want)) {
+      if (want.w <= 1000 && want.h <= 1000) {
+        const edge = { ...want, x: clamp(want.x, 0, 1000 - want.w), y: clamp(want.y, 0, 1000 - want.h) };
+        if (keepOut.some((r) => overlap(edge, r) > 0) && diagnose) this.impossible();
+        return edge;
+      }
+      if (diagnose) this.impossible();
+      return want;
+    }
     const homeCost = this.cost(home, want, 1, keepOut);
     // Where it already is fine: blank page, nothing pointed at beneath it.
     if (this.ink.mean({ x: home.x - 6, y: home.y - 10, w: home.w + 12, h: home.h + 20 }) < BLANK && !keepOut.some((r) => overlap(home, r) > 0)) return home;
     let best = home;
     let bestCost = homeCost;
+    let bestClear: {box: Box; cost: number} | undefined = !keepOut.some((r) => overlap(home, r) > 0) ? { box: home, cost: homeCost } : undefined;
     const step = 20;
     for (const scale of scales) {
       // A shape other than the one asked for (narrower and taller, the same area) fits a margin or a gap between columns; it costs a little.
@@ -329,11 +350,17 @@ export class Placer {
         // A shape may not be squeezed below the width to height (on the screen's own pixels) the picture needs, unless it was asked for narrower.
         if (shape !== 1 && (w / h) * this.aspect < Math.min(minRatio, (want.w / want.h) * this.aspect) - 1e-9) continue;
         const extra = Math.abs(Math.log(shape)) * 0.5;
-        for (let y = this.margin; y + h <= 1000 - this.margin + 0.01; y += step) {
-          for (let x = this.margin; x + w <= 1000 - this.margin + 0.01; x += step) {
+        const xs = new Set<number>([this.margin, 1000 - this.margin - w, ...keepOut.flatMap((r) => [Math.floor(r.x - w), Math.ceil(r.x + r.w)])]);
+        const ys = new Set<number>([this.margin, 1000 - this.margin - h, ...keepOut.flatMap((r) => [Math.floor(r.y - h), Math.ceil(r.y + r.h)])]);
+        for (let x = this.margin; x + w <= 1000 - this.margin + 0.01; x += step) xs.add(x);
+        for (let y = this.margin; y + h <= 1000 - this.margin + 0.01; y += step) ys.add(y);
+        for (const y of ys) {
+          for (const x of xs) {
+            if (x < this.margin || y < this.margin || x + w > 1000 - this.margin + 0.01 || y + h > 1000 - this.margin + 0.01) continue;
             const box = { x, y, w, h };
             const top = avoidTop && want.y >= TOP_BAND ? (Math.max(0, Math.min(box.y + box.h, TOP_BAND) - box.y) / box.h) * TOP_COST : 0;
             const c = this.cost(box, want, scale, keepOut, extra + top);
+            if (!keepOut.some((r) => overlap(box, r) > 0) && (!bestClear || c < bestClear.cost - 1e-9)) bestClear = { box, cost: c };
             if (c < bestCost - 1e-9) {
               best = box;
               bestCost = c;
@@ -345,8 +372,22 @@ export class Placer {
     // Moving has to be worth it: a small gain stays put, so a model's own choice survives where it was fine.
     // Nowhere is free (the whole page is text): do not shuffle it about, leave it where the model put it.
     // (Unless where it was written is on the page's controls or figures and the best place is not: then it moves, onto the prose.)
+    if (keepOut.some((r) => overlap(home, r) > 0)) {
+      if (bestClear) return bestClear.box;
+      if (diagnose) this.impossible();
+    }
+    if (bestClear && keepOut.some((r) => overlap(best, r) > 0)) { best = bestClear.box; bestCost = bestClear.cost; }
     if (this.ink.mean(best) > 0.3 && this.fixtures.mean(best) >= this.fixtures.mean(home)) return home;
     return homeCost - bestCost < (keepOut.some((r) => overlap(home, r) > 0) ? 0.25 : MOVE_WORTH) ? home : best;
+  }
+
+  private impossible(): void { if (!this.reportedImpossible) { this.reportedImpossible = true; this.onImpossible?.(); } }
+
+  /** Room for the stage frame, growing model and the controls beside it, in screen units. */
+  private stageRoom(box: Box): Box {
+    const y = this.heightPx ? 44 / this.heightPx * 1000 : 55;
+    const x = y / this.aspect;
+    return { x: box.x - x, y: box.y - y, w: box.w + 2 * x, h: box.h + 2 * y };
   }
 
   /** Where the stage goes: the nearest rectangle of its shape (or a little smaller) that is off the page's text and what is pointed at. */
@@ -354,9 +395,9 @@ export class Placer {
     // What the answer points at is what the stage explains or sits beside: covering it counts for three times what covering the page's text does.
     // Explanation first: the stage keeps the size it was asked for (it moves to the quietest place of that size, and may sit over page text if that
     // is where it reads best); it is made smaller only when no place of its size is clear of what the answer points at.
-    const keep = [...this.reserved, ...this.reserved, ...this.reserved];
-    const full = this.search(want, [1], keep);
-    const placed = this.enlarge(this.reserved.some((r) => overlap(full, r) > 0) ? this.search(want, [1, 0.88, 0.76, 0.64, 0.52], keep) : full);
+    const keep = [...this.reserved, ...this.reserved, ...this.reserved, ...this.controls, ...[...this.cards.values()].map((b) => this.stageRoom(b))];
+    const full = this.search(want, [1], keep, [1], 0, false, 0, { w: 0, h: 0 }, false);
+    const placed = this.enlarge(keep.some((r) => overlap(full, r) > 0) ? this.search(want, [1, 0.88, 0.76, 0.64, 0.52], keep) : full);
     this.stage = placed;
     return placed;
   }
@@ -369,7 +410,7 @@ export class Placer {
   private enlarge(box: Box): Box {
     const most = Math.min(STAGE_GROW, STAGE_BIGGEST.w / box.w, STAGE_BIGGEST.h / box.h);
     if (!(most >= STAGE_GROW_LEAST)) return box;
-    const avoid = [...this.reserved, ...this.cards.values()];
+    const avoid = [...this.reserved, ...this.controls, ...[...this.cards.values()].map((b) => this.stageRoom(b))];
     const lo = this.margin;
     const grow = (blankOnly: boolean): { box: Box; f: number } | undefined => {
       for (let f = most; f >= STAGE_GROW_LEAST - 1e-9; f -= 0.1) {
@@ -404,12 +445,12 @@ export class Placer {
 
   /** The stage as something to keep a card or diagram off: it counts several times over, because the model in it is what is being explained. */
   private stageKeepOut(): Box[] {
-    return this.stage ? Array.from({ length: 8 }, () => this.stage as Box) : [];
+    return this.stage ? Array.from({ length: 8 }, () => this.stageRoom(this.stage as Box)) : [];
   }
 
   /** Where a card or crop goes: the nearest free place, keeping out of the stage, the other cards and what is pointed at. */
   card(want: Box, id?: string): Box {
-    const keepOut = [...this.reserved, ...this.cards.values(), ...this.stageKeepOut()];
+    const keepOut = [...this.reserved, ...this.controls, ...[...this.cards].filter(([key]) => key !== id).map(([, box]) => box), ...this.stageKeepOut()];
     const placed = this.search(want, [1], keepOut, [1], 0, true);
     this.cards.set(id ?? `#${this.cards.size}`, placed);
     return placed;
@@ -417,7 +458,7 @@ export class Placer {
 
   /** Where a flat diagram goes: like a card, but it may also be a little smaller, down to three quarters (its drawing scales to its rectangle, and its small print needs the room). */
   diagram(want: Box, id: string, asked: Box = want, minRatio = 0): Box {
-    const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...this.stageKeepOut()];
+    const keepOut = [...this.reserved, ...this.controls, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...this.stageKeepOut()];
     // What the answer points at is what the diagram explains: keeping off it counts for three times as much as it does for a card.
     // It may also be taller and narrower (down to 0.6 of the width), to fit a margin or the gap beside a column of text instead of covering the text.
     // A kind that is spoilt by a strip (a chart) has a least width to height; it gives up size before shape, down to 0.64.
@@ -425,7 +466,7 @@ export class Placer {
     // Explanation first: it keeps the size and the shape it was asked for, and goes to the quietest place of that size, over page text if that reads best.
     // Only when no such place is clear of what the answer points at, the cards and the stage does it go smaller or narrower, as before.
     const keep = [...keepOut, ...this.reserved, ...this.reserved];
-    const full = this.search(want, [1], keep, [1], 0, true, minRatio, DIAGRAM_MIN_SIZE);
+    const full = this.search(want, [1], keep, [1], 0, true, minRatio, DIAGRAM_MIN_SIZE, false);
     const placed = keepOut.some((r) => overlap(full, r) > 0)
       ? this.search(want, [1, 0.88, 0.76, 0.64], keep, [1, 0.8, 0.65, 0.55, 0.5], 150, true, minRatio, DIAGRAM_MIN_SIZE)
       : full;
@@ -441,7 +482,7 @@ export class Placer {
    */
   regrow(id: string, grown: Box): Box | undefined {
     const was = this.cards.get(id) ?? this.homes.get(id)?.to ?? grown;
-    const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...this.stageKeepOut()];
+    const keepOut = [...this.reserved, ...this.controls, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...this.stageKeepOut()];
     const placed = this.search(grown, [1], [...keepOut, ...this.reserved, ...this.reserved], [1], 0, true);
     if (this.coverage(placed, keepOut) > this.coverage(was, keepOut) + GROWTH_COVER_SLACK) return undefined;
     this.cards.set(id, placed);
@@ -553,6 +594,7 @@ export class Placer {
 
   /** A card or crop went (cleared by id, or all of them): its place is free for the next. */
   release(target: string): void {
+    if (target === 'all' || target === 'panel') this.stage = undefined;
     if (target === 'all' || target === 'marks') {
       this.cards.clear();
       this.homes.clear();
@@ -571,8 +613,17 @@ export class Placer {
 
 /** How tall a card will be, in units of the screen's height, from its rows and layout (the page measures the real one). */
 export function cardHeightUnits(a: Extract<Action, { op: 'card' }>, screenHeight: number): number {
-  const px = (a.title ? 54 : 18) + (a.rows ? a.rows.length * 31 : 0) + 22 + (a.layout === 'stat' ? 36 : 0);
-  return (px / screenHeight) * 1000;
+  // Renderer limits title/row wrapping to two lines, timeline descriptions to three.
+  // Reserving those maxima bounds the drawn height independently of font metrics.
+  const pad = Math.max(12, screenHeight * 0.017);
+  const title = Math.max(15, screenHeight * 0.0245);
+  const row = Math.max(13, screenHeight * 0.0185);
+  let h = pad + (a.title ? 2 * title * 1.33 + row * 0.35 : 0);
+  const n = a.rows?.length ?? 0;
+  if (a.layout === 'stat' && n > 0) h += Math.max(30, screenHeight * 0.062) * 1.14 + (n - 1) * 2 * row * 1.35;
+  else if (a.layout === 'timeline' && n > 0) h += row * (1.9 + 1.7 + 2 * 1.2 + 0.5);
+  else h += n * row * (2 * 1.4 + 0.18);
+  return ((h + pad * 0.9 + 10) / screenHeight) * 1000;
 }
 
 /** The part of the screen a mark points at, to keep clear: boxes, circles and crops whole, an arrow's ends, a line, a label. */
@@ -600,9 +651,9 @@ export function markFootprint(m: Mark, aspect: number): Box[] {
  * Where the cards a mark is drawn on are, in units: a note card (its own rectangle) and the enlarged picture an image mark is drawn on (not the part of
  * the page it was cut from, which markFootprint gives). Something that is shown on the page, and must not be covered by a caption; not a place the answer points at.
  */
-export function cardFootprint(m: Mark, screenHeight: number): Box[] {
+export function cardFootprint(m: Mark, screenHeight: number, aspect = 1, sourceAspect = aspect): Box[] {
   if (m.op === 'card') return [{ x: m.x, y: m.y, w: m.w ?? 300, h: cardHeightUnits(m, screenHeight) }];
-  if (m.op === 'image') return [{ x: m.dx, y: m.dy, w: m.dw, h: imageCardHeight(m) }];
+  if (m.op === 'image') return [{ x: m.dx, y: m.dy, w: Math.min(800, m.dw) + (Math.max(6, screenHeight * 0.008) * 2 / screenHeight / aspect) * 1000, h: imageCardHeight(m, screenHeight, aspect, sourceAspect) }];
   return [];
 }
 
@@ -636,8 +687,8 @@ export function splitOwned<T extends { mark: { id?: string } }>(marks: readonly 
 }
 
 /** The ids of the marks of a whole scene that belong to a flat diagram (see ownedByDiagram). */
-export function ownedMarkIds(steps: readonly { actions: readonly Action[] }[], aspect: number): Set<string> {
-  const flags = ownedByDiagram(steps, aspect);
+export function ownedMarkIds(steps: readonly { actions: readonly Action[] }[], aspect: number, screenHeight = 1000, sourceAspect = aspect): Set<string> {
+  const flags = ownedByDiagram(steps, aspect, screenHeight, sourceAspect);
   const ids = new Set<string>();
   steps.forEach((step, i) => step.actions.forEach((a, j) => { if (flags[i]![j] && 'id' in a && typeof a.id === 'string') ids.add(a.id); }));
   return ids;
@@ -648,7 +699,7 @@ export function ownedMarkIds(steps: readonly { actions: readonly Action[] }[], a
  * rectangle it was asked for. A mark written before it (a ring on the page's own graph, then a chart elsewhere) points at the page and stays
  * there, as it does when the answer is drawn as it arrives, where the earlier mark is already on the page when the diagram comes.
  */
-export function ownedByDiagram(steps: readonly { actions: readonly Action[] }[], aspect: number): boolean[][] {
+export function ownedByDiagram(steps: readonly { actions: readonly Action[] }[], aspect: number, screenHeight = 1000, sourceAspect = aspect): boolean[][] {
   const seen: Box[] = [];
   return steps.map((step) => step.actions.map((a) => {
     if (a.op === 'diagram') {
@@ -656,7 +707,7 @@ export function ownedByDiagram(steps: readonly { actions: readonly Action[] }[],
       return false;
     }
     if (a.op === 'image') {
-      seen.push({ x: a.dx, y: a.dy, w: a.dw, h: imageCardHeight(a) });
+      seen.push({ x: a.dx, y: a.dy, w: a.dw, h: imageCardHeight(a, screenHeight, aspect, sourceAspect) });
       return false;
     }
     return seen.length > 0 && insideAny(a, seen, aspect);
@@ -803,8 +854,12 @@ export function settleMark(placer: Placer, a: Action): Action {
 }
 
 /** How tall an enlarged crop card is, in units: the crop at its true shape, with the card's border and its caption. */
-export function imageCardHeight(a: { dw: number; sw: number; sh: number; caption?: string | undefined }): number {
-  return (a.dw * a.sh) / Math.max(1, a.sw) + 16 + (a.caption ? 34 : 0);
+export function imageCardHeight(a: { dw: number; sw: number; sh: number; caption?: string | undefined }, screenHeight = 1000, aspect = 1, sourceAspect = aspect): number {
+  const w = Math.min(800, a.dw);
+  const image = w * aspect / sourceAspect * a.sh / Math.max(1, a.sw);
+  const pad = Math.max(6, screenHeight * 0.008);
+  const cap = a.caption ? Math.max(13, screenHeight * 0.018) * 1.9 : 0;
+  return image + (pad * 2 + cap + 10) / screenHeight * 1000;
 }
 
 /** The action with its stage or card moved off the page's text; any other action comes back as it was. */
@@ -827,10 +882,12 @@ export function placeAction(placer: Placer, a: Action, screenHeight: number): Ac
     return box.x === a.x && box.y === a.y && box.w === a.w && box.h === a.h ? a : { ...a, ...round(box) };
   }
   if (a.op === 'image') {
-    const h = Math.max(40, (a.dw * a.sh) / Math.max(1, a.sw) * 1.6);
-    const box = placer.card({ x: a.dx, y: a.dy, w: a.dw, h }, a.id);
+    const h = imageCardHeight(a, screenHeight, placer.aspectOf(), placer.sourceRatio());
+    const pad = Math.max(6, screenHeight * 0.008);
+    const width = Math.min(800, a.dw) + (pad * 2 / screenHeight / placer.aspectOf()) * 1000;
+    const box = placer.card({ x: a.dx, y: a.dy, w: width, h }, a.id);
     // Marks written on the enlargement (the names of its parts) go with the card to wherever it was put.
-    const size = { w: a.dw, h: imageCardHeight(a) };
+    const size = { w: a.dw, h };
     placer.home(a.id, { x: a.dx, y: a.dy, ...size }, { x: box.x, y: box.y, ...size });
     return box.x === a.dx && box.y === a.dy ? a : { ...a, dx: Math.round(box.x), dy: Math.round(box.y) };
   }

@@ -134,13 +134,13 @@ test('a stage that was written to overlap only a corner of the figure the answer
   assert.ok(!overlaps(placed, figure), `clear of the figure: ${JSON.stringify(placed)}`);
 });
 
-test('when no full-size place is clear of the figure the answer boxed, the stage goes smaller (down to about half) rather than cover it', () => {
+test('a stage keeps full size when a clear place exists over prose', () => {
   const p = placer();
   const figure: Box = { x: 600, y: 150, w: 160, h: 500 };
   p.reserve(figure);
   const placed = p.panel({ x: 420, y: 200, w: 340, h: 480 });
   assert.ok(!overlaps(placed, figure), `clear of the figure: ${JSON.stringify(placed)}`);
-  assert.ok(placed.w < 340 * 0.76 && inside(placed), `it had to be smaller than three quarters: ${JSON.stringify(placed)}`);
+  assert.ok(placed.w >= 340 && inside(placed), `a full size fits over prose: ${JSON.stringify(placed)}`);
 });
 
 /**
@@ -297,4 +297,99 @@ test('a stage the model asked for small is given more room (blank page first, th
   // A page that is all text: the stage still gets its room; it does not stay small to spare the text.
   const crowded = new Placer(textPage(1), { aspect: 16 / 9 }).panel(small);
   assert.ok(crowded.w >= small.w * 1.5, JSON.stringify(crowded));
+});
+
+// Rendered extent, not the placement estimate, is the property under test.
+test('wrapped card drawn at a feasible bottom-edge position stays on screen', async () => {
+  const { drawCard } = await import('../src/overlay/annotations.ts');
+  const view = {width: 1200, height: 800, dpr: 1};
+  const p = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(255), COLS, ROWS), {aspect: 1.5, height: 800});
+  const card = placeAction(p, {op:'card',id:'long',x:20,y:900,w:250,title:'A long title that wraps around',rows:['A long row that wraps across two lines','A second long row that wraps across two lines','A third long row that wraps across two lines']}, 800) as Extract<Action,{op:'card'}>;
+  const corners: number[][] = [];
+  const ctx = new Proxy({measureText:(s:string)=>({width:s.length*12})} as Record<string, unknown>, {get(t,k:string){return k in t ? t[k] : (...a:number[])=>{if(k==='arcTo' && corners.length<4) corners.push(a);};},set(t,k:string,v){t[k]=v;return true;}}) as unknown as CanvasRenderingContext2D;
+  drawCard(ctx, {mark:card,key:1,id:'long',color:[1,1,1],opacity:1,appear:1,fade:1,pulse:0,pulseColor:undefined,tinted:false}, {view,project:()=>undefined}, 0);
+  assert.ok(corners[1]![1]! <= view.height, `drawn bottom ${corners[1]![1]} exceeds ${view.height}`);
+});
+
+test('captioned image actual footprint fits when a feasible location exists', async () => {
+  const { drawImage } = await import('../src/overlay/annotations.ts');
+  const view = {width:1920,height:804,dpr:1};
+  const p = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(255), COLS, ROWS), {aspect:view.width/view.height,height:view.height,sourceAspect:1920/1080} as never);
+  const img = placeAction(p, {op:'image',id:'image',sx:100,sy:100,sw:160,sh:184,dx:10,dy:700,dw:250,caption:'Zoom'},view.height) as Extract<Action,{op:'image'}>;
+  const corners: number[][] = [];
+  const ctx = new Proxy({measureText:(s:string)=>({width:s.length*8})} as Record<string, unknown>, {get(t,k:string){return k in t ? t[k] : (...a:number[])=>{if(k==='arcTo' && corners.length<4) corners.push(a);};},set(t,k:string,v){t[k]=v;return true;}}) as unknown as CanvasRenderingContext2D;
+  drawImage(ctx,{mark:img,key:1,id:'image',color:[1,1,1],opacity:1,appear:1,fade:1,pulse:0,pulseColor:undefined,tinted:false},{view,project:()=>undefined,source:{image:{} as CanvasImageSource,width:1920,height:1080}},0);
+  assert.ok(corners[1]![1]! <= view.height, `drawn bottom ${corners[1]![1]} exceeds ${view.height}`);
+  const { cardFootprint } = await import('../src/overlay/placement.ts');
+  const footprint = cardFootprint(img,view.height,view.width/view.height,1920/1080)[0]!;
+  assert.ok(footprint.h * view.height / 1000 >= corners[1]![1]! - Math.round(img.dy * view.height / 1000), 'reserved crop height must enclose drawn caption and image');
+});
+
+test('a later stage avoids an already placed card when space exists', () => {
+  const p = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(255),COLS,ROWS),{aspect:16/9});
+  const card = p.card({x:300,y:250,w:300,h:400},'one');
+  const stage = p.panel({x:300,y:250,w:300,h:400});
+  assert.ok(!overlaps(card,stage), `card ${JSON.stringify(card)} stage ${JSON.stringify(stage)}`);
+});
+
+test('a narrow feasible gap is considered at obstacle boundaries', () => {
+  const p = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(255),COLS,ROWS),{aspect:1});
+  p.reserve({x:12,y:12,w:389,h:976});
+  p.reserve({x:503,y:12,w:485,h:976});
+  const card = p.card({x:80,y:200,w:102,h:200},'c');
+  assert.ok(card.x >= 401 && card.x + card.w <= 503, JSON.stringify(card));
+});
+
+test('an impossible layout keeps the content and emits a bounded diagnostic', () => {
+  let count=0;
+  const p = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(255),COLS,ROWS),{aspect:1,onImpossible:()=>count++});
+  p.reserve({x:12,y:12,w:976,h:976});
+  const a=p.card({x:100,y:100,w:200,h:200},'a');
+  const b=p.card({x:200,y:200,w:200,h:200},'b');
+  assert.equal(a.w,200); assert.equal(b.w,200); assert.equal(count,1);
+});
+
+test('known controls stay clear of a card and later stage if room exists', () => {
+  const p = new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1});
+  const control={x:600,y:200,w:200,h:300};
+  (p as unknown as {setControls?:(v:Box[])=>void}).setControls?.([control]);
+  const card=p.card({x:610,y:210,w:150,h:100},'c');
+  const stage=p.panel({x:610,y:220,w:150,h:180});
+  assert.ok(!overlaps(card,control));assert.ok(!overlaps(stage,control));
+});
+
+
+test('clearing a stage frees its occupied space for a following card', () => {
+  const p = new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1});
+  const old=p.panel({x:200,y:200,w:300,h:300});
+  placeAction(p,{op:'clear',target:'panel'},800);
+  const next=p.card(old,'next');
+  assert.deepEqual(next,old);
+});
+
+test('replacing a card does not block itself and clear frees the region', () => {
+  const p = new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1});
+  const a=p.card({x:200,y:200,w:200,h:150},'a');
+  assert.deepEqual(p.card(a,'a'),a);
+  placeAction(p,{op:'clear',target:'a'},800);
+  assert.deepEqual(p.card(a,'b'),a);
+});
+
+test('moving a crop keeps source coordinates and translates owned marks with it', async () => {
+  const {followDiagram} = await import('../src/overlay/placement.ts');
+  const p=new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1.5,height:800,sourceAspect:1.5});
+  p.setControls([{x:600,y:600,w:300,h:300}]);
+  const crop={op:'image',id:'img',sx:110,sy:130,sw:200,sh:150,dx:600,dy:600,dw:220,caption:'View'} as const;
+  const moved=placeAction(p,crop,800) as typeof crop;
+  const point={op:'point',id:'p',x:650,y:640,color:'red'} as const;
+  const next=followDiagram(p,point,1.5) as typeof point;
+  assert.deepEqual([moved.sx,moved.sy,moved.sw,moved.sh],[crop.sx,crop.sy,crop.sw,crop.sh]);
+  assert.ok(next); assert.ok(Math.abs((next.x-point.x)-(moved.dx-crop.dx))<1);
+  assert.ok(Math.abs((next.y-point.y)-(moved.dy-crop.dy))<1);
+});
+
+test('a viewport-sized stage is kept on screen without shrinking', () => {
+  const p=new Placer(pageGrid(new Uint8Array(COLS*ROWS).fill(255),COLS,ROWS),{aspect:1});
+  const stage=p.panel({x:900,y:100,w:1000,h:300});
+  assert.ok(inside(stage), JSON.stringify(stage));
 });
