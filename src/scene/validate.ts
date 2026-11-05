@@ -316,6 +316,14 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     out[name] = p.value;
   }
   if (bindings && !bindParts(bindings, (n) => own(raw, n), out, state, path, (kind, at, why) => note(notes, kind, at, why))) return null;
+  const locked = LOCKS[variant.name] !== undefined ? out[LOCKS[variant.name] as string] : undefined;
+  if (typeof locked === 'string' && state.follows.has(locked)) {
+    // A lock reads the angle the part spins at; a part that only follows another through a coupling has none of its own.
+    let root = locked;
+    for (let n = 0; state.follows.has(root) && n < 64; n++) root = state.follows.get(root) as string;
+    note(notes, 'dropped', `${path}.${LOCKS[variant.name]}`, `"${locked}" follows "${root}" through a coupling, so nothing spins it itself; lock it to "${root}" (ratio sets the speed)`);
+    return null;
+  }
   for (const key of ownKeys(raw)) {
     if (key !== 'op' && !(key in variant.fields)) note(notes, 'trimmed', `${path}.${key.slice(0, 40)}`, 'unknown field ignored');
   }
@@ -461,6 +469,9 @@ function checkCouple(out: Record<string, unknown>, state: SceneState, path: stri
   state.follows.set(id, by);
   return true;
 }
+
+/** The field of each machine op that names the part it is locked to. */
+const LOCKS: Readonly<Record<string, string>> = { loop: 'by', spin: 'by', cam: 'by', flash: 'by', crank: 'shaft' };
 
 const DIAGRAM_PIECES: ReadonlySet<string> = new Set(['diagram', 'node', 'edge', 'series', 'dot', 'tick']);
 

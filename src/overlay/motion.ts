@@ -147,16 +147,18 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     }
     return p;
   };
-  /** The turn of an object about z, rest and spin together. */
-  const turnZ = (key: number): number => out.get(key)?.rot?.[2] ?? byKey.get(key)?.rot[2] ?? 0;
+  const spinOf = new Map(motion.spins.map((s) => [s.key, s] as const));
+  /** The turn of an object about z, rest and spin together (read from the spin itself, so a part laid on its side still gives its angle). */
+  const turnZ = (key: number): number => {
+    const sp = spinOf.get(key);
+    return sp && sp.axis === 2 ? (byKey.get(key)?.rot[2] ?? 0) + sp.angle : out.get(key)?.rot?.[2] ?? byKey.get(key)?.rot[2] ?? 0;
+  };
 
   const jointOf = new Map(motion.joints.map((j) => [j.key, j] as const));
   for (const s of motion.spins) {
     const o = byKey.get(s.key);
     if (!o || jointOf.get(s.key)?.kind === 'hinge') continue; // a hinge is turned by the joint pass, about its own axis and pivot
-    const rot: Vec3 = [o.rot[0], o.rot[1], o.rot[2]];
-    rot[s.axis] += s.angle;
-    edit(s.key).rot = rot;
+    edit(s.key).rot = turned(o.rot, s.axis, s.angle);
   }
 
   // What holds a machine never rides on it: a cylinder block or housing, a group, or anything a block sits inside. A crank or cam that names one
@@ -175,7 +177,9 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     if (!piston || !shaft || piston.parentKey !== shaft.parentKey || holders.has(c.key)) continue;
     const rod = c.rodKey !== null ? byKey.get(c.rodKey) : undefined;
     if (rod && (rod.parentKey !== shaft.parentKey || holders.has(rod.key))) continue;
-    const shaftSize = sizeOf(shaft.def, [1, 1, 1]);
+    // A plain cylinder stands on y (its width is x, its thickness y); laid on its side it is the disc the kit's crankshaft is.
+    const written = sizeOf(shaft.def, [1, 1, 1]);
+    const shaftSize: Vec3 = shaft.def.shape === 'cylinder' ? [written[0], written[0], written[1]] : written;
     const throws = Math.max(1, Math.min('n' in shaft.def && shaft.def.n ? shaft.def.n : 1, 8));
     const theta = (turnZ(c.shaftKey) + (throws > 1 ? ((c.pin - 1) * 360) / throws : 0)) * DEG;
     const r = crankThrow(shaftSize);
@@ -279,9 +283,7 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     } else {
       const axis = joint ? joint.axis : loop ? loop.axis : 2;
       const pivot: Vec3 = joint ? joint.pivot : loop ? loop.pivot : [0, 0, 0];
-      const rot: Vec3 = [...(pose.rot ?? o.rot)] as Vec3;
-      rot[axis] += q;
-      pose.rot = rot;
+      pose.rot = turned(pose.rot ?? o.rot, axis, q);
       const [px, py, pz] = pivot;
       if (px !== 0 || py !== 0 || pz !== 0) {
         // About the pivot point, not its own middle: the part goes to pivot + R(q) * (part - pivot).
@@ -322,6 +324,38 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     }
   }
   return out;
+}
+
+/**
+ * A turn of `deg` about the parent's axis (0 x, 1 y, 2 z) added to an object's rest turn. With the other two angles at 0 it is just the angle added; with
+ * them set (a cylinder laid on its side is [90,0,0]) the part turns about the parent's axis, as the scene says, and does not tumble about its own: the
+ * result is the same orientation written again as the XYZ turn the renderer draws.
+ */
+type Row = [number, number, number];
+type M3 = [Row, Row, Row];
+
+export function turned(rest: Vec3, axis: Axis, deg: number): Vec3 {
+  if (rest[(axis + 1) % 3] === 0 && rest[(axis + 2) % 3] === 0) {
+    const out: Vec3 = [rest[0], rest[1], rest[2]];
+    out[axis] += deg;
+    return out;
+  }
+  // three.js Euler XYZ: the matrix is Rx * Ry * Rz
+  const [x, y, z] = [rest[0] * DEG, rest[1] * DEG, rest[2] * DEG];
+  const [cx, sx, cy, sy, cz, sz] = [Math.cos(x), Math.sin(x), Math.cos(y), Math.sin(y), Math.cos(z), Math.sin(z)];
+  const r: M3 = [
+    [cy * cz, -cy * sz, sy],
+    [cx * sz + sx * sy * cz, cx * cz - sx * sy * sz, -sx * cy],
+    [sx * sz - cx * sy * cz, sx * cz + cx * sy * sz, cx * cy],
+  ];
+  const c = Math.cos(deg * DEG), s = Math.sin(deg * DEG);
+  const t: M3 = axis === 2 ? [[c, -s, 0], [s, c, 0], [0, 0, 1]] : axis === 0 ? [[1, 0, 0], [0, c, -s], [0, s, c]] : [[c, 0, s], [0, 1, 0], [-s, 0, c]];
+  const col = (j: 0 | 1 | 2) => (row: Row): number => row[0] * r[0][j] + row[1] * r[1][j] + row[2] * r[2][j];
+  const n: M3 = [t[0], t[1], t[2]].map((row) => [col(0)(row), col(1)(row), col(2)(row)] as Row) as M3;
+  const m13 = Math.max(-1, Math.min(1, n[0][2]));
+  const ey = Math.asin(m13);
+  if (Math.abs(m13) < 0.9999999) return [Math.atan2(-n[1][2], n[2][2]) / DEG, ey / DEG, Math.atan2(-n[0][1], n[0][0]) / DEG];
+  return [Math.atan2(n[2][1], n[1][1]) / DEG, ey / DEG, 0];
 }
 
 const unitOf = (d: Vec3): Vec3 => {

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createSceneState, validateScene } from '../src/scene/index.ts';
 import type { Scene, Step } from '../src/scene/index.ts';
 import { emptyFrame, evaluate, planStep } from '../src/overlay/timeline.ts';
+import { rodEnds } from '../src/overlay/mechanism-geometry.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
 
 // The mechanism layer: joints (hinge, slide, fixed) on any object, driven by spin or loop or coupled to another joint (ratio, or pitch between a
@@ -139,4 +140,71 @@ test('a hinge and a slide are coupled with pitch, not ratio, when both joints ar
   assert.equal(ops(bad, 'couple').length, 0);
   assert.ok(bad.issues.some((i) => /with pitch/.test(i.message)), JSON.stringify(bad.issues));
   assert.equal(ops(validate(...both, { op: 'couple', id: 's', by: 'w', pitch: 1 }), 'couple').length, 1);
+});
+
+// ---- a lock to a part that only follows another: refused, with the part to lock to ---------------------------------------------------------
+
+test('a loop, spin, cam or flash locked to a part that is driven only by a coupling is refused, with a line naming the part that spins', () => {
+  const base = [box('a'), box('b'), box('c'), { op: 'spin', id: 'a', rpm: 60 }, { op: 'couple', id: 'b', by: 'a', ratio: 0.5 }];
+  for (const lock of [{ op: 'loop', id: 'c', kind: 'slide', amount: 2, by: 'b' }, { op: 'spin', id: 'c', by: 'b' }, { op: 'cam', id: 'c', by: 'b' }, { op: 'flash', id: 'c', by: 'b', angle: 0, span: 90 }]) {
+    const r = validate(...base, lock);
+    assert.equal(ops(r, lock.op).length, lock.op === 'spin' ? 1 : 0, lock.op); // the one spin is a's own
+    assert.ok(r.issues.some((i) => /follows 'a'|follows "a"/.test(i.message) && /lock it to/.test(i.message)), `${lock.op}: ${JSON.stringify(r.issues)}`);
+  }
+  // locked to the part that spins, it is taken as before
+  assert.equal(ops(validate(...base, { op: 'loop', id: 'c', kind: 'slide', amount: 2, by: 'a' }), 'loop').length, 1);
+  // and once the coupling is stopped the part is a plain one again
+  assert.equal(ops(validate(...base, { op: 'couple', id: 'b', stop: true }, { op: 'loop', id: 'c', kind: 'slide', amount: 2, by: 'b' }), 'loop').length, 1);
+});
+
+// ---- a hand-built crank: plain shapes only ---------------------------------------------------------------------------------------------
+
+/** A point turned by a rest angle set the way the renderer does it: three.js Euler XYZ, the z turn first. */
+function eulerXYZ(v: [number, number, number], rot: [number, number, number]): [number, number, number] {
+  const [a, b, c] = rot.map((d) => (d * Math.PI) / 180) as [number, number, number];
+  let [x, y, z] = v;
+  [x, y] = [x * Math.cos(c) - y * Math.sin(c), x * Math.sin(c) + y * Math.cos(c)];
+  [x, z] = [x * Math.cos(b) + z * Math.sin(b), -x * Math.sin(b) + z * Math.cos(b)];
+  [y, z] = [y * Math.cos(a) - z * Math.sin(a), y * Math.sin(a) + z * Math.cos(a)];
+  return [x, y, z];
+}
+
+test('a plain cylinder laid on its side (rot 90 about x) spins in its own plane with the default axis, and does not tumble', () => {
+  const plan = run({ op: 'add', shape: 'cylinder', id: 'wheel', size: [2, 0.4, 2], rot: [90, 0, 0] }, { op: 'spin', id: 'wheel', rpm: 30, dur: 0 });
+  for (const t of [0.2, 0.5, 1, 1.7]) {
+    const rot = rotOf(evaluate(plan, t), 'wheel');
+    const axis = eulerXYZ([0, 1, 0], rot); // the cylinder's own axis stays pointing at the viewer
+    near(axis[0], 0, 1e-9); near(axis[1], 0, 1e-9); near(axis[2], 1, 1e-9);
+    const rim = eulerXYZ([1, 0, 0], rot); // a point on the rim goes round
+    near(rim[0], Math.cos((180 * t * Math.PI) / 180), 1e-9);
+    near(rim[1], Math.sin((180 * t * Math.PI) / 180), 1e-9);
+  }
+});
+
+test('the crank preset on plain shapes: the rod joins the crank pin to the piston and swings, and the piston is at the top when the pin is', () => {
+  // a wheel of 2.2 across, laid on its side, with a marker on its rim where the pin is at angle 0 (straight up)
+  const throwR = 0.3 * 2.2;
+  const plan = run(
+    { op: 'add', shape: 'cylinder', id: 'wheel', size: [2.2, 0.4, 2.2], pos: [0, -2.6, 0], rot: [90, 0, 0] },
+    { op: 'add', shape: 'box', id: 'pis', size: [2.2, 1, 2], pos: [0, 0.6, 0] },
+    { op: 'add', shape: 'box', id: 'rod', size: [0.3, 2.6, 0.3], pos: [0, -0.9, 0] },
+    { op: 'spin', id: 'wheel', rpm: 10, dur: 0 }, { op: 'crank', id: 'pis', shaft: 'wheel', rod: 'rod' });
+  const ends = rodEnds([0.3, 2.6, 0.3]);
+  const crownAt = (deg: number) => posOf(evaluate(plan, deg / 60), 'pis')[1];
+  for (const deg of [0, 37, 90, 133, 180, 250, 311]) {
+    const f = evaluate(plan, deg / 60);
+    // where the marker sits now: its place on the wheel, turned as the renderer turns the wheel
+    const pin = eulerXYZ([0, 0.25, -throwR], rotOf(f, 'wheel'));
+    const pinWorld: [number, number] = [posOf(f, 'wheel')[0] + pin[0], posOf(f, 'wheel')[1] + pin[1]];
+    const rp = posOf(f, 'rod');
+    const tilt = ((rotOf(f, 'rod')[2] ?? 0) * Math.PI) / 180;
+    near(rp[0] + ends.big * -Math.sin(tilt), pinWorld[0], 1e-9); // the big end of the rod is on the pin
+    near(rp[1] + ends.big * Math.cos(tilt), pinWorld[1], 1e-9);
+    const wrist: [number, number] = [posOf(f, 'pis')[0], posOf(f, 'pis')[1] + 0.1];
+    near(rp[0] + ends.small * -Math.sin(tilt), wrist[0], 1e-9); // and the small end is on the piston's pin
+    near(rp[1] + ends.small * Math.cos(tilt), wrist[1], 1e-9);
+  }
+  assert.ok(crownAt(0) > crownAt(90) && crownAt(0) > crownAt(180) && crownAt(0) > crownAt(311)); // the pin straight up: the piston at the top
+  assert.ok(Math.abs(crownAt(180) - (crownAt(0) - 2 * throwR)) < 0.2); // and its stroke is about twice the throw
+  assert.notEqual(rotOf(evaluate(plan, 1), 'rod')[2], 0); // the rod swings
 });
