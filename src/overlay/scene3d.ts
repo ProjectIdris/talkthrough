@@ -10,10 +10,14 @@
 import {
   AmbientLight, Box3, BufferGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight, EdgesGeometry, Euler,
   FrontSide, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Material, Matrix4, Mesh, MeshBasicMaterial, Object3D,
-  PerspectiveCamera, PlaneGeometry, Raycaster, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3,
+  PerspectiveCamera, PlaneGeometry, Raycaster, Scene, ShadowMaterial, SkinnedMesh, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3,
 } from 'three';
 import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
+import { sampleFrames } from './flex-frames.ts';
+import { buildFlexGeometry } from './flex-geometry.ts';
+import { projectRoot } from './flex-root.ts';
+import { makeFlexSkin } from './flex-skin.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
@@ -88,6 +92,8 @@ type Node = {
   pieces: NodePiece[];
   geometries: BufferGeometry[];
   materials: Material[];
+  flexRig?: ReturnType<typeof makeFlexSkin>;
+  flexPosed?: Float32Array;
   texture?: CanvasTexture;
   /** The size the object is built at (text sprites are sized, everything else is 1). */
   baseScale: Vector3;
@@ -140,6 +146,7 @@ export class PanelScene {
   private settling = false;
   private cutaway = new Cutaway();
   private pinWarnings = new Set<number>();
+  private flexWarnings = new Set<number>();
 
   constructor(deps: PanelDeps = {}) {
     this.deps = deps;
@@ -220,6 +227,7 @@ export class PanelScene {
     };
     switch (def.shape) {
       case 'group': case 'array': break;
+      case 'flexSurface': this.buildFlex(node, o); break;
       case 'part': {
         const built = buildPart(def, this.detail);
         node.obj = built.root;
@@ -239,6 +247,31 @@ export class PanelScene {
     }
     if (node.obj instanceof Sprite) node.baseScale = node.obj.scale.clone();
     return node;
+  }
+
+  private buildFlex(node: Node, o: ObjectFrame): void {
+    if (o.def.shape !== 'flexSurface') return;
+    const def=o.def, parent=o.parentKey===null?undefined:this.nodes.get(o.parentKey)?.obj;
+    try {
+      if (!(parent instanceof Mesh)) throw Error('unsupported rigid parent');
+      this.scene.updateMatrixWorld(true);
+      const frames=sampleFrames(def.sections), mirror=def.mirror==='localX';
+      const seam=Array.from({length:7},(_,i)=>frames[0]!.center.clone().addScaledVector(frames[0]!.chord,(2*i/6-1)*frames[0]!.halfWidth));
+      const root=new Vector3(...def.root.parentPoint), direction=new Vector3(...def.root.normal);
+      if(mirror){for(const point of seam)point.x=-point.x;root.x=-root.x;direction.x=-direction.x;}
+      const pos=def.pos??[0,0,0],rot=def.rot??[0,0,0];
+      const rotation=new Euler(rot[0]*DEG,rot[1]*DEG,rot[2]*DEG,'XYZ');
+      const flexToParent=new Matrix4().makeRotationFromEuler(rotation);flexToParent.setPosition(...pos);
+      const projected=projectRoot(parent,seam,flexToParent,root,direction,def.root.maxGap);
+      if(mirror)for(const point of projected)point.x=-point.x;
+      const geo=buildFlexGeometry(frames,def.joints.map(j=>j.u),projected,mirror);
+      const surface=makeSurface(def.material,TIERS[this.tier]);
+      const rig=makeFlexSkin(parent,geo,surface,def.sections,def.joints,mirror,{pos,rot});
+      node.obj=rig.mesh;node.flexRig=rig;node.geometries.push(geo);node.materials.push(surface);
+      node.pieces.push({object:rig.mesh,surface,tint:true,color:undefined,lines:undefined,closed:true});
+    } catch {
+      if(!this.flexWarnings.has(o.key)&&this.flexWarnings.size<128){this.flexWarnings.add(o.key);console.warn(`talkthrough: articulated surface ${o.key} has invalid or unsupported root`);}
+    }
   }
 
   private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node): LineSegments {
@@ -378,6 +411,7 @@ export class PanelScene {
 
   private dispose(node: Node): void {
     this.cutaway.release(node);
+    node.flexRig?.skeleton.dispose();
     node.obj.removeFromParent();
     for (const g of node.geometries) g.dispose();
     for (const m of node.materials) m.dispose();
@@ -447,6 +481,14 @@ export class PanelScene {
       layout(offsets);
     }
     this.scene.updateMatrixWorld(true);
+    // Evaluate each bounded skin vertex once for this pose; use the same positions for bounds and later consumers.
+    for (const node of this.nodes.values()) if (node.flexRig) {
+      const mesh=node.flexRig.mesh, count=mesh.geometry.getAttribute('position').count;
+      const posed=node.flexPosed?.length===count*3?node.flexPosed:new Float32Array(count*3);
+      const box=new Box3(), p=new Vector3();
+      for(let i=0;i<count;i++){mesh.getVertexPosition(i,p);posed[i*3]=p.x;posed[i*3+1]=p.y;posed[i*3+2]=p.z;box.expandByPoint(p);}
+      node.flexPosed=posed;mesh.boundingBox=box;mesh.boundingSphere=box.getBoundingSphere(new Sphere());
+    }
     if (!frame.objects.some((o) => o.pose || o.pulse !== 0)) this.restSpheres = this.partSpheres();
     // Connectors and streams are placed from where their parts now are; what hangs on a connector then needs its matrices again.
     updateAttached(this.nodes, frame, this.detail.radial, PATH_RADIUS);
@@ -461,6 +503,7 @@ export class PanelScene {
   }
 
   private apply(node: Node, o: ObjectFrame, parentSpread: number, offset?: Vec3, rest = false): void {
+    if(node.flexRig)node.flexRig.pose(rest ? node.flexRig.skeleton.bones.slice(1).map(()=>0) : o.flexPose?.angles ?? node.flexRig.skeleton.bones.slice(1).map(()=>0), rest ? 0 : o.flexPose?.profile ?? 0);
     const pulse = rest ? 0 : o.pulse;
     const pose = rest ? undefined : o.pose;
     const grow = 1 + 0.07 * pulse;
@@ -621,6 +664,10 @@ export class PanelScene {
         const mesh = p.object as Mesh;
         const geo = mesh.geometry;
         if (!geo) continue;
+        if (mesh instanceof SkinnedMesh && mesh.boundingBox && mesh.boundingSphere) {
+          spheres.push({sphere:mesh.boundingSphere.clone().applyMatrix4(mesh.matrixWorld),corners:boxCorners(mesh.boundingBox,mesh.matrixWorld)});
+          continue;
+        }
         if (mesh instanceof InstancedMesh) {
           // The geometry is one instance; the piece is where all of them are.
           const box = new Box3().setFromObject(mesh);
@@ -657,7 +704,7 @@ export class PanelScene {
           const sx = ((p.x + 1) / 2) * width, sy = ((1 - p.y) / 2) * height;
           a0 = Math.min(a0, sx); a1 = Math.max(a1, sx); b0 = Math.min(b0, sy); b1 = Math.max(b1, sy);
         }
-        if (!(mesh instanceof InstancedMesh) && mesh.geometry) {
+        if (!(mesh instanceof InstancedMesh) && !(mesh instanceof SkinnedMesh) && mesh.geometry) {
           if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
           const bs = mesh.geometry.boundingSphere?.clone().applyMatrix4(mesh.matrixWorld);
           if (bs) {

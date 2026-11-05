@@ -7,6 +7,8 @@
 // including across follow-up questions.
 
 import { PALETTE_RGB } from '../scene/colors.ts';
+import { flexPoseAt } from './flex-cycle.ts';
+import type { FlexCycle } from '../scene/flex-validate.ts';
 import { advanceMotion, crankPinKey, crankPinSize, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
 import type { CamDef, CoupleDef, CrankDef, FlashDef, JointDef, LoopDef, Motion, Pose, SpinPlan } from './motion.ts';
 import { applyDiagramAction, clearDiagrams, diagramPlanFrom, diagramTimes, emptyDiagramPlan, evaluateDiagrams, pulseDiagramThing, styleDiagramThing } from './diagram-plan.ts';
@@ -107,6 +109,8 @@ export type ObjectFrame = {
   draw: number;
   /** A stream: how many laps its markers have run, whole and part (their places along the path are a function of this alone). */
   phase?: number;
+  flexDriver?: {cycle: FlexCycle; elapsed: number};
+  flexPose?: {angles:number[];profile:number};
   /** How far apart its parts are pushed: 0 assembled; its children sit at pos * (1 + spread). */
   spread: number;
   /** Where a machine has put it just now (a turning part, a piston, a valve, a glow); drawn in place of pos, rot and opacity. */
@@ -227,6 +231,7 @@ export type StepPlan = {
   panels: PanelInst[];
   az: Track; el: Track; zoom: Track; focus: FocusTrack;
   pulses: Pulse[];
+  flexDrivers: {key:number;start:number;cycle:FlexCycle | null}[];
   spins: SpinPlan[];
   cranks: CrankDef[];
   cams: CamDef[];
@@ -281,7 +286,7 @@ export function planStep(base: Frame, step: Step): StepPlan {
     marks: [], diagrams: base.diagrams.length > 0 ? diagramPlanFrom(base.diagrams) : emptyDiagramPlan(), objs: [], panels: [],
     az: track([base.camera.az]), el: track([base.camera.el]), zoom: track([base.camera.zoom]),
     focus: { init: base.camera.focus.key, segs: [] },
-    pulses: [], nextKey: base.nextKey, duration: 0,
+    pulses: [], flexDrivers: [], nextKey: base.nextKey, duration: 0,
     spins: base.motion.spins.map(spinPlanFrom), cranks: [...base.motion.cranks], cams: [...base.motion.cams], flashes: [...base.motion.flashes], loops: [...base.motion.loops], joints: [...base.motion.joints], couples: [...base.motion.couples],
   };
   for (const m of base.marks) {
@@ -292,6 +297,7 @@ export function planStep(base: Frame, step: Step): StepPlan {
     });
   }
   for (const o of base.objects) {
+    if (o.flexDriver) plan.flexDrivers.push({key:o.key,start:-o.flexDriver.elapsed,cycle:o.flexDriver.cycle});
     plan.objs.push({
       key: o.key, id: o.id, parentKey: o.parentKey, def: o.def, bornAt: NEVER, diedAt: undefined,
       pos: track(o.pos), rot: track(o.rot), scale: track(o.scale), color: track(o.color), opacity: track([o.opacity]),
@@ -397,6 +403,15 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
         end(dur);
       }
       return;
+    }
+    case 'flexStop': {
+      for(const id of a.ids){const obj=lookup(plan.objs,id,at);if(obj)plan.flexDrivers.push({key:obj.key,start:at,cycle:null});}
+      end(0); return;
+    }
+    case 'flexCycle': {
+      const cycle: FlexCycle={period:a.period,phase:a.phase,keys:a.keys};
+      for(const id of a.ids){const obj=lookup(plan.objs,id,at);if(obj)plan.flexDrivers.push({key:obj.key,start:at,cycle});}
+      end(0); return;
     }
     case 'add': {
       if (a.shape === 'stream') {
@@ -623,6 +638,10 @@ export const REPLACE_SECONDS = 0.6;
  * and what was turning stays turning. Anything the answer does not mention is left alone.
  */
 function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number): void {
+  for (const child of descendants(plan, old.key, at)) if (child.def.shape === 'flexSurface') {
+    child.diedAt=at; child.wipe=0;
+    for (const nested of descendants(plan, child.key, at)) { nested.diedAt=at; nested.wipe=0; }
+  }
   old.diedAt = at;
   old.wipe = REPLACE_SECONDS;
   fresh.grow = REPLACE_SECONDS;
@@ -837,6 +856,10 @@ export function evaluate(plan: StepPlan, t: number): Frame {
       ...cutOf(o, t),
     });
   }
+  for (const o of objects) {
+    const driver = plan.flexDrivers.filter(d => d.key === o.key && d.start <= spinTime).at(-1);
+    if(driver?.cycle){const elapsed=spinTime-driver.start; o.flexDriver={cycle:driver.cycle,elapsed}; const pose=flexPoseAt(driver.cycle,elapsed); if(pose)o.flexPose=pose;}
+  }
   // A crank on a plain-shape disc draws its own pin, so the rod and the pin the person sees are one point (a kit crankshaft has its own).
   for (const c of plan.cranks) {
     const shaft = objects.find((o) => o.key === c.shaftKey);
@@ -946,7 +969,7 @@ function applyPoses(objects: ObjectFrame[], motion: Motion): void {
 /** The Frame a step ends in, which the next step starts from. `at` is how far into the step it really got, for what is turning. */
 export function settle(plan: StepPlan, at = Infinity): Frame {
   const frame = evaluate(plan, Infinity);
-  if (!Number.isFinite(at) || at <= plan.duration || frame.motion.spins.length === 0) return frame;
+  if (!Number.isFinite(at) || at <= plan.duration || (frame.motion.spins.length === 0 && !frame.objects.some(o=>o.flexDriver))) return frame;
   return withMotion(frame, at - plan.duration);
 }
 
@@ -955,10 +978,11 @@ export function settle(plan: StepPlan, at = Infinity): Frame {
  * the motion to run on from, when it is not the frame's own.
  */
 export function withMotion(frame: Frame, seconds: number, from: Motion = frame.motion): Frame {
-  if (from.spins.length === 0 || (seconds <= 0 && from === frame.motion)) return frame;
+  if ((from.spins.length === 0 && !frame.objects.some(o=>o.flexDriver)) || (seconds <= 0 && from === frame.motion)) return frame;
   const motion = advanceMotion(from, Math.max(0, seconds));
   const objects = frame.objects.map((o) => {
     const { pose: _gone, ...rest } = o;
+    if (rest.flexDriver) { const elapsed=rest.flexDriver.elapsed+Math.max(0,seconds); rest.flexDriver={cycle:rest.flexDriver.cycle,elapsed}; rest.flexPose=flexPoseAt(rest.flexDriver.cycle,elapsed); }
     return rest as ObjectFrame;
   });
   applyPoses(objects, motion);

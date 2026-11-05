@@ -2,6 +2,7 @@
 // A validated action never carries null: absent optional fields are simply missing.
 
 import type { DiagramKind } from './spec.ts';
+import type { FlexDefinition, FlexCycle } from './flex-validate.ts';
 export type { DiagramKind } from './spec.ts';
 
 export type Vec3 = [number, number, number];
@@ -116,7 +117,11 @@ export type AddStream = {
 /** A stream on an edge of a flat diagram: what the timeline makes of an AddStream whose `along` is an edge. Never written by the model. */
 export type StreamPiece = { op: 'stream'; id: string; along: string; mark?: StreamMark; count?: number; color?: Color; toColor?: Color; shiftAt?: number; period?: number; opacity?: number } & At;
 
-export type AddAction = AddSolid | AddExtrude | AddLathe | AddBlob | AddTube | AddPath | AddConnector | AddStream | AddPart | AddArray | AddText | AddGroup;
+export type AddFlexSurface = { op:'add';shape:'flexSurface';id:string;parent:string;pos?:Vec3;rot?:Vec3 } & FlexDefinition & Surface & At;
+export type FlexStopAction = { op:'flexStop';ids:string[] } & At;
+export type FlexCycleAction = { op:'flexCycle';ids:string[] } & FlexCycle & At;
+
+export type AddAction = AddFlexSurface | AddSolid | AddExtrude | AddLathe | AddBlob | AddTube | AddPath | AddConnector | AddStream | AddPart | AddArray | AddText | AddGroup;
 
 // Tweens and changes on existing ids.
 export type MoveAction = { op: 'move'; id: string; to: Vec3 } & Timing;
@@ -157,7 +162,7 @@ export type GoAction = { op: 'go'; kind: 'tab' | 'open' | 'scroll'; x: number; y
 export type Action =
   | Mark | PanelAction | AddAction | DiagramThing | TickAction
   | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | StyleAction | HighlightAction
-  | CutAction | SpinAction | CrankAction | CamAction | FlashAction | LoopAction | JointAction | CoupleAction
+  | CutAction | SpinAction | CrankAction | CamAction | FlashAction | LoopAction | JointAction | CoupleAction | FlexCycleAction | FlexStopAction
   | OrbitAction | ZoomAction | FocusAction | ClearAction | WaitAction | GoAction;
 
 export type Step = { say: string; actions: Action[] };

@@ -23,6 +23,9 @@ function describe(f: Field): string | undefined {
   return parts.length ? parts.join('; ') : undefined;
 }
 
+function objectSchema(properties: Record<string, Schema>): Schema { return {type:'object',properties,required:Object.keys(properties),additionalProperties:false}; }
+function vectorSchema(): Schema { return {type:'array',items:{type:'number'}}; }
+
 function fieldSchema(f: Field, descriptions: boolean): Schema {
   const opt = 'opt' in f && f.opt === true;
   const nullable = (t: string): string | string[] => (opt ? [t, 'null'] : t);
@@ -38,6 +41,12 @@ function fieldSchema(f: Field, descriptions: boolean): Schema {
     case 'strs': s = { type: nullable('array'), items: { type: 'string' } }; break;
     case 'vec3': s = { type: nullable('array'), items: { type: 'number' } }; break;
     case 'pts': s = { type: nullable('array'), items: { type: 'array', items: { type: 'number' } } }; break;
+    case 'flexNumber': s = {type:nullable('number')}; break;
+    case 'flexIds': s = {type:'array',items:{type:'string'}}; break;
+    case 'flexKeys': s = {type:'array',items:objectSchema({t:{type:'number'},angles:{type:'array',items:{type:'number'}},profile:{type:'number'}})}; break;
+    case 'flexRoot': s = objectSchema({ parentPoint: vectorSchema(), normal: vectorSchema(), maxGap: {type:'number'} }); break;
+    case 'flexJoints': s = {type:'array', items:objectSchema({id:{type:'string'},u:{type:'number'},offset:vectorSchema(),axis:vectorSchema(),min:{type:'number'},max:{type:'number'}})}; break;
+    case 'flexSections': s = {type:'array', items:objectSchema({u:{type:'number'},center:vectorSchema(),chord:vectorSchema(),halfWidth:{type:'number'},camber:{type:'number'},profileDelta:{type:'number'}})}; break;
   }
   const d = descriptions ? describe(f) : undefined;
   return d ? { ...s, description: d } : s;

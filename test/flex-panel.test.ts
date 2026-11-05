@@ -1,0 +1,13 @@
+﻿import {test} from 'node:test';import assert from 'node:assert/strict';import { SkinnedMesh } from 'three';
+import {PanelScene} from '../src/overlay/scene3d.ts';import {emptyFrame,planStep,evaluate} from '../src/overlay/timeline.ts';import {validateScene} from '../src/scene/validate.ts';
+test('panel draws the validated attached surface as a native skin and applies its timeline pose',()=>{
+ const r=validateScene({steps:[{say:'x',actions:[{op:'add',shape:'box',id:'mount',size:[1,1.2,1],bevel:0},{op:'add',shape:'flexSurface',id:'reed',parent:'mount',root:{parentPoint:[.45,0,0],normal:[1,0,0],maxGap:.1},joints:[{id:'a',u:0,offset:[0,0,0],axis:[0,0,1],min:-30,max:30},{id:'b',u:1,offset:[0,0,0],axis:[0,0,1],min:-20,max:20}],sections:[{u:0,center:[.45,0,0],chord:[0,0,1],halfWidth:.2,camber:0,profileDelta:0},{u:.5,center:[1.45,0,0],chord:[0,0,1],halfWidth:.5,camber:0,profileDelta:.05},{u:1,center:[2.45,0,0],chord:[0,0,1],halfWidth:.2,camber:0,profileDelta:0}]},{op:'flexCycle',ids:['reed'],period:2,keys:[{t:0,angles:[0,0],profile:0},{t:.5,angles:[10,10],profile:1},{t:1,angles:[0,0],profile:0}]}]}]});
+ const plan=planStep(emptyFrame(),r.scene!.steps[0]!), panel=new PanelScene();const frame=evaluate(plan,1);panel.sync(frame,1);const obj=frame.objects.find(o=>o.id==='reed')!;const mesh=panel.nodeOf(obj.key);assert.ok(mesh instanceof SkinnedMesh);assert.ok(Math.abs(mesh.skeleton.bones[1]!.rotation.z-10*Math.PI/180)<1e-5);
+});
+
+test('posed surface bounds include the moving tip after a large hinge rotation',()=>{
+ const r=validateScene({steps:[{say:'x',actions:[{op:'add',shape:'box',id:'mount',size:[1,1.2,1],bevel:0},{op:'add',shape:'flexSurface',id:'reed',parent:'mount',root:{parentPoint:[.45,0,0],normal:[1,0,0],maxGap:.1},joints:[{id:'a',u:0,offset:[0,0,0],axis:[0,0,1],min:-120,max:120},{id:'b',u:1,offset:[0,0,0],axis:[0,0,1],min:-20,max:20}],sections:[{u:0,center:[.45,0,0],chord:[0,0,1],halfWidth:.2,camber:0,profileDelta:0},{u:.5,center:[1.45,0,0],chord:[0,0,1],halfWidth:.5,camber:0,profileDelta:.05},{u:1,center:[2.45,0,0],chord:[0,0,1],halfWidth:.2,camber:0,profileDelta:0}]},{op:'flexCycle',ids:['reed'],period:2,keys:[{t:0,angles:[0,0],profile:0},{t:.5,angles:[100,0],profile:1},{t:1,angles:[0,0],profile:0}]}]}]});
+ const p=new PanelScene(),plan=planStep(emptyFrame(),r.scene!.steps[0]!);p.sync(evaluate(plan,.1),1);const f=evaluate(plan,1);p.sync(f,1);const mesh=p.nodeOf(f.objects.find(o=>o.id==='reed')!.key) as SkinnedMesh;
+ const tip=mesh.getVertexPosition(171,new (mesh.position.constructor as typeof import('three').Vector3)());assert.ok(mesh.boundingBox?.containsPoint(tip),'current skin bounds must contain its posed tip');
+});
+

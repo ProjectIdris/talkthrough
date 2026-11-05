@@ -1186,6 +1186,215 @@
       "additionalProperties": false,
       "description": "A solid. size is its bounding box [x,y,z]: cylinder and cone stand on y with diameter x, torus lies flat with outer diameter x and tube thickness y, plane faces +z and ignores z. A box with a bevel has rounded edges."
     },
+    "addFlexSurface": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "flexSurface"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": "string"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "mirror": {
+          "enum": [
+            "none",
+            "localX",
+            null
+          ]
+        },
+        "root": {
+          "type": "object",
+          "properties": {
+            "parentPoint": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "normal": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "maxGap": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "parentPoint",
+            "normal",
+            "maxGap"
+          ],
+          "additionalProperties": false
+        },
+        "joints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "u": {
+                "type": "number"
+              },
+              "offset": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "axis": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "u",
+              "offset",
+              "axis",
+              "min",
+              "max"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "u": {
+                "type": "number"
+              },
+              "center": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "chord": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "halfWidth": {
+                "type": "number"
+              },
+              "camber": {
+                "type": "number"
+              },
+              "profileDelta": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "u",
+              "center",
+              "chord",
+              "halfWidth",
+              "camber",
+              "profileDelta"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "mirror",
+        "root",
+        "joints",
+        "sections",
+        "color",
+        "material",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "An articulated one-edge surface attached to a supported rigid parent. Give ordered joints and cross-sections; use flexCycle to animate it."
+    },
     "addExtrude": {
       "type": "object",
       "properties": {
@@ -3212,6 +3421,104 @@
       "additionalProperties": false,
       "description": "Repeat a motion on any object: slide (back and forth along axis, positive amount units in all), swing (rock about axis by signed amount degrees each side, -180 to 180, about the hinge pivot; negative reverses it, zero holds still) or pulse (swell to positive amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint's. Another loop replaces it; stop ends it. id is an object already in the scene, never a name for the loop."
     },
+    "flexCycle": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "flexCycle"
+          ]
+        },
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "period": {
+          "type": "number"
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "t": {
+                "type": "number"
+              },
+              "angles": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "profile": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "t",
+              "angles",
+              "profile"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "ids",
+        "period",
+        "phase",
+        "keys",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Drive one or two compatible articulated surfaces together on one periodic clock. Keys close exactly at t=1."
+    },
+    "flexStop": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "flexStop"
+          ]
+        },
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "ids",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Stop articulated motion and restore the targets to their bind pose."
+    },
     "joint": {
       "type": "object",
       "properties": {
@@ -3712,6 +4019,9 @@
           "$ref": "#/$defs/addSolid"
         },
         {
+          "$ref": "#/$defs/addFlexSurface"
+        },
+        {
           "$ref": "#/$defs/addExtrude"
         },
         {
@@ -3785,6 +4095,12 @@
         },
         {
           "$ref": "#/$defs/loop"
+        },
+        {
+          "$ref": "#/$defs/flexCycle"
+        },
+        {
+          "$ref": "#/$defs/flexStop"
         },
         {
           "$ref": "#/$defs/joint"

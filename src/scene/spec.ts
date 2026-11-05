@@ -87,7 +87,9 @@ export type Field =
   /** A short list of short texts. */
   | { k: 'strs'; max: number; len: number; opt?: boolean; doc?: string }
   | { k: 'pts'; min: number; max: number; lo: number; hi: number; opt?: boolean; doc?: string }
-  | { k: 'enum'; values: readonly string[]; opt?: boolean; doc?: string };
+  | { k: 'enum'; values: readonly string[]; opt?: boolean; doc?: string }
+  | { k: 'flexRoot' | 'flexJoints' | 'flexSections' | 'flexIds' | 'flexKeys'; doc?: string }
+  | { k: 'flexNumber'; opt?: boolean; doc?: string };
 
 export type Variant = {
   /** Unique name of this variant. */
@@ -264,6 +266,15 @@ export const VARIANTS: readonly Variant[] = [
     fields: {
       shape: { k: 'enum', values: SOLID_SHAPES }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS,
       size: { k: 'vec3', min: 0.01, max: 100 }, rot: ROT, color: COLOR_OPT, material: MATERIAL, bevel: BEVEL, edges: EDGES, opacity: OPACITY, at: AT,
+    },
+  },
+  {
+    name: 'addFlexSurface', op: 'add', shapes: ['flexSurface'], creates: 'solid',
+    doc: 'An articulated one-edge surface attached to a supported rigid parent. Give ordered joints and cross-sections; use flexCycle to animate it.',
+    fields: {
+      shape: { k: 'enum', values: ['flexSurface'] }, id: { k: 'newId' }, parent: { k: 'parent' }, pos: POS, rot: ROT,
+      mirror: { k: 'enum', values: ['none', 'localX'], opt: true }, root: { k: 'flexRoot' }, joints: { k: 'flexJoints' }, sections: { k: 'flexSections' },
+      color: COLOR_OPT, material: MATERIAL, opacity: OPACITY, at: AT,
     },
   },
   {
@@ -464,6 +475,12 @@ export const VARIANTS: readonly Variant[] = [
       pivot: { k: 'vec3', ...WORLD, opt: true, doc: 'swing: from the object to the point it turns about' }, at: AT,
     },
   },
+  {
+    name: 'flexCycle', op: 'flexCycle',
+    doc: 'Drive one or two compatible articulated surfaces together on one periodic clock. Keys close exactly at t=1.',
+    fields: { ids: {k:'flexIds'}, period: {k:'flexNumber'}, phase: {k:'flexNumber',opt:true}, keys: {k:'flexKeys'}, at: AT },
+  },
+  { name: 'flexStop', op: 'flexStop', doc: 'Stop articulated motion and restore the targets to their bind pose.', fields: {ids:{k:'flexIds'},at:AT} },
   {
     name: 'joint', op: 'joint',
     doc: 'Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it.',

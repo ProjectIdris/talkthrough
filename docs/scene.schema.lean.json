@@ -1049,6 +1049,208 @@
       ],
       "additionalProperties": false
     },
+    "addFlexSurface": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "flexSurface"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": "string"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "mirror": {
+          "enum": [
+            "none",
+            "localX",
+            null
+          ]
+        },
+        "root": {
+          "type": "object",
+          "properties": {
+            "parentPoint": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "normal": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "maxGap": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "parentPoint",
+            "normal",
+            "maxGap"
+          ],
+          "additionalProperties": false
+        },
+        "joints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "u": {
+                "type": "number"
+              },
+              "offset": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "axis": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "u",
+              "offset",
+              "axis",
+              "min",
+              "max"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "u": {
+                "type": "number"
+              },
+              "center": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "chord": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "halfWidth": {
+                "type": "number"
+              },
+              "camber": {
+                "type": "number"
+              },
+              "profileDelta": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "u",
+              "center",
+              "chord",
+              "halfWidth",
+              "camber",
+              "profileDelta"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "mirror",
+        "root",
+        "joints",
+        "sections",
+        "color",
+        "material",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
     "addExtrude": {
       "type": "object",
       "properties": {
@@ -2805,6 +3007,100 @@
       ],
       "additionalProperties": false
     },
+    "flexCycle": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "flexCycle"
+          ]
+        },
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "period": {
+          "type": "number"
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "t": {
+                "type": "number"
+              },
+              "angles": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "profile": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "t",
+              "angles",
+              "profile"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "ids",
+        "period",
+        "phase",
+        "keys",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "flexStop": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "flexStop"
+          ]
+        },
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "ids",
+        "at"
+      ],
+      "additionalProperties": false
+    },
     "joint": {
       "type": "object",
       "properties": {
@@ -3266,6 +3562,9 @@
           "$ref": "#/$defs/addSolid"
         },
         {
+          "$ref": "#/$defs/addFlexSurface"
+        },
+        {
           "$ref": "#/$defs/addExtrude"
         },
         {
@@ -3339,6 +3638,12 @@
         },
         {
           "$ref": "#/$defs/loop"
+        },
+        {
+          "$ref": "#/$defs/flexCycle"
+        },
+        {
+          "$ref": "#/$defs/flexStop"
         },
         {
           "$ref": "#/$defs/joint"

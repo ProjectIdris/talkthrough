@@ -3,6 +3,8 @@
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
 import { nearestPaletteColor } from './colors.ts';
+import { parseFlexCycle, parseFlexDefinition } from './flex-validate.ts';
+import type { FlexDefinition } from './flex-validate.ts';
 import { attachTolerance, landOn } from './attach.ts';
 import type { Body } from './attach.ts';
 import { bindParts, bindUnknownId, BINDINGS } from './bind.ts';
@@ -13,6 +15,8 @@ import type { Action, AttachEnd, Issue, IssueKind, Scene, Step, Vec3 } from './t
 /** What the scene holds so far. Keep one per session and pass it to every turn so follow-ups reach earlier ids. */
 export type SceneState = {
   ids: Map<string, ObjectKind>;
+  flexes: Map<string, FlexDefinition>;
+  rigidParents: Map<string, boolean>;
   parents: Map<string, string | undefined>;
   depth: Map<string, number>;
   /** What each flat diagram on screen is (flow, timeline, steps or chart), which says what may be drawn in it. */
@@ -56,7 +60,7 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 export function createSceneState(): SceneState {
-  return { ids: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), parts: new Map(), joints: new Map(), follows: new Map(), rides: new Map(), bodies: new Map(), loose: new Map(), after: [], turnSteps: 0, turnActions: 0, copies: 0 };
+  return { ids: new Map(), flexes: new Map(), rigidParents: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), parts: new Map(), joints: new Map(), follows: new Map(), rides: new Map(), bodies: new Map(), loose: new Map(), after: [], turnSteps: 0, turnActions: 0, copies: 0 };
 }
 
 /**
@@ -65,7 +69,7 @@ export function createSceneState(): SceneState {
  */
 export function createDetailState(onScreen: SceneState): SceneState {
   return {
-    ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides),
+    ids: new Map(onScreen.ids), flexes: new Map(onScreen.flexes), rigidParents: new Map(onScreen.rigidParents), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides),
     bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [],
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
     ...(onScreen.stage ? { stage: { ...onScreen.stage } } : {}),
@@ -157,6 +161,7 @@ function parseVec2(v: unknown, min: number, max: number, path: string, notes: No
 
 function parseField(f: Field, v: unknown, path: string, state: SceneState, notes: Notes): Parsed {
   switch (f.k) {
+    case 'flexRoot': case 'flexJoints': case 'flexSections': case 'flexIds': case 'flexKeys': case 'flexNumber': return good(v);
     case 'num':
       if (typeof v !== 'number' || !Number.isFinite(v)) return bad('expected a finite number');
       return good(clampNum(f.int ? Math.round(v) : v, f.min, f.max, path, notes));
@@ -286,6 +291,8 @@ function removeWithDescendants(state: SceneState, id: string): void {
   }
   for (const d of doomed) {
     state.ids.delete(d);
+    state.replaceable?.delete(d);
+    state.flexes.delete(d); state.rigidParents.delete(d);
     state.parents.delete(d);
     state.depth.delete(d);
     state.diagramKinds.delete(d);
@@ -301,7 +308,7 @@ function removeWithDescendants(state: SceneState, id: string): void {
 /** Takes a cleared id (or "all", "marks", "panel") out of what the scene holds; the guide clears the page by id between steps and tells the scene here. */
 export function applyClear(state: SceneState, target: string): void {
   if (target === 'all') {
-    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.joints.clear(); state.follows.clear(); state.rides.clear(); state.bodies.clear(); state.loose.clear(); state.copies = 0;
+    state.ids.clear(); state.flexes.clear(); state.rigidParents.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.joints.clear(); state.follows.clear(); state.rides.clear(); state.bodies.clear(); state.loose.clear(); state.copies = 0;
   } else if (target === 'marks' || target === 'panel') {
     // Marks, pins and flat diagrams are the screen's; the 3D stage is the rest.
     const wantMark = target === 'marks';
@@ -470,6 +477,29 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   for (const key of ownKeys(input)) {
     if (key !== 'op' && !(key in variant.fields)) note(notes, 'trimmed', `${path}.${key.slice(0, 40)}`, 'unknown field ignored');
   }
+  if (variant.name === 'flexCycle' || variant.name === 'flexStop') {
+    const rawIds = out.ids;
+    if (!Array.isArray(rawIds) || rawIds.length < 1 || rawIds.length > 2) { note(notes, 'dropped', path, 'cycle needs one or two targets'); return null; }
+    const ids: string[] = [];
+    for (let i = 0; i < rawIds.length; i++) { const id = own(rawIds, String(i)); if (typeof id !== 'string' || !state.flexes.has(id) || ids.includes(id)) { note(notes, 'dropped', path, 'unknown or repeated articulated target'); return null; } ids.push(id); }
+    if (variant.name === 'flexStop') { out.ids = ids; } else {
+    const first = state.flexes.get(ids[0]!)!;
+    const compatible = (a: FlexDefinition, b: FlexDefinition): boolean => a.joints.length === b.joints.length && a.sections.length === b.sections.length && a.joints.every((x,i)=>x.u===b.joints[i]!.u && x.min===b.joints[i]!.min && x.max===b.joints[i]!.max) && a.sections.every((x,i)=>x.u===b.sections[i]!.u);
+    if (ids.some(id=>!compatible(first,state.flexes.get(id)!))) { note(notes, 'dropped', path, 'incompatible articulated targets'); return null; }
+    const cycle = parseFlexCycle(out, first);
+    if (!cycle) { note(notes, 'dropped', path, 'invalid articulated cycle'); return null; }
+    out.ids = ids; Object.assign(out, cycle);
+    }
+  }
+  if (variant.name === 'addFlexSurface') {
+    const flex = parseFlexDefinition(out);
+    if (!flex) { note(notes, 'dropped', path, 'invalid articulated surface'); return null; }
+    if (state.rigidParents.get(out.parent as string) !== true) { note(notes, 'dropped', path, 'surface needs a supported opaque uncut rigid parent'); return null; }
+    if (!state.flexes.has(out.id as string) && state.flexes.size >= 4) { note(notes, 'dropped', path, 'at most four articulated surfaces'); return null; }
+    Object.assign(out, flex);
+  }
+  if (variant.name === 'cut') state.rigidParents.set(out.id as string, false);
+  if (variant.name === 'style' && typeof out.opacity === 'number' && out.opacity < 1 && state.rigidParents.has(out.id as string)) state.rigidParents.set(out.id as string, false);
   if (variant.name === 'style' && out.color === undefined && out.opacity === undefined) {
     note(notes, 'dropped', path, 'style needs a colour or an opacity');
     return null;
@@ -550,9 +580,16 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
       note(notes, 'dropped', path, `scene already holds ${LIMITS.maxObjects} objects`);
       return null;
     }
+    if (replacing) for (const flexId of [...state.flexes.keys()]) if (isUnder(state, flexId, id)) removeWithDescendants(state, flexId);
     state.replaceable?.delete(id);
     const parent = (variant.attach ? out[variant.attach] : out.parent) as string | undefined;
     state.ids.set(id, kind);
+    state.flexes.delete(id); state.rigidParents.delete(id);
+    if (variant.name === 'addFlexSurface') state.flexes.set(id, parseFlexDefinition(out)!);
+    if (['addSolid','addExtrude','addLathe'].includes(variant.name)) {
+      const supported = ['box','sphere','cylinder','cone','extrude','lathe'].includes(out.shape as string);
+      state.rigidParents.set(id, supported && (out.opacity === undefined || out.opacity === 1) && out.material !== 'glass');
+    }
     if (variant.creates === 'diagram') state.diagramKinds.set(id, out.kind as DiagramKind);
     else state.diagramKinds.delete(id);
     if (variant.name === 'addPart') state.parts.set(id, out.part as string);
