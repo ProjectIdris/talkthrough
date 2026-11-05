@@ -164,3 +164,18 @@ test('what is drawn includes the text that was moved off its point, so the rende
     assert.ok(r.x0 >= drawn.x - 1 && r.x1 <= drawn.x + drawn.w + 1 && r.y0 >= drawn.y - 1 && r.y1 <= drawn.y + drawn.h + 1, `a label at ${JSON.stringify(r)} is inside what is drawn ${JSON.stringify(drawn)}`);
   }
 });
+
+test('a flat ribbon that starts flat and bends up faces the viewer along the climb, not edge-on', async () => {
+  const { tubeGeometry } = await import('../src/overlay/geometry.ts');
+  const path: Array<[number, number, number]> = [];
+  for (let i = 0; i <= 10; i++) path.push([3 * (i / 10), 0, 0]);
+  for (let i = 1; i <= 10; i++) path.push([3, 3 * (i / 10), 0]);
+  const geo = tubeGeometry(path, 0.2, 0.1, 8);
+  const pos = geo.getAttribute('position');
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getY(i) < 2 || pos.getY(i) > 2.8) continue;
+    x0 = Math.min(x0, pos.getX(i)); x1 = Math.max(x1, pos.getX(i)); z0 = Math.min(z0, pos.getZ(i)); z1 = Math.max(z1, pos.getZ(i));
+  }
+  assert.ok(x1 - x0 > (z1 - z0) * 2, `wider in x (${(x1 - x0).toFixed(2)}) than in z (${(z1 - z0).toFixed(2)})`);
+});

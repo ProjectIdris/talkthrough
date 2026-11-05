@@ -151,16 +151,18 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
     tangent.set(next[0] - prev[0], next[1] - prev[1], next[2] - prev[2]);
     if (tangent.lengthSq() < 1e-12) tangent.set(0, 0, 1);
     tangent.normalize();
-    // The first ring's frame comes from the up direction (or forward, for a path going straight up). Each ring after that carries the last
-    // ring's frame along (parallel transport), so the tube never twists where the path passes straight up or down: choosing a frame from "up" at
-    // every ring flips it there, which drew a hard seam across a bent tube.
-    if (i === 0) {
-      const ref = Math.abs(tangent.dot(UP)) > 0.95 ? FORWARD : UP;
-      wide.crossVectors(tangent, ref).normalize();
-    } else {
+    // A round tube carries the last ring's frame along (parallel transport), so it never twists where the path passes straight up or down:
+    // choosing a frame from "up" at every ring flips it there, which drew a hard seam across a bent tube. A flat ribbon keeps its frame from "up"
+    // (a ribbon that starts flat and bends up then faces the viewer, as the scene language says), made continuous: never turned over from one ring to the next.
+    const ref = Math.abs(tangent.dot(UP)) > 0.95 ? FORWARD : UP;
+    if (flat === 1 && i > 0) {
       wide.addScaledVector(tangent, -wide.dot(tangent));
-      if (wide.lengthSq() < 1e-12) wide.crossVectors(tangent, Math.abs(tangent.dot(UP)) > 0.95 ? FORWARD : UP);
+      if (wide.lengthSq() < 1e-12) wide.crossVectors(tangent, ref);
       wide.normalize();
+    } else {
+      const before = i > 0 ? wide.clone() : undefined;
+      wide.crossVectors(tangent, ref).normalize();
+      if (before && wide.dot(before) < 0) wide.negate();
     }
     thin.crossVectors(wide, tangent).normalize();
     centre.set(p[0], p[1], p[2]);
