@@ -1,8 +1,12 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { SETTINGS_CHANNEL } from '../shared/ipc.ts';
+import type { SpeechInfo } from '../shared/ipc.ts';
 import { KeyStoreError } from './keystore.ts';
 import type { createKeyStore } from './keystore.ts';
 import type { SettingsService } from './settings-service.ts';
+import { WHISPER_OFFER } from './speech-service.ts';
+import type { SpeechService } from './speech-service.ts';
+import { InstallError } from './whisper-install.ts';
 import type { SettingsForm } from '../shared/settings-form.ts';
 
 /**
@@ -10,7 +14,7 @@ import type { SettingsForm } from '../shared/settings-form.ts';
  * talk to the key store, the key is never sent back to it, and it is never logged. The other settings are checked by the
  * settings service (the same checks as the file) before anything is written.
  */
-export function createSettingsWindow(options: { preload: string; page: string; keys: ReturnType<typeof createKeyStore>; settings: SettingsService; /** Quit and start again. */ onRestart(): void; /** Called with the settings as saved, so what can take effect at once does. */ onSaved?(form: SettingsForm): void }) {
+export function createSettingsWindow(options: { preload: string; page: string; keys: ReturnType<typeof createKeyStore>; settings: SettingsService; /** How a question is heard, and the download of better hearing (asked for by the page, after a yes). */ speech?: SpeechService; /** Quit and start again. */ onRestart(): void; /** Called with the settings as saved, so what can take effect at once does. */ onSaved?(form: SettingsForm): void }) {
   let window: BrowserWindow | null = null;
 
   const trusted = (event: Electron.IpcMainInvokeEvent) => window !== null && event.sender === window.webContents;
@@ -39,6 +43,22 @@ export function createSettingsWindow(options: { preload: string; page: string; k
   });
   ipcMain.on(SETTINGS_CHANNEL.restart, (event) => {
     if (trusted(event)) options.onRestart();
+  });
+  ipcMain.handle(SETTINGS_CHANNEL.speechStatus, async (event): Promise<SpeechInfo | null> => (trusted(event) && options.speech ? { ...(await options.speech.status()), offer: WHISPER_OFFER } : null));
+  ipcMain.handle(SETTINGS_CHANNEL.speechInstall, async (event, model: unknown) => {
+    if (!trusted(event) || !options.speech || typeof model !== 'string') return { ok: false, message: 'Not started.' };
+    try {
+      await options.speech.install(model, (progress) => { if (!event.sender.isDestroyed()) event.sender.send(SETTINGS_CHANNEL.speechProgress, progress); });
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: error instanceof InstallError ? error.message : 'It could not be installed.' };
+    }
+  });
+  ipcMain.on(SETTINGS_CHANNEL.speechCancel, (event) => {
+    if (trusted(event)) options.speech?.cancelInstall();
+  });
+  ipcMain.handle(SETTINGS_CHANNEL.speechRemove, async (event) => {
+    if (trusted(event)) await options.speech?.remove();
   });
 
   return {

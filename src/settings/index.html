@@ -111,9 +111,18 @@
 
 <section>
   <h2>Hearing</h2>
-  <label for="speechServerUrl">Speech recogniser address</label>
+  <p id="hearNow">&nbsp;</p>
+  <div id="hearOffer" class="hide">
+    <p class="hint" id="hearOfferText"></p>
+    <label for="hearModel">Model</label><select id="hearModel"></select>
+    <button id="hearGet" type="button" class="primary">Download better hearing</button><button id="hearStop" type="button" class="hide">Stop</button>
+    <progress id="hearBar" class="hide" max="1" value="0" style="width:100%"></progress>
+    <p id="hearMessage" class="warn"></p>
+  </div>
+  <button id="hearRemove" type="button" class="hide">Remove the download</button>
+  <label for="speechServerUrl">Speech recogniser address (optional)</label>
   <input type="text" id="speechServerUrl" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8001">
-  <p class="hint">Where your question is turned into text. Your recording is sent there, so it should be on this computer. Empty: Talkthrough cannot hear questions yet.</p>
+  <p class="hint">If you run your own recogniser, your question is sent there, so it should be on this computer. It is tried first; whisper.cpp and then the recogniser Windows has come after it.</p>
 </section>
 
 <section>

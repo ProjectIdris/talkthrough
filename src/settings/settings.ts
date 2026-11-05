@@ -142,7 +142,49 @@ el('removekey').addEventListener('click', async () => {
   await refreshKey();
 });
 
+// Hearing: what hears a question now, and the one-click offer of better hearing (nothing is downloaded until the button is pressed).
+const mb = (bytes: number): string => `${Math.round(bytes / 1_000_000)} MB`;
+const NAMES: Record<string, string> = { server: 'your speech server', 'whisper-cpp': 'whisper.cpp', 'windows-speech': 'the recogniser Windows has' };
+async function refreshHearing(): Promise<void> {
+  const info = await window.talkthroughSettings.speech();
+  if (!info) return;
+  el('hearNow').textContent = info.order.length === 0
+    ? 'Nothing is set up to hear you yet.'
+    : `Hearing you with ${NAMES[info.order[0] as string] ?? info.order[0]}${info.order.length > 1 ? `, then ${info.order.slice(1).map((o) => NAMES[o] ?? o).join(', then ')} if it cannot` : ''}.`;
+  const installed = info.whisper.installed;
+  el('hearOffer').classList.toggle('hide', installed);
+  el('hearRemove').classList.toggle('hide', !installed);
+  const modelMenu = select('hearModel');
+  if (modelMenu.options.length === 0) for (const m of info.offer.models) modelMenu.append(new Option(m.label, m.name, false, m.name === 'base.en'));
+  const chosen = info.offer.models.find((m) => m.name === modelMenu.value) ?? info.offer.models[0];
+  el('hearOfferText').textContent = `Hearing is clearer with whisper.cpp, which runs on this computer. This downloads the program (${mb(info.offer.program.bytes)}, from ${info.offer.program.from}) and the model you pick (${chosen ? `${mb(chosen.bytes)}, from ${chosen.from}` : ''}), checks both against known sizes and fingerprints, and keeps them in Talkthrough's own folder. Nothing is sent anywhere when you ask a question, and you can remove it here.`;
+}
+select('hearModel').addEventListener('change', () => void refreshHearing());
+const bar = el<HTMLProgressElement>('hearBar');
+window.talkthroughSettings.onSpeechProgress((p) => {
+  bar.classList.remove('hide');
+  bar.value = p.total > 0 ? p.received / p.total : 0;
+  el('hearMessage').textContent = p.step === 'program' ? 'Downloading the program…' : p.step === 'unpack' ? 'Unpacking…' : 'Downloading the model…';
+});
+el('hearGet').addEventListener('click', async () => {
+  el('hearGet').classList.add('hide');
+  el('hearStop').classList.remove('hide');
+  el('hearMessage').textContent = 'Starting…';
+  const result = await window.talkthroughSettings.installSpeech(select('hearModel').value);
+  bar.classList.add('hide');
+  el('hearStop').classList.add('hide');
+  el('hearGet').classList.remove('hide');
+  el('hearMessage').textContent = result.ok ? '' : result.message;
+  await refreshHearing();
+});
+el('hearStop').addEventListener('click', () => window.talkthroughSettings.cancelSpeech());
+el('hearRemove').addEventListener('click', async () => {
+  await window.talkthroughSettings.removeSpeech();
+  await refreshHearing();
+});
+
 void window.talkthroughSettings.load().then((form) => {
   if (form) fill(form);
 });
 void refreshKey();
+void refreshHearing();

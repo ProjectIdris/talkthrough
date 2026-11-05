@@ -229,7 +229,24 @@ export const SETTINGS_CHANNEL = {
   get: 'tt:settings-get',
   put: 'tt:settings-put',
   restart: 'tt:settings-restart',
+  speechStatus: 'tt:speech-status',
+  speechInstall: 'tt:speech-install',
+  speechCancel: 'tt:speech-cancel',
+  speechRemove: 'tt:speech-remove',
+  speechProgress: 'tt:speech-progress',
 } as const;
+
+/** How a question is heard, as the settings page is told (see src/main/speech-service.ts). */
+export type SpeechInfo = {
+  order: string[];
+  server: boolean;
+  windows: boolean;
+  whisper: { installed: boolean; model?: string };
+  installing: boolean;
+  /** What a download would fetch, so the page can say it before the person says yes. */
+  offer: { tag: string; program: { name: string; bytes: number; from: string }; models: Array<{ name: string; label: string; bytes: number; from: string }> };
+};
+export type SpeechProgress = { step: 'program' | 'unpack' | 'model'; received: number; total: number };
 
 export interface TalkthroughSettingsApi {
   /** Whether a key can be stored here, and whether one is saved. Never the key. */
@@ -242,6 +259,13 @@ export interface TalkthroughSettingsApi {
   store(form: SettingsForm): Promise<SaveResult>;
   /** Quits and starts Talkthrough again, so saved settings take effect. */
   restart(): void;
+  /** How a question is heard now, and what better hearing would download. */
+  speech(): Promise<SpeechInfo>;
+  /** The person said yes: download whisper.cpp and the named model. Progress comes to `onSpeechProgress`; the answer says whether it worked. */
+  installSpeech(model: string): Promise<{ ok: true } | { ok: false; message: string }>;
+  cancelSpeech(): void;
+  removeSpeech(): Promise<void>;
+  onSpeechProgress(listener: (progress: SpeechProgress) => void): void;
 }
 
 export interface TalkthroughApi {

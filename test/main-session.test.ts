@@ -115,7 +115,7 @@ test('speech server down, nothing heard, and a too-short clip each give a notice
   const a = rig({ speech: down });
   await question(a);
   const n = a.sent.find((m) => m.kind === 'notice');
-  assert.match(n?.kind === 'notice' ? n.text : '', /isn't running/);
+  assert.match(n?.kind === 'notice' ? n.text : '', /speech recogniser isn't available/);
   assert.ok(!a.kinds().includes('begin'));
   const short = rig({}, 100);
   await question(short);

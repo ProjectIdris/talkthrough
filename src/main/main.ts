@@ -5,7 +5,7 @@ import { isCheckRun, parseArgs, wantsSoftware } from './args.ts';
 import { createHttpBackend } from '../adapters/backend.ts';
 import { createClaudeModel } from '../adapters/claude-model.ts';
 import { createCodexModel } from '../adapters/codex-model.ts';
-import { createLocalSpeechServerRecogniser } from '../adapters/local-speech-server.ts';
+import { createSpeechService } from './speech-service.ts';
 import { createOpenAIModel } from '../adapters/openai-model.ts';
 import { createStepByStepModel } from '../adapters/step-by-step.ts';
 import { createTwoStepModel } from '../adapters/two-step.ts';
@@ -219,18 +219,17 @@ async function main(): Promise<void> {
   const media = createMedia({ preload: audioPreload, page: audioPage });
   void media.warm();
 
+  // How a question is heard: a speech server of the person's own, whisper.cpp once they have agreed to download it, else the recogniser Windows has.
+  const speechService = createSpeechService({ dir: join(app.getPath('userData'), 'speech'), ...(settings.speechServerUrl ? { speechServerUrl: settings.speechServerUrl } : {}), ...(settings.speechLimitMs ? { speechLimitMs: settings.speechLimitMs } : {}) });
   const fixedQuestion = options.question;
   // "one || two": a different text for each question, the last one repeating
   const fixedTexts = (fixedQuestion ?? '').split('||').map((t) => t.trim());
   let spoken = 0;
   const speech: SpeechToText | null = fixedQuestion
     ? { id: 'fixed-text', transcribe: async () => ({ text: fixedTexts[Math.min(spoken++, fixedTexts.length - 1)] as string }) } // checks only: skips the speech server
-    : settings.speechServerUrl ? createLocalSpeechServerRecogniser({ url: settings.speechServerUrl, ...(settings.speechLimitMs ? { limitMs: settings.speechLimitMs } : {}) }) : null;
-  if (fixedQuestion) log('question text fixed for this run (speech server not used)');
-  else if (speech) {
-    // Only ever asks whether the server is up; the app never starts it.
-    speech.warm?.().then(() => log('speech server reachable'), (error: unknown) => log(`speech server: ${error instanceof Error ? error.message : String(error)}`));
-  } else log('no speech server in the settings: questions cannot be heard yet');
+    : speechService.engine;
+  if (fixedQuestion) log('question text fixed for this run (no recogniser used)');
+  else void speechService.status().then((s) => log(s.order.length > 0 ? `hearing: ${s.order.join(', then ')}` : 'no way to hear a question is set up'), () => undefined);
 
   // The API key, if the person uses that route: encrypted for their account, read only here, never logged.
   const keys = createKeyStore({ file: join(app.getPath('userData'), 'api-key.bin'), safeStorage });
@@ -249,6 +248,7 @@ async function main(): Promise<void> {
     preload: settingsPreload,
     page: settingsPage,
     keys,
+    speech: speechService,
     settings: createSettingsService({ path: settingsPath, warn: (m) => log(`settings: ${m}`) }),
     onRestart: () => {
       app.relaunch();
@@ -485,7 +485,7 @@ async function main(): Promise<void> {
     frontReader.dispose();
     tray.destroy();
     // Let the model's process end (and its working folder go) before we leave, but never hang on it.
-    void Promise.race([Promise.all([model.close?.(), detailModel?.close?.()]), new Promise((r) => setTimeout(r, 3000))]).finally(() => app.exit(0));
+    void Promise.race([Promise.all([model.close?.(), detailModel?.close?.(), speechService.engine.close?.()]), new Promise((r) => setTimeout(r, 3000))]).finally(() => app.exit(0));
   };
   let quitting = false;
   const tray = createTray({

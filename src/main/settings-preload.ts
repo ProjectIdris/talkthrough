@@ -10,6 +10,11 @@ const api: TalkthroughSettingsApi = {
   load: () => ipcRenderer.invoke(SETTINGS_CHANNEL.get),
   store: (form) => ipcRenderer.invoke(SETTINGS_CHANNEL.put, form),
   restart: () => ipcRenderer.send(SETTINGS_CHANNEL.restart),
+  speech: () => ipcRenderer.invoke(SETTINGS_CHANNEL.speechStatus),
+  installSpeech: (model) => ipcRenderer.invoke(SETTINGS_CHANNEL.speechInstall, model),
+  cancelSpeech: () => ipcRenderer.send(SETTINGS_CHANNEL.speechCancel),
+  removeSpeech: () => ipcRenderer.invoke(SETTINGS_CHANNEL.speechRemove),
+  onSpeechProgress: (listener) => void ipcRenderer.on(SETTINGS_CHANNEL.speechProgress, (_event, progress) => listener(progress)),
 };
 
 contextBridge.exposeInMainWorld('talkthroughSettings', api);

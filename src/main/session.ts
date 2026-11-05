@@ -801,7 +801,7 @@ export function createSession(deps: SessionDeps) {
       }
       if (!deps.speech) {
         r.error = 'no speech server';
-        return notice(a.displayId, "No speech server is set up, so I can't hear questions yet. Add its address to the settings.", 'error');
+        return notice(a.displayId, "I can't hear questions on this computer yet. Open Settings and choose how to set up hearing.", 'error');
       }
       let question: string;
       try {
@@ -813,7 +813,7 @@ export function createSession(deps: SessionDeps) {
         r.error = `speech: ${code}`;
         if (code === 'aborted') return;
         if (code === 'empty') return notice(a.displayId, "I didn't catch that. Try again?");
-        if (code === 'unavailable') return notice(a.displayId, "The speech server isn't running, so I couldn't hear you. Start it and try again.", 'error');
+        if (code === 'unavailable') return notice(a.displayId, "I couldn't hear you: the speech recogniser isn't available. Open Settings to set up hearing.", 'error');
         return notice(a.displayId, 'Speech recognition failed. Try again.', 'error');
       }
       if (controller.signal.aborted) return;
