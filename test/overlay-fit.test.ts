@@ -88,3 +88,21 @@ test('text in the scene is never drawn tiny, and labels at one spot do not pile 
     assert.ok(a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0, `labels ${i} and ${j} do not overlap`);
   }
 });
+
+// ---- tubes ---------------------------------------------------------------------------------------
+
+test('a tube that arches over never twists: its rings turn smoothly where the path passes straight up or down', async () => {
+  const { tubeGeometry } = await import('../src/overlay/geometry.ts');
+  const path: Array<[number, number, number]> = [];
+  for (let i = 0; i <= 24; i++) {
+    const a = (i / 24) * Math.PI;
+    path.push([-2 * Math.cos(a), 2 * Math.sin(a), 0]);
+  }
+  const radial = 8;
+  const geo = tubeGeometry(path, 0.3, 1, radial);
+  const pos = geo.getAttribute('position');
+  const ringVertex = (i: number) => new Vector3(pos.getX(i * (radial + 1)) - path[i]![0], pos.getY(i * (radial + 1)) - path[i]![1], pos.getZ(i * (radial + 1)) - path[i]![2]);
+  let worst = 0;
+  for (let i = 1; i < path.length; i++) worst = Math.max(worst, ringVertex(i).angleTo(ringVertex(i - 1)));
+  assert.ok(worst < 0.5, `the largest turn from one ring to the next is ${((worst * 180) / Math.PI).toFixed(0)} degrees`);
+});
