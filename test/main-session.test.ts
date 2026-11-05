@@ -1151,3 +1151,37 @@ test('a recogniser whose wake-up throws at once, or answers with no promise, doe
   assert.doesNotThrow(() => plain.session.arm());
 
 });
+
+test('with the record of questions on, a question leaves a folder with what was heard, sent and drawn, and a failed one its error; with it off nothing is kept', async () => {
+  const { createQuestionRecord } = await import('../src/main/record.ts');
+  const { mkdtempSync, readFileSync, readdirSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'tt-session-record-'));
+  try {
+    const record = createQuestionRecord({ dir });
+    const r = rig({ record });
+    await question(r);
+    const [folder] = readdirSync(dir);
+    assert.ok(folder);
+    const at = (name: string) => readFileSync(join(dir, folder, name), 'utf8');
+    assert.equal(at('transcript.txt').trim(), 'what is this');
+    assert.equal(readFileSync(join(dir, folder, 'screenshot-sent.png')).toString('base64'), 'AAAA');
+    const steps = JSON.parse(at('steps.json')) as Array<{ say: string }>;
+    assert.deepEqual(steps.map((s) => s.say), ['One.', 'Two.']);
+    const report = JSON.parse(at('report.json'));
+    assert.equal(report.question, 'what is this', 'the record keeps the words the log does not');
+    assert.equal(report.steps, 2);
+    const broken = rig({ record, model: () => ({ id: 'm', ask: async function* () { throw new ModelError('unavailable', 'not signed in'); } }) });
+    await wait(1000);
+    await question(broken);
+    const folders = readdirSync(dir).sort();
+    assert.equal(folders.length, 2);
+    assert.match(readFileSync(join(dir, folders[1]!, 'errors.txt'), 'utf8'), /unavailable: not signed in/);
+    const off = rig();
+    await question(off);
+    assert.equal(readdirSync(dir).length, 2, 'a session without a record writes nothing');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

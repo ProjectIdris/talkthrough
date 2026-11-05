@@ -44,6 +44,8 @@ import { createHelper } from './ps-helper.ts';
 import { createUiaReader, toDisplayBoxes } from './uia.ts';
 import { DETAIL_EFFORT, DETAIL_MODELS, DETAIL_TIMEOUT_MS, loadSettings } from './settings.ts';
 import { createTray } from './tray.ts';
+import { createQuestionRecord, recordDir } from './record.ts';
+import { recordModel } from './record-model.ts';
 
 // Nothing in this process may ever pop an error dialog on the user's screen: log it and leave.
 dialog.showErrorBox = () => undefined;
@@ -68,7 +70,12 @@ if (options.fakeMic) {
 }
 
 const startedAt = performance.now();
-const log = (message: string) => console.log(`[talkthrough +${((performance.now() - startedAt) / 1000).toFixed(2)}s] ${message}`);
+/** Where every log line is also sent while the record of questions is on (set once the settings are read). */
+let lineSink: ((line: string) => void) | undefined;
+const log = (message: string) => {
+  console.log(`[talkthrough +${((performance.now() - startedAt) / 1000).toFixed(2)}s] ${message}`);
+  lineSink?.(message);
+};
 
 const preload = join(__dirname, 'preload.cjs');
 const audioPreload = join(__dirname, 'audio-preload.cjs');
@@ -135,6 +142,15 @@ async function main(): Promise<void> {
   const settingsPath = options.settings ?? join(app.getPath('userData'), 'settings.json');
   const settings = loadSettings(settingsPath, (m) => log(`settings: ${m}`));
   log(`settings file: ${settingsPath}`);
+  // The record of each question, when the person has switched it on: a folder for every question, beside whatever the log says. It is a setting, not a check run.
+  const record = settings.keepRecord ? createQuestionRecord({ dir: recordDir(settings.recordFolder, app.getPath('userData')), warn: (m) => console.error(`[talkthrough] ${m}`) }) : undefined;
+  if (record) {
+    lineSink = (line) => {
+      record.line(line);
+      if (/^voice/.test(line)) record.voice(line);
+    };
+    log(`record of questions: on, in ${recordDir(settings.recordFolder, app.getPath('userData'))}`);
+  }
   const samples = createSamplePlayer(join(app.getAppPath(), 'samples', 'scenes'));
   let session: ReturnType<typeof createSession> | null = null;
   // The person's say-so before the app acts for them (a yes first, a pause any time); only where it has hands at all.
@@ -169,6 +185,15 @@ async function main(): Promise<void> {
     ...(options.record && !options.recordAudio ? { muted: true } : {}),
     ...(voice ? { voice } : {}),
     onReady: log,
+    ...(record
+      ? {
+        onPageLine: (line: string, level: 'info' | 'warning' | 'error') => {
+          record.line(`page ${level}: ${line}`);
+          if (/^voice/.test(line)) record.voice(line);
+          if (level === 'error') record.error(`overlay page: ${line}`);
+        },
+      }
+      : {}),
     onDone: () => {
       session?.done();
       pageDone = true;
@@ -223,7 +248,11 @@ async function main(): Promise<void> {
   const chord = parseHotkey(settings.hotkey) ?? parseHotkey('right-ctrl+right-shift')!;
 
   /** One route's model, locked down the same way whichever it is; the detail pass uses the same code with its own choices. */
-  const makeModel = (route: 'codex' | 'claude' | 'openai', name: string, effort: string, quick: boolean, chain = false): Model => route === 'claude'
+  const makeModel = (route: 'codex' | 'claude' | 'openai', name: string, effort: string, quick: boolean, chain = false): Model => {
+    const made = makeRouteModel(route, name, effort, quick, chain);
+    return record ? recordModel(made, record, quick ? (chain ? 'a step' : 'quick answer') : 'detail pass') : made;
+  };
+  const makeRouteModel = (route: 'codex' | 'claude' | 'openai', name: string, effort: string, quick: boolean, chain = false): Model => route === 'claude'
     ? createClaudeModel({ model: name, effort, ...(chain ? { schema: sceneSchemaChain } : {}), ...(quick ? {} : { timeoutMs: DETAIL_TIMEOUT_MS }), ...(settings.claudeCommand ? { command: settings.claudeCommand } : {}) })
     : route === 'openai'
       ? createOpenAIModel({
@@ -393,6 +422,7 @@ async function main(): Promise<void> {
       overlays.send(displayId, message);
     },
     log,
+    ...(record ? { record } : {}),
     logText: options.logSteps,
     micWindowMs: settings.micWindowMs,
     onReport: (report) => {

@@ -32,11 +32,15 @@ export type SettingsForm = {
   splitAnswer: SplitMode;
   /** What an answer's words are given as: 'voice' (spoken only), 'text' (shown only, no sound) or 'both' (spoken, with the words shown as they are said). */
   captions: CaptionMode;
+  /** Keep a record of each question (a dated folder for each, the newest 50). */
+  keepRecord: boolean;
+  /** Where the record goes: a full folder path; empty: a folder in the app's own data folder. */
+  recordFolder: string;
 };
 
 export const FORM_KEYS: ReadonlyArray<keyof SettingsForm> = [
   'model', 'codexModel', 'claudeModel', 'openaiModel', 'codexFast', 'detailRoute', 'detailModel',
-  'voiceServerUrl', 'voiceServerVoice', 'speechServerUrl', 'hotkey', 'captureBlocklist', 'guideNavigation', 'controlSnap', 'splitAnswer', 'captions',
+  'voiceServerUrl', 'voiceServerVoice', 'speechServerUrl', 'hotkey', 'captureBlocklist', 'guideNavigation', 'controlSnap', 'splitAnswer', 'captions', 'keepRecord', 'recordFolder',
 ];
 
 /** What main answers a save with. */
@@ -62,5 +66,6 @@ export const SWITCH_WARNINGS = {
   guideNavigation: 'When a guide asks for it, Talkthrough may open a tab, open a menu or scroll for you in desktop apps (never in a browser). It asks first and you can stop it at any time.',
   controlSnap: 'Reads the buttons and tabs of the window in front (only where they are, never their text) to place marks exactly. Never in a browser.',
   splitAnswer: 'On the Claude route each answer is written one step to a call, so the first words come in about three to four seconds, not six to ten; it uses several calls of your Claude allowance a question. "In two calls" writes the first step alone, then the rest while you hear it; "In one call" writes it all at once, and the first words come later.',
+  keepRecord: 'For each question this saves a folder with the screenshot sent, your pen marks, what you said as text, what the model wrote back and how long it took, the steps drawn, anything that had to be repaired or refused, which voice spoke and why, and any error. It stays on this computer, nothing is sent anywhere, and only the newest 50 questions are kept.',
   captions: 'With text and voice the words appear on screen as they are said, never ahead of the voice. With text only nothing is spoken: each step stays up as long as it takes to read, and the drawing keeps time with it. With voice only there are no words on screen.',
 } as const;

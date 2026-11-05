@@ -33,6 +33,8 @@ export type OverlayOptions = {
   muted?: boolean;
   /** Called when an overlay page reports ready, with a one-line description of its window. */
   onReady?: (description: string) => void;
+  /** Every line the page says about itself (the voice's choices, its warnings and errors), told to whoever keeps the record of questions. */
+  onPageLine?: (line: string, level: 'info' | 'warning' | 'error') => void;
   /** Called when the renderer reports the end of a played scene. */
   onDone?: (displayId: number) => void;
   /** Called with each piece of a pen stroke the page reports. */
@@ -141,8 +143,13 @@ export function createOverlayManager(options: OverlayOptions) {
     window.webContents.on('will-navigate', (event) => event.preventDefault());
     // Surface the page's warnings and errors in the app log, and the few lines it says about itself (nothing else the page prints).
     window.webContents.on('console-message', (event) => {
-      if (event.level === 'warning' || event.level === 'error') console.error('[talkthrough] overlay page ' + event.level + ': ' + event.message);
-      else if (event.message.startsWith('talkthrough: ')) console.error('[talkthrough] ' + event.message.slice('talkthrough: '.length));
+      if (event.level === 'warning' || event.level === 'error') {
+        console.error('[talkthrough] overlay page ' + event.level + ': ' + event.message);
+        options.onPageLine?.(event.message, event.level);
+      } else if (event.message.startsWith('talkthrough: ')) {
+        console.error('[talkthrough] ' + event.message.slice('talkthrough: '.length));
+        options.onPageLine?.(event.message.slice('talkthrough: '.length), 'info');
+      }
     });
     window.on('page-title-updated', (event) => event.preventDefault()); // keep our own title
     window.once('ready-to-show', () => {

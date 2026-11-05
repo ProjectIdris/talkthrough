@@ -17,6 +17,7 @@ import type { Grid } from '../shared/screen-diff.ts';
 import type { SkipVerdict } from './skip-list.ts';
 import { parseSpoken } from './phrases.ts';
 import type { Box, Point } from '../shared/pen.ts';
+import type { QuestionRecord } from './record.ts';
 
 /** Everything the question loop needs from the outside, so it can be tested without a window or a microphone. */
 export type SessionDeps = {
@@ -53,6 +54,8 @@ export type SessionDeps = {
   backend?: Backend;
   send(displayId: number, message: SceneMessage): void;
   log(line: string): void;
+  /** The record of each question (the person's setting, off by default): what was sent, heard and drawn goes to a folder of its own. Absent: nothing is kept. */
+  record?: QuestionRecord;
   /** Checks only: put the question text in the log. Off by default, so a spoken question never reaches the console. */
   logText?: boolean;
   /** How long the first key of the chord may be held alone before the early microphone and capture are dropped. */
@@ -178,6 +181,22 @@ export function createSession(deps: SessionDeps) {
   /** Checks only (logText): each answer's raw text goes in the log, so a garbled one can be read afterwards. Otherwise nothing is asked for. */
   const rawLog = (): { onRaw?: (text: string) => void } => (deps.logText ? { onRaw: (text) => deps.log(`answer-raw ${JSON.stringify(text)}`) } : {});
   const now = deps.now ?? (() => Date.now());
+  /** Everything the page is told goes through here, so the record of the question has it too. */
+  const send: SessionDeps['send'] = (displayId, message) => {
+    deps.record?.message(message);
+    deps.send(displayId, message);
+  };
+  /** The figures of a question go to the check run's report and to the record of the question (which keeps the question's words, as the log does not); an error or a cut-short answer is noted once. */
+  const errored = new WeakSet<object>();
+  const reportOut = (r: QuestionReport): void => {
+    if ((r.error || r.cutShort) && !errored.has(r)) {
+      errored.add(r);
+      if (r.error) deps.record?.error(r.error);
+      if (r.cutShort) deps.record?.error(`answer cut short: ${r.cutShort}`);
+    }
+    deps.record?.report({ ...r });
+    deps.onReport?.(r);
+  };
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const backend = deps.backend;
   let attempt: Attempt | null = null;
@@ -219,7 +238,7 @@ export function createSession(deps: SessionDeps) {
   /** Click-through back and the page told, whatever fails on the way. */
   function penOff(displayId: number): void {
     try {
-      deps.send(displayId, { kind: 'pen', on: false });
+      send(displayId, { kind: 'pen', on: false });
     } catch (error) {
       deps.log(`pen: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
@@ -232,8 +251,8 @@ export function createSession(deps: SessionDeps) {
   }
 
   const notice = (displayId: number, text: string, level: 'info' | 'error' = 'info') => {
-    deps.send(displayId, { kind: 'status', status: 'idle' });
-    deps.send(displayId, { kind: 'notice', text, level });
+    send(displayId, { kind: 'status', status: 'idle' });
+    send(displayId, { kind: 'notice', text, level });
   };
 
   function dropAttempt(why: string): void {
@@ -360,21 +379,21 @@ export function createSession(deps: SessionDeps) {
     penFor = a;
     try {
       deps.setPen(a.displayId);
-      deps.send(a.displayId, { kind: 'pen', on: true });
+      send(a.displayId, { kind: 'pen', on: true });
     } catch (error) {
       penOff(a.displayId);
       deps.log(`pen: ${error instanceof Error ? error.message : String(error)}`);
     }
-    if (supersedes) deps.send(a.displayId, { kind: 'status', status: 'idle' });
-    deps.send(a.displayId, { kind: 'status', status: 'hush' });
-    if (a.micStarted) deps.send(a.displayId, { kind: 'status', status: 'listening' });
+    if (supersedes) send(a.displayId, { kind: 'status', status: 'idle' });
+    send(a.displayId, { kind: 'status', status: 'hush' });
+    if (a.micStarted) send(a.displayId, { kind: 'status', status: 'listening' });
   }
 
   /** The device is open and the recorder running. */
   function micStarted(): void {
     if (!attempt) return;
     attempt.micStarted = true;
-    if (attempt.chord) deps.send(attempt.displayId, { kind: 'status', status: 'listening' });
+    if (attempt.chord) send(attempt.displayId, { kind: 'status', status: 'listening' });
   }
 
   /** Either key came up after the chord was made. */
@@ -425,7 +444,7 @@ export function createSession(deps: SessionDeps) {
       label: 'backend',
       message: () => said,
       async *stream(): AsyncGenerator<ModelOutput> {
-        deps.send(displayId, { kind: 'status', status: 'backend' });
+        send(displayId, { kind: 'status', status: 'backend' });
         const reply = await backend!.ask({ question, screenshot, thread: [...thread], scene: sceneOnScreen(), trigger, ...(reason ? { reason } : {}), signal });
         said = reply.message;
         const scene = reply.scene;
@@ -462,7 +481,7 @@ export function createSession(deps: SessionDeps) {
     const open = () => {
       if (begun) return;
       begun = true;
-      deps.send(displayId, detail ? { kind: 'begin', turn, detail: true } : { kind: 'begin', turn });
+      send(displayId, detail ? { kind: 'begin', turn, detail: true } : { kind: 'begin', turn });
     };
     let escalate: string | undefined;
     let failure: unknown;
@@ -480,10 +499,10 @@ export function createSession(deps: SessionDeps) {
           if (held) return;
           open();
           r.firstStepMs ??= since();
-          deps.send(displayId, { kind: 'step-open', say });
+          send(displayId, { kind: 'step-open', say });
         },
         action: (action) => {
-          if (!held) deps.send(displayId, { kind: 'action', action });
+          if (!held) send(displayId, { kind: 'action', action });
         },
       });
     };
@@ -495,14 +514,14 @@ export function createSession(deps: SessionDeps) {
         send: (message) => {
           // The guide clears the page by id between steps: the scene the answers are checked against forgets those ids too.
           if (message.kind === 'step') for (const a of message.step.actions) if (a.op === 'clear') applyClear(checking, a.target);
-          deps.send(displayId, message);
+          send(displayId, message);
         },
         capture: () => deps.guide!.capture(displayId),
         // The picture the model was given: a move for the person is made only if the screen near it still looks like this.
         ...(deps.guide?.gridOf && modelPicture ? { reference: () => ({ screenshot: modelPicture, grid: deps.guide!.gridOf!(modelPicture) }) } : {}),
         listen: (listener) => deps.guide!.listen(displayId, listener),
         replan: (info) => replanWalk(displayId, g, question, info),
-        finish: () => deps.send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) }),
+        finish: () => send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) }),
         onEnd: (why) => {
           if (walking?.guide === g) {
             walking.controller.abort();
@@ -532,8 +551,11 @@ export function createSession(deps: SessionDeps) {
       if (!live) return;
       const done = live.finish();
       live = null;
-      if (done.issues.length > 0) deps.log(validatorNotes(done.issues, shown.length + 1));
-      if (!held) deps.send(displayId, { kind: 'step-close' });
+      if (done.issues.length > 0) {
+        deps.log(validatorNotes(done.issues, shown.length + 1));
+        deps.record?.issues(shown.length + 1, done.issues);
+      }
+      if (!held) send(displayId, { kind: 'step-close' });
       if (done.step) {
         shown.push(done.step);
         handOver(done.step, held);
@@ -560,13 +582,16 @@ export function createSession(deps: SessionDeps) {
           }
           written.push(out.step as { actions: unknown[] });
           const checked = validateStep(out.step, checking);
-          if (checked.issues.length > 0) deps.log(validatorNotes(checked.issues, shown.length + 1));
+          if (checked.issues.length > 0) {
+            deps.log(validatorNotes(checked.issues, shown.length + 1));
+            deps.record?.issues(shown.length + 1, checked.issues);
+          }
           if (!checked.step) continue;
           const wasHeld = walk !== undefined;
           if (!wasHeld) open();
           shown.push(checked.step);
           r.firstStepMs ??= since();
-          if (!wasHeld) deps.send(displayId, { kind: 'step', step: checked.step });
+          if (!wasHeld) send(displayId, { kind: 'step', step: checked.step });
           handOver(checked.step, wasHeld);
         } else if (out.type === 'usage') {
           r.tokens = out.usage;
@@ -582,7 +607,7 @@ export function createSession(deps: SessionDeps) {
       // The stream ended or broke in the middle of a step: close it on the page so nothing hangs half drawn.
       if (failure) {
         live = null;
-        if (!held) deps.send(displayId, { kind: 'step-close' });
+        if (!held) send(displayId, { kind: 'step-close' });
       } else closeLive();
     }
     if (failure && shown.length > 0) {
@@ -596,7 +621,7 @@ export function createSession(deps: SessionDeps) {
       const code = failure instanceof ModelError ? failure.code : 'failed';
       r.error = `${source.kind}: ${code}: ${failure instanceof Error ? failure.message : String(failure)}`;
       if (walk) walk.streamEnded();
-      else if (begun) deps.send(displayId, { kind: 'end' });
+      else if (begun) send(displayId, { kind: 'end' });
       return notice(displayId, failure instanceof ModelError && code === 'auth' && failure.message === NO_KEY_MESSAGE ? 'No API key is set. Open the tray menu and choose API key.' : source.kind === 'backend' ? backendMessage(code) : modelMessage(code), 'error');
     }
     r.steps = shown.length;
@@ -618,7 +643,7 @@ export function createSession(deps: SessionDeps) {
     }
     else {
       open();
-      deps.send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) });
+      send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) });
     }
     const kept: ThreadTurn = { question, steps: shown, ...(detail ? { detail: true as const } : {}) };
     if (picture) pictures.set(kept, picture);
@@ -626,7 +651,7 @@ export function createSession(deps: SessionDeps) {
       // The scene on screen is now the richer one: the ids it did not write again are still there and still known.
       delete checking.replaceable;
       state = checking;
-      deps.send(displayId, { kind: 'status', status: 'idle' });
+      send(displayId, { kind: 'status', status: 'idle' });
     }
     thread.push(kept);
     lastActivity = now();
@@ -636,12 +661,12 @@ export function createSession(deps: SessionDeps) {
   /** The page is given the screen as it is now, and its controls are read again (the screen changed under the person's click). */
   function lookAgain(displayId: number, question: string, picture: Screenshot, signal: AbortSignal, why: string): void {
     lastAsk = { question, screenshot: picture, clean: picture };
-    deps.send(displayId, { kind: 'screenshot', url: `data:${picture.mime};base64,${picture.base64}` });
+    send(displayId, { kind: 'screenshot', url: `data:${picture.mime};base64,${picture.base64}` });
     if (deps.controls) {
       // Late is fine, see begin.
       void deps.controls.read(displayId, signal).then((read) => {
         deps.log(`controls: ${read.boxes.length} read in ${read.ms} ms${read.why ? ` (${read.why})` : ''} (${why})`);
-        if (!signal.aborted && read.boxes.length > 0) deps.send(displayId, { kind: 'controls', boxes: read.boxes });
+        if (!signal.aborted && read.boxes.length > 0) send(displayId, { kind: 'controls', boxes: read.boxes });
       }, () => undefined);
     }
   }
@@ -719,7 +744,7 @@ export function createSession(deps: SessionDeps) {
     r.model = model.id;
     r.question = base.question;
     r.detail = true;
-    deps.send(displayId, { kind: 'status', status: 'detail' });
+    send(displayId, { kind: 'status', status: 'detail' });
     const scene = sceneSteps();
     const source: Source = {
       kind: 'model',
@@ -743,7 +768,8 @@ export function createSession(deps: SessionDeps) {
     const r: QuestionReport = { model: model.id, question: '', steps: 0 };
     report = r;
     const since = () => now() - releasedAt;
-    deps.send(a.displayId, { kind: 'status', status: 'working' });
+    deps.record?.begin('question');
+    send(a.displayId, { kind: 'status', status: 'working' });
     try {
       let clip: MicResult;
       try {
@@ -756,6 +782,7 @@ export function createSession(deps: SessionDeps) {
       // The strokes are final by now. Draw them onto the frame while the speech is being recognised.
       for (let waited = 0; a.open.size > 0 && waited < STROKE_TAIL_MS; waited += STROKE_TAIL_STEP_MS) await sleep(STROKE_TAIL_STEP_MS);
       const strokes = [...a.strokes.values()];
+      deps.record?.strokes(strokes);
       if (penFor === a) penFor = null;
       const circled = isRealStroke(strokes) && deps.media.compose !== undefined;
       const composed = circled
@@ -789,6 +816,7 @@ export function createSession(deps: SessionDeps) {
       if (controller.signal.aborted) return;
       r.question = question;
       r.transcriptMs = since();
+      deps.record?.transcript(question, r.speech);
       if (!question) {
         r.error = 'empty transcript';
         return notice(a.displayId, "I didn't catch that. Try again?");
@@ -852,7 +880,12 @@ export function createSession(deps: SessionDeps) {
         return notice(a.displayId, 'Ask your question first, or say it after "ask the backend".');
       }
       lastAsk = { question: asking, screenshot: seen, clean: shot.screenshot };
-      deps.send(a.displayId, { kind: 'screenshot', url: `data:${shot.screenshot.mime};base64,${shot.screenshot.base64}` });
+      if (deps.record) {
+        deps.record.picture('screenshot-sent', seen);
+        if (seen !== shot.screenshot) deps.record.picture('screenshot-clean', shot.screenshot);
+        focus?.forEach((f, k) => deps.record!.picture(`crop-${k + 1}-${f.kind}`, f.crop));
+      }
+      send(a.displayId, { kind: 'screenshot', url: `data:${shot.screenshot.mime};base64,${shot.screenshot.base64}` });
       if (a.controls && !toBackend) {
         // Not waited for: the page gets them when they come, after the screenshot they belong to.
         const sentAt = since();
@@ -862,7 +895,7 @@ export function createSession(deps: SessionDeps) {
           deps.log(`controls: ${read.boxes.length} read in ${read.ms} ms${read.why ? ` (${read.why})` : ''}, the first mark could have been at ${sentAt} ms`);
           // Not for a screen that a newer press has since replaced.
           if (controller.signal.aborted || a.id !== nextId - 1 || read.boxes.length === 0) return;
-          deps.send(a.displayId, { kind: 'controls', boxes: read.boxes });
+          send(a.displayId, { kind: 'controls', boxes: read.boxes });
         });
       }
 
@@ -886,7 +919,7 @@ export function createSession(deps: SessionDeps) {
       releaseFrame(a);
       if (asking === controller) asking = null;
       deps.log(`report ${JSON.stringify(deps.logText ? r : { ...r, question: r.question ? '(not logged)' : '' })}`);
-      deps.onReport?.(r);
+      reportOut(r);
     }
   }
 
@@ -947,7 +980,7 @@ export function createSession(deps: SessionDeps) {
       if (m.what === 'first-mark') report.firstMarkMs ??= ms;
       else report.firstWordMs ??= ms;
       deps.log(`milestone ${m.what} ${ms} ms after release`);
-      deps.onReport?.(report);
+      reportOut(report);
     },
     /** The user clicked the escalation offer: the question goes to the backend, with the thread and the scene on screen. */
     async offer(displayId: number): Promise<void> {
@@ -959,12 +992,13 @@ export function createSession(deps: SessionDeps) {
       releasedAt = now();
       const r: QuestionReport = { model: 'backend', question: lastAsk.question, steps: 0 };
       report = r;
+      deps.record?.begin('offer');
       try {
         await answer(displayId, controller, r, () => now() - releasedAt, lastAsk.question, backendSource(displayId, 'offer', lastAsk.question, lastAsk.screenshot, lastAsk.reason, controller.signal), true);
       } finally {
         if (asking === controller) asking = null;
         deps.log(`report ${JSON.stringify(deps.logText ? r : { ...r, question: r.question ? '(not logged)' : '' })}`);
-        deps.onReport?.(r);
+        reportOut(r);
       }
     },
     /** The user clicked "More detail" beside the model. Ignored while an answer is being written or heard. */
@@ -975,12 +1009,13 @@ export function createSession(deps: SessionDeps) {
       releasedAt = now();
       const r: QuestionReport = { model: 'detail', question: '', steps: 0 };
       report = r;
+      deps.record?.begin('detail');
       try {
         await runDetail(displayId, controller, r, () => now() - releasedAt);
       } finally {
         if (asking === controller) asking = null;
         deps.log(`report ${JSON.stringify(deps.logText ? r : { ...r, question: r.question ? '(not logged)' : '' })}`);
-        deps.onReport?.(r);
+        reportOut(r);
       }
     },
     /** The tray's "Pin this answer". */

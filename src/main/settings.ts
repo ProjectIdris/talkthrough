@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { DEFAULT_HOTKEY, parseHotkey } from './chord.ts';
 import { cleanSkipList, DEFAULT_SKIP_LIST } from './skip-list.ts';
 import type { SplitMode } from '../shared/settings-form.ts';
@@ -93,6 +94,14 @@ export type Settings = {
   detailModel?: string;
   /** Reasoning effort for the detail pass (default: DETAIL_EFFORT). */
   detailEffort?: string;
+  /**
+   * Keep a record of each question: a dated folder per question (the screenshot sent, the pen marks, what was said, each model call's raw text and timings,
+   * the steps drawn, what the checks repaired or refused, which voice spoke and why, any error), the newest 50 kept. Off until the person turns it on.
+   * Nothing leaves the computer. It is a setting, not a check run.
+   */
+  keepRecord: boolean;
+  /** Where the record goes (an absolute folder); unset: a folder named `questions` in the app's data folder. */
+  recordFolder?: string;
 };
 
 /** What each route uses for the detail pass when the settings name no model: a stronger one than the quick answers use. */
@@ -116,6 +125,7 @@ export const DEFAULT_SETTINGS: Settings = {
   effort: 'low',
   controlSnap: false,
   guideNavigation: false,
+  keepRecord: false,
   splitAnswer: 'steps',
   captions: DEFAULT_CAPTION_MODE,
   voiceFirstAudioMs: 2000,
@@ -210,6 +220,12 @@ export function settingsFromRaw(raw: Record<string, unknown>, warn: (message: st
   if (detailModel) settings.detailModel = detailModel;
   const detailEffort = str(raw.detailEffort);
   if (detailEffort) settings.detailEffort = detailEffort;
+  if (typeof raw.keepRecord === 'boolean') settings.keepRecord = raw.keepRecord;
+  const recordFolder = str(raw.recordFolder);
+  if (recordFolder) {
+    if (isAbsolute(recordFolder)) settings.recordFolder = recordFolder;
+    else warn('recordFolder must be a full folder path (for example C:\Users\you\Documents\questions); the app data folder is used');
+  }
   return settings;
 }
 

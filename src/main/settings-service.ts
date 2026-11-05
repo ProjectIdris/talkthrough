@@ -28,6 +28,8 @@ export function formFromSettings(s: Settings): SettingsForm {
     controlSnap: s.controlSnap,
     splitAnswer: s.splitAnswer,
     captions: s.captions,
+    keepRecord: s.keepRecord,
+    recordFolder: s.recordFolder ?? '',
   };
 }
 
@@ -44,7 +46,7 @@ function readForm(input: unknown, complain: (message: string) => void): Settings
   let ok = true;
   for (const key of FORM_KEYS) {
     const v = raw[key];
-    const want = key === 'codexFast' || key === 'guideNavigation' || key === 'controlSnap' ? 'boolean' : key === 'captureBlocklist' ? 'list' : 'string';
+    const want = key === 'codexFast' || key === 'guideNavigation' || key === 'controlSnap' || key === 'keepRecord' ? 'boolean' : key === 'captureBlocklist' ? 'list' : 'string';
     const right = want === 'list' ? Array.isArray(v) && v.every((x) => typeof x === 'string') : typeof v === want;
     if (!right) {
       complain(`Nothing was saved: "${key}" was missing or of the wrong kind.`);
@@ -65,6 +67,7 @@ function plain(message: string): string {
   if (message.startsWith('voiceServerUrl')) return 'The voice server address must start with https://, or be an address on this computer (http://127.0.0.1...).';
   if (message.startsWith('hotkey')) return 'Choose two different keys.';
   if (message.startsWith('captureBlocklist: ')) return `The list of windows to skip: ${message.slice('captureBlocklist: '.length)}.`;
+  if (message.startsWith('recordFolder')) return 'Choose a full folder path for the record (such as C:\Users\you\Documents\questions), or leave it empty.';
   if (message.startsWith('detailRoute')) return 'Choose a route for the richer version, or turn it off.';
   const first = message.split(';')[0]!;
   return `${first[0]!.toUpperCase()}${first.slice(1)}.`;
@@ -160,5 +163,7 @@ function formToRaw(form: SettingsForm): Record<string, unknown> {
   put('controlSnap', form.controlSnap, d.controlSnap);
   put('splitAnswer', form.splitAnswer, d.splitAnswer);
   put('captions', form.captions, d.captions);
+  put('keepRecord', form.keepRecord, d.keepRecord);
+  put('recordFolder', form.recordFolder, undefined);
   return out;
 }

@@ -23,6 +23,7 @@ el('warnNav').textContent = SWITCH_WARNINGS.guideNavigation;
 el('warnSnap').textContent = SWITCH_WARNINGS.controlSnap;
 el('warnSplit').textContent = SWITCH_WARNINGS.splitAnswer;
 el('warnCaptions').textContent = SWITCH_WARNINGS.captions;
+el('warnRecord').textContent = SWITCH_WARNINGS.keepRecord;
 
 /** Shows only what matters for the choices made: the model of the chosen route, the key box when a route needs a key, the voice address when a server is chosen. */
 function arrange(): void {
@@ -31,6 +32,7 @@ function arrange(): void {
   el('keybox').classList.toggle('hide', route !== 'openai' && select('detailRoute').value !== 'openai');
   el('detailbox').classList.toggle('hide', select('detailRoute').value === '');
   el('voicebox').classList.toggle('hide', !box('voiceServer').checked);
+  el('recordbox').classList.toggle('hide', !box('keepRecord').checked);
 }
 
 function fill(form: SettingsForm): void {
@@ -56,6 +58,8 @@ function fill(form: SettingsForm): void {
   box('controlSnap').checked = form.controlSnap;
   select('splitAnswer').value = form.splitAnswer;
   select('captions').value = form.captions;
+  box('keepRecord').checked = form.keepRecord;
+  text('recordFolder').value = form.recordFolder;
   arrange();
 }
 
@@ -79,6 +83,8 @@ function collect(): SettingsForm {
     controlSnap: box('controlSnap').checked,
     splitAnswer: select('splitAnswer').value as SettingsForm['splitAnswer'],
     captions: select('captions').value as SettingsForm['captions'],
+    keepRecord: box('keepRecord').checked,
+    recordFolder: text('recordFolder').value,
   };
 }
 
@@ -110,7 +116,7 @@ async function save(): Promise<void> {
 }
 
 for (const id of ['model', 'detailRoute']) select(id).addEventListener('change', arrange);
-for (const id of ['voiceSystem', 'voiceServer']) box(id).addEventListener('change', arrange);
+for (const id of ['voiceSystem', 'voiceServer', 'keepRecord']) box(id).addEventListener('change', arrange);
 el('save').addEventListener('click', () => void save());
 el('restart').addEventListener('click', () => window.talkthroughSettings.restart());
 el('close').addEventListener('click', () => window.close());
