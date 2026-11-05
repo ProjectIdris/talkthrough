@@ -114,6 +114,8 @@ export type SpinAction = { op: 'spin'; id: string; rpm?: number; by?: string; ra
 export type CutAction = { op: 'cut'; id: string; axis?: 'x' | 'y' | 'z'; to: number } & Timing;
 export type CrankAction = { op: 'crank'; id: string; shaft: string; rod?: string; pin?: number } & At;
 export type CamAction = { op: 'cam'; id: string; by: string; lift?: number; open?: number; phase?: number } & At;
+/** A repeating motion that is not a full turn, for any object: slide along an axis, swing about a pivot, or pulse in size. Its own period, or locked to a spinning part with by. */
+export type LoopAction = { op: 'loop'; id: string; kind: 'slide' | 'swing' | 'pulse' | 'stop'; axis?: 'x' | 'y' | 'z'; amount?: number; period?: number; by?: string; ratio?: number; phase?: number; pivot?: Vec3 } & At;
 export type FlashAction = { op: 'flash'; id: string; by: string; angle: number; span: number; cycle?: number } & At;
 
 // Camera, for the 3D panel.
@@ -132,7 +134,7 @@ export type GoAction = { op: 'go'; kind: 'tab' | 'open' | 'scroll'; x: number; y
 export type Action =
   | Mark | PanelAction | AddAction | DiagramThing | TickAction
   | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | StyleAction | HighlightAction
-  | CutAction | SpinAction | CrankAction | CamAction | FlashAction
+  | CutAction | SpinAction | CrankAction | CamAction | FlashAction | LoopAction
   | OrbitAction | ZoomAction | FocusAction | ClearAction | WaitAction | GoAction;
 
 export type Step = { say: string; actions: Action[] };

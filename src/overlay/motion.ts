@@ -23,10 +23,22 @@ export type CrankDef = { key: number; shaftKey: number; rodKey: number | null; p
 export type CamDef = { key: number; byKey: number; lift: number | undefined; open: number; phase: number };
 export type FlashDef = { key: number; byKey: number; angle: number; span: number; cycle: number };
 
-export type Motion = { spins: SpinState[]; cranks: CrankDef[]; cams: CamDef[]; flashes: FlashDef[] };
-export type Pose = { pos?: Vec3; rot?: Vec3; opacity?: number };
+/**
+ * A loop: a repeating motion that is not a full turn, for any object. Its phase is an angle kept like a spin's, in `Motion.spins` under the key
+ * `loopDriver(key)` (below zero, so it never meets an object): free, it turns once a period; locked, it follows another part. The pose is a function
+ * of that angle (the cosine of it: 1 at the far end, so a part locked to a crank is at the top when the crank pin is).
+ */
+export type LoopKind = 'slide' | 'swing' | 'pulse';
+export type LoopDef = { key: number; kind: LoopKind; axis: Axis; amount: number; pivot: Vec3 };
+/** The key of the angle that drives the loop on object `key`; the same call gives the object back from the driver's key. */
+export const loopDriver = (key: number): number => -1 - key;
+/** Where a free loop's angle starts, so it begins at rest: the cosine is 0 for slide and swing, and the pulse is at its smallest. */
+export const loopStart = (kind: LoopKind): number => (kind === 'pulse' ? 180 : 270);
 
-export const emptyMotion = (): Motion => ({ spins: [], cranks: [], cams: [], flashes: [] });
+export type Motion = { spins: SpinState[]; cranks: CrankDef[]; cams: CamDef[]; flashes: FlashDef[]; loops: LoopDef[] };
+export type Pose = { pos?: Vec3; rot?: Vec3; opacity?: number; /** A multiplier on the object's own scale. */ scale?: Vec3 };
+
+export const emptyMotion = (): Motion => ({ spins: [], cranks: [], cams: [], flashes: [], loops: [] });
 
 // ---- Spins over time ------------------------------------------------------------------------------
 
@@ -116,7 +128,7 @@ const wrap180 = (d: number): number => ((((d + 180) % 360) + 360) % 360) - 180;
 /** Where the machine has put each moving object, given the angles. Objects not moved are not in the result. */
 export function poses(objects: readonly PoseObject[], motion: Motion): Map<number, Pose> {
   const out = new Map<number, Pose>();
-  if (motion.spins.length + motion.cranks.length + motion.cams.length + motion.flashes.length === 0) return out;
+  if (motion.spins.length + motion.cranks.length + motion.cams.length + motion.flashes.length + motion.loops.length === 0) return out;
   const byKey = new Map(objects.map((o) => [o.key, o] as const));
   const edit = (key: number): Pose => {
     let p = out.get(key);
@@ -195,6 +207,38 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
       v = u < 0.1 ? u / 0.1 : Math.pow(1 - (u - 0.1) / 0.9, 1.6);
     }
     edit(f.key).opacity = o.opacity * v;
+  }
+
+  // Loops go last and ride on whatever a spin, crank or cam already did to the same part.
+  const angleOf = new Map(motion.spins.map((s) => [s.key, s.angle] as const));
+  for (const l of motion.loops) {
+    const o = byKey.get(l.key);
+    const angle = angleOf.get(loopDriver(l.key));
+    if (!o || angle === undefined) continue;
+    const w = Math.cos(angle * DEG);
+    const pose = edit(l.key);
+    if (l.kind === 'slide') {
+      const pos: Vec3 = [...(pose.pos ?? o.pos)] as Vec3;
+      pos[l.axis] += (w * l.amount) / 2;
+      pose.pos = pos;
+    } else if (l.kind === 'swing') {
+      const delta = w * l.amount;
+      const rot: Vec3 = [...(pose.rot ?? o.rot)] as Vec3;
+      rot[l.axis] += delta;
+      pose.rot = rot;
+      const [px, py, pz] = l.pivot;
+      if (px !== 0 || py !== 0 || pz !== 0) {
+        // About the pivot point, not its own middle: the part goes to pivot + R(delta) * (part - pivot).
+        const c = Math.cos(delta * DEG), s = Math.sin(delta * DEG);
+        const turned: Vec3 = l.axis === 2 ? [px * c - py * s, px * s + py * c, pz] : l.axis === 0 ? [px, py * c - pz * s, py * s + pz * c] : [pz * s + px * c, py, pz * c - px * s];
+        const p = pose.pos ?? o.pos;
+        pose.pos = [p[0] + px - turned[0], p[1] + py - turned[1], p[2] + pz - turned[2]];
+      }
+    } else {
+      const m = 1 + (l.amount - 1) * ((1 + w) / 2);
+      const base = pose.scale ?? [1, 1, 1];
+      pose.scale = [base[0] * m, base[1] * m, base[2] * m];
+    }
   }
   return out;
 }

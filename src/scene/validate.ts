@@ -320,6 +320,20 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', path, 'spin needs rpm or by');
     return null;
   }
+  if (variant.name === 'loop' && out.kind !== 'stop') {
+    // An amount is a travel, an angle or a size factor by its kind, and each has a range that still reads as that motion.
+    const amount = out.amount as number | undefined;
+    if (amount === undefined) {
+      note(notes, 'dropped', path, 'loop needs an amount');
+      return null;
+    }
+    const [low, high] = out.kind === 'slide' ? [0.01, 100] : out.kind === 'swing' ? [0.01, 180] : [0.1, 5];
+    const held = Math.min(high, Math.max(low, amount));
+    if (held !== amount) {
+      note(notes, 'clamped', `${path}.amount`, `${out.kind} amount ${amount} held to ${held}`);
+      out.amount = held;
+    }
+  }
   if (variant.name === 'addBlob') {
     // One size for each lump: a short list repeats its last, a long one is cut.
     const pts = out.pts as unknown[];

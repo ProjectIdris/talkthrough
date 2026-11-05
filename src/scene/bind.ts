@@ -60,6 +60,9 @@ export const BINDINGS: Readonly<Record<string, readonly Binding[]>> = {
   flash: [
     { field: 'by', what: 'crankshaft', part: 'crankshaft', fits: mover },
   ],
+  loop: [
+    { field: 'by', what: 'driving part', part: 'crankshaft', fits: mover, optional: true, not: 'id' },
+  ],
   spin: [
     { field: 'by', what: 'driving part', part: 'crankshaft', fits: mover, optional: true, not: 'id' },
   ],

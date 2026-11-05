@@ -432,6 +432,19 @@ export const VARIANTS: readonly Variant[] = [
     },
   },
   {
+    name: 'loop', op: 'loop',
+    doc: 'Repeat a motion on any object, plain shape or part: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, round pivot) or pulse (swell to amount times its size). Every period seconds (default 2), or give by, a spinning part, to keep in step. It goes on until another loop on the object replaces it; stop ends it.',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['slide', 'swing', 'pulse', 'stop'] },
+      amount: { k: 'num', min: 0.01, max: 360, opt: true, doc: 'slide: total travel in units; swing: degrees each side; pulse: the size factor (1.3 is 30% bigger, 0.8 smaller)' },
+      axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true, doc: 'seconds for one cycle (default 2)' },
+      by: { k: 'ref', of: 'object3d', opt: true, doc: 'a spinning part to stay in step with' },
+      ratio: { k: 'num', min: -20, max: 20, opt: true, doc: 'with by: cycles per turn of that part (default 1)' },
+      phase: { k: 'num', min: -3600, max: 3600, opt: true, doc: 'with by: degrees of that part ahead' },
+      pivot: { k: 'vec3', ...WORLD, opt: true, doc: 'swing: from the object to the point it turns about' }, at: AT,
+    },
+  },
+  {
     name: 'cut', op: 'cut',
     doc: 'Cut a 3D object (usually a whole model) open with a plane, so the inside shows: everything beyond the plane is removed and the cut faces are capped. axis is x, y or z (default z, the plane faces the viewer at the front); to is where the plane is along that axis in the object own space (the middle of the object is 0). Move the plane through with another cut; to 100 puts it beyond everything: no cut.',
     fields: { id: { k: 'ref', of: 'object3d' }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, to: { k: 'num', min: -100, max: 100 }, at: AT, dur: DUR },

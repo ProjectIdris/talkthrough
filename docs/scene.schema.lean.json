@@ -2477,6 +2477,94 @@
       ],
       "additionalProperties": false
     },
+    "loop": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "loop"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "slide",
+            "swing",
+            "pulse",
+            "stop"
+          ]
+        },
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "by": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ratio": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "pivot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "kind",
+        "amount",
+        "axis",
+        "period",
+        "by",
+        "ratio",
+        "phase",
+        "pivot",
+        "at"
+      ],
+      "additionalProperties": false
+    },
     "cut": {
       "type": "object",
       "properties": {
@@ -2859,6 +2947,9 @@
         },
         {
           "$ref": "#/$defs/flash"
+        },
+        {
+          "$ref": "#/$defs/loop"
         },
         {
           "$ref": "#/$defs/cut"
