@@ -75,15 +75,15 @@ test('a held action whose object never comes is dropped with its reason, at the 
   assert.ok(!state.ids.has('tag'), 'the dropped pin was never registered');
 });
 
-test('a held action is given up after a few more actions, not kept for the whole step', () => {
+test('a held action can resolve to an exact id later in the step', () => {
   const { live, events } = rig();
   live.say('Many.');
   live.action({ op: 'pin', id: 'tag', on: 'late', text: 'Late' });
   for (let i = 0; i < 8; i++) live.action(box(`m${i}`));
   live.action(cube('late'));
   const done = live.finish();
-  assert.ok(!events.includes('pin:tag'), 'too late: it was already given up');
-  assert.ok(done.issues.some((i) => i.message.includes('unknown id "late"')));
+  assert.ok(events.includes('pin:tag'), 'the exact late id resolves the pin');
+  assert.ok(!done.issues.some((i) => i.message.includes('unknown id "late"')));
 });
 
 test('actions that arrive before the words wait for them; a step that never gets its words is dropped, as a whole one is', () => {

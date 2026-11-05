@@ -1050,7 +1050,7 @@
         "dur"
       ],
       "additionalProperties": false,
-      "description": "The 3D stage: the rectangle on the screenshot a 3D model is fitted to. The model floats over the page and may reach past the rectangle; frame true draws a box behind it. Sent again, it moves or resizes."
+      "description": "The 3D stage: the rectangle on the screenshot a 3D model is fitted to. The model floats over the page and may reach past the rectangle; frame true draws a box behind it. Sent again, it moves or resizes. w and h are its size, 100 or more, never 0."
     },
     "addSolid": {
       "type": "object",
@@ -3210,7 +3210,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Repeat a motion on any object: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, about the hinge pivot) or pulse (swell to amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint's. Another loop replaces it; stop ends it."
+      "description": "Repeat a motion on any object: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, about the hinge pivot) or pulse (swell to amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint's. Another loop replaces it; stop ends it. id is an object already in the scene, never a name for the loop."
     },
     "joint": {
       "type": "object",

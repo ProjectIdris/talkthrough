@@ -156,6 +156,22 @@ export function bindParts(
   return true;
 }
 
+/** Recover only an explicit action designator attached to a whole existing id. */
+export function bindUnknownId(said: string, state: SceneState, pools: ReadonlyArray<(kind: ObjectKind) => boolean>, op: string): string | undefined {
+  const lower = said.toLowerCase();
+  const names: Record<string, string[]> = { loop: ['lp', 'loop', 'pulse'], move: ['move'], style: ['style', 'color'], pin: ['pin'], highlight: ['highlight'], turn: ['turn'] };
+  const designators = names[op] ?? [];
+  const candidates = new Set<string>();
+  for (const fits of pools) {
+    for (const [id, kind] of state.ids) {
+      if (id.length < 2 || !fits(kind)) continue;
+      const part = id.toLowerCase();
+      if (designators.some((d) => [d + part, d + '-' + part, d + '_' + part, part + d, part + '-' + d, part + '_' + d].includes(lower))) candidates.add(id);
+    }
+  }
+  return candidates.size === 1 ? [...candidates][0] : undefined;
+}
+
 const article = (what: string): string => `${/^[aeiou]/.test(what) ? 'an' : 'a'} ${what} part`;
 
 /** The one part that can stand for what was written, or undefined when none or more than one can. */
