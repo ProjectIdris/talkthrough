@@ -1,10 +1,20 @@
 ﻿import { Matrix3, Matrix4, Mesh, Ray, Vector3 } from 'three';
 
+/** True only for finite orientation-preserving rigid transforms with uniform scale. */
+export function rigidUniform(m:Matrix4):boolean {
+ const e=m.elements;if(!e.every(Number.isFinite)||m.determinant()<=0)return false;
+ const a=new Vector3(e[0],e[1],e[2]),b=new Vector3(e[4],e[5],e[6]),c=new Vector3(e[8],e[9],e[10]);
+ const lengths=[a.length(),b.length(),c.length()];if(Math.min(...lengths)<=0||Math.max(...lengths)-Math.min(...lengths)>1e-4)return false;
+ a.normalize();b.normalize();c.normalize();return Math.abs(a.dot(b))<=1e-4&&Math.abs(a.dot(c))<=1e-4&&Math.abs(b.dot(c))<=1e-4;
+}
+
 /** Root intersection is against this one caller-validated rigid parent, never another object. */
 export function projectRoot(parent: Mesh, seam: readonly Vector3[], flexToParent: Matrix4, parentPoint: Vector3, parentNormal: Vector3, maxGap: number): Vector3[] {
+  for (let o: typeof parent | null = parent; o; o = o.parent as typeof parent | null) if (!(o.scale.x>0 && o.scale.y>0 && o.scale.z>0)) throw Error('negative parent scale');
+  if (![parentPoint.x,parentPoint.y,parentPoint.z,parentNormal.x,parentNormal.y,parentNormal.z,...flexToParent.elements].every(Number.isFinite) || seam.some(v=>![v.x,v.y,v.z].every(Number.isFinite))) throw Error('nonfinite root');
   if (seam.length !== 7 || !Number.isFinite(maxGap) || maxGap < .01 || maxGap > .15 || parentNormal.lengthSq() < 1e-16) throw Error('invalid root');
   const scale=new Vector3().setFromMatrixScale(parent.matrixWorld);
-  if (!(scale.x > 0 && scale.y > 0 && scale.z > 0) || Math.max(scale.x,scale.y,scale.z)-Math.min(scale.x,scale.y,scale.z)>1e-4 || parent.matrixWorld.determinant() <= 0) throw Error('unsupported parent scale');
+  if (!rigidUniform(parent.matrixWorld)) throw Error('unsupported parent scale');
   const middle=seam[3]!.clone().applyMatrix4(flexToParent);
   if(middle.distanceTo(parentPoint)>.001) throw Error('root point mismatch');
   const normal=parentNormal.clone().normalize().applyMatrix3(new Matrix3().getNormalMatrix(parent.matrixWorld)).normalize();

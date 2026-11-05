@@ -38,7 +38,7 @@ import type { Tier } from './materials.ts';
 import { PenLayer, drawPen, routePenPointer, undoPlace } from './pen.ts';
 import { clearVisibleRegions, containsVisiblePoint, publishVisibleRegions, readVisibleRegions, regionsForMark } from './visible-regions.ts';
 import { createDismissCapture, createPointerOwner, routePointer } from './pointer-owner.ts';
-import { hitVisibleModel } from './model-hit.ts';
+import { hitModelRegion } from './model-hit.ts';
 import type { VisibleRegion, VisibleRegionSnapshot } from './visible-regions.ts';
 import { Player, VOICE_PATIENCE_MARGIN_MS, createSilentVoice } from './player.ts';
 import { captionSpot, createCaptionDriver } from './captions.ts';
@@ -380,6 +380,7 @@ function draw(frame: Frame): Frame {
   // The flat diagrams go over the marks' canvas in free space; a piece moved by a later arrival glides, which wants frames until it is there.
   diagramsMoving = frame.diagrams.length > 0 && diagramPainter.draw(marksCtx, frame.diagrams, view, labelClock());
   if (over.length > 0) drawMarks(marksCtx, over, view, annotator, { reduceMotion: reduceMotion.matches, append: true });
+  if (panelScene.takeFlexPickRetry()) request();
   drawPen(marksCtx, pen.view(labelClock(), { reduceMotion: reduceMotion.matches }), view);
   syncUndo();
   if (pointerX >= 0) hold.onHud(overHud(document.elementFromPoint(pointerX, pointerY))); // a button can fade under a resting pointer
@@ -962,9 +963,13 @@ function cancelOwnedPointer(): void {
 }
 
 function modelAt(x: number, y: number): boolean {
-  if (!modelHitRect || !overModel(modelHitRect, x, y) || !lastDisplayedFrame) return false;
+  if (!lastDisplayedFrame) return false;
+  const budget=panelScene.flexPickBudget();
+  if (!budget && (!modelHitRect || !overModel(modelHitRect, x, y))) return false;
   const objects = lastDisplayedFrame.objects.flatMap((object) => { const node = panelScene.nodeOf(object.key); return node ? [node] : []; });
-  return hitVisibleModel(objects, panelScene.camera, view.width, view.height, x, y);
+  const result=hitModelRegion(objects,panelScene.camera,modelHitRect,view.width,view.height,x,y,budget);
+  if(result==='unknown' || budget?.exhausted)request();
+  return result!=='miss';
 }
 
 function visibleHit(x: number, y: number, kind: VisibleRegion['kind']): boolean {

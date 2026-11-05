@@ -24,3 +24,9 @@ test('replacing a rigid parent ends its attached surface rather than reparenting
  const replace=planStep(original,{say:'replace',actions:[{op:'add',shape:'box',id:'mount',size:[1,1,1]}]});
  const after=evaluate(replace,1);assert.equal(after.objects.some(o=>o.id==='reed'),false);
 });
+
+test('clearing a surface ends its binding, and reusing the id does not silently retarget the feature',()=>{
+ const feature={op:'add',shape:'box',id:'feat',size:[.1,.1,.1]},attach={op:'flexAttach',id:'feat',on:'reed',u:.5,v:.5,side:'front',tangentAngle:0};
+ const sequence=[...actions.slice(0,2),feature,attach,{op:'clear',target:'reed',at:1},{...actions[1],at:2}];
+ const r=validateScene({steps:[{say:'x',actions:sequence}]});assert.equal(r.scene!.steps[0]!.actions.length,6,JSON.stringify(r.issues));const f=evaluate(planStep(emptyFrame(),r.scene!.steps[0]!),3);assert.equal(f.objects.find(o=>o.id==='feat')?.flexAttachment,undefined);
+});

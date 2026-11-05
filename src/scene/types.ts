@@ -118,6 +118,7 @@ export type AddStream = {
 export type StreamPiece = { op: 'stream'; id: string; along: string; mark?: StreamMark; count?: number; color?: Color; toColor?: Color; shiftAt?: number; period?: number; opacity?: number } & At;
 
 export type AddFlexSurface = { op:'add';shape:'flexSurface';id:string;parent:string;pos?:Vec3;rot?:Vec3 } & FlexDefinition & Surface & At;
+export type FlexAttachAction = {op:'flexAttach';id:string;on:string;u:number;v:number;side:'front'|'back';tangentAngle:number} & At;
 export type FlexStopAction = { op:'flexStop';ids:string[] } & At;
 export type FlexCycleAction = { op:'flexCycle';ids:string[] } & FlexCycle & At;
 
@@ -162,7 +163,7 @@ export type GoAction = { op: 'go'; kind: 'tab' | 'open' | 'scroll'; x: number; y
 export type Action =
   | Mark | PanelAction | AddAction | DiagramThing | TickAction
   | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | StyleAction | HighlightAction
-  | CutAction | SpinAction | CrankAction | CamAction | FlashAction | LoopAction | JointAction | CoupleAction | FlexCycleAction | FlexStopAction
+  | CutAction | SpinAction | CrankAction | CamAction | FlashAction | LoopAction | JointAction | CoupleAction | FlexCycleAction | FlexStopAction | FlexAttachAction
   | OrbitAction | ZoomAction | FocusAction | ClearAction | WaitAction | GoAction;
 
 export type Step = { say: string; actions: Action[] };

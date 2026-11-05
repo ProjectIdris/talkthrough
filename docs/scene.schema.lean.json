@@ -3101,6 +3101,54 @@
       ],
       "additionalProperties": false
     },
+    "flexAttach": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "flexAttach"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "on": {
+          "type": "string"
+        },
+        "u": {
+          "type": "number"
+        },
+        "v": {
+          "type": "number"
+        },
+        "side": {
+          "enum": [
+            "front",
+            "back"
+          ]
+        },
+        "tangentAngle": {
+          "type": "number"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "on",
+        "u",
+        "v",
+        "side",
+        "tangentAngle",
+        "at"
+      ],
+      "additionalProperties": false
+    },
     "joint": {
       "type": "object",
       "properties": {
@@ -3644,6 +3692,9 @@
         },
         {
           "$ref": "#/$defs/flexStop"
+        },
+        {
+          "$ref": "#/$defs/flexAttach"
         },
         {
           "$ref": "#/$defs/joint"

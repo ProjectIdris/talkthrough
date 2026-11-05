@@ -8,15 +8,18 @@
 // rectangle and a model may reach past it.
 
 import {
-  AmbientLight, Box3, BufferGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight, EdgesGeometry, Euler,
+  AmbientLight, Box3, BufferAttribute, BufferGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight, EdgesGeometry, Euler,
   FrontSide, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Material, Matrix4, Mesh, MeshBasicMaterial, Object3D,
-  PerspectiveCamera, PlaneGeometry, Raycaster, Scene, ShadowMaterial, SkinnedMesh, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3,
+  PerspectiveCamera, PlaneGeometry, Quaternion, Raycaster, Scene, ShadowMaterial, SkinnedMesh, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3,
 } from 'three';
 import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
+import { surfacePoint } from './flex-attachment.ts';
+import { flexPickObject, flexPoseKey, registerFlexPick, unregisterFlexPick } from './flex-pick-proxy.ts';
+import { FlexPickBudget } from './flex-pick-budget.ts';
 import { sampleFrames } from './flex-frames.ts';
 import { buildFlexGeometry } from './flex-geometry.ts';
-import { projectRoot } from './flex-root.ts';
+import { projectRoot, rigidUniform } from './flex-root.ts';
 import { makeFlexSkin } from './flex-skin.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
@@ -94,6 +97,8 @@ type Node = {
   materials: Material[];
   flexRig?: ReturnType<typeof makeFlexSkin>;
   flexPosed?: Float32Array;
+  flexPoseKey?: string;
+  flexPick?: Mesh;
   texture?: CanvasTexture;
   /** The size the object is built at (text sprites are sized, everything else is 1). */
   baseScale: Vector3;
@@ -147,6 +152,14 @@ export class PanelScene {
   private cutaway = new Cutaway();
   private pinWarnings = new Set<number>();
   private flexWarnings = new Set<number>();
+  private flexBudgetWarnings = new Set<number>();
+  private flexBudget: FlexPickBudget | undefined;
+  private flexPending: number[] = [];
+  private flexPriority: number | undefined;
+  private flexRetryFrames = 2;
+  flexPickBudget(): FlexPickBudget | undefined { return this.flexBudget; }
+  flexPickPending(): boolean { return this.flexPending.length > 0; }
+  takeFlexPickRetry(): boolean { if(!this.flexPickPending() || this.flexRetryFrames<=0)return false;this.flexRetryFrames--;return true; }
 
   constructor(deps: PanelDeps = {}) {
     this.deps = deps;
@@ -264,9 +277,13 @@ export class PanelScene {
       const flexToParent=new Matrix4().makeRotationFromEuler(rotation);flexToParent.setPosition(...pos);
       const projected=projectRoot(parent,seam,flexToParent,root,direction,def.root.maxGap);
       if(mirror)for(const point of projected)point.x=-point.x;
-      const geo=buildFlexGeometry(frames,def.joints.map(j=>j.u),projected,mirror);
+      const geo=buildFlexGeometry(frames,def.joints.map(j=>j.u),projected,mirror);geo.userData.flexMirror=mirror;
       const surface=makeSurface(def.material,TIERS[this.tier]);
       const rig=makeFlexSkin(parent,geo,surface,def.sections,def.joints,mirror,{pos,rot});
+      const pickGeometry=new BufferGeometry();pickGeometry.setIndex(geo.getIndex());
+      pickGeometry.setAttribute('position',new BufferAttribute(new Float32Array(geo.getAttribute('position').count*3),3));
+      const pickMesh=new Mesh(pickGeometry,surface);pickMesh.matrixAutoUpdate=false;pickMesh.parent=parent;
+      registerFlexPick(rig.mesh,pickMesh);node.flexPick=pickMesh;node.geometries.push(pickGeometry);
       node.obj=rig.mesh;node.flexRig=rig;node.geometries.push(geo);node.materials.push(surface);
       node.pieces.push({object:rig.mesh,surface,tint:true,color:undefined,lines:undefined,closed:true});
     } catch {
@@ -411,7 +428,7 @@ export class PanelScene {
 
   private dispose(node: Node): void {
     this.cutaway.release(node);
-    node.flexRig?.skeleton.dispose();
+    if(node.flexRig){unregisterFlexPick(node.flexRig.mesh);node.flexRig.skeleton.dispose();}
     node.obj.removeFromParent();
     for (const g of node.geometries) g.dispose();
     for (const m of node.materials) m.dispose();
@@ -423,6 +440,11 @@ export class PanelScene {
    * over height; `view`, when given, places the stage in the window so the model can reach past it.
    */
   sync(frame: Frame, aspect: number, view?: StageView): void {
+    this.flexBudget = frame.objects.some(o => o.def.shape === 'flexSurface') ? new FlexPickBudget() : undefined;
+    const pinTargets=new Set(frame.marks.filter(m=>m.mark.op==='pin' && m.onKey!==undefined).map(m=>m.onKey!));
+    this.flexPending=this.flexBudget ? this.flexPending.filter(key=>pinTargets.has(key)) : [];
+    if(this.flexPending.length===0)this.flexRetryFrames=2;
+    this.flexPriority=this.flexPending[0];
     const live = new Set<number>();
     const spreads = new Map<number, number>();
     for (const o of frame.objects) spreads.set(o.key, o.spread);
@@ -430,7 +452,7 @@ export class PanelScene {
     const offsets = (frame.userExplode ?? 0) > 0
       ? userOffsets(frame.objects.map((o): Part => {
         const explode = (o.def as { explode?: Vec3 }).explode;
-        return { key: o.key, parentKey: o.parentKey, pos: o.pos, ...(explode ? { explode } : {}), ...(o.shape === 'text' ? { fixed: true } : {}) };
+        return { key: o.key, parentKey: o.parentKey, pos: o.pos, ...(explode ? { explode } : {}), ...((o.shape === 'text' || o.shape === 'flexSurface') ? { fixed: true } : {}) };
       }), frame.userExplode ?? 0)
       : undefined;
     const layout = (with_: Map<number, Vec3> | undefined, rest = false): void => {
@@ -469,7 +491,7 @@ export class PanelScene {
     for (const [key, node] of this.nodes) {
       if (!live.has(key)) {
         this.dispose(node);
-        this.nodes.delete(key);
+        this.nodes.delete(key);this.flexBudgetWarnings.delete(key);this.flexWarnings.delete(key);
       }
     }
     // The camera fits the model at rest: a machine's pose and a part's pulse move parts about, and a camera that followed them would breathe.
@@ -481,15 +503,66 @@ export class PanelScene {
       layout(offsets);
     }
     this.scene.updateMatrixWorld(true);
+    for (const o of frame.objects) if (o.def.shape === 'flexSurface') {
+      const node=this.nodes.get(o.key), parent=frame.objects.find(p=>p.key===o.parentKey);
+      if (!node?.flexRig) continue;
+      const parentObject=parent?this.nodes.get(parent.key)?.obj:undefined, scale=parentObject?new Vector3().setFromMatrixScale(parentObject.matrixWorld):new Vector3();
+      const uniform=parentObject ? rigidUniform(parentObject.matrixWorld) : false;
+      let positive=true;for(let n:Object3D|null=parentObject??null;n;n=n.parent)if(n.scale.x<=0||n.scale.y<=0||n.scale.z<=0){positive=false;break;}
+      let cut=false;for(let current=parent,depth=0;current && depth<6;depth++){if(current.cut){cut=true;break;}current=current.parentKey===null?undefined:frame.objects.find(x=>x.key===current!.parentKey);}
+      if (!parent || !parentObject || cut || (frame.userCut??0)>0 || parent.opacity<1 || !uniform || !positive || Math.min(scale.x,scale.y,scale.z)<=0 || parentObject.matrixWorld.determinant()<=0) {
+        node.obj.visible=false;
+        if(!this.flexWarnings.has(o.key)&&this.flexWarnings.size<128){this.flexWarnings.add(o.key);console.warn(`talkthrough: articulated surface ${o.key} suppressed by unsupported parent state`);}
+      } else this.flexWarnings.delete(o.key);
+    }
     // Evaluate each bounded skin vertex once for this pose; use the same positions for bounds and later consumers.
     for (const node of this.nodes.values()) if (node.flexRig) {
       const mesh=node.flexRig.mesh, count=mesh.geometry.getAttribute('position').count;
       const posed=node.flexPosed?.length===count*3?node.flexPosed:new Float32Array(count*3);
-      const box=new Box3(), p=new Vector3();
-      for(let i=0;i<count;i++){mesh.getVertexPosition(i,p);posed[i*3]=p.x;posed[i*3+1]=p.y;posed[i*3+2]=p.z;box.expandByPoint(p);}
-      node.flexPosed=posed;mesh.boundingBox=box;mesh.boundingSphere=box.getBoundingSphere(new Sphere());
+      const poseKey=flexPoseKey(mesh);
+      if(node.flexPoseKey!==poseKey || !mesh.boundingBox || !mesh.boundingSphere || !node.flexPosed){
+        const box=new Box3(), p=new Vector3();
+        for(let i=0;i<count;i++){mesh.getVertexPosition(i,p);posed[i*3]=p.x;posed[i*3+1]=p.y;posed[i*3+2]=p.z;box.expandByPoint(p);}
+        node.flexPosed=posed;node.flexPoseKey=poseKey;mesh.boundingBox=box;mesh.boundingSphere=box.getBoundingSphere(new Sphere());
+      }
+      if(node.flexPick){const pick=node.flexPick;pick.parent=mesh.parent;pick.visible=mesh.visible;pick.matrixWorld.copy(mesh.matrixWorld);pick.userData.flexPoseKey=poseKey;const attr=pick.geometry.getAttribute('position') as BufferAttribute;if(attr.array!==posed)pick.geometry.setAttribute('position',new BufferAttribute(posed,3));else attr.needsUpdate=true;pick.geometry.boundingBox=mesh.boundingBox!.clone();pick.geometry.boundingSphere=mesh.boundingSphere!.clone();}
     }
     if (!frame.objects.some((o) => o.pose || o.pulse !== 0)) this.restSpheres = this.partSpheres();
+    for(const o of frame.objects) if(o.flexAttachment){
+      const a=o.flexAttachment, feature=this.nodes.get(o.key), host=this.nodes.get(a.onKey);
+      if(!feature || !host?.flexRig || !host.obj.visible || !host.flexPosed){if(feature)feature.obj.visible=false;continue;}
+      const sample=surfacePoint(host.flexRig.mesh,a.u,a.v,a.side,host.flexRig.mesh.geometry.userData.flexMirror===true,host.flexPosed);
+      if(!sample){feature.obj.visible=false;continue;}
+      const tangent=sample.tangent.clone().applyAxisAngle(sample.normal,a.tangentAngle*DEG*(host.flexRig.mesh.geometry.userData.flexMirror===true?-1:1)).normalize(), normal=sample.normal.clone(), binormal=new Vector3().crossVectors(normal,tangent).normalize();
+      const worldRotation=new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(tangent,binormal,normal));
+      const parent=feature.obj.parent;feature.obj.position.copy(parent?parent.worldToLocal(sample.position.clone()):sample.position);
+      const parentRotation=parent?parent.getWorldQuaternion(new Quaternion()):new Quaternion();feature.obj.quaternion.copy(parentRotation.invert().multiply(worldRotation));
+      feature.obj.updateMatrixWorld(true);
+    }
+    // A feature can extend beyond the flexible skin. Enlarge the host's stable
+    // motion envelope by its maximum distance from the attachment origin.
+    const featureReach=new Map<number,number>();
+    for(const o of frame.objects) if(o.flexAttachment){
+      const feature=this.nodes.get(o.key);if(!feature?.obj.visible)continue;
+      const origin=feature.obj.getWorldPosition(new Vector3());let reach=0;
+      feature.obj.traverse(child=>{
+        if(!(child instanceof Mesh))return;const geometry=child.geometry;if(!geometry)return;
+        if(!geometry.boundingSphere)geometry.computeBoundingSphere();if(!geometry.boundingSphere)return;
+        const count=child instanceof InstancedMesh?child.count:1,instance=new Matrix4();
+        for(let i=0;i<count;i++){
+          const transform=child.matrixWorld.clone();if(child instanceof InstancedMesh){child.getMatrixAt(i,instance);transform.multiply(instance);}
+          const sphere=geometry.boundingSphere.clone().applyMatrix4(transform);
+          reach=Math.max(reach,sphere.radius+sphere.center.distanceTo(origin));
+        }
+      });
+      featureReach.set(o.flexAttachment.onKey,Math.max(featureReach.get(o.flexAttachment.onKey)??0,reach));
+    }
+    for(const [hostKey,reach] of featureReach){
+      const host=this.nodes.get(hostKey);if(!host?.flexRig||!host.obj.visible)continue;
+      const envelope=host.flexRig.envelope.clone().applyMatrix4(host.obj.matrixWorld);envelope.radius+=reach;
+      const size=new Vector3(envelope.radius*2,envelope.radius*2,envelope.radius*2),bounds=new Box3().setFromCenterAndSize(envelope.center,size);
+      this.restSpheres.push({sphere:envelope,corners:boxCorners(bounds,undefined)});
+    }
     // Connectors and streams are placed from where their parts now are; what hangs on a connector then needs its matrices again.
     updateAttached(this.nodes, frame, this.detail.radial, PATH_RADIUS);
     if (updateConnectors(this.nodes, frame, this.detail.radial)) this.scene.updateMatrixWorld(true);
@@ -508,7 +581,7 @@ export class PanelScene {
     const pose = rest ? undefined : o.pose;
     const grow = 1 + 0.07 * pulse;
     // Spread by the model's own explode, then by the person's control; a machine's pose stands in for the rest values.
-    const at = spreadPosition(pose?.pos ?? o.pos, (o.def as { explode?: Vec3 }).explode, parentSpread);
+    const at = spreadPosition(pose?.pos ?? o.pos, (o.def as { explode?: Vec3 }).explode, o.shape==='flexSurface'?0:parentSpread);
     const rot = pose?.rot ?? o.rot;
     node.obj.position.set(at[0] + (offset?.[0] ?? 0), at[1] + (offset?.[1] ?? 0), at[2] + (offset?.[2] ?? 0));
     node.obj.rotation.copy(new Euler(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'XYZ'));
@@ -665,7 +738,9 @@ export class PanelScene {
         const geo = mesh.geometry;
         if (!geo) continue;
         if (mesh instanceof SkinnedMesh && mesh.boundingBox && mesh.boundingSphere) {
-          spheres.push({sphere:mesh.boundingSphere.clone().applyMatrix4(mesh.matrixWorld),corners:boxCorners(mesh.boundingBox,mesh.matrixWorld)});
+          const sphere=(node.flexRig?.envelope ?? mesh.boundingSphere).clone().applyMatrix4(mesh.matrixWorld);
+          const box=new Box3().setFromCenterAndSize(sphere.center,new Vector3(sphere.radius*2,sphere.radius*2,sphere.radius*2));
+          spheres.push({sphere,corners:boxCorners(box,undefined)});
           continue;
         }
         if (mesh instanceof InstancedMesh) {
@@ -856,11 +931,15 @@ export class PanelScene {
   /** Where a visible point on the named object falls in the window, in CSS pixels. */
   project(key: number, point: Vec3 | undefined, width: number, height: number, anchor?: string): { x: number; y: number; visible: boolean } | undefined {
     const node = this.nodes.get(key);
-    const hidden = () => {
-      if (!this.pinWarnings.has(key) && this.pinWarnings.size < 128) { this.pinWarnings.add(key); console.warn(`talkthrough: pin target ${key} has no visible surface`); }
+    const hidden = (reason = 'has no visible surface') => {
+      const warnings=reason === 'exceeded the frame pick budget' ? this.flexBudgetWarnings : this.pinWarnings;
+      if (!warnings.has(key) && warnings.size < 128) { warnings.add(key); console.warn(`talkthrough: pin target ${key} ${reason}`); }
       return { x: 0, y: 0, visible: false };
     };
     if (!node) { hidden(); return undefined; }
+    const defer = () => { if(!this.flexPending.includes(key) && this.flexPending.length<160)this.flexPending.push(key); return hidden('exceeded the frame pick budget'); };
+    if(this.flexPriority!==undefined && key!==this.flexPriority)return defer();
+    if(this.flexPriority===key){this.flexPending=this.flexPending.filter(k=>k!==key);this.flexPriority=undefined;}
     const isVisible = (obj: Object3D): boolean => {
       for (let p: Object3D | null = obj; p; p = p.parent) if (!p.visible) return false;
       return true;
@@ -874,16 +953,21 @@ export class PanelScene {
       return { x: ((ndc.x + 1) / 2) * width, y: ((1 - ndc.y) / 2) * height, visible: ndc.x >= -1 && ndc.x <= 1 && ndc.y >= -1 && ndc.y <= 1 && ndc.z > -1 && ndc.z < 1 };
     }
     const target: Mesh[] = [], occluders: Mesh[] = [];
+    const posed = new Map<Mesh, Float32Array>();
     for (const other of this.nodes.values()) {
       if (!isVisible(other.obj) || other.alpha <= 0.003) continue;
       const belongs = other === node || isAncestor(node.obj, other.obj);
       for (const part of other.pieces) {
         if (!(part.object instanceof Mesh) || !isVisible(part.object) || !part.surface || part.surface.opacity <= 0.003) continue;
-        if (belongs) target.push(part.object);
-        else if (part.surface.opacity >= 0.98) occluders.push(part.object);
+        const pick=flexPickObject(part.object);
+        if (!pick) return hidden('has no current posed geometry');
+        if (other.flexPosed) posed.set(pick, other.flexPosed);
+        if (belongs) target.push(pick);
+        else if (part.surface.opacity >= 0.98) occluders.push(pick);
       }
     }
     if (!target.length) return hidden();
+    if (this.flexBudget && !this.flexBudget.query()) return defer();
     const candidates: Vector3[] = [];
     const named = anchor !== undefined && node.anchors && Object.hasOwn(node.anchors, anchor) ? node.anchors[anchor] : undefined;
     const explicit = named ?? point;
@@ -903,7 +987,7 @@ export class PanelScene {
         const start = Math.floor(geo.drawRange.start / 3), end = Math.min(count, Math.floor((geo.drawRange.start + geo.drawRange.count) / 3));
         for (let i = 0; i < 8 && end > start; i++) {
           const tri = start + Math.floor((end - start - 1) * i / 7), v = new Vector3();
-          for (let j = 0; j < 3; j++) v.add(new Vector3().fromBufferAttribute(pos, index ? index.getX(tri * 3 + j) : tri * 3 + j));
+          for (let j = 0; j < 3; j++) { const id=index ? index.getX(tri * 3 + j) : tri * 3 + j, cache=posed.get(mesh); v.add(cache ? new Vector3(cache[id*3]!,cache[id*3+1]!,cache[id*3+2]!) : new Vector3().fromBufferAttribute(pos,id)); }
           v.multiplyScalar(1 / 3);
           if (mesh instanceof InstancedMesh && mesh.count > 0) {
             const instance = new Matrix4();
@@ -932,8 +1016,10 @@ export class PanelScene {
         return mats.some((m) => m.visible && !(m.clippingPlanes ?? []).some((plane) => plane.distanceToPoint(world) < -1e-6));
       })) continue;
       ray.setFromCamera(new Vector2(ndc.x, ndc.y), this.camera);
+      if (this.flexBudget && !this.flexBudget.ray(target)) return defer();
       const hit = ray.intersectObjects(target, false).find(allowed);
       if (!hit) continue;
+      if (this.flexBudget && !this.flexBudget.ray(occluders)) return defer();
       const blocker = ray.intersectObjects(occluders, false).find(allowed);
       if (blocker && blocker.distance < hit.distance - 1e-5) continue;
       if (explicit) {
@@ -961,6 +1047,7 @@ export class PanelScene {
           if (!sides.has(m)) { sides.set(m, m.side); m.side = FrontSide; }
         }
         let beyond = false;
+        if (this.flexBudget && !this.flexBudget.ray(target)) { for (const [m, side] of sides) m.side = side; return defer(); }
         try { beyond = reverse.intersectObjects(target, false).some(allowed); }
         finally { for (const [m, side] of sides) m.side = side; }
         if (beyond) continue;

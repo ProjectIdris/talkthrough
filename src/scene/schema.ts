@@ -42,6 +42,7 @@ function fieldSchema(f: Field, descriptions: boolean): Schema {
     case 'vec3': s = { type: nullable('array'), items: { type: 'number' } }; break;
     case 'pts': s = { type: nullable('array'), items: { type: 'array', items: { type: 'number' } } }; break;
     case 'flexNumber': s = {type:nullable('number')}; break;
+    case 'flexId': s = {type:'string'}; break;
     case 'flexIds': s = {type:'array',items:{type:'string'}}; break;
     case 'flexKeys': s = {type:'array',items:objectSchema({t:{type:'number'},angles:{type:'array',items:{type:'number'}},profile:{type:'number'}})}; break;
     case 'flexRoot': s = objectSchema({ parentPoint: vectorSchema(), normal: vectorSchema(), maxGap: {type:'number'} }); break;

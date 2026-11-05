@@ -16,7 +16,9 @@ import type { Action, AttachEnd, Issue, IssueKind, Scene, Step, Vec3 } from './t
 export type SceneState = {
   ids: Map<string, ObjectKind>;
   flexes: Map<string, FlexDefinition>;
+  flexFeatures: Map<string, string>;
   rigidParents: Map<string, boolean>;
+  rigidDetails: Map<string, {supported:boolean;opacity:number;cut:boolean}>;
   parents: Map<string, string | undefined>;
   depth: Map<string, number>;
   /** What each flat diagram on screen is (flow, timeline, steps or chart), which says what may be drawn in it. */
@@ -60,7 +62,7 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 export function createSceneState(): SceneState {
-  return { ids: new Map(), flexes: new Map(), rigidParents: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), parts: new Map(), joints: new Map(), follows: new Map(), rides: new Map(), bodies: new Map(), loose: new Map(), after: [], turnSteps: 0, turnActions: 0, copies: 0 };
+  return { ids: new Map(), flexes: new Map(), flexFeatures: new Map(), rigidParents: new Map(), rigidDetails: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), parts: new Map(), joints: new Map(), follows: new Map(), rides: new Map(), bodies: new Map(), loose: new Map(), after: [], turnSteps: 0, turnActions: 0, copies: 0 };
 }
 
 /**
@@ -69,7 +71,7 @@ export function createSceneState(): SceneState {
  */
 export function createDetailState(onScreen: SceneState): SceneState {
   return {
-    ids: new Map(onScreen.ids), flexes: new Map(onScreen.flexes), rigidParents: new Map(onScreen.rigidParents), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides),
+    ids: new Map(onScreen.ids), flexes: new Map(onScreen.flexes), flexFeatures: new Map(onScreen.flexFeatures), rigidParents: new Map(onScreen.rigidParents), rigidDetails: new Map([...onScreen.rigidDetails].map(([id,d])=>[id,{...d}])), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides),
     bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [],
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
     ...(onScreen.stage ? { stage: { ...onScreen.stage } } : {}),
@@ -161,7 +163,7 @@ function parseVec2(v: unknown, min: number, max: number, path: string, notes: No
 
 function parseField(f: Field, v: unknown, path: string, state: SceneState, notes: Notes): Parsed {
   switch (f.k) {
-    case 'flexRoot': case 'flexJoints': case 'flexSections': case 'flexIds': case 'flexKeys': case 'flexNumber': return good(v);
+    case 'flexRoot': case 'flexJoints': case 'flexSections': case 'flexId': case 'flexIds': case 'flexKeys': case 'flexNumber': return good(v);
     case 'num':
       if (typeof v !== 'number' || !Number.isFinite(v)) return bad('expected a finite number');
       return good(clampNum(f.int ? Math.round(v) : v, f.min, f.max, path, notes));
@@ -211,6 +213,7 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       const kind = state.ids.get(v);
       if (!kind) return bad(`unknown id "${v}"`);
       if (SCREEN_KINDS.has(kind) || kind === 'text') return bad(`"${v}" cannot hold parts`);
+      if (state.flexes.has(v)) return bad('articulated surfaces use flexAttach for features');
       return (state.depth.get(v) ?? 0) + 1 > LIMITS.maxDepth ? bad('groups nested too deep') : good(v);
     }
     case 'target':
@@ -292,7 +295,7 @@ function removeWithDescendants(state: SceneState, id: string): void {
   for (const d of doomed) {
     state.ids.delete(d);
     state.replaceable?.delete(d);
-    state.flexes.delete(d); state.rigidParents.delete(d);
+    state.flexes.delete(d); state.flexFeatures.delete(d); for(const [feature,on] of state.flexFeatures)if(on===d)state.flexFeatures.delete(feature); state.rigidParents.delete(d); state.rigidDetails.delete(d);
     state.parents.delete(d);
     state.depth.delete(d);
     state.diagramKinds.delete(d);
@@ -308,7 +311,7 @@ function removeWithDescendants(state: SceneState, id: string): void {
 /** Takes a cleared id (or "all", "marks", "panel") out of what the scene holds; the guide clears the page by id between steps and tells the scene here. */
 export function applyClear(state: SceneState, target: string): void {
   if (target === 'all') {
-    state.ids.clear(); state.flexes.clear(); state.rigidParents.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.joints.clear(); state.follows.clear(); state.rides.clear(); state.bodies.clear(); state.loose.clear(); state.copies = 0;
+    state.ids.clear(); state.flexes.clear(); state.flexFeatures.clear(); state.rigidParents.clear(); state.rigidDetails.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.joints.clear(); state.follows.clear(); state.rides.clear(); state.bodies.clear(); state.loose.clear(); state.copies = 0;
   } else if (target === 'marks' || target === 'panel') {
     // Marks, pins and flat diagrams are the screen's; the 3D stage is the rest.
     const wantMark = target === 'marks';
@@ -477,11 +480,26 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   for (const key of ownKeys(input)) {
     if (key !== 'op' && !(key in variant.fields)) note(notes, 'trimmed', `${path}.${key.slice(0, 40)}`, 'unknown field ignored');
   }
+  if (typeof out.id==='string' && state.flexFeatures.has(out.id) && ['move','turn','scale','along','explode','spin','loop','joint','couple'].includes(variant.name)) {
+    note(notes,'dropped',path,'an attached feature follows its surface; reattach it to change its position'); return null;
+  }
+  if (typeof out.id==='string' && state.flexes.has(out.id) && ['move','turn','scale','along','explode','spin','loop','joint','couple','cut','highlight'].includes(variant.name)) {
+    note(notes,'dropped',path,'an articulated surface stays attached; move its rigid parent or use flexCycle'); return null;
+  }
+  if (variant.name === 'flexAttach') {
+    const id=out.id,on=out.on,u=out.u,v=out.v,angle=out.tangentAngle;
+    for(const ref of [id,on])if(typeof ref==='string'&&!state.ids.has(ref)){note(notes,'dropped',path,`unknown id "${ref.slice(0,32)}"`);return null;}
+    if(typeof id!=='string'||typeof on!=='string'||!state.flexes.has(on)||!state.ids.has(id)||state.flexes.has(id)||SCREEN_KINDS.has(state.ids.get(id))||id===on||isUnder(state,on,id)||typeof u!=='number'||!Number.isFinite(u)||u<0||u>1||typeof v!=='number'||!Number.isFinite(v)||v<0||v>1||typeof angle!=='number'||!Number.isFinite(angle)||angle< -180||angle>180){note(notes,'dropped',path,'invalid articulated feature binding');return null;}
+    const other=[...state.flexFeatures].filter(([feature])=>feature!==id);
+    if(other.length>=48||other.filter(([,surface])=>surface===on).length>=12){note(notes,'dropped',path,'articulated feature limit reached');return null;}
+    state.flexFeatures.set(id,on);
+  }
   if (variant.name === 'flexCycle' || variant.name === 'flexStop') {
     const rawIds = out.ids;
-    if (!Array.isArray(rawIds) || rawIds.length < 1 || rawIds.length > 2) { note(notes, 'dropped', path, 'cycle needs one or two targets'); return null; }
+    const idsLength = Array.isArray(rawIds) ? own(rawIds,'length') : undefined;
+    if (typeof idsLength !== 'number' || idsLength < 1 || idsLength > 2) { note(notes, 'dropped', path, 'cycle needs one or two targets'); return null; }
     const ids: string[] = [];
-    for (let i = 0; i < rawIds.length; i++) { const id = own(rawIds, String(i)); if (typeof id !== 'string' || !state.flexes.has(id) || ids.includes(id)) { note(notes, 'dropped', path, 'unknown or repeated articulated target'); return null; } ids.push(id); }
+    for (let i = 0; i < idsLength; i++) { const id = own(rawIds as object, String(i)); if(typeof id==='string'&&!state.ids.has(id)){note(notes,'dropped',path,`unknown id "${id.slice(0,32)}"`);return null;} if (typeof id !== 'string' || !state.flexes.has(id) || ids.includes(id)) { note(notes, 'dropped', path, 'invalid or repeated articulated target'); return null; } ids.push(id); }
     if (variant.name === 'flexStop') { out.ids = ids; } else {
     const first = state.flexes.get(ids[0]!)!;
     const compatible = (a: FlexDefinition, b: FlexDefinition): boolean => a.joints.length === b.joints.length && a.sections.length === b.sections.length && a.joints.every((x,i)=>x.u===b.joints[i]!.u && x.min===b.joints[i]!.min && x.max===b.joints[i]!.max) && a.sections.every((x,i)=>x.u===b.sections[i]!.u);
@@ -498,8 +516,10 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     if (!state.flexes.has(out.id as string) && state.flexes.size >= 4) { note(notes, 'dropped', path, 'at most four articulated surfaces'); return null; }
     Object.assign(out, flex);
   }
-  if (variant.name === 'cut') state.rigidParents.set(out.id as string, false);
-  if (variant.name === 'style' && typeof out.opacity === 'number' && out.opacity < 1 && state.rigidParents.has(out.id as string)) state.rigidParents.set(out.id as string, false);
+  if (variant.name === 'cut' || variant.name === 'style') {
+    const id=out.id as string, detail=state.rigidDetails.get(id);
+    if(detail){if(variant.name==='cut')detail.cut=(out.to as number)<99.5;else if(typeof out.opacity==='number')detail.opacity=out.opacity;state.rigidParents.set(id,detail.supported && detail.opacity===1 && !detail.cut);}
+  }
   if (variant.name === 'style' && out.color === undefined && out.opacity === undefined) {
     note(notes, 'dropped', path, 'style needs a colour or an opacity');
     return null;
@@ -584,11 +604,12 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     state.replaceable?.delete(id);
     const parent = (variant.attach ? out[variant.attach] : out.parent) as string | undefined;
     state.ids.set(id, kind);
-    state.flexes.delete(id); state.rigidParents.delete(id);
+    state.flexes.delete(id); state.flexFeatures.delete(id); for(const [feature,on] of state.flexFeatures)if(on===id)state.flexFeatures.delete(feature); state.rigidParents.delete(id); state.rigidDetails.delete(id);
     if (variant.name === 'addFlexSurface') state.flexes.set(id, parseFlexDefinition(out)!);
     if (['addSolid','addExtrude','addLathe'].includes(variant.name)) {
       const supported = ['box','sphere','cylinder','cone','extrude','lathe'].includes(out.shape as string);
-      state.rigidParents.set(id, supported && (out.opacity === undefined || out.opacity === 1) && out.material !== 'glass');
+      const detail={supported:supported && out.material !== 'glass',opacity:typeof out.opacity==='number'?out.opacity:1,cut:false};
+      state.rigidDetails.set(id,detail);state.rigidParents.set(id,detail.supported && detail.opacity===1);
     }
     if (variant.creates === 'diagram') state.diagramKinds.set(id, out.kind as DiagramKind);
     else state.diagramKinds.delete(id);

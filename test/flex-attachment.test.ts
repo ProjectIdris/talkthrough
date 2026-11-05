@@ -32,3 +32,11 @@ test('front and back attachment normals follow their actual rendered winding',()
  const parent=new Group(),geo=buildFlexGeometry(frames,[0,1],seam,false),mat=new MeshBasicMaterial(),rig=makeFlexSkin(parent,geo,mat,s,[{u:0,offset:[0,0,0],axis:[0,0,1]},{u:1,offset:[0,0,0],axis:[0,0,1]}],false);
  parent.updateMatrixWorld(true);rig.skeleton.update();for(const uv of [[.3,.4],[.31,.49]] as const){assert.ok(surfacePoint(rig.mesh,uv[0],uv[1],'front',false)!.normal.y>.99);assert.ok(surfacePoint(rig.mesh,uv[0],uv[1],'back',false)!.normal.y<-.99);}geo.dispose();mat.dispose();
 });
+
+test('attachments reuse a supplied posed-vertex cache rather than skinning again',()=>{
+ const frames=sampleFrames(s),seam=Array.from({length:7},(_,j)=>frames[0]!.center.clone().addScaledVector(frames[0]!.chord,(2*j/6-1)*.2));
+ const parent=new Group(),geo=buildFlexGeometry(frames,[0,1],seam,false),mat=new MeshBasicMaterial(),rig=makeFlexSkin(parent,geo,mat,s,[{u:0,offset:[0,0,0],axis:[0,0,1]},{u:1,offset:[0,0,0],axis:[0,0,1]}],false);parent.updateMatrixWorld(true);rig.skeleton.update();
+ const n=geo.getAttribute('position').count,cache=new Float32Array(n*3);for(let i=0;i<n;i++){const p=rig.mesh.getVertexPosition(i,new Vector3());cache.set(p.toArray(),i*3);}
+ const expected=surfacePoint(rig.mesh,.4,.6,'front',false)!;rig.mesh.getVertexPosition=()=>{throw Error('unexpected repeat skinning')};
+ const actual=surfacePoint(rig.mesh,.4,.6,'front',false,cache)!;assert.ok(actual.position.distanceTo(expected.position)<1e-6);geo.dispose();mat.dispose();
+});

@@ -3519,6 +3519,56 @@
       "additionalProperties": false,
       "description": "Stop articulated motion and restore the targets to their bind pose."
     },
+    "flexAttach": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "flexAttach"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "on": {
+          "type": "string"
+        },
+        "u": {
+          "type": "number"
+        },
+        "v": {
+          "type": "number"
+        },
+        "side": {
+          "enum": [
+            "front",
+            "back"
+          ]
+        },
+        "tangentAngle": {
+          "type": "number"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "on",
+        "u",
+        "v",
+        "side",
+        "tangentAngle",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Attach one existing feature to an exact point on an articulated surface."
+    },
     "joint": {
       "type": "object",
       "properties": {
@@ -4101,6 +4151,9 @@
         },
         {
           "$ref": "#/$defs/flexStop"
+        },
+        {
+          "$ref": "#/$defs/flexAttach"
         },
         {
           "$ref": "#/$defs/joint"

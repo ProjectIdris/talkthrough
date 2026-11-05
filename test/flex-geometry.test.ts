@@ -37,3 +37,7 @@ test('front winding follows chord cross tangent',()=>{
  const a=vector(0),b=vector(1),c=vector(2),normal=b.sub(a).cross(c.sub(a)).normalize();
  assert.ok(normal.dot(f[1]!.normal)>.9);g.dispose();
 });
+
+test('profile morph provides changing normals for the curved surface',()=>{
+ const f=sampleFrames(sections),seam=Array.from({length:7},(_,j)=>f[0]!.center.clone().addScaledVector(f[0]!.chord,(2*j/6-1)*.2)),g=buildFlexGeometry(f,[0,.5,1],seam,false);const normal=g.morphAttributes.normal?.[0];assert.ok(normal,'morph must update shading normals');let magnitude=0;for(let i=0;i<normal.count;i++)magnitude+=Math.abs(normal.getX(i))+Math.abs(normal.getY(i))+Math.abs(normal.getZ(i));assert.ok(magnitude>1e-4);g.dispose();
+});

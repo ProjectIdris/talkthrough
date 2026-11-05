@@ -88,7 +88,7 @@ export type Field =
   | { k: 'strs'; max: number; len: number; opt?: boolean; doc?: string }
   | { k: 'pts'; min: number; max: number; lo: number; hi: number; opt?: boolean; doc?: string }
   | { k: 'enum'; values: readonly string[]; opt?: boolean; doc?: string }
-  | { k: 'flexRoot' | 'flexJoints' | 'flexSections' | 'flexIds' | 'flexKeys'; doc?: string }
+  | { k: 'flexRoot' | 'flexJoints' | 'flexSections' | 'flexIds' | 'flexKeys' | 'flexId'; doc?: string }
   | { k: 'flexNumber'; opt?: boolean; doc?: string };
 
 export type Variant = {
@@ -481,6 +481,7 @@ export const VARIANTS: readonly Variant[] = [
     fields: { ids: {k:'flexIds'}, period: {k:'flexNumber'}, phase: {k:'flexNumber',opt:true}, keys: {k:'flexKeys'}, at: AT },
   },
   { name: 'flexStop', op: 'flexStop', doc: 'Stop articulated motion and restore the targets to their bind pose.', fields: {ids:{k:'flexIds'},at:AT} },
+  { name: 'flexAttach', op: 'flexAttach', doc: 'Attach one existing feature to an exact point on an articulated surface.', fields: {id:{k:'flexId'},on:{k:'flexId'},u:{k:'flexNumber'},v:{k:'flexNumber'},side:{k:'enum',values:['front','back']},tangentAngle:{k:'flexNumber'},at:AT} },
   {
     name: 'joint', op: 'joint',
     doc: 'Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it.',

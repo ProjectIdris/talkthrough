@@ -109,6 +109,7 @@ export type ObjectFrame = {
   draw: number;
   /** A stream: how many laps its markers have run, whole and part (their places along the path are a function of this alone). */
   phase?: number;
+  flexAttachment?: {onKey:number;u:number;v:number;side:'front'|'back';tangentAngle:number};
   flexDriver?: {cycle: FlexCycle; elapsed: number};
   flexPose?: {angles:number[];profile:number};
   /** How far apart its parts are pushed: 0 assembled; its children sit at pos * (1 + spread). */
@@ -232,6 +233,7 @@ export type StepPlan = {
   az: Track; el: Track; zoom: Track; focus: FocusTrack;
   pulses: Pulse[];
   flexDrivers: {key:number;start:number;cycle:FlexCycle | null}[];
+  flexAttachments: {key:number;start:number;onKey:number;u:number;v:number;side:'front'|'back';tangentAngle:number}[];
   spins: SpinPlan[];
   cranks: CrankDef[];
   cams: CamDef[];
@@ -286,7 +288,7 @@ export function planStep(base: Frame, step: Step): StepPlan {
     marks: [], diagrams: base.diagrams.length > 0 ? diagramPlanFrom(base.diagrams) : emptyDiagramPlan(), objs: [], panels: [],
     az: track([base.camera.az]), el: track([base.camera.el]), zoom: track([base.camera.zoom]),
     focus: { init: base.camera.focus.key, segs: [] },
-    pulses: [], flexDrivers: [], nextKey: base.nextKey, duration: 0,
+    pulses: [], flexDrivers: [], flexAttachments: [], nextKey: base.nextKey, duration: 0,
     spins: base.motion.spins.map(spinPlanFrom), cranks: [...base.motion.cranks], cams: [...base.motion.cams], flashes: [...base.motion.flashes], loops: [...base.motion.loops], joints: [...base.motion.joints], couples: [...base.motion.couples],
   };
   for (const m of base.marks) {
@@ -297,6 +299,7 @@ export function planStep(base: Frame, step: Step): StepPlan {
     });
   }
   for (const o of base.objects) {
+    if (o.flexAttachment) plan.flexAttachments.push({key:o.key,start:NEVER,...o.flexAttachment});
     if (o.flexDriver) plan.flexDrivers.push({key:o.key,start:-o.flexDriver.elapsed,cycle:o.flexDriver.cycle});
     plan.objs.push({
       key: o.key, id: o.id, parentKey: o.parentKey, def: o.def, bornAt: NEVER, diedAt: undefined,
@@ -403,6 +406,11 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
         end(dur);
       }
       return;
+    }
+    case 'flexAttach': {
+      const feature=lookup(plan.objs,a.id,at),host=lookup(plan.objs,a.on,at);
+      if(feature && host)plan.flexAttachments.push({key:feature.key,start:at,onKey:host.key,u:a.u,v:a.v,side:a.side,tangentAngle:a.tangentAngle});
+      end(0);return;
     }
     case 'flexStop': {
       for(const id of a.ids){const obj=lookup(plan.objs,id,at);if(obj)plan.flexDrivers.push({key:obj.key,start:at,cycle:null});}
@@ -856,7 +864,10 @@ export function evaluate(plan: StepPlan, t: number): Frame {
       ...cutOf(o, t),
     });
   }
+  const aliveObjects=new Set(objects.map(o=>o.key));
   for (const o of objects) {
+    const attachment=plan.flexAttachments.filter(a=>a.key===o.key && a.start<=spinTime).at(-1);
+    if(attachment && aliveObjects.has(attachment.onKey)){const {onKey,u,v,side,tangentAngle}=attachment;o.flexAttachment={onKey,u,v,side,tangentAngle};}
     const driver = plan.flexDrivers.filter(d => d.key === o.key && d.start <= spinTime).at(-1);
     if(driver?.cycle){const elapsed=spinTime-driver.start; o.flexDriver={cycle:driver.cycle,elapsed}; const pose=flexPoseAt(driver.cycle,elapsed); if(pose)o.flexPose=pose;}
   }

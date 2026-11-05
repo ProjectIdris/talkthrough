@@ -26,3 +26,43 @@ test('replacing a rigid parent invalidates the old surface and its cycle target'
  assert.ok(r.ok);assert.equal(detail.flexes.has('reed'),false);assert.equal(detail.ids.has('reed'),false);
 });
 
+
+test('surface features bind exact existing ids and reject a self or ancestor cycle',()=>{
+ const feather={op:'add',shape:'box',id:'feather',size:[.2,.1,.1]};const attach={op:'flexAttach',id:'feather',on:'reed',u:.7,v:.5,side:'front',tangentAngle:0};
+ const ok=validateScene({steps:[{say:'x',actions:[{op:'add',shape:'box',id:'mount',size:[1,1,1]},flex,feather,attach]}]});assert.equal(ok.scene?.steps[0]?.actions.length,4,JSON.stringify(ok.issues));
+ const bad=validateScene({steps:[{say:'x',actions:[{op:'add',shape:'box',id:'mount',size:[1,1,1]},flex,{...attach,id:'mount'}]}]});assert.equal(bad.scene?.steps[0]?.actions.length,2,JSON.stringify(bad.issues));
+});
+
+test('forward declared flex feature resolves exact creator; failed reserved creator never redirects',()=>{
+ const mount={op:'add',shape:'box',id:'mount',size:[1,1,1]},feature={op:'add',shape:'box',id:'feather',size:[.2,.1,.1]},attach={op:'flexAttach',id:'feather',on:'reed',u:.7,v:.5,side:'front',tangentAngle:0};
+ const result=validateScene({steps:[{say:'x',actions:[mount,flex,attach,feature]}]});assert.equal(result.scene!.steps[0]!.actions.filter(a=>a.op==='flexAttach').length,1,JSON.stringify(result.issues));
+ const failed=validateScene({steps:[{say:'x',actions:[mount,flex,attach,{...feature,size:'invalid'},{...feature,id:'other'}]}]});assert.equal(failed.scene!.steps[0]!.actions.some(a=>a.op==='flexAttach'),false,JSON.stringify(failed.scene));
+});
+
+test('a supported rigid parent becomes eligible again after opacity and cut are restored',()=>{
+ const r=validateScene({steps:[{say:'x',actions:[{op:'add',shape:'box',id:'mount',size:[1,1,1],opacity:.5},{op:'style',id:'mount',opacity:1},{op:'cut',id:'mount',to:0},{op:'cut',id:'mount',to:100},flex]}]});assert.equal(r.scene!.steps[0]!.actions.length,5,JSON.stringify(r.issues));
+});
+
+test('a flexible surface cannot be detached by generic transforms or used as a rigid parent',()=>{
+ const mount={op:'add',shape:'box',id:'mount',size:[1,1,1]};const r=validateScene({steps:[{say:'x',actions:[mount,flex,{op:'move',id:'reed',to:[1,0,0]},{op:'add',shape:'box',id:'child',parent:'reed',size:[1,1,1]}]}]});assert.equal(r.scene!.steps[0]!.actions.length,2,JSON.stringify(r.issues));
+});
+
+test('per-surface feature cap rejects the thirteenth binding without discarding earlier features',()=>{
+ const parts=Array.from({length:13},(_,i)=>({op:'add',shape:'box',id:'f'+i,size:[.1,.1,.1]}));const attaches=parts.map((p,i)=>({op:'flexAttach',id:p.id,on:'reed',u:i/13,v:.5,side:'front',tangentAngle:0}));const r=validateScene({steps:[{say:'x',actions:[{op:'add',shape:'box',id:'mount',size:[1,1,1]},flex,...parts]},{say:'features',actions:attaches}]});assert.equal(r.scene!.steps[1]!.actions.length,12);assert.ok(r.issues.some(i=>i.kind==='dropped'&&i.message.includes('feature limit')));
+});
+
+test('attached features and deforming surfaces cannot be rebound through rigid transforms or surface-to-surface cycles',()=>{
+ const feature={op:'add',shape:'box',id:'feather',size:[.2,.1,.1]},attach={op:'flexAttach',id:'feather',on:'reed',u:.7,v:.5,side:'front',tangentAngle:0};const r=validateScene({steps:[{say:'x',actions:[{op:'add',shape:'box',id:'mount',size:[1,1,1]},flex,{...flex,id:'other'},feature,attach,{op:'move',id:'feather',to:[3,0,0]},{...attach,id:'other'}]}]});assert.equal(r.scene!.steps[0]!.actions.length,5,JSON.stringify(r.issues));
+});
+
+test('streamed flex actions preserve exact forward references and match whole-step output',async()=>{
+ const {beginLiveStep,validateStep}=await import('../src/scene/validate.ts');const state=createSceneState(),other=createSceneState(),events:any[]=[];const raw={say:'x',actions:[{op:'add',shape:'box',id:'mount',size:[1,1,1]},flex,{op:'flexAttach',id:'feather',on:'reed',u:.7,v:.5,side:'front',tangentAngle:0},{op:'add',shape:'box',id:'feather',size:[.2,.1,.1]}]};const expected=validateStep(raw,other);const live=beginLiveStep(state,{open:()=>{},action:a=>events.push(a)});live.say(raw.say);for(const a of raw.actions)live.action(a);const got=live.finish();assert.deepEqual(got.step,expected.step);assert.deepEqual(events,expected.step?.actions);assert.deepEqual([...state.flexFeatures],[...other.flexFeatures]);
+});
+
+test('forward flex driver waits for its declared target and never repairs a failed creator to another surface',()=>{
+ const keys=[{t:0,angles:[0,0],profile:0},{t:.5,angles:[10,10],profile:1},{t:1,angles:[0,0],profile:0}],driver={op:'flexCycle',ids:['reed'],period:2,keys};const mount={op:'add',shape:'box',id:'mount',size:[1,1,1]};const r=validateScene({steps:[{say:'x',actions:[mount,driver,flex]}]});assert.equal(r.scene!.steps[0]!.actions.filter(a=>a.op==='flexCycle').length,1,JSON.stringify(r.issues));const bad=validateScene({steps:[{say:'x',actions:[mount,driver,{...flex,root:{parentPoint:[0,0,0],normal:[0,0,0],maxGap:.1}},{...flex,id:'other'}]}]});assert.equal(bad.scene!.steps[0]!.actions.some(a=>a.op==='flexCycle'),false);
+});
+
+test('flex surface waits for its exact later rigid parent',()=>{
+ const r=validateScene({steps:[{say:'x',actions:[flex,{op:'add',shape:'box',id:'mount',size:[1,1,1]}]}]});assert.deepEqual(r.scene!.steps[0]!.actions.map(a=>a.op==='add'?a.id:a.op),['mount','reed']);assert.equal(r.issues.filter(i=>i.kind==='dropped').length,0);
+});

@@ -5,8 +5,8 @@ export type FlexDefinition={mirror:'none'|'localX';root:{parentPoint:Vec;normal:
 export type FlexCycle={period:number;phase:number;keys:{t:number;angles:number[];profile:number}[]};
 const data=(o:unknown,k:string):unknown=>{if(typeof o!=='object'||o===null)return undefined;const d=Object.getOwnPropertyDescriptor(o,k);return d&&'value' in d?d.value:undefined;};
 const num=(v:unknown,lo:number,hi:number):v is number=>typeof v==='number'&&Number.isFinite(v)&&v>=lo&&v<=hi;
-const vector=(v:unknown):Vec|undefined=>{if(!Array.isArray(v)||v.length!==3)return;const a=[data(v,'0'),data(v,'1'),data(v,'2')];if(!a.every(x=>num(x,-100,100)))return;return a as Vec;};
-const array=(v:unknown,min:number,max:number):unknown[]|undefined=>{if(!Array.isArray(v)||v.length<min||v.length>max)return;const a=[];for(let i=0;i<v.length;i++){const d=Object.getOwnPropertyDescriptor(v,String(i));if(!d||!('value' in d))return;a.push(d.value);}return a;};
+const vector=(v:unknown):Vec|undefined=>{if(!Array.isArray(v)||data(v,'length')!==3)return;const a=[data(v,'0'),data(v,'1'),data(v,'2')];if(!a.every(x=>num(x,-100,100)))return;return a as Vec;};
+const array=(v:unknown,min:number,max:number):unknown[]|undefined=>{if(!Array.isArray(v))return;const length=data(v,'length');if(typeof length!=='number'||length<min||length>max)return;const a=[];for(let i=0;i<length;i++){const d=Object.getOwnPropertyDescriptor(v,String(i));if(!d||!('value' in d))return;a.push(d.value);}return a;};
 const length=(v:Vec)=>Math.hypot(...v);
 export function parseFlexDefinition(raw:unknown):FlexDefinition|undefined {
  try {

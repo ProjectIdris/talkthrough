@@ -30,6 +30,10 @@ export function buildFlexGeometry(frames: readonly FlexFrame[], joints: readonly
   const geometry=new BufferGeometry(); geometry.setAttribute('position',new Float32BufferAttribute(positions,3));
   geometry.setAttribute('skinIndex',new Uint16BufferAttribute(indices,4)); geometry.setAttribute('skinWeight',new Float32BufferAttribute(weights,4));
   geometry.setIndex(triangles); geometry.morphTargetsRelative=true; geometry.morphAttributes.position=[new Float32BufferAttribute(morphs,3)]; geometry.computeVertexNormals();
+  const shaped=new BufferGeometry();shaped.setAttribute('position',new Float32BufferAttribute(positions.map((v,i)=>v+morphs[i]!),3));shaped.setIndex(triangles);shaped.computeVertexNormals();
+  const base=geometry.getAttribute('normal'), changed=shaped.getAttribute('normal'), normalDelta:number[]=[];
+  for(let i=0;i<base.count;i++)normalDelta.push(changed.getX(i)-base.getX(i),changed.getY(i)-base.getY(i),changed.getZ(i)-base.getZ(i));
+  geometry.morphAttributes.normal=[new Float32BufferAttribute(normalDelta,3)];shaped.dispose();
   return geometry;
 }
 

@@ -1,7 +1,7 @@
-﻿import { Bone, BufferGeometry, Euler, Material, Object3D, Skeleton, SkinnedMesh, Vector3 } from 'three';
+﻿import { Bone, BufferGeometry, Euler, Material, Object3D, Skeleton, SkinnedMesh, Sphere, Vector3 } from 'three';
 import type { FlexSection } from './flex-frames.ts';
 
-type Joint = {u:number; offset:readonly [number,number,number]; axis:readonly [number,number,number]};
+type Joint = {u:number; offset:readonly [number,number,number]; axis:readonly [number,number,number]; min?:number;max?:number};
 /** Construct a native serial skin; its first bone is a separate, never-driven anchor. */
 export function makeFlexSkin(parent:Object3D, geometry:BufferGeometry, material:Material, sections:readonly FlexSection[], joints:readonly Joint[], mirror:boolean, transform?: {pos:readonly [number,number,number];rot:readonly [number,number,number]}) {
   if(joints.length<2||joints.length>6||joints[0]?.u!==0||joints.at(-1)?.u!==1) throw Error('invalid joints');
@@ -25,8 +25,26 @@ export function makeFlexSkin(parent:Object3D, geometry:BufferGeometry, material:
     (bones[i-1]??anchor).add(bone);bones.push(bone);
   }
   parent.updateWorldMatrix(true,true);const skeleton=new Skeleton([anchor,...bones]);mesh.bind(skeleton);
-  return {mesh,skeleton,pose(angles:readonly number[],profile:number){
+  // The root hinge rotates around the sphere centre and cannot increase radius.
+  // For each distal hinge, bound displacement by its max permitted angle and the
+  // vertex distance to that pivot, including displacement already accumulated.
+  // Convex skin weights keep blended vertices inside the same sphere.
+  const pos=geometry.getAttribute('position'), morph=geometry.morphAttributes.position?.[0], skin=geometry.getAttribute('skinIndex'), weights=geometry.getAttribute('skinWeight'), v=new Vector3(), delta=new Vector3();
+  let radius=0;
+  for(let i=0;i<pos.count;i++) {
+    v.fromBufferAttribute(pos,i);const morphReach=morph?delta.fromBufferAttribute(morph,i).length():0;
+    for(const [idx,weight] of [[skin.getX(i),weights.getX(i)],[skin.getY(i),weights.getY(i)]] as const){
+      if(weight<=0)continue;const k=idx===0?0:idx-1;if(!pivots[k])throw Error('invalid skin influence');
+      let displacement=0;
+      if(idx!==0)for(let j=k;j>=1;j--){const joint=joints[j]!,bound=Math.min(180,Math.max(Math.abs(joint.min??-180),Math.abs(joint.max??180)));displacement+=2*(v.distanceTo(pivots[j]!)+displacement)*Math.sin(bound*Math.PI/360);}
+      radius=Math.max(radius,v.distanceTo(pivots[0]!)+displacement+morphReach);
+    }
+  }
+  const envelope=new Sphere(pivots[0]!.clone(),radius+1e-5);
+  return {mesh,skeleton,envelope,pose(angles:readonly number[],profile:number){
     if(angles.length!==bones.length||!angles.every(Number.isFinite)||!Number.isFinite(profile)||profile<0||profile>1)throw Error('invalid pose');
+    const bind=profile===0 && angles.every(a=>a===0);
+    if(!bind && angles.some((a,i)=>a<(joints[i]!.min??-180)-1e-8||a>(joints[i]!.max??180)+1e-8))throw Error('pose outside joint limits');
     for(let i=0;i<bones.length;i++)bones[i]!.quaternion.setFromAxisAngle(axes[i]!,angles[i]!*Math.PI/180);
     if(mesh.morphTargetInfluences)mesh.morphTargetInfluences[0]=profile;
   }};
