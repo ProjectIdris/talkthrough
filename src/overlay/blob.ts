@@ -140,11 +140,14 @@ function cut(centres: readonly Vec3[], sizes: readonly Vec3[], soft: number, cel
     const t = Math.abs(fb - fa) < 1e-12 ? 0.5 : (level - fa) / (fb - fa);
     return [ax + (bx - ax) * t, ay + (by - ay) * t, az + (bz - az) * t];
   };
-  const push = (a: [number, number, number], b: [number, number, number], c: [number, number, number]): void => {
-    const na: [number, number, number] = [0, 0, 0], nb: [number, number, number] = [0, 0, 0], nc: [number, number, number] = [0, 0, 0];
-    field.normal(a[0], a[1], a[2], na);
-    field.normal(b[0], b[1], b[2], nb);
-    field.normal(c[0], c[1], c[2], nc);
+  const normalAt = (p: [number, number, number]): [number, number, number] => {
+    const n: [number, number, number] = [0, 0, 0];
+    field.normal(p[0], p[1], p[2], n);
+    return n;
+  };
+  type Vertex = { point: [number, number, number]; normal: [number, number, number] };
+  const push = (av: Vertex, bv: Vertex, cv: Vertex): void => {
+    const { point: a, normal: na } = av, { point: b, normal: nb } = bv, { point: c, normal: nc } = cv;
     // Wind the triangle to face the way the field's normals do.
     const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
     const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
@@ -170,13 +173,20 @@ function cut(centres: readonly Vec3[], sizes: readonly Vec3[], soft: number, cel
           const o = CORNERS[c] as readonly [number, number, number];
           return [lo[0] + (i + o[0]) * sx, lo[1] + (j + o[1]) * sy, lo[2] + (k + o[2]) * sz];
         };
+        // The six tetrahedra repeatedly cross the same directed cube edge. Reuse only
+        // within this cube, preserving interpolation direction and the exact field.
+        const edges: Array<Vertex | undefined> = [];
         for (const tet of TETS) {
           const ins: number[] = [], out: number[] = [];
           for (const c of tet) ((vals[c] as number) >= level ? ins : out).push(c);
           if (ins.length === 0 || ins.length === 4) continue;
-          const edge = (a: number, b: number): [number, number, number] => {
+          const edge = (a: number, b: number): Vertex => {
+            const key = a * 8 + b;
+            const cached = edges[key];
+            if (cached) return cached;
             const pa = at(a), pb = at(b);
-            return cut(pa[0], pa[1], pa[2], vals[a] as number, pb[0], pb[1], pb[2], vals[b] as number);
+            const point = cut(pa[0], pa[1], pa[2], vals[a] as number, pb[0], pb[1], pb[2], vals[b] as number);
+            return edges[key] = { point, normal: normalAt(point) };
           };
           if (ins.length === 1 || ins.length === 3) {
             const lone = ins.length === 1 ? (ins[0] as number) : (out[0] as number);
