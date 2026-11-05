@@ -44,4 +44,3 @@ export function sampleFrames(sections: readonly FlexSection[]): FlexFrame[] {
   }
   return frames;
 }
-

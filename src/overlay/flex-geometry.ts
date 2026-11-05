@@ -36,4 +36,3 @@ export function buildFlexGeometry(frames: readonly FlexFrame[], joints: readonly
   geometry.morphAttributes.normal=[new Float32BufferAttribute(normalDelta,3)];shaped.dispose();
   return geometry;
 }
-

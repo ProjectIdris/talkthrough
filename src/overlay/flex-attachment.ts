@@ -17,4 +17,3 @@ export function surfacePoint(mesh:SkinnedMesh,u:number,v:number,side:'front'|'ba
   tangent.addScaledVector(normal,-tangent.dot(normal));if(tangent.lengthSq()<1e-16)return undefined;tangent.normalize();
   return {position:pos,normal,tangent};
 }
-
