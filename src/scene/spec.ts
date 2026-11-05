@@ -252,7 +252,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'panel', op: 'panel',
-    doc: 'The 3D stage: the rectangle on the screenshot a 3D model is fitted to. The model floats over the page and may reach past the rectangle; frame true draws a box behind it. Sent again, it moves or resizes.',
+    doc: 'The 3D stage: the rectangle on the screenshot a 3D model is fitted to. The model floats over the page and may reach past the rectangle; frame true draws a box behind it. Sent again, it moves or resizes. w and h are its size, 100 or more, never 0.',
     fields: {
       x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN }, w: { k: 'num', ...SPAN }, h: { k: 'num', ...SPAN },
       frame: { k: 'bool', opt: true }, at: AT, dur: DUR,
@@ -454,7 +454,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'loop', op: 'loop',
-    doc: 'Repeat a motion on any object: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, about the hinge pivot) or pulse (swell to amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint\'s. Another loop replaces it; stop ends it.',
+    doc: 'Repeat a motion on any object: slide (back and forth along axis, amount units in all), swing (rock about axis by amount degrees each side, about the hinge pivot) or pulse (swell to amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint\'s. Another loop replaces it; stop ends it. id is an object already in the scene, never a name for the loop.',
     fields: {
       id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['slide', 'swing', 'pulse', 'stop'], opt: true },
       amount: { k: 'num', min: 0.01, max: 360, opt: true, doc: 'slide: total travel in units; swing: degrees each side; pulse: the size factor (1.3 is 30% bigger, 0.8 smaller)' },

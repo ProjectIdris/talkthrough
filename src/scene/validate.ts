@@ -5,7 +5,7 @@
 import { nearestPaletteColor } from './colors.ts';
 import { attachTolerance, landOn } from './attach.ts';
 import type { Body } from './attach.ts';
-import { bindParts, BINDINGS } from './bind.ts';
+import { bindParts, bindUnknownId, BINDINGS } from './bind.ts';
 import { DIAGRAM_PARTS, ID_PATTERN, LIMITS, PALETTE, RESERVED_IDS, SCREEN_KINDS, VARIANTS } from './spec.ts';
 import type { DiagramKind, Field, ObjectKind, Variant } from './spec.ts';
 import type { Action, AttachEnd, Issue, IssueKind, Scene, Step, Vec3 } from './types.ts';
@@ -39,6 +39,10 @@ export type SceneState = {
    * any other and cannot be written a third time. Ids named but never written again stay valid to refer to.
    */
   replaceable?: Set<string>;
+  /** The size of the 3D stage as last written (a stage written with no size takes it). */
+  stage?: { w: number; h: number };
+  /** Set only while an action that named an id the scene does not have is tried once more, after the rest had their chance to make it. */
+  bindUnknown?: boolean;
 };
 
 export type StepResult = { step: Step | null; issues: Issue[] };
@@ -63,6 +67,7 @@ export function createDetailState(onScreen: SceneState): SceneState {
     ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides),
     bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [],
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
+    ...(onScreen.stage ? { stage: { ...onScreen.stage } } : {}),
   };
 }
 
@@ -173,12 +178,22 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       return state.ids.has(v) && !state.replaceable?.has(v) ? bad(`id "${v}" is already in use`) : good(v);
     case 'ref': {
       if (typeof v !== 'string') return bad('expected an id');
-      const kind = state.ids.get(v);
+      let id = v;
+      let kind = state.ids.get(id);
+      if (!kind && state.bindUnknown && (f.of === 'object3d' || f.of === 'any')) {
+        // A name the model made up for what it acts on: the part it meant, said in a note (bind.ts).
+        const found = bindUnknownId(v, state, f.of === 'any' ? [(k) => !SCREEN_KINDS.has(k), () => true] : [(k) => !SCREEN_KINDS.has(k)]);
+        if (found !== undefined) {
+          note(notes, 'trimmed', path, `repaired: "${v}" is not in the scene; bound to "${found}"`);
+          id = found;
+          kind = state.ids.get(found);
+        }
+      }
       if (!kind) return bad(`unknown id "${v}"`);
       if (f.of === 'object3d' && SCREEN_KINDS.has(kind)) return bad(`"${v}" is on the screen (a mark or diagram), not a 3D object`);
       if (f.of === 'diagram' && kind !== 'diagram') return bad(`"${v}" is not a diagram`);
       if (f.of === 'node' && kind !== 'node') return bad(`"${v}" is not a node`);
-      return good(v);
+      return good(id);
     }
     case 'parent': {
       if (typeof v !== 'string') return bad('expected the id of a group or a part');
@@ -367,6 +382,35 @@ function landLate(state: SceneState, part: string, at: number, path: string, not
 }
 
 /** Validates one action against the state; on success the state has absorbed its effect. */
+/** The least a 3D stage may be written (of the 0..1000 screen) before it is read as having no size, and the size it is given then. */
+const MIN_STAGE = 40;
+const DEFAULT_STAGE = { w: 330, h: 420 };
+
+/**
+ * A stage written with no size (0 by 0 has been seen, which drew a whole proof into a speck) takes the size of the stage before it, or a default, and is kept on the screen.
+ * Said in a note: nothing the model wrote is changed without one.
+ */
+function fitStage(raw: Record<string, unknown>, state: SceneState, path: string, notes: Notes): Record<string, unknown> {
+  const small = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n < MIN_STAGE;
+  const w = own(raw, 'w'), h = own(raw, 'h');
+  if (!small(w) && !small(h)) return raw;
+  const size = state.stage ?? DEFAULT_STAGE;
+  const next: Record<string, unknown> = { ...raw };
+  if (small(w)) {
+    next.w = size.w;
+    note(notes, 'trimmed', `${path}.w`, `repaired: a stage ${w} wide is too small to hold a model; used ${size.w}`);
+  }
+  if (small(h)) {
+    next.h = size.h;
+    note(notes, 'trimmed', `${path}.h`, `repaired: a stage ${h} high is too small to hold a model; used ${size.h}`);
+  }
+  for (const [at, span] of [['x', 'w'], ['y', 'h']] as const) {
+    const from = own(next, at), len = own(next, span);
+    if (typeof from === 'number' && typeof len === 'number' && from + len > 1000) next[at] = Math.max(0, 1000 - len);
+  }
+  return next;
+}
+
 function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes): Action | null {
   if (!isObject(raw)) {
     note(notes, 'dropped', path, 'action is not an object');
@@ -377,13 +421,14 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', path, variant);
     return null;
   }
+  const input = variant.op === 'panel' ? fitStage(raw as Record<string, unknown>, state, path, notes) : raw;
   const out: Record<string, unknown> = { op: variant.op };
   // Fields that name a part already in the scene are bound in one place (bind.ts) once the others are read.
   const bindings = BINDINGS[variant.name];
   const bound = new Set(bindings?.flatMap((b) => (b.alias === undefined ? [b.field] : [b.field, b.alias])));
   for (const [name, f] of Object.entries(variant.fields)) {
     if (bound.has(name)) continue;
-    const v = own(raw, name);
+    const v = own(input, name);
     const optional = 'opt' in f && f.opt === true;
     if (v === undefined || v === null) {
       if (!optional) {
@@ -399,7 +444,8 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     }
     out[name] = p.value;
   }
-  if (bindings && !bindParts(bindings, (n) => own(raw, n), out, state, path, (kind, at, why) => note(notes, kind, at, why))) return null;
+  if (bindings && !bindParts(bindings, (n) => own(input, n), out, state, path, (kind, at, why) => note(notes, kind, at, why))) return null;
+  if (variant.op === 'panel' && typeof out.w === 'number' && typeof out.h === 'number') state.stage = { w: out.w, h: out.h };
   const locked = LOCKS[variant.name] !== undefined ? out[LOCKS[variant.name] as string] : undefined;
   if (typeof locked === 'string' && state.follows.has(locked)) {
     // A lock reads the angle the part spins at; a part that only follows another through a coupling has none of its own.
@@ -408,7 +454,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', `${path}.${LOCKS[variant.name]}`, `"${locked}" follows "${root}" through a coupling, so nothing spins it itself; lock it to "${root}" (ratio sets the speed)`);
     return null;
   }
-  for (const key of ownKeys(raw)) {
+  for (const key of ownKeys(input)) {
     if (key !== 'op' && !(key in variant.fields)) note(notes, 'trimmed', `${path}.${key.slice(0, 40)}`, 'unknown field ignored');
   }
   if (variant.name === 'style' && out.color === undefined && out.opacity === undefined) {
@@ -677,11 +723,20 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
     }
   }
 
-  function attempt(raw: unknown, at: string): { action: Action | null; why: Notes; after: Action[] } {
+  /**
+   * `bind` is the last try for an action that names an id nothing made: its ids are read as the part the model meant (bind.ts), except for a clear, which
+   * must never remove a part it only resembles.
+   */
+  function attempt(raw: unknown, at: string, bind = false): { action: Action | null; why: Notes; after: Action[] } {
     const why: Notes = [];
     state.after.length = 0;
-    const a = validateAction(raw, state, at, why);
-    return { action: a, why, after: a ? state.after.splice(0) : [] };
+    state.bindUnknown = bind && !(isObject(raw) && (raw as { op?: unknown }).op === 'clear');
+    try {
+      const a = validateAction(raw, state, at, why);
+      return { action: a, why, after: a ? state.after.splice(0) : [] };
+    } finally {
+      state.bindUnknown = false;
+    }
   }
 
   const missing = (why: Notes): boolean => why.some((n) => n.kind === 'dropped' && n.message.includes('unknown id "'));
@@ -706,12 +761,22 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
           progress = true;
         } else if (!final && missing(r.why)) {
           still.push({ ...h, why: r.why });
+        } else if (final && missing(r.why) && tryBound(h.raw, h.path)) {
+          progress = true;
         } else {
           for (const n of r.why) note(notes, n.kind, n.path, n.message);
         }
       }
       held = still;
     }
+  }
+
+  /** The last try for an action whose id never came: read as the part it meant. True when that gave an action. */
+  function tryBound(raw: unknown, at: string): boolean {
+    const r = attempt(raw, at, true);
+    if (!r.action) return false;
+    accept(r.action, r.why, r.after);
+    return true;
   }
 
   function process(raw: unknown): void {
@@ -733,6 +798,8 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
       retryHeld(false);
     } else if (missing(r.why) && held.length < HELD_MAX) {
       held.push({ raw, path: at, age: 0, why: r.why });
+    } else if (missing(r.why) && tryBound(raw, at)) {
+      // the held list was full: the id is read as the part it meant at once
     } else {
       for (const n of r.why) note(notes, n.kind, n.path, n.message);
     }
@@ -741,7 +808,7 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
     const expired = held.filter((h) => h.age > HELD_FOR);
     if (expired.length > 0) {
       held = held.filter((h) => h.age <= HELD_FOR);
-      for (const h of expired) for (const n of h.why) note(notes, n.kind, n.path, n.message);
+      for (const h of expired) if (!tryBound(h.raw, h.path)) for (const n of h.why) note(notes, n.kind, n.path, n.message);
     }
   }
 

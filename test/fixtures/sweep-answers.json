@@ -1,0 +1,93 @@
+{
+  "_note": "Two answers from a live check (Sonnet 5.5, 5 Nov 2026), rebuilt from the actions the app played and the raw text of the step that lost parts; the Pythagorean stage was written 0 by 0, and the heart's pulse loops name ids the model never made.",
+  "pythagorean": [
+    {
+      "say": "The idea is rearranging areas. Squares on the two legs, a and b, together cover exactly the same area as the square on the hypotenuse c.",
+      "actions": [
+        { "op": "poly", "id": "fig", "pts": [[600, 430], [680, 400], [730, 470], [660, 510]], "color": "purple", "at": 0 },
+        { "op": "box", "id": "stmt", "x": 585, "y": 265, "w": 100, "h": 110, "color": "blue", "at": 1 }
+      ]
+    },
+    {
+      "say": "Start with the triangle. Its legs are a and b, and the long side c faces the right angle. Each side carries a square.",
+      "actions": [
+        { "op": "panel", "x": 40, "y": 600, "w": 0, "h": 0, "frame": false, "at": 0, "dur": 0 },
+        { "op": "add", "shape": "group", "id": "tri", "at": 0 },
+        { "op": "add", "shape": "extrude", "id": "tbody", "parent": "tri", "pos": [0, 0, 0], "outline": [[0, 0], [3, 0], [0, 4]], "depth": 0.3, "color": "gray", "material": "plastic", "edges": true, "at": 0.2 },
+        { "op": "add", "shape": "box", "id": "sqa", "parent": "tri", "pos": [1.5, -1.5, 0], "size": [3, 3, 0.3], "color": "blue", "material": "plastic", "edges": true, "opacity": 0.7, "at": 0.8 },
+        { "op": "add", "shape": "box", "id": "sqb", "parent": "tri", "pos": [-2, 2, 0], "size": [4, 4, 0.3], "color": "red", "material": "plastic", "edges": true, "opacity": 0.7, "at": 1.4 },
+        { "op": "pin", "id": "pa", "on": "sqa", "text": "a²", "at": 1.8 },
+        { "op": "pin", "id": "pb", "on": "sqb", "text": "b²", "at": 2.2 }
+      ]
+    },
+    {
+      "say": "Now rearrange the pieces. Take four copies of the triangle and place them inside a big square of side a plus b.",
+      "actions": [
+        { "op": "clear", "target": "tri", "at": 0 },
+        { "op": "clear", "target": "pa", "at": 0 },
+        { "op": "clear", "target": "pb", "at": 0 },
+        { "op": "add", "shape": "group", "id": "big", "at": 0.2 },
+        { "op": "add", "shape": "box", "id": "frame", "parent": "big", "pos": [0, 0, 0], "size": [7, 7, 0.2], "color": "white", "material": "plastic", "edges": true, "opacity": 0.4, "at": 0.4 },
+        { "op": "add", "shape": "extrude", "id": "t1", "parent": "big", "pos": [-3.5, -3.5, 0.2], "outline": [[0, 0], [3, 0], [0, 4]], "depth": 0.3, "color": "gray", "material": "plastic", "edges": true, "at": 1 },
+        { "op": "add", "shape": "extrude", "id": "t2", "parent": "big", "pos": [3.5, -3.5, 0.2], "rot": [0, 0, 90], "outline": [[0, 0], [3, 0], [0, 4]], "depth": 0.3, "color": "gray", "material": "plastic", "edges": true, "at": 1.6 },
+        { "op": "add", "shape": "extrude", "id": "t3", "parent": "big", "pos": [3.5, 3.5, 0.2], "rot": [0, 0, 180], "outline": [[0, 0], [3, 0], [0, 4]], "depth": 0.3, "color": "gray", "material": "plastic", "edges": true, "at": 2.2 },
+        { "op": "add", "shape": "extrude", "id": "t4", "parent": "big", "pos": [-3.5, 3.5, 0.2], "rot": [0, 0, 270], "outline": [[0, 0], [3, 0], [0, 4]], "depth": 0.3, "color": "gray", "material": "plastic", "edges": true, "at": 2.8 },
+        { "op": "add", "shape": "text", "id": "tt", "pos": [0, 4.3, 0], "text": "Side a + b", "height": 0.6, "color": "white", "at": 3.2 }
+      ]
+    },
+    {
+      "say": "Count the leftover area. The four triangles fill the big square, leaving a tilted square of side c in the middle.",
+      "actions": [
+        { "op": "add", "shape": "box", "id": "csq", "parent": "big", "pos": [0, 0, 0.2], "size": [5, 5, 0.3], "rot": [0, 0, 37], "color": "purple", "material": "plastic", "edges": true, "opacity": 0.7, "at": 0.3 },
+        { "op": "pin", "id": "pc", "on": "csq", "text": "c²", "at": 0.8 },
+        { "op": "highlight", "id": "csq", "color": "purple", "at": 1.2, "dur": 1 }
+      ]
+    }
+  ],
+  "heart": [
+    {
+      "say": "The heart squeezes blood out in two loops. Right side sends it to the lungs, left side sends it around the body.",
+      "actions": [
+        { "op": "box", "id": "hearttext", "x": 250, "y": 368, "w": 490, "h": 125, "color": "blue" },
+        { "op": "circle", "id": "heartpic", "x": 620, "y": 410, "w": 170, "h": 270, "color": "red", "at": 1 }
+      ]
+    },
+    {
+      "say": "Four chambers do the work. Two atria receive blood, and two thicker ventricles push it out.",
+      "actions": [
+        { "op": "panel", "x": 20, "y": 120, "w": 330, "h": 420, "frame": true },
+        { "op": "add", "shape": "group", "id": "heart" },
+        { "op": "add", "shape": "blob", "id": "rv", "parent": "heart", "pos": [-1, -0.8, 0], "pts": [[0, 0, 0]], "sizes": [[1.8, 2, 1.6]], "soft": 0.5, "color": "blue", "material": "tissue", "at": 0 },
+        { "op": "add", "shape": "blob", "id": "lv", "parent": "heart", "pos": [1, -0.8, 0], "pts": [[0, 0, 0]], "sizes": [[2, 2.4, 1.8]], "soft": 0.5, "color": "red", "material": "tissue", "at": 0.5 },
+        { "op": "add", "shape": "blob", "id": "ra", "parent": "heart", "pos": [-1.3, 1, 0], "pts": [[0, 0, 0]], "sizes": [[1.4, 1.3, 1.3]], "soft": 0.5, "color": "blue", "material": "tissue", "at": 1 },
+        { "op": "add", "shape": "blob", "id": "la", "parent": "heart", "pos": [1.3, 1, -0.2], "pts": [[0, 0, 0]], "sizes": [[1.4, 1.3, 1.3]], "soft": 0.5, "color": "red", "material": "tissue", "at": 1.5 },
+        { "op": "pin", "id": "prv", "on": "rv", "text": "Right ventricle", "at": 2 },
+        { "op": "pin", "id": "plv", "on": "lv", "text": "Left ventricle", "at": 2.3 },
+        { "op": "pin", "id": "pra", "on": "ra", "text": "Right atrium", "at": 2.6 },
+        { "op": "pin", "id": "pla", "on": "la", "text": "Left atrium", "at": 2.9 }
+      ]
+    },
+    {
+      "say": "Blood follows one-way valves. Right side pumps to the lungs, left side pumps out to the body.",
+      "actions": [
+        { "op": "add", "shape": "tube", "id": "tlung", "parent": "heart", "pts": [[-1, 0.2, 0], [-1.2, 2.2, 0.3], [-2.4, 2.8, 0.3]], "radius": 0.18, "color": "blue", "material": "tissue", "at": 0, "attach": [{ "to": "rv", "at": [0, 1, 0] }, null] },
+        { "op": "add", "shape": "tube", "id": "tbody", "parent": "heart", "pts": [[1, 0.4, 0], [1.2, 2.3, -0.2], [2.6, 2.8, -0.2]], "radius": 0.2, "color": "red", "material": "tissue", "at": 0.5, "attach": [{ "to": "lv", "at": [0, 1.2, 0] }, null] },
+        { "op": "add", "shape": "stream", "id": "slung", "mark": "dot", "count": 5, "color": "blue", "toColor": "red", "shiftAt": 0.8, "period": 3, "at": 1, "along": "tlung" },
+        { "op": "add", "shape": "stream", "id": "sbody", "mark": "dot", "count": 5, "color": "red", "period": 3, "at": 1, "along": "tbody" },
+        { "op": "pin", "id": "ppul", "on": "tlung", "text": "To lungs", "at": 2 },
+        { "op": "pin", "id": "paor", "on": "tbody", "text": "To body", "at": 2.4 }
+      ]
+    },
+    {
+      "say": "A pacemaker sets the rhythm. The sinoatrial node fires, atria squeeze first, then ventricles, about once a second.",
+      "actions": [
+        { "op": "add", "shape": "sphere", "id": "san", "parent": "heart", "pos": [-1.5, 1.8, 0.5], "size": [0.45, 0.45, 0.45], "color": "yellow", "material": "glow", "at": 0 },
+        { "op": "loop", "id": "lpra", "kind": "pulse", "amount": 1.12, "period": 1.2, "phase": 0, "at": 0.5 },
+        { "op": "loop", "id": "lpla", "kind": "pulse", "amount": 1.12, "period": 1.2, "phase": 0, "at": 0.5 },
+        { "op": "loop", "id": "lprv", "kind": "pulse", "amount": 1.15, "period": 1.2, "phase": 0.3, "at": 0.5 },
+        { "op": "loop", "id": "lplv", "kind": "pulse", "amount": 1.15, "period": 1.2, "phase": 0.3, "at": 0.5 },
+        { "op": "pin", "id": "psan", "on": "san", "text": "Pacemaker (SA node)", "color": "yellow", "at": 1 }
+      ]
+    }
+  ]
+}

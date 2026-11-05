@@ -1074,7 +1074,9 @@ const NO_BACKEND_MESSAGE = 'No backend is set up. Add its address to the setting
 
 /** The log line for what the validator changed or dropped in a step: how many, and the first few in words (a repaired part, a dropped action). */
 export function validatorNotes(issues: readonly Issue[], stepNumber: number): string {
-  const first = issues.slice(0, 3).map((i) => `${i.path} ${i.message}`.slice(0, 160)).join('; ');
+  // What was dropped comes first: an action that vanished must always have its reason in the log.
+  const ordered = [...issues.filter((i) => i.kind === 'dropped'), ...issues.filter((i) => i.kind !== 'dropped')];
+  const first = ordered.slice(0, 3).map((i) => `${i.path} ${i.message}`.slice(0, 160)).join('; ');
   return `validator: ${issues.length} notes on step ${stepNumber}: ${first}${issues.length > 3 ? '; ...' : ''}`;
 }
 
