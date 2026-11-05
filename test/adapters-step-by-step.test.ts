@@ -441,10 +441,19 @@ test('every spoken sentence is told to open short, in the guide (the one-call an
     assert.match(text, opener, `stage ${JSON.stringify(stage)}`);
     assert.match(text, /about 30 words/, 'the cap is still there');
   }
+  for (const stage of [{ part: 'first', plan: true }, { part: 'first' }] as const) {
+    const text = questionText({ ...request, stage });
+    assert.match(text, /begins by answering the question/);
+    assert.doesNotMatch(text, /what the page is and what the question is about/);
+  }
+  const later = questionText({ ...request, stage: { part: 'next', n: 2, shown: [{ say: 'One.', actions: [] }], plan: ['Two'] } });
+  assert.match(later, /spoken sentence must add a new answer-relevant point/);
+  assert.match(later, /Do not narrate visual staging such as building or zooming/);
+  assert.match(later, /do not add a second form for the same explanatory job/);
   assert.equal(SHORT_OPENER.length < 200 && opener.test(SHORT_OPENER), true);
   // said once in a call's own text, and the first-step sentence stays whole: the opener comes after it
   for (const stage of steps) assert.equal(questionText({ ...request, stage }).split(SHORT_OPENER).length - 1, 1, `once in ${JSON.stringify(stage)}`);
-  assert.match(questionText({ ...request, stage: { part: 'first', plan: true } }), /: what the page is and what the question is about, not a label. Open the sentence with a short first sentence/);
+  assert.match(questionText({ ...request, stage: { part: 'first', plan: true } }), /begins by answering the question.*Open the sentence with a short first sentence/);
 
 });
 
