@@ -1,4 +1,4 @@
-﻿// The scene validator: the only way a scene from a model reaches the renderer.
+// The scene validator: the only way a scene from a model reaches the renderer.
 // It reads data and builds fresh objects from known fields. It never evaluates, imports,
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
@@ -944,4 +944,3 @@ export function validateScene(raw: unknown, state: SceneState = createSceneState
   if (esc.escalate !== undefined) scene.escalate = esc.escalate;
   return { ok: true, scene, issues: notes };
 }
-
