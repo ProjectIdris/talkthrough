@@ -24,6 +24,7 @@ const api: TalkthroughApi = {
   stroke: (stroke) => ipcRenderer.send(CHANNEL.stroke, stroke),
   cancel: (released) => ipcRenderer.send(CHANNEL.cancel, released === true),
   milestone: (milestone) => ipcRenderer.send(CHANNEL.milestone, milestone),
+  action: (action) => ipcRenderer.send(CHANNEL.action, action),
 };
 
 contextBridge.exposeInMainWorld('talkthrough', api);

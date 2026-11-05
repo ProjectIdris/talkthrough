@@ -100,8 +100,9 @@ test('a value the checks refuse is not saved: the file is untouched and the reas
     const base = t.service.read();
     const cases: Array<[Partial<SettingsForm>, RegExp]> = [
       [{ voiceServerUrl: 'http://example.com/speak' }, /voice server address must start with https/],
-      [{ hotkey: 'right-ctrl+right-ctrl' }, /two different keys/],
-      [{ hotkey: 'right-ctrl+a' }, /two different keys/],
+      [{ hotkey: 'right-ctrl+right-ctrl' }, /one key, or up to four different keys/],
+      [{ hotkey: 'right-ctrl+escape' }, /one key, or up to four different keys/],
+      [{ localBaseUrl: 'http://192.168.1.9:11434/v1' }, /on this computer/],
       [{ captureBlocklist: ['ok', 'x'] }, /"x" is too short/],
     ];
     for (const [change, why] of cases) {
@@ -235,6 +236,55 @@ test('captions: both is the default and is not written; text and voice are writt
     writeFileSync(t.path, JSON.stringify({ captions: 'loud' }));
     assert.equal(loadSettings(t.path, (m) => warnings.push(m)).captions, 'both', 'a bad word in the file falls back to both');
     assert.equal(warnings.length, 1);
+  } finally {
+    t.done();
+  }
+});
+
+test('the later steps are their own choice: a different model or route is kept, the same one is not, and the older claudeLaterModel is read as one', () => {
+  const t = setup({ model: 'claude', claudeModel: 'claude-haiku-5-5', claudeLaterModel: 'claude-sonnet-5-5' });
+  try {
+    const form = t.service.read();
+    assert.deepEqual([form.laterRoute, form.laterModel], ['', 'claude-sonnet-5-5'], 'the older field shows as the new one');
+    const sameAsFirst = t.service.save(withForm(form, { laterRoute: 'claude', laterModel: 'claude-haiku-5-5' }));
+    assert.equal(sameAsFirst.ok && sameAsFirst.form.laterModel, '', 'a later model that is the first one is no different');
+    assert.equal(t.file().claudeLaterModel, undefined, 'the older field is gone once the form is saved');
+    const other = t.service.save(withForm(form, { laterRoute: 'codex', laterModel: '' }));
+    assert.equal(other.ok, true);
+    assert.deepEqual([t.file().laterRoute, t.file().laterModel], ['codex', undefined], 'a route alone: that route\'s own model');
+    const loaded = loadSettings(t.path);
+    assert.deepEqual([loaded.laterRoute, loaded.laterModel], ['codex', undefined]);
+  } finally {
+    t.done();
+  }
+});
+
+test('a local model is a route of its own: a name and an address on this computer, kept in the file and read back', () => {
+  const t = setup();
+  try {
+    const base = t.service.read();
+    assert.deepEqual([base.localModel, base.localBaseUrl], ['', '']);
+    const saved = t.service.save(withForm(base, { model: 'local', localModel: 'gemma3:12b', localBaseUrl: 'http://127.0.0.1:11434/v1' }));
+    assert.equal(saved.ok, true);
+    const loaded = loadSettings(t.path);
+    assert.deepEqual([loaded.model, loaded.localModel, loaded.localBaseUrl], ['local', 'gemma3:12b', 'http://127.0.0.1:11434/v1']);
+    assert.equal(t.service.save(withForm(base, { localBaseUrl: 'https://example.com/v1' })).ok, false, 'an address off this computer is refused');
+  } finally {
+    t.done();
+  }
+});
+
+test('one key is a hotkey, and the microphone and speaker are kept with their names', () => {
+  const t = setup();
+  try {
+    const base = t.service.read();
+    const saved = t.service.save(withForm(base, { hotkey: 'f13', microphone: 'abc123', microphoneName: 'Headset (USB)', speaker: 'def456', speakerName: 'Speakers' }));
+    assert.equal(saved.ok, true);
+    const loaded = loadSettings(t.path);
+    assert.deepEqual([loaded.hotkey, loaded.microphone, loaded.microphoneName, loaded.speaker, loaded.speakerName], ['f13', 'abc123', 'Headset (USB)', 'def456', 'Speakers']);
+    const back = t.service.save(withForm(saved.ok ? saved.form : base, { microphone: '', microphoneName: '' }));
+    assert.equal(back.ok, true);
+    assert.equal(t.file().microphone, undefined, 'the default is not written');
   } finally {
     t.done();
   }

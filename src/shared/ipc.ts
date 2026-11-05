@@ -41,7 +41,12 @@ export const CHANNEL = {
   cancel: 'tt:cancel',
   /** overlay -> main: a Milestone, for latency measurement (the first mark drawn or word spoken of a live turn). */
   milestone: 'tt:milestone',
+  /** overlay -> main: the person pressed a button the app put on a notice or on a words-only answer (see PageAction). */
+  action: 'tt:action',
 } as const;
+
+/** What a button on the page asks main to do. 'settings' and 'hearing' open the settings window (hearing: at the Hearing section); 'copy' puts the text on the clipboard; 'pin' is the tray's "Pin this answer". */
+export type PageAction = { what: 'settings' | 'hearing' | 'pin' } | { what: 'copy'; text: string };
 
 /** A frame grab can show the model as a person has left it: turned, zoomed or opened. Camera angles in degrees, explode 0 closed to 1 open; any left out stay as the scene has them. */
 export type SeekView = { az?: number; el?: number; zoom?: number; explode?: number };
@@ -70,6 +75,8 @@ export type DisplayInfo = {
   voice?: { firstAudioMs: number; cooldownMs: number };
   /** What an answer's words are given as (settings): the page shows them as captions, and with 'text' speaks nothing and keeps each step up for its reading time. Absent: voice only. */
   captions?: 'voice' | 'text' | 'both';
+  /** The output device the person chose (a Web Audio sink id); absent: the system's default. Every voice plays through it (the page falls back to the default if the device has gone). */
+  speaker?: string;
 };
 
 /**
@@ -143,7 +150,7 @@ export type SceneMessage =
    */
   | { kind: 'status'; status: 'hush' | 'listening' | 'working' | 'backend' | 'detail' | 'waiting' | 'checking' | 'idle' }
   /** A short line that fades by itself. */
-  | { kind: 'notice'; text: string; level: 'info' | 'error' }
+  | { kind: 'notice'; text: string; level: 'info' | 'error' | 'warning'; /** A button on the notice that fixes what it says: 'hearing' (Set up hearing) or 'settings' (Open Settings). */ action?: 'hearing' | 'settings' }
   /** The app asks whether it may act for the person (main shows a card of its own with a Yes and a No); null takes the question away. */
   | { kind: 'consent'; text: string | null }
   /** A catcher over one of the page's buttons was pressed (a click that came with no mouse move before it): do what the button does. */
@@ -234,7 +241,27 @@ export const SETTINGS_CHANNEL = {
   speechCancel: 'tt:speech-cancel',
   speechRemove: 'tt:speech-remove',
   speechProgress: 'tt:speech-progress',
+  /** "Test connection" for the local model: { baseUrl, model } -> LocalTest. */
+  testLocal: 'tt:local-test',
+  /** The microphones and speakers the system lists. */
+  devices: 'tt:devices',
+  /** First-run window: what it needs to show, a short microphone test, and "done". */
+  firstRun: 'tt:first-run',
+  micTest: 'tt:mic-test',
+  tools: 'tt:tools',
+  firstRunDone: 'tt:first-run-done',
+  /** main -> settings page: scroll to this section (the Hearing section, from "Set up hearing"). */
+  focus: 'tt:settings-focus',
 } as const;
+
+/** One device the system lists. `id` is what is stored and handed back to getUserMedia or setSinkId. */
+export type AudioDevice = { id: string; name: string };
+export type DeviceList = { microphones: AudioDevice[]; speakers: AudioDevice[] };
+/** What the first-run window asks of a short microphone test: the level of each fifth of a second (0..1) and what was heard (empty when nothing was), or why it failed. */
+export type MicTestResult = { ok: true; levels: number[]; heard: string } | { ok: false; message: string };
+/** The tools found on this computer for answering (a program on the PATH, a key saved); no key or sign-in file is opened. */
+export type ToolsFound = { claude: boolean; codex: boolean; apiKey: boolean };
+export type FirstRunInfo = { form: SettingsForm; line: string; tools: ToolsFound };
 
 /** How a question is heard, as the settings page is told (see src/main/speech-service.ts). */
 export type SpeechInfo = {
@@ -266,6 +293,19 @@ export interface TalkthroughSettingsApi {
   cancelSpeech(): void;
   removeSpeech(): Promise<void>;
   onSpeechProgress(listener: (progress: SpeechProgress) => void): void;
+  /** "Test connection": is the local model server there, does it list the model, does it take a picture. */
+  testLocal(baseUrl: string, model: string): Promise<{ ok: boolean; message: string }>;
+  /** The microphones and speakers the system lists (the first of each is the system default; `id` '' stands for it). */
+  devices(): Promise<DeviceList>;
+  /** First run only: the settings, the line that says what answers will use, and the tools found. */
+  firstRun(): Promise<FirstRunInfo | null>;
+  /** A short test: record about three seconds, then say how loud it was and what was heard. */
+  micTest(): Promise<MicTestResult>;
+  tools(): Promise<ToolsFound>;
+  /** First run is over: remember it. `restart`: the choices need the app started again. */
+  firstRunDone(restart: boolean): void;
+  /** Main asks the page to show a section (it is the Hearing section after "Set up hearing"). */
+  onFocus(listener: (section: string) => void): void;
 }
 
 export interface TalkthroughApi {
@@ -299,6 +339,8 @@ export interface TalkthroughApi {
   cancel(released: boolean): void;
   /** The first mark drawn or first word spoken of a live turn (for latency measurement). */
   milestone(milestone: Milestone): void;
+  /** A button on a notice or on a words-only answer was pressed. */
+  action(action: PageAction): void;
 }
 
 declare global {

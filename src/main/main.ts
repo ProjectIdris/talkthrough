@@ -7,6 +7,9 @@ import { createClaudeModel } from '../adapters/claude-model.ts';
 import { createCodexModel } from '../adapters/codex-model.ts';
 import { createSpeechService } from './speech-service.ts';
 import { createOpenAIModel } from '../adapters/openai-model.ts';
+import { createLocalModel } from '../adapters/local-model.ts';
+import { stepPlan } from './model-plan.ts';
+import type { Route } from '../shared/settings-form.ts';
 import { createStepByStepModel } from '../adapters/step-by-step.ts';
 import { createTwoStepModel } from '../adapters/two-step.ts';
 import { sceneSchemaChain } from '../scene/schema.ts';
@@ -42,7 +45,7 @@ import type { DriveStep } from './showcase.ts';
 import { createNavigator } from './nav.ts';
 import { createHelper } from './ps-helper.ts';
 import { createUiaReader, toDisplayBoxes } from './uia.ts';
-import { DETAIL_EFFORT, DETAIL_MODELS, DETAIL_TIMEOUT_MS, loadSettings } from './settings.ts';
+import { DEFAULT_LOCAL_BASE_URL, DETAIL_EFFORT, DETAIL_MODELS, DETAIL_TIMEOUT_MS, loadSettings } from './settings.ts';
 import { createTray } from './tray.ts';
 import { createQuestionRecord, recordDir } from './record.ts';
 import { observeModel } from './record-model.ts';
@@ -258,13 +261,15 @@ async function main(): Promise<void> {
   const chord = parseHotkey(settings.hotkey) ?? parseHotkey('right-ctrl+right-shift')!;
 
   /** One route's model, locked down the same way whichever it is; the detail pass uses the same code with its own choices. */
-  const makeModel = (route: 'codex' | 'claude' | 'openai', name: string, effort: string, quick: boolean, chain = false): Model => {
+  const makeModel = (route: Route, name: string, effort: string, quick: boolean, chain = false): Model => {
     const made = makeRouteModel(route, name, effort, quick, chain);
     return observeModel(made, { ...(record ? { record } : {}), log }, quick ? (chain ? 'a step' : 'quick answer') : 'detail pass');
   };
-  const makeRouteModel = (route: 'codex' | 'claude' | 'openai', name: string, effort: string, quick: boolean, chain = false): Model => route === 'claude'
+  const makeRouteModel = (route: Route, name: string, effort: string, quick: boolean, chain = false): Model => route === 'claude'
     ? createClaudeModel({ model: name, effort, ...(chain ? { schema: sceneSchemaChain } : {}), ...(quick ? {} : { timeoutMs: DETAIL_TIMEOUT_MS }), ...(settings.claudeCommand ? { command: settings.claudeCommand } : {}) })
-    : route === 'openai'
+    : route === 'local'
+      ? createLocalModel({ baseUrl: settings.localBaseUrl ?? DEFAULT_LOCAL_BASE_URL, model: name, ...(quick ? {} : { timeoutMs: DETAIL_TIMEOUT_MS }) })
+      : route === 'openai'
       ? createOpenAIModel({
         apiKey: () => keys.load(),
         model: name,
@@ -274,11 +279,12 @@ async function main(): Promise<void> {
         ...(settings.openaiBaseUrl ? { baseUrl: settings.openaiBaseUrl } : {}),
       })
       : createCodexModel({ model: name, keepThread: quick, fast: quick && settings.codexFast, effort, log, ...(quick ? {} : { timeoutMs: DETAIL_TIMEOUT_MS }), ...(settings.codexCommand ? { command: settings.codexCommand } : {}) });
-  // The Claude route can write its quick answer in pieces (step 1 first); the other routes answer fast enough on their own.
-  const split = settings.model === 'claude' ? settings.splitAnswer : 'off';
-  const firstModel = makeModel(settings.model, settings.model === 'claude' ? settings.claudeModel : settings.model === 'openai' ? settings.openaiModel : settings.codexModel, settings.effort, true, split === 'steps');
-  // Two models for one answer (claude route, a step at a time, only when the settings name a second): step 1 from the first, the steps after it from the other.
-  const realModel = split === 'steps' && settings.claudeLaterModel ? createStageModel(firstModel, makeModel('claude', settings.claudeLaterModel, settings.effort, true, true)) : firstModel;
+  // Which model writes which step (see model-plan.ts): step 1 by one route and model, the steps after it by the same or another. The Claude route can write
+  // its answer a step to a call as the setting says; any route does so when a different model is named for the later steps.
+  const plan = stepPlan(settings);
+  const split = plan.split;
+  const firstModel = makeModel(plan.first.route, plan.first.name, settings.effort, true, split === 'steps');
+  const realModel = split === 'steps' && plan.later ? createStageModel(firstModel, makeModel(plan.later.route, plan.later.name, settings.effort, true, true)) : firstModel;
   // Recording (development): the answer can be written to a tape as it comes, or played back from one with its own timing.
   const quickModel: Model = options.replayAnswer ? replayModel(options.replayAnswer, log) : options.saveAnswer ? tapeModel(realModel, options.saveAnswer, log) : realModel;
   const model: Model = split === 'two' ? createTwoStepModel(quickModel, { log, early: process.env.EXPLAINER_TWO_EARLY === '1' /* tried, not yet a setting: see the Two Call note */ }) : split === 'steps' ? createStepByStepModel(quickModel, { log }) : quickModel;
@@ -286,7 +292,7 @@ async function main(): Promise<void> {
   let detailModel: Model | undefined;
   const detailRoute = settings.detailRoute;
   const detail = detailRoute
-    ? () => (detailModel ??= makeModel(detailRoute, settings.detailModel ?? DETAIL_MODELS[detailRoute], settings.detailEffort ?? DETAIL_EFFORT, false))
+    ? () => (detailModel ??= makeModel(detailRoute, settings.detailModel ?? (detailRoute === 'local' ? settings.localModel : DETAIL_MODELS[detailRoute]), settings.detailEffort ?? DETAIL_EFFORT, false))
     : undefined;
   model.warm?.().catch((error: unknown) => log(`model: ${error instanceof Error ? error.message : String(error)}`));
   log(`model ${model.id}`);

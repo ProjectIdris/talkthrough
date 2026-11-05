@@ -9,6 +9,7 @@ import type { SaveResult, SettingsForm } from '../shared/settings-form.ts';
 import { cleanSkipList } from './skip-list.ts';
 import { DEFAULT_SETTINGS, readRawSettings, settingsFromRaw } from './settings.ts';
 import type { Settings } from './settings.ts';
+import { normaliseLater } from './model-plan.ts';
 
 export function formFromSettings(s: Settings): SettingsForm {
   return {
@@ -16,7 +17,15 @@ export function formFromSettings(s: Settings): SettingsForm {
     codexModel: s.codexModel,
     claudeModel: s.claudeModel,
     openaiModel: s.openaiModel,
+    localModel: s.localModel,
+    localBaseUrl: s.localBaseUrl ?? '',
     codexFast: s.codexFast,
+    laterRoute: s.laterRoute ?? '',
+    laterModel: s.laterModel ?? '',
+    microphone: s.microphone ?? '',
+    microphoneName: s.microphoneName ?? '',
+    speaker: s.speaker ?? '',
+    speakerName: s.speakerName ?? '',
     detailRoute: s.detailRoute ?? '',
     detailModel: s.detailModel ?? '',
     voiceServerUrl: s.voiceServerUrl ?? '',
@@ -59,13 +68,15 @@ function readForm(input: unknown, complain: (message: string) => void): Settings
   const form = out as unknown as SettingsForm;
   form.captureBlocklist = cleanSkipList(form.captureBlocklist, (m) => complain(`The list of windows to skip: ${m}.`));
   form.hotkey = form.hotkey.toLowerCase();
+  Object.assign(form, normaliseLater(form));
   return form;
 }
 
 /** The loader's complaint (written for someone editing the file) in words for the window. */
 function plain(message: string): string {
   if (message.startsWith('voiceServerUrl')) return 'The voice server address must start with https://, or be an address on this computer (http://127.0.0.1...).';
-  if (message.startsWith('hotkey')) return 'Choose two different keys.';
+  if (message.startsWith('hotkey')) return 'Choose one key, or up to four different keys.';
+  if (message.startsWith('localBaseUrl')) return 'The local model address must be on this computer, such as http://127.0.0.1:11434/v1.';
   if (message.startsWith('captureBlocklist: ')) return `The list of windows to skip: ${message.slice('captureBlocklist: '.length)}.`;
   if (message.startsWith('recordFolder')) return 'Choose a full folder path for the record (such as C:\\Users\\you\\Documents\\questions), or leave it empty.';
   if (message.startsWith('detailRoute')) return 'Choose a route for the richer version, or turn it off.';
@@ -99,6 +110,7 @@ export function createSettingsService(options: { path: string; warn?: (message: 
       settingsFromRaw(raw, fileWarn);
       const next: Record<string, unknown> = { ...raw };
       delete next.twoStepAnswer; // the older form of splitAnswer: 'two'; the form's value replaces it
+      delete next.claudeLaterModel; // the older form of laterRoute + laterModel; the form's values replace it
       const wanted = formToRaw(form);
       for (const key of FORM_KEYS) {
         if (key in wanted) next[key] = wanted[key];
@@ -151,6 +163,14 @@ function formToRaw(form: SettingsForm): Record<string, unknown> {
   put('codexModel', form.codexModel, d.codexModel);
   put('claudeModel', form.claudeModel, d.claudeModel);
   put('openaiModel', form.openaiModel, d.openaiModel);
+  put('localModel', form.localModel, d.localModel);
+  put('localBaseUrl', form.localBaseUrl, undefined);
+  put('laterRoute', form.laterRoute, undefined);
+  put('laterModel', form.laterModel, undefined);
+  put('microphone', form.microphone, undefined);
+  put('microphoneName', form.microphoneName, undefined);
+  put('speaker', form.speaker, undefined);
+  put('speakerName', form.speakerName, undefined);
   put('codexFast', form.codexFast, d.codexFast);
   put('detailRoute', form.detailRoute, undefined);
   put('detailModel', form.detailModel, undefined);
