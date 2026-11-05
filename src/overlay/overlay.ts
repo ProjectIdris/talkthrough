@@ -1012,6 +1012,7 @@ function visibleHit(x: number, y: number, kind: VisibleRegion['kind']): boolean 
 let penEnding = false;
 /** The pointer the pen's stroke holds, so it can be let go when the keys come up with the button still down. */
 let penPointer: number | undefined;
+let penAttemptId: number | undefined;
 
 /** Ends any stroke in progress and lets go of the pointer, whichever way the press ended. */
 function endPenStroke(): void {
@@ -1039,7 +1040,7 @@ document.addEventListener('mousemove', (e) => {
 const toScale = (e: PointerEvent): [number, number] => [(e.clientX / view.width) * 1000, (e.clientY / view.height) * 1000];
 /** Sends what the pen has drawn since the last send (once per frame while drawing, and at once when the stroke ends). */
 function sendPen(): void {
-  for (const piece of pen.take()) window.talkthrough.stroke(piece);
+  for (const piece of pen.take()) window.talkthrough.stroke({ ...piece, ...(penAttemptId !== undefined ? { attemptId: penAttemptId } : {}) });
 }
 // A press on the page must never start the browser's own drag of an image or text: it would cancel the pen's stroke.
 document.addEventListener('dragstart', (e) => e.preventDefault());
@@ -1378,13 +1379,17 @@ function applyScene(message: SceneMessage): void {
       break;
     case 'pen':
       if (message.on) {
+        penAttemptId = message.attemptId;
         penEnding = false;
         cancelling = false;
         pen.turnOn();
       } else {
+        if (message.attemptId !== undefined && message.attemptId !== penAttemptId) break;
         pen.turnOff();
         sendPen();
         if (penPointer !== undefined) endPenStroke();
+        if (message.attemptId !== undefined) window.talkthrough.penFlushed?.(message.attemptId);
+        penAttemptId = undefined;
         penEnding = true;
         setTimeout(() => { penEnding = false; }, 500);
       }

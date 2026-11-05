@@ -1,6 +1,6 @@
 import { BrowserWindow, globalShortcut, ipcMain, screen } from 'electron';
 import type { Display, IpcMainEvent } from 'electron';
-import { CHANNEL } from '../shared/ipc.ts';
+import { CHANNEL, PEN_FLUSH_GRACE_MS } from '../shared/ipc.ts';
 import type { DisplayInfo, Milestone, PageAction, SceneMessage, Stroke } from '../shared/ipc.ts';
 import { readAction } from './page-action.ts';
 import { buttonsForMode, createButtonCatchers, validRects } from './button-catchers.ts';
@@ -13,7 +13,7 @@ import { containsWireContentExceptModel, containsWireId, containsWireRegion, cre
 import type { VoiceBridge } from './voice-bridge.ts';
 
 /** A stroke piece sent just after the pen went off (the last points of a drag) still counts for this long. */
-const PEN_GRACE_MS = 500;
+const PEN_GRACE_MS = PEN_FLUSH_GRACE_MS;
 
 export type OverlayOptions = {
   preload: string;
@@ -48,6 +48,7 @@ export type OverlayOptions = {
   onDone?: (displayId: number) => void;
   /** Called with each piece of a pen stroke the page reports. */
   onStroke?: (displayId: number, stroke: Stroke) => void;
+  onPenFlushed?: (displayId: number, attemptId: number) => void;
   /** Called when the person right-clicks while the pen is on (`released` false), and again when the button comes up. */
   onCancel?: (displayId: number, released: boolean) => void;
   /** Called when the page reports the first mark or word of a live turn. */
@@ -332,7 +333,11 @@ export function createOverlayManager(options: OverlayOptions) {
     for (const p of t.points.slice(0, 2000)) {
       if (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) points.push([Math.min(1000, Math.max(0, Number(p[0]))), Math.min(1000, Math.max(0, Number(p[1])))]);
     }
-    options.onStroke?.(overlay.display.id, { id: t.id, points, done: t.done === true, ...(t.removed === true ? { removed: true as const } : {}) });
+    options.onStroke?.(overlay.display.id, { id: t.id, points, done: t.done === true, ...(t.removed === true ? { removed: true as const } : {}), ...(Number.isSafeInteger(t.attemptId) ? { attemptId: t.attemptId } : {}) });
+  });
+  ipcMain.on(CHANNEL.penFlushed, (event, attemptId: unknown) => {
+    const overlay = find(event);
+    if (overlay && Number.isSafeInteger(attemptId) && (attemptId as number) > 0) options.onPenFlushed?.(overlay.display.id, attemptId as number);
   });
   ipcMain.on(CHANNEL.cancel, (event, released: unknown) => {
     const overlay = find(event);

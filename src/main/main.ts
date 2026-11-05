@@ -224,6 +224,7 @@ async function main(): Promise<void> {
       askDetail();
     },
     onStroke: (displayId, stroke) => session?.stroke(displayId, stroke),
+    onPenFlushed: (displayId, attemptId) => session?.penFlushed(displayId, attemptId),
     onCancel: (displayId, released) => session?.cancelQuestion(displayId, released),
     onEscape: () => pressEscape(),
     answerBusy: () => session?.busy() === true,
@@ -504,6 +505,7 @@ async function main(): Promise<void> {
         : {}),
     },
     setPen: (displayId) => overlays.setPen(displayId),
+    penFlush: true,
     speech,
     model: () => model,
     send: (displayId, message) => {

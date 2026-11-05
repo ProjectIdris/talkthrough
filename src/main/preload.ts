@@ -27,6 +27,7 @@ const api: TalkthroughApi = {
   buttons: (list) => ipcRenderer.send(CHANNEL.buttons, Array.isArray(list) ? list : []),
   detail: () => ipcRenderer.send(CHANNEL.detail),
   stroke: (stroke) => ipcRenderer.send(CHANNEL.stroke, stroke),
+  penFlushed: (attemptId) => ipcRenderer.send(CHANNEL.penFlushed, attemptId),
   cancel: (released) => ipcRenderer.send(CHANNEL.cancel, released === true),
   milestone: (milestone) => ipcRenderer.send(CHANNEL.milestone, milestone),
   action: (action) => ipcRenderer.send(CHANNEL.action, action),
