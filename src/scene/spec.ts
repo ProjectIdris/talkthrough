@@ -328,7 +328,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addStream', op: 'add', shapes: ['stream'], creates: 'solid', attach: 'along',
-    doc: 'Dots, dashes or arrows travelling along a tube, line, arrow, connector or an edge of a flow diagram, running on by themselves. period is the seconds a marker takes for the whole way (negative runs backwards, default 4); or by a spinning part, ratio laps for each turn. color changes to toColor along the way (shiftAt, 0 to 1, is where). size is for 3D: markers narrower than an opaque pipe are hidden in it.',
+    doc: 'Dots, dashes or arrows travelling along a tube, line, arrow, connector or an edge of a flow diagram, running on by themselves. period is the seconds a marker takes for the whole way (negative runs backwards, default 4); or by a spinning part, ratio laps for each turn. color changes to toColor along the way (shiftAt, 0 to 1, is where). size is for 3D (never less than a bead wider than the pipe).',
     fields: {
       shape: { k: 'enum', values: ['stream'] }, id: { k: 'newId' }, along: { k: 'ref', of: 'any', doc: 'the id of the tube, line, arrow, connector or flow-diagram edge they travel along' },
       mark: { k: 'enum', values: ['dot', 'dash', 'arrow'], opt: true }, count: { k: 'num', min: 1, max: LIMITS.maxMarkers, int: true, opt: true },

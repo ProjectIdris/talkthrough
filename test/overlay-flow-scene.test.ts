@@ -133,3 +133,11 @@ test('markers are not part of the model for fitting the camera', () => {
   const without = shown(base, 1);
   near(withStream.scene.camera.position.distanceTo(new Vector3()), without.scene.camera.position.distanceTo(new Vector3()), 1e-6);
 });
+
+test('a marker is never smaller than a bead standing out of its pipe, whatever size the scene gave (one inside an opaque pipe could not be seen)', () => {
+  const pipe = { op: 'add', shape: 'tube', id: 'pipe', pts: [[0, 0, 0], [6, 0, 0]], radius: 0.3 };
+  const { node } = shown([pipe, { op: 'add', shape: 'stream', id: 's', along: 'pipe', count: 3, period: 3, size: 0.1 }], 1.5);
+  const seen = markersOf(node('s')).filter((m) => m.visible);
+  assert.ok(seen.length >= 2);
+  assert.ok(Math.max(...seen.map((m) => m.scale.x)) > 0.6, `widest marker ${Math.max(...seen.map((m) => m.scale.x))}`);
+});

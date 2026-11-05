@@ -124,10 +124,10 @@ export function buildStream(node: FlowNode, o: ObjectFrame, addMesh: AddMesh): v
   node.stream = { markers, kind };
 }
 
-/** How big the markers of a stream are when the scene does not say: a bead a little wider than the pipe they run in. */
+/** The least size of the markers of a stream, and their size when the scene does not say: a bead clearly wider than the pipe they run in. */
 function defaultSize(path: ObjectFrame): number {
   const radius = (path.def as { radius?: number }).radius;
-  return Math.max(0.07, (radius ?? ROPE_RADIUS) * 1.6);
+  return Math.max(0.09, (radius ?? ROPE_RADIUS) * 2.4);
 }
 
 const tmp = { p: new Vector3(), dir: new Vector3() };
@@ -150,7 +150,8 @@ export function updateStreams(nodes: ReadonlyMap<number, FlowNode>, frame: Frame
       continue;
     }
     const def = o.def as AddStream;
-    const size = def.size ?? defaultSize(holder);
+    // Never narrower than a bead that stands out of its pipe: a marker inside an opaque pipe is not there.
+    const size = Math.max(def.size ?? 0, defaultSize(holder));
     const to = def.toColor !== undefined ? parseColor(def.toColor) : undefined;
     const places = markerPlaces(o.phase ?? 0, stream.markers.length);
     stream.markers.forEach((m, i) => {

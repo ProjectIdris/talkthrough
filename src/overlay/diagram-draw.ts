@@ -297,7 +297,9 @@ function glow(ctx: Ctx, it: DiagramItemFrame, accent: Rgb): void {
 }
 
 /** The markers of a stream along the arrow it runs on (the arrow as far as it has been drawn), by the lap count it has run. */
-function drawStream(env: Env, s: DiagramItemFrame & { def: StreamPiece }, diagramAppear: number, runs: ReadonlyMap<string, { pts: Pt[]; appear: number }>): void {
+/** An arrow as drawn: its points, how much of it is there, and where its label sits (markers keep off the label). */
+type Run = { pts: Pt[]; appear: number; label?: { x0: number; y0: number; x1: number; y1: number } };
+function drawStream(env: Env, s: DiagramItemFrame & { def: StreamPiece }, diagramAppear: number, runs: ReadonlyMap<string, Run>): void {
   const run = runs.get(s.def.along);
   const alpha = pieceAlpha(s) * diagramAppear * Math.min(1, s.appear * 1.6);
   if (!run || run.appear <= 0.02 || alpha <= 0.01) return;
@@ -313,6 +315,8 @@ function drawStream(env: Env, s: DiagramItemFrame & { def: StreamPiece }, diagra
     const k = markerSize(u);
     if (k <= 0.05) continue;
     const at = polylinePoint(run.pts, u * run.appear);
+    const l = run.label;
+    if (l && at.x >= l.x0 - size && at.x <= l.x1 + size && at.y >= l.y0 - size && at.y <= l.y1 + size) continue;
     const color = streamColour(from, to, u, s.def.shiftAt ?? 0.5);
     ctx.globalAlpha = alpha * Math.min(1, k * 1.5);
     ctx.fillStyle = rgbCss(color, 1);
@@ -363,7 +367,7 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
     if (t) boxes.set(n.id, { ...painter.ease(`${d.key}:${n.key}`, t, env.dt, seen), layer: t.layer, ...(t.row !== undefined ? { row: t.row, ...(t.rev ? { rev: true } : {}) } : {}) });
   }
   // Edges first, so a node sits over the end of its own arrows.
-  const runs = new Map<string, { pts: Pt[]; appear: number }>();
+  const runs = new Map<string, Run>();
   edges.forEach((e, k) => {
     const s = boxes.get(e.def.from), t = boxes.get(e.def.to);
     if (!s || !t || e.appear <= 0) return;
@@ -404,6 +408,8 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
       const px = env.px * 0.78;
       ctx.font = fontAt(theme.font, px);
       const tw = ctx.measureText(e.def.text).width;
+      const own = runs.get(e.id);
+      if (own) own.label = { x0: route.mid.x - tw / 2 - 8, y0: route.mid.y - px * 0.8, x1: route.mid.x + tw / 2 + 8, y1: route.mid.y + px * 0.8 };
       ctx.globalAlpha = a * Math.min(1, (e.appear - 0.7) / 0.3);
       ctx.fillStyle = 'rgba(19,25,39,0.97)';
       roundRect(ctx, route.mid.x - tw / 2 - 8, route.mid.y - px * 0.8, tw + 16, px * 1.6, px * 0.8);
