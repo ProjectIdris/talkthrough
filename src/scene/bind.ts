@@ -37,6 +37,8 @@ export type Binding = {
   preferPart?: boolean;
   /** For a field no ready-made part can stand for: the one object that can, given what was written (or nothing). */
   pick?(said: string | undefined, state: SceneState): string | undefined;
+  /** Give a named, not-yet-created target the exact-reference fixed point before refusing it. */
+  waitForNamed?: boolean;
 };
 
 const primitive = (i: PartInfo): boolean => i.part === undefined && (i.kind === 'solid' || i.kind === 'path');
@@ -75,17 +77,17 @@ export const BINDINGS: Readonly<Record<string, readonly Binding[]>> = {
     { field: 'by', what: 'driving part', part: 'crankshaft', fits: mover, optional: true, not: 'id' },
   ],
   addStream: [
-    { field: 'along', what: 'path', fits: (i) => i.kind === 'path' || i.kind === 'edge', pick: pickPath },
+    { field: 'along', what: 'path', fits: (i) => i.kind === 'path' || i.kind === 'edge', pick: pickPath, waitForNamed: true },
     { field: 'by', what: 'driving part', fits: mover, optional: true, not: 'id' },
   ],
 };
 
-/** A stream's path when the name is not one: the one path under the object named (a heart group holding one vessel), else the one path there is. */
+/** A stream may use the single path under the named object (a heart group holding one vessel). */
 function pickPath(said: string | undefined, state: SceneState): string | undefined {
   const paths = [...state.ids].filter(([, kind]) => kind === 'path').map(([id]) => id);
   const under = said === undefined ? [] : paths.filter((id) => state.parents.get(id) === said);
   if (under.length === 1) return under[0];
-  return under.length === 0 && paths.length === 1 ? paths[0] : undefined;
+  return undefined;
 }
 
 const infoOf = (state: SceneState, id: string): PartInfo | undefined => {
@@ -137,6 +139,10 @@ export function bindParts(
     }
     const said = written[0];
     if (said === undefined && b.optional && !b.infer) continue;
+    if (b.waitForNamed && said !== undefined && !state.ids.has(said)) {
+      note('dropped', `${path}.${b.field}`, `unknown id "${said.slice(0, 32)}"; ${b.what} must already exist`);
+      return false;
+    }
     const found = repair(b, said, bound, state, self);
     if (found !== undefined) {
       bound.set(b.field, found);

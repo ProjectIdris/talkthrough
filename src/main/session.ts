@@ -7,7 +7,7 @@ import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
 import { applyClear, beginLiveStep, createDetailState, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
 import type { Issue, LiveStep, SceneState, Step } from '../scene/index.ts';
-import { FADE_AFTER_MS } from '../shared/ipc.ts';
+import { FADE_AFTER_MS, PEN_FLUSH_GRACE_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
 import { isRealStroke } from '../shared/pen.ts';
 import { createGuide, guideQuestion, waitOf } from './guide.ts';
@@ -42,6 +42,8 @@ export type SessionDeps = {
    * gives click-through back. The session calls null on every way out of a held chord.
    */
   setPen(displayId: number | null): void;
+  /** Renderer supports attempt-tagged pen pieces and an ordered flush acknowledgement. */
+  penFlush?: boolean;
   /** Null when no speech server is set up. */
   speech: SpeechToText | null;
   model(): Model;
@@ -161,6 +163,7 @@ type Attempt = {
   strokes: Map<number, Point[]>;
   /** Stroke ids whose last piece (`done`) has not arrived yet. */
   open: Set<number>;
+  drain?: { done: boolean; promise: Promise<void>; finish(): void };
   micStarted: boolean;
   chord: boolean;
   followup?: boolean;
@@ -241,9 +244,9 @@ export function createSession(deps: SessionDeps) {
   }
 
   /** Click-through back and the page told, whatever fails on the way. */
-  function penOff(displayId: number): void {
+  function penOff(displayId: number, attemptId?: number): void {
     try {
-      send(displayId, { kind: 'pen', on: false });
+      send(displayId, { kind: 'pen', on: false, ...(attemptId !== undefined ? { attemptId } : {}) });
     } catch (error) {
       deps.log(`pen: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
@@ -438,7 +441,7 @@ export function createSession(deps: SessionDeps) {
     penFor = a;
     try {
       deps.setPen(a.displayId);
-      send(a.displayId, { kind: 'pen', on: true });
+      send(a.displayId, { kind: 'pen', on: true, ...(deps.penFlush ? { attemptId: a.id } : {}) });
     } catch (error) {
       penOff(a.displayId);
       deps.log(`pen: ${error instanceof Error ? error.message : String(error)}`);
@@ -461,7 +464,14 @@ export function createSession(deps: SessionDeps) {
     if (!a || !a.chord) return;
     attempt = null;
     releasedAt = now();
-    penOff(a.displayId);
+    if (deps.penFlush) {
+      let resolve!: () => void;
+      const promise = new Promise<void>((done) => { resolve = done; });
+      const drain = { done: false, promise, finish: () => { if (drain.done) return; drain.done = true; clearTimeout(timer); resolve(); } };
+      const timer = setTimeout(drain.finish, PEN_FLUSH_GRACE_MS);
+      a.drain = drain;
+    }
+    penOff(a.displayId, deps.penFlush ? a.id : undefined);
     deps.log('chord released');
     void ask(a, a.keepThread === true);
   }
@@ -820,6 +830,7 @@ export function createSession(deps: SessionDeps) {
 
   async function ask(a: Attempt, keepThread = false): Promise<void> {
     const controller = new AbortController();
+    if (a.drain) controller.signal.addEventListener('abort', a.drain.finish, { once: true });
     // A new question ends the walk, unless the app is waiting for a yes: a short answer is then the answer, not a question, so the
     // walk stays until the words are known.
     const consent = deps.guide?.navigation?.consent;
@@ -844,7 +855,9 @@ export function createSession(deps: SessionDeps) {
       }
       if (controller.signal.aborted) return;
       // The strokes are final by now. Draw them onto the frame while the speech is being recognised.
-      for (let waited = 0; a.open.size > 0 && waited < STROKE_TAIL_MS; waited += STROKE_TAIL_STEP_MS) await sleep(STROKE_TAIL_STEP_MS);
+      if (a.drain) await a.drain.promise;
+      else for (let waited = 0; a.open.size > 0 && waited < STROKE_TAIL_MS; waited += STROKE_TAIL_STEP_MS) await sleep(STROKE_TAIL_STEP_MS);
+      if (controller.signal.aborted) return;
       const strokes = [...a.strokes.values()];
       deps.record?.strokes(strokes);
       if (penFor === a) penFor = null;
@@ -978,6 +991,10 @@ export function createSession(deps: SessionDeps) {
       asked = !toBackend;
       await answer(a.displayId, controller, r, since, asking, source, keepThread);
     } finally {
+      if (a.drain) {
+        controller.signal.removeEventListener('abort', a.drain.finish);
+        a.drain.finish();
+      }
       if (penFor === a) penFor = null;
       if (!asked) model.unprime?.(); // the chord came to nothing: the spare thread is let go (and counted)
       releaseFrame(a);
@@ -1011,7 +1028,7 @@ export function createSession(deps: SessionDeps) {
     /** A piece of a pen stroke from the page on `displayId`; only the press being held (or just released) takes it. */
     stroke(displayId: number, piece: Stroke): void {
       const a = penFor;
-      if (!a || a.displayId !== displayId || !Number.isFinite(piece.id)) return;
+      if (!a || a.displayId !== displayId || !Number.isFinite(piece.id) || (deps.penFlush && piece.attemptId !== a.id) || a.drain?.done) return;
       // A circle taken back (undo): it is not part of the question any more, so not of the picture, the crop or the numbering.
       if (piece.removed === true) {
         a.strokes.delete(piece.id);
@@ -1030,6 +1047,10 @@ export function createSession(deps: SessionDeps) {
         if (points.length >= 5000) break;
         points.push([p[0], p[1]]);
       }
+    },
+    penFlushed(displayId: number, attemptId: number): void {
+      const a = penFor;
+      if (a?.displayId === displayId && a.id === attemptId) a.drain?.finish();
     },
     /**
      * A right click while the chord is held (`released` false) cancels the question: nothing is captured or heard, the strokes go, and

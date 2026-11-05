@@ -45,6 +45,8 @@ export const CHANNEL = {
   voiceEvent: 'tt:voice-event',
   /** overlay -> main: a piece of a pen stroke (Stroke), streamed as the pointer moves while the pen is on. */
   stroke: 'tt:stroke',
+  /** overlay -> main: all pieces for this pen attempt have been sent. */
+  penFlushed: 'tt:pen-flushed',
   /** overlay -> main: the person right-clicked while the pen was on (`false`: the question is cancelled) and later let the button go (`true`). */
   cancel: 'tt:cancel',
   /** overlay -> main: a Milestone, for latency measurement (the first mark drawn or word spoken of a live turn). */
@@ -62,7 +64,10 @@ export type SeekView = { az?: number; el?: number; zoom?: number; explode?: numb
 export type CaptureMetadata = { seekClock: number; camera: { az: number; el: number; zoom: number } | null; worldCamera: { position: [number, number, number]; quaternion: [number, number, number, number] } | null };
 
 /** Part of one pen stroke: points are appended per id; coordinates run 0..1000 across the whole overlay window. */
-export type Stroke = { id: number; points: Array<[number, number]>; done: boolean; /** The stroke `id` was taken back (undo): drop it, with its points, from what is sent to the model. */ removed?: true };
+export type Stroke = { id: number; points: Array<[number, number]>; done: boolean; attemptId?: number; /** The stroke `id` was taken back (undo): drop it, with its points, from what is sent to the model. */ removed?: true };
+
+/** Maximum post-release window for pen pieces and the renderer's flush acknowledgement. */
+export const PEN_FLUSH_GRACE_MS = 500;
 
 /** A scene finished and, after this long with no new question, the page fades it out by itself. */
 export const FADE_AFTER_MS = 12_000;
@@ -138,7 +143,7 @@ export type SceneMessage =
    * input and the page draws what the user drags as a visible stroke, reporting it with `stroke`.
    * The stroke stays until the first `step` of the answer arrives, then fades; a new `pen on` removes it.
    */
-  | { kind: 'pen'; on: boolean }
+  | { kind: 'pen'; on: boolean; attemptId?: number }
   | { kind: 'model-hit-query'; x: number; y: number; revision: number }
   | { kind: 'guide-arm'; token: number }
   /**
@@ -369,6 +374,7 @@ export interface TalkthroughApi {
   detail(): void;
   /** A piece of a pen stroke, while the pen is on. */
   stroke(stroke: Stroke): void;
+  penFlushed?(attemptId: number): void;
   /** A right click while the pen is on cancels the question (`released` false); `true` when the button comes up again, so the click never reaches the app underneath. */
   cancel(released: boolean): void;
   /** The first mark drawn or first word spoken of a live turn (for latency measurement). */

@@ -62,9 +62,38 @@ test('a stream along a box, with several pipes in the scene and none under it, i
   assert.ok(issues.some((i) => /"b" is not a path/.test(i.message)), JSON.stringify(issues));
 });
 
-test('a stream along the only pipe there is, named wrongly, binds to it', () => {
-  const { shape } = run(box('b'), tube('only'), { op: 'add', shape: 'stream', id: 's', along: 'b' });
-  assert.equal(shape('stream')[0]?.along, 'only');
+test('an incompatible wing never redirects to an unrelated unique tail path', () => {
+  const wing: Raw = { op: 'add', shape: 'extrude', id: 'wing', outline: [[0,0],[2,0],[1,1]], depth: 0.1 };
+  for (const actions of [[wing, tube('tail')], [tube('tail'), wing], [wing, tube('tail'), tube('other')]]) {
+    const { shape, issues } = run(...actions, { op: 'add', shape: 'stream', id: 'air', along: 'wing' });
+    assert.equal(shape('stream').length, 0);
+    assert.ok(issues.some(i => i.kind === 'dropped' && i.path.endsWith('.along') && /wing.*path/.test(i.message)));
+  }
+});
+
+test('unknown and missing paths do not guess the only unrelated path', () => {
+  for (const ref of ['missing', undefined]) {
+    const { shape, issues } = run(tube('tail'), { op: 'add', shape: 'stream', id: 'air', along: ref });
+    assert.equal(shape('stream').length, 0);
+    assert.ok(issues.some(i => i.kind === 'dropped'));
+  }
+});
+
+test('a pending exact path creator gets its chance before a stream is dropped', () => {
+  const { shape } = run(tube('other'), { op: 'add', shape: 'stream', id: 'air', along: 'later' }, tube('later'));
+  assert.equal(shape('stream')[0]?.along, 'later');
+});
+
+test('a failed pending path creator is not redirected to another path', () => {
+  const { shape, issues } = run(tube('other'), { op: 'add', shape: 'stream', id: 'air', along: 'later' }, { op: 'add', shape: 'tube', id: 'later', pts: [], radius: 0.1 });
+  assert.equal(shape('stream').length, 0);
+  assert.ok(issues.some(i => i.kind === 'dropped' && /later/.test(i.message)));
+});
+
+test('a named group with multiple child paths is ambiguous even with an unrelated path', () => {
+  const { shape, issues } = run(group('rig'), tube('a', { parent: 'rig' }), tube('b', { parent: 'rig' }), tube('other'), { op: 'add', shape: 'stream', id: 'air', along: 'rig' });
+  assert.equal(shape('stream').length, 0);
+  assert.ok(issues.some(i => i.kind === 'dropped'));
 });
 
 test('a stream along an arrow of a flow diagram is kept, and goes with the diagram', () => {
