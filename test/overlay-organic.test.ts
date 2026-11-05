@@ -178,3 +178,27 @@ test('a flat lump (a leaf) keeps a rounded rim: it is never thinner than a fifth
   normal.computeBoundingBox();
   assert.ok(Math.abs(normal.boundingBox!.getSize(new Vector3()).y - 1) < 0.05, 'a lump already thick enough is left as written');
 });
+
+test('multi-lump surface preserves finite unit normals, winding, and its triangle budget', () => {
+  const geo = blobGeometry([[-0.7, 0, 0], [0.7, 0, 0], [0, 0.55, 0]], [[2, 1.8, 1.6], [2, 1.8, 1.6], [1.5, 1.3, 1.4]], 0.5, BLOB_CELLS.mid, 2500);
+  const p = geo.getAttribute('position'), n = geo.getAttribute('normal');
+  assert.equal(p.count, n.count);
+  assert.ok(p.count > 0 && p.count / 3 <= 2500);
+  for (let i = 0; i < p.count; i += 3) {
+    const a = new Vector3(p.getX(i), p.getY(i), p.getZ(i));
+    const b = new Vector3(p.getX(i + 1), p.getY(i + 1), p.getZ(i + 1));
+    const c = new Vector3(p.getX(i + 2), p.getY(i + 2), p.getZ(i + 2));
+    const face = b.sub(a).cross(c.sub(a));
+    const average = new Vector3();
+    for (let j = i; j < i + 3; j++) {
+      const v = new Vector3(n.getX(j), n.getY(j), n.getZ(j));
+      assert.ok(Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z));
+      assert.ok(Math.abs(v.length() - 1) < 1e-3);
+      average.add(v);
+    }
+    assert.ok(face.dot(average) >= -1e-8, 'triangle winding follows the surface normals');
+  }
+  geo.computeBoundingBox();
+  assert.ok(geo.boundingBox && Number.isFinite(geo.boundingBox.min.x) && Number.isFinite(geo.boundingBox.max.x));
+  geo.dispose();
+});
