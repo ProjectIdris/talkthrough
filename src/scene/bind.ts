@@ -33,6 +33,8 @@ export type Binding = {
   not?: string;
   /** An optional field the model left out is still bound to the one part of its kind there is (a rod the model added but did not name). */
   infer?: boolean;
+  /** A plain shape the model wrote gives way to the one ready-made part of this kind beside the shaft, when there is one (a plain cylinder called block beside a real piston). */
+  preferPart?: boolean;
 };
 
 const primitive = (i: PartInfo): boolean => i.part === undefined && (i.kind === 'solid' || i.kind === 'path');
@@ -48,12 +50,12 @@ const mover = (i: PartInfo): boolean => !(i.part === undefined && i.kind === 'gr
 export const BINDINGS: Readonly<Record<string, readonly Binding[]>> = {
   crank: [
     { field: 'shaft', what: 'crankshaft', part: 'crankshaft', fits: mover },
-    { field: 'id', alias: 'piston', what: 'piston', part: 'piston', fits: isPart('piston'), beside: 'shaft' },
-    { field: 'rod', what: 'connecting rod', part: 'connecting-rod', fits: isPart('connecting-rod'), beside: 'shaft', optional: true, infer: true },
+    { field: 'id', alias: 'piston', what: 'piston', part: 'piston', fits: isPart('piston'), beside: 'shaft', preferPart: true },
+    { field: 'rod', what: 'connecting rod', part: 'connecting-rod', fits: isPart('connecting-rod'), beside: 'shaft', optional: true, infer: true, preferPart: true },
   ],
   cam: [
     { field: 'by', what: 'camshaft', part: 'camshaft', fits: mover },
-    { field: 'id', alias: 'valve', what: 'valve', part: 'valve', fits: mover, beside: 'by' },
+    { field: 'id', alias: 'valve', what: 'valve', part: 'valve', fits: mover, beside: 'by', preferPart: true },
   ],
   flash: [
     { field: 'by', what: 'crankshaft', part: 'crankshaft', fits: mover },
@@ -96,6 +98,15 @@ export function bindParts(
       const info = infoOf(state, id);
       return info !== undefined && b.fits(info);
     });
+    // A plain shape stands only where no ready-made part of the kind can: say so and take the part.
+    const plainOnly = fitting !== undefined && b.preferPart === true && state.parts.get(fitting) === undefined;
+    const better = plainOnly ? repair(b, fitting, bound, state, self, true) : undefined;
+    if (better !== undefined && better !== fitting) {
+      bound.set(b.field, better);
+      out[b.field] = better;
+      note('trimmed', `${path}.${b.field}`, `repaired: "${fitting}" is not ${article(b.what)}; bound to "${better}"`);
+      continue;
+    }
     if (fitting !== undefined) {
       bound.set(b.field, fitting);
       out[b.field] = fitting;
@@ -125,7 +136,7 @@ export function bindParts(
 const article = (what: string): string => `${/^[aeiou]/.test(what) ? 'an' : 'a'} ${what} part`;
 
 /** The one part that can stand for what was written, or undefined when none or more than one can. */
-function repair(b: Binding, said: string | undefined, bound: ReadonlyMap<string, string>, state: SceneState, self: unknown): string | undefined {
+function repair(b: Binding, said: string | undefined, bound: ReadonlyMap<string, string>, state: SceneState, self: unknown, onlyOne = false): string | undefined {
   let candidates: PartInfo[] = [];
   for (const id of state.ids.keys()) {
     const info = infoOf(state, id);
@@ -138,7 +149,7 @@ function repair(b: Binding, said: string | undefined, bound: ReadonlyMap<string,
     if (near.length > 0) candidates = near;
   }
   if (candidates.length === 1) return (candidates[0] as PartInfo).id;
-  if (candidates.length === 0 || said === undefined) return undefined;
+  if (onlyOne || candidates.length === 0 || said === undefined) return undefined;
   // Several: the one whose id shares a word with what was written, when that is one alone.
   const mine = new Set(words(said));
   if (mine.size === 0) return undefined;

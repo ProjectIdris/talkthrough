@@ -123,6 +123,22 @@ test('a piston, rod or shaft built from plain shapes is taken as it is', () => {
   assert.deepEqual(issues, []);
 });
 
+test('a plain shape that fits only as a plain shape gives way to the one ready-made part of that kind beside the shaft', () => {
+  const cyl = (id: string): Raw => ({ op: 'add', shape: 'cylinder', id, size: [3, 4, 3] });
+  const r = run(cyl('block'), part('piston', 'piston'), part('rod', 'connecting-rod'), part('cs', 'crankshaft'), { op: 'crank', id: 'block', shaft: 'cs', rod: 'block' });
+  assert.deepEqual([r.ofOp('crank')[0]?.id, r.ofOp('crank')[0]?.rod], ['piston', 'rod']);
+  assert.ok(r.issues.some((i) => /"block" is not a piston part; bound to "piston"/.test(i.message)), JSON.stringify(r.issues));
+  // a valve is the same, but a ready-made part that is not a valve (a follower) stays as it is
+  const cam = run(cyl('lifter'), part('v', 'valve'), part('cams', 'camshaft'), { op: 'cam', id: 'lifter', by: 'cams' });
+  assert.equal(cam.ofOp('cam')[0]?.id, 'v');
+  const follower = run(part('p', 'piston'), part('v', 'valve'), part('cams', 'camshaft'), { op: 'cam', id: 'p', by: 'cams' });
+  assert.equal(follower.ofOp('cam')[0]?.id, 'p');
+  // with no ready-made piston the plain shape is still taken
+  const plain = run(cyl('p'), part('cs', 'crankshaft'), { op: 'crank', id: 'p', shaft: 'cs' });
+  assert.equal(plain.ofOp('crank')[0]?.id, 'p');
+  assert.deepEqual(plain.issues, []);
+});
+
 test('flash and spin by are bound too: an unknown driver binds to the one crankshaft; a group or block is never a driver', () => {
   const eng = [group('engine'), part('block', 'cylinder-block', { parent: 'engine' }), part('cs', 'crankshaft', { parent: 'engine' }), { op: 'add', shape: 'sphere', id: 'burn', size: [1, 1, 1], opacity: 0.5 }];
   const flash = run(...eng, { op: 'flash', id: 'burn', by: 'engine', angle: 360, span: 90 });
