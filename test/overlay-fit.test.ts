@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { Vector3 } from 'three';
+import type { Sprite } from 'three';
 import { PanelScene } from '../src/overlay/scene3d.ts';
 import { frameAt } from '../src/overlay/timeline.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
@@ -45,5 +47,44 @@ test('the camera stands still while a part is posed or pulses: it frames the mod
     const frame: Frame = { ...rest, objects: rest.objects.map((o) => (o.id === 'rod' ? moved : o)) };
     scene.sync(frame, 1.25, { rect: stage, ...WIN });
     assert.ok(scene.camera.position.distanceTo(at) < 1e-6, 'the camera did not move');
+  }
+});
+
+// ---- text in the scene ---------------------------------------------------------------------------
+
+const fakeCanvas = (w: number, h: number) => {
+  const ctx = new Proxy({ measureText: (t: string) => ({ width: t.length * 50 }), createLinearGradient: () => ({ addColorStop: () => {} }), createRadialGradient: () => ({ addColorStop: () => {} }) } as Record<string, unknown>, {
+    get: (t, k: string) => (k in t ? t[k] : () => {}),
+    set: () => true,
+  });
+  return { width: w, height: h, getContext: () => ctx } as unknown as HTMLCanvasElement;
+};
+const textRects = (scene: PanelScene, frame: Frame) => frame.objects.filter((o) => o.shape === 'text').map((o) => {
+  const sprite = scene.nodeOf(o.key) as Sprite;
+  const at = scene.project(o.key, undefined, WIN.width, WIN.height)!;
+  const k = scene.camera.projectionMatrix.elements[5]! * WIN.height / 2;
+  const depth = -sprite.getWorldPosition(new Vector3()).applyMatrix4(scene.camera.matrixWorldInverse).z;
+  const h = (sprite.scale.y * k) / depth, w = (sprite.scale.x / sprite.scale.y) * h;
+  const cy = at.y - (sprite.center.y - 0.5) * h;
+  return { x0: at.x - w / 2, x1: at.x + w / 2, y0: cy - h / 2, y1: cy + h / 2, h };
+});
+
+test('text in the scene is never drawn tiny, and labels at one spot do not pile on each other', () => {
+  const stage = { x: 700, y: 100, w: 300, h: 300 };
+  const frame = settled(
+    { op: 'add', shape: 'box', id: 'a', size: [30, 4, 4] },
+    { op: 'add', shape: 'text', id: 't1', pos: [0, 2, 0], text: 'Q1: 2.1', height: 0.4, color: 'white' },
+    { op: 'add', shape: 'text', id: 't2', pos: [0, 2, 0], text: 'Q2: 3.4', height: 0.4, color: 'white' },
+    { op: 'add', shape: 'text', id: 't3', pos: [0, 2, 0], text: 'Q3: 3.0', height: 0.4, color: 'white' },
+    { op: 'orbit', az: 0, el: 0, dur: 0 },
+  );
+  const scene = new PanelScene({ makeCanvas: fakeCanvas });
+  scene.sync(frame, 1, { rect: stage, ...WIN });
+  const rects = textRects(scene, frame);
+  assert.equal(rects.length, 3);
+  for (const r of rects) assert.ok(r.h >= 17.9, `readable: ${r.h.toFixed(1)} px tall`);
+  for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+    const a = rects[i]!, b = rects[j]!;
+    assert.ok(a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0, `labels ${i} and ${j} do not overlap`);
   }
 });

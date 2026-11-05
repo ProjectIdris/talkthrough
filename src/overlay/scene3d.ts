@@ -45,6 +45,8 @@ export const FRAMING_UNITS = 12;
 /** The sphere round the model gets this much room on the stage, and the camera never comes nearer than this to it (world units). */
 const FIT_MARGIN = 1.1;
 const MIN_FIT_DISTANCE = 0.8;
+/** A text sprite in the scene is drawn at least this tall on screen (CSS pixels). */
+const MIN_TEXT_PX = 18;
 const PATH_RADIUS = 0.06;
 function boxCorners(box: Box3, matrix: Matrix4 | undefined): Vector3[] {
   const out: Vector3[] = [];
@@ -316,25 +318,38 @@ export class PanelScene {
     if (!probe) return;
     const font = `700 ${fontPx}px system-ui, "Segoe UI", Roboto, sans-serif`;
     probe.font = font;
-    const pad = 16;
-    const width = Math.max(16, Math.ceil(probe.measureText(text).width) + pad * 2);
-    const height = fontPx + pad * 2;
+    // The same look as a tag (a dark pill, a dot in the object's colour, white text), not an outlined word: it reads over bars, shadows and the page.
+    const dot = fontPx * 0.34, padX = fontPx * 0.5, padY = fontPx * 0.28, gap = fontPx * 0.28;
+    const textW = Math.ceil(probe.measureText(text).width);
+    const width = Math.ceil(padX + dot + gap + textW + padX);
+    const height = Math.ceil(fontPx + padY * 2);
     const canvas = make(width, height);
     const ctx = canvas.getContext('2d') as CanvasRenderingContext2D | null;
     if (!ctx) return;
+    const r = height / 2;
+    ctx.fillStyle = 'rgba(20,24,36,0.94)';
+    ctx.beginPath();
+    ctx.moveTo(r, 0);
+    ctx.lineTo(width - r, 0);
+    ctx.arc(width - r, r, r, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(r, height);
+    ctx.arc(r, r, r, Math.PI / 2, (3 * Math.PI) / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = `rgb(${Math.round(o.color[0])},${Math.round(o.color[1])},${Math.round(o.color[2])})`;
+    ctx.beginPath();
+    ctx.arc(padX + dot / 2, height / 2, dot / 2, 0, Math.PI * 2);
+    ctx.fill();
     ctx.font = font;
     ctx.textBaseline = 'middle';
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = 14;
-    ctx.strokeStyle = 'rgba(8,12,20,0.9)';
-    ctx.strokeText(text, pad, height / 2 + 4);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(text, pad, height / 2 + 4);
+    ctx.fillText(text, padX + dot + gap, height / 2 + 3);
     const texture = new CanvasTexture(canvas as HTMLCanvasElement);
     texture.colorSpace = SRGBColorSpace;
     const mat = new SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
     const sprite = new Sprite(mat);
-    sprite.scale.set((def.height * width) / height, def.height, 1);
+    const shown = (def.height * height) / fontPx; // def.height is the size of the letters; the pill is a little taller
+    sprite.scale.set((shown * width) / height, shown, 1);
     sprite.renderOrder = 999;
     node.obj = sprite;
     node.texture = texture;
@@ -415,6 +430,7 @@ export class PanelScene {
     this.scene.updateMatrixWorld(true);
     if (!frame.objects.some((o) => o.pose || o.pulse !== 0)) this.restSpheres = this.partSpheres();
     this.aim(frame, aspect, view, standBack);
+    if (view) this.tidyTexts(view);
     // The person's Cut goes through the middle of the model from the side the camera looks from.
     this.cutaway.update(frame, this.nodes, this.scene, this.camera.getWorldDirection(new Vector3()).negate());
     this.placeShadow(frame);
@@ -495,6 +511,43 @@ export class PanelScene {
     this.camera.lookAt(target);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld(true);
+  }
+
+  /**
+   * Text sprites in the scene (a value over a bar, a name on a part) are kept readable on screen: none smaller than `MIN_TEXT_PX` tall, and
+   * two that would sit on each other are moved apart vertically (by the sprite's anchor, so they stay at their point in the world).
+   */
+  private tidyTexts(view: StageView): void {
+    const sprites: Array<{ node: Node; cx: number; cy: number; w: number; h: number; depth: number }> = [];
+    const p = new Vector3();
+    const proj = this.camera.projectionMatrix.elements;
+    for (const node of this.nodes.values()) {
+      const sprite = node.obj;
+      if (!(sprite instanceof Sprite)) continue;
+      sprite.center.set(0.5, 0.5);
+      if (!sprite.visible) continue;
+      sprite.getWorldPosition(p);
+      const depth = -p.clone().applyMatrix4(this.camera.matrixWorldInverse).z;
+      if (depth <= 0) continue;
+      p.project(this.camera);
+      const cx = ((p.x + 1) / 2) * view.width, cy = ((1 - p.y) / 2) * view.height;
+      const h = (sprite.scale.y * proj[5] * view.height) / (2 * depth);
+      const k = h > 0 && h < MIN_TEXT_PX ? Math.min(8, MIN_TEXT_PX / h) : 1;
+      if (k !== 1) sprite.scale.multiplyScalar(k);
+      sprites.push({ node, cx, cy, w: (sprite.scale.x / sprite.scale.y) * h * k, h: h * k, depth });
+    }
+    // Nearest first keeps its place; each later one moves up (then down) until it clears what is already placed.
+    sprites.sort((a, b) => a.depth - b.depth);
+    const placed: Array<{ x0: number; y0: number; x1: number; y1: number }> = [];
+    for (const t of sprites) {
+      const gap = 2;
+      const clear = (dy: number): boolean => placed.every((r) => t.cx + t.w / 2 <= r.x0 || t.cx - t.w / 2 >= r.x1 || t.cy + dy + t.h / 2 + gap <= r.y0 || t.cy + dy - t.h / 2 - gap >= r.y1);
+      let dy = 0;
+      for (let i = 1; i <= 12 && !clear(dy); i++) dy = (i % 2 === 1 ? -1 : 1) * Math.ceil(i / 2) * (t.h + gap);
+      if (!clear(dy)) dy = 0;
+      if (dy !== 0) (t.node.obj as Sprite).center.set(0.5, 0.5 + dy / t.h);
+      placed.push({ x0: t.cx - t.w / 2, y0: t.cy + dy - t.h / 2, x1: t.cx + t.w / 2, y1: t.cy + dy + t.h / 2 });
+    }
   }
 
   /** True while the framing is still gliding to the model's size: the page should keep drawing frames. */
