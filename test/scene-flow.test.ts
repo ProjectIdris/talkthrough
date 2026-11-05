@@ -122,3 +122,40 @@ test('the guide and the schema call a connector a physical rope, wire, belt or p
   assert.match(text, /parts of one 3D model/);
   assert.match(text, /edge/);
 });
+
+// ---- tubes and lines that end on a part --------------------------------------------------------------------------------------------
+
+test('a hand-built tube with an end on a part (a hair off its surface) is joined to it: the end snaps onto the surface and the tube goes with the part; an end in clear air stays as written', () => {
+  const { kept, issues } = run(
+    box('bat', { size: [1, 1.6, 1], pos: [-2, 0, 0] }),
+    tube('wire', { pts: [[-2, 0.9, 0], [-2, 2, 0], [2, 2, 0]], radius: 0.07 }), // starts 0.1 above the battery's top (y 0.8), ends in the air
+  );
+  const wire = kept.find((a) => (a as Raw).id === 'wire') as unknown as { pts: number[][]; attach: Array<{ to: string; at: number[] } | null> };
+  assert.deepEqual(wire.pts[0], [-2, 0.8, 0], 'snapped onto the top face');
+  assert.deepEqual(wire.pts[2], [2, 2, 0], 'an end in clear air is as written');
+  assert.equal(wire.attach[0]?.to, 'bat');
+  assert.deepEqual(wire.attach[0]?.at?.map((x) => Math.round(x * 1000) / 1000), [0, 0.8, 0], 'the point in the battery\'s own space');
+  assert.equal(wire.attach[1], null);
+  assert.ok(issues.some((i) => /repaired/.test(i.message) && /wire/.test(i.message) && /bat/.test(i.message)), JSON.stringify(issues));
+});
+
+test('a tube end a good way from every part is left alone, and a model cannot write the attachment itself', () => {
+  const { kept } = run(box('bat', { pos: [0, 0, 0] }), tube('far', { pts: [[3, 0, 0], [5, 0, 0]] }), tube('own', { pts: [[3, 3, 0], [5, 3, 0]], attach: [{ to: 'bat', at: [0, 0.5, 0] }, null] }));
+  for (const id of ['far', 'own']) assert.equal((kept.find((a) => (a as Raw).id === id) as Raw).attach, undefined, id);
+});
+
+test('a part added after the tube is what an end in the air was meant for: the tube is made over to end on it (same id), and not before the part is there', () => {
+  const { kept, issues, state } = run(
+    tube('wire', { pts: [[2, 2, 0], [0, 2, 0], [0, 0.17, 0]], radius: 0.07 }),
+    box('sw', { size: [1, 0.3, 0.5], pos: [0, 0, 0], at: 1 }),
+  );
+  const ids = kept.map((a) => (a as Raw).id);
+  assert.deepEqual(ids, ['wire', 'sw', 'wire'], 'the tube comes again right after the part');
+  const again = kept[2] as unknown as { pts: number[][]; attach: Array<{ to: string } | null>; at?: number };
+  assert.deepEqual(again.pts[2], [0, 0.15, 0], 'its end is on the top of the switch (0.02 off before)');
+  assert.equal(again.attach[1]?.to, 'sw');
+  assert.equal(again.attach[0], null);
+  assert.equal(again.at, 1, 'it is made over when the part comes in');
+  assert.ok(issues.some((i) => /came after/.test(i.message)), JSON.stringify(issues));
+  assert.equal(state.ids.get('wire'), 'path');
+});

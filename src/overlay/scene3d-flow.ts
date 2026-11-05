@@ -5,7 +5,7 @@
 import { BufferGeometry, ConeGeometry, CylinderGeometry, Group, Matrix4, Mesh, Quaternion, SphereGeometry, Vector3 } from 'three';
 import type { Object3D } from 'three';
 import type { Rgb } from '../scene/colors.ts';
-import type { AddConnector, AddStream, Vec3 } from '../scene/types.ts';
+import type { AddConnector, AddPath, AddStream, AddTube, Vec3 } from '../scene/types.ts';
 import { arcPoint, beltPoints, endPoint, ropePoints, roundOf } from './connector.ts';
 import { drawFraction, tubeGeometry } from './geometry.ts';
 import { applySurface } from './materials.ts';
@@ -24,6 +24,7 @@ export type FlowNode = {
   path?: { geo: BufferGeometry; sampled: Vec3[]; head: Mesh | undefined; body: boolean };
   connector?: { mesh: Mesh; signature: string };
   stream?: { markers: Mesh[]; kind: 'dot' | 'dash' | 'arrow' };
+  attached?: { base: Vec3[]; along: number[]; signature: string };
 };
 export type AddMesh = (geo: BufferGeometry, surface: string | undefined, edges: boolean) => Mesh;
 
@@ -106,6 +107,82 @@ export function updateConnectors(nodes: ReadonlyMap<number, FlowNode>, frame: Fr
     drawFraction(node.path.geo, o.draw);
   }
   return any;
+}
+
+// ---- Tubes and lines with an end on a part ---------------------------------------------------------------------------------------
+
+const SETTLED = '0,0,0,0,0,0';
+
+/**
+ * A tube or line whose end lies on a part (the validator found it so and set `attach`) keeps that end on the part wherever the part goes: the end is the
+ * point of the part it was on, and the points between follow by their length along the tube, so the tube leans toward the part as it moves. It is not
+ * drawn while a part it is on is not there. At rest nothing changes, and the tube is not rebuilt.
+ */
+export function updateAttached(nodes: ReadonlyMap<number, FlowNode>, frame: Frame, radial: number, pathRadius: number): void {
+  const byId = new Map<string, ObjectFrame>();
+  for (const o of frame.objects) byId.set(o.id, o);
+  const v = new Vector3();
+  for (const o of frame.objects) {
+    if (o.shape !== 'tube' && o.shape !== 'line') continue;
+    const def = o.def as AddTube | AddPath;
+    if (!def.attach) continue;
+    const node = nodes.get(o.key);
+    if (!node?.path || !node.obj.visible) continue;
+    let held = 1;
+    const there: Array<ObjectFrame | undefined> = [];
+    let missing = false;
+    for (const end of def.attach) {
+      const part = end ? byId.get(end.to) : undefined;
+      const n = part && nodes.get(part.key);
+      if (end && (!part || !n || !n.obj.visible)) missing = true;
+      there.push(end && part && n ? part : undefined);
+      if (part) held = Math.min(held, part.appear * part.fade);
+    }
+    if (missing || held < 0.003) {
+      node.obj.visible = false;
+      continue;
+    }
+    if (held < 1) for (const p of node.pieces) if (p.surface) p.surface.opacity *= held;
+    if (!node.attached) {
+      const base = node.path.sampled.map((p): Vec3 => [p[0], p[1], p[2]]);
+      const along = [0];
+      for (let i = 1; i < base.length; i++) along.push((along[i - 1] as number) + Math.hypot(base[i]![0] - base[i - 1]![0], base[i]![1] - base[i - 1]![1], base[i]![2] - base[i - 1]![2]));
+      const total = along[along.length - 1] || 1;
+      node.attached = { base, along: along.map((x) => x / total), signature: SETTLED };
+    }
+    const st = node.attached;
+    const inverse = new Matrix4().copy(node.obj.matrixWorld).invert();
+    const push: Vec3[] = [[0, 0, 0], [0, 0, 0]];
+    def.attach.forEach((end, slot) => {
+      const part = there[slot];
+      const n = part && nodes.get(part.key);
+      if (!end || !part || !n) return;
+      const rest = (slot === 0 ? st.base[0] : st.base[st.base.length - 1]) as Vec3;
+      v.set(end.at[0], end.at[1], end.at[2]).applyMatrix4(n.obj.matrixWorld).applyMatrix4(inverse);
+      push[slot] = [v.x - rest[0], v.y - rest[1], v.z - rest[2]];
+    });
+    const signature = push.flat().map((x) => Math.round(x * 1e5)).join(',');
+    if (signature !== st.signature) {
+      const a = push[0] as Vec3, b = push[1] as Vec3;
+      const moved: Vec3[] = st.base.map((p, i) => {
+        const u = st.along[i] as number;
+        return [p[0] + a[0] * (1 - u) + b[0] * u, p[1] + a[1] * (1 - u) + b[1] * u, p[2] + a[2] * (1 - u) + b[2] * u];
+      });
+      const tube = o.shape === 'tube';
+      const geo = tubeGeometry(moved, tube ? (def as AddTube).radius : pathRadius, tube ? (def as AddTube).flat ?? 1 : 1, radial, tube ? (def as AddTube).swell : undefined);
+      const mesh = node.obj.children[0] as Mesh;
+      const old = node.path.geo;
+      mesh.geometry = geo;
+      const at = node.geometries.indexOf(old);
+      if (at >= 0) node.geometries[at] = geo;
+      else node.geometries.push(geo);
+      old.dispose();
+      node.path.geo = geo;
+      node.path.sampled = moved;
+      st.signature = signature;
+    }
+    drawFraction(node.path.geo, o.draw);
+  }
 }
 
 // ---- Streams ----------------------------------------------------------------------------------------------------------------------

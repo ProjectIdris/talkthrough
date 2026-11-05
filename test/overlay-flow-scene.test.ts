@@ -168,3 +168,29 @@ test('markers are no part of the model for the buttons and tags either: the mode
   const b = shown([...base, { op: 'add', shape: 'stream', id: 's', along: 'pipe', count: 5, size: 3 }], 1).scene.screenBounds(1000, 1000)!.model;
   assert.deepEqual([b.x, b.y, b.w, b.h].map(Math.round), [a.x, a.y, a.w, a.h].map(Math.round));
 });
+
+// ---- a tube with an end on a part goes with the part ---------------------------------------------------------------------------------
+
+import { createSceneState, validateScene } from '../src/scene/index.ts';
+
+const written = (actions: unknown[]): unknown[] => (validateScene({ steps: [{ say: 'x', actions }] }, createSceneState()).scene?.steps[0]?.actions ?? []) as unknown[];
+
+test('a hand-built tube that ends on a weight keeps its end on the weight as the weight rises, and stays as written where nothing moves', () => {
+  const actions = [
+    box('weight', { size: [1, 1, 1], pos: [0, 0, 0] }),
+    { op: 'joint', id: 'weight', kind: 'slide', axis: 'y' },
+    { op: 'loop', id: 'weight', kind: 'slide', amount: 2, period: 4 },
+    { op: 'add', shape: 'tube', id: 'cord', pts: [[0, 0.56, 0], [0, 2, 0], [0, 5, 0]], radius: 0.05 }, // starts a hair above the top of the weight
+  ];
+  const kept = written(actions);
+  const rest = shown(written([actions[0], { op: 'add', shape: 'tube', id: 'cord', pts: [[0, 0.56, 0], [0, 2, 0], [0, 5, 0]], radius: 0.05 }]), 1);
+  near(rest.bounds('cord').min.y, 0.5, 0.03); // snapped onto the top face (0.5)
+  const heights: number[] = [];
+  for (const t of [0.2, 1, 2]) {
+    const { bounds } = shown(kept, t);
+    near(bounds('cord').min.y, bounds('weight').max.y, 0.04); // the end is on the weight wherever the weight has got to
+    near(bounds('cord').max.y, 5.05, 0.06); // the far end stays where it was written
+    heights.push(bounds('cord').min.y);
+  }
+  assert.ok((heights[1] as number) - (heights[2] as number) > 0.5, `the weight moved, and so did the end: ${heights.join()}`);
+});

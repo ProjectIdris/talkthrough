@@ -77,11 +77,15 @@ export type AddLathe = {
 export type AddBlob = {
   op: 'add'; shape: 'blob'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[]; sizes: Vec3[]; soft?: number;
 } & Surface & At;
+/** An end of a tube or line that lies on a 3D part: the part and the point on it (in the part's own space), which the end keeps wherever the part goes. Set by the validator, never written. */
+export type AttachEnd = { to: string; at: Vec3 };
 export type AddTube = {
   op: 'add'; shape: 'tube'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; radius: number; flat?: number; swell?: Vec2[]; draw?: number;
+  attach?: [AttachEnd | null, AttachEnd | null];
 } & Surface & At;
 export type AddPath = {
   op: 'add'; shape: 'line' | 'arrow'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; color?: Color; draw?: number; opacity?: number;
+  attach?: [AttachEnd | null, AttachEnd | null];
 } & At;
 export type PartKind =
   | 'chip' | 'header' | 'port' | 'lens' | 'screen' | 'button' | 'fan' | 'wheel'

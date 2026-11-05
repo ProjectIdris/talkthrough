@@ -28,7 +28,7 @@ import type { FocusFrame, Frame, ObjectFrame, Rgb } from './timeline.ts';
 import { spreadPosition, userOffsets } from './explode.ts';
 import type { Part } from './explode.ts';
 import { Cutaway } from './cutaway.ts';
-import { buildConnector, buildStream, updateConnectors, updateStreams } from './scene3d-flow.ts';
+import { buildConnector, buildStream, updateAttached, updateConnectors, updateStreams } from './scene3d-flow.ts';
 import type { FlowNode } from './scene3d-flow.ts';
 
 /** The longer side of the stage sees this many degrees; the shorter side follows from its shape, so a wide stage does not skew what sits at its edges. */
@@ -101,6 +101,8 @@ type Node = {
   /** A connector's tube and what it was last built from; a stream's markers (see scene3d-flow.ts). */
   connector?: FlowNode['connector'];
   stream?: FlowNode['stream'];
+  /** A tube or line with an end on a part: its points as drawn at rest (see scene3d-flow.ts). */
+  attached?: FlowNode['attached'];
 };
 
 type AddMesh = (geo: BufferGeometry, surface: string | undefined, edges: boolean) => Mesh;
@@ -445,6 +447,7 @@ export class PanelScene {
     this.scene.updateMatrixWorld(true);
     if (!frame.objects.some((o) => o.pose || o.pulse !== 0)) this.restSpheres = this.partSpheres();
     // Connectors and streams are placed from where their parts now are; what hangs on a connector then needs its matrices again.
+    updateAttached(this.nodes, frame, this.detail.radial, PATH_RADIUS);
     if (updateConnectors(this.nodes, frame, this.detail.radial)) this.scene.updateMatrixWorld(true);
     updateStreams(this.nodes, frame);
     this.scene.updateMatrixWorld(true);

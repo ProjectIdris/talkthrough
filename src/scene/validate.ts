@@ -3,10 +3,12 @@
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
 import { nearestPaletteColor } from './colors.ts';
+import { attachTolerance, landOn } from './attach.ts';
+import type { Body } from './attach.ts';
 import { bindParts, BINDINGS } from './bind.ts';
 import { DIAGRAM_PARTS, ID_PATTERN, LIMITS, PALETTE, RESERVED_IDS, SCREEN_KINDS, VARIANTS } from './spec.ts';
 import type { DiagramKind, Field, ObjectKind, Variant } from './spec.ts';
-import type { Action, Issue, IssueKind, Scene, Step } from './types.ts';
+import type { Action, AttachEnd, Issue, IssueKind, Scene, Step, Vec3 } from './types.ts';
 
 /** What the scene holds so far. Keep one per session and pass it to every turn so follow-ups reach earlier ids. */
 export type SceneState = {
@@ -21,6 +23,12 @@ export type SceneState = {
   joints: Map<string, 'hinge' | 'slide' | 'fixed'>;
   follows: Map<string, string>;
   rides: Map<string, string>;
+  /** Where each 3D solid and group stands and how big it is, as written: what a tube or line that ends on a part is held against (attach.ts). */
+  bodies: Map<string, Body>;
+  /** Tubes and lines with an end in the air so far: a part that arrives later may be what that end was meant for. */
+  loose: Map<string, { action: Record<string, unknown>; step: number }>;
+  /** Actions the validator itself adds after the one it has just accepted (a tube made over to end on a part that has just arrived). */
+  after: Action[];
   turnSteps: number;
   turnActions: number;
   /** Copies made by `array` actions so far. */
@@ -43,7 +51,7 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 export function createSceneState(): SceneState {
-  return { ids: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), parts: new Map(), joints: new Map(), follows: new Map(), rides: new Map(), turnSteps: 0, turnActions: 0, copies: 0 };
+  return { ids: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), parts: new Map(), joints: new Map(), follows: new Map(), rides: new Map(), bodies: new Map(), loose: new Map(), after: [], turnSteps: 0, turnActions: 0, copies: 0 };
 }
 
 /**
@@ -53,6 +61,7 @@ export function createSceneState(): SceneState {
 export function createDetailState(onScreen: SceneState): SceneState {
   return {
     ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides),
+    bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [],
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
   };
 }
@@ -264,13 +273,15 @@ function removeWithDescendants(state: SceneState, id: string): void {
     state.joints.delete(d);
     state.follows.delete(d);
     state.rides.delete(d);
+    state.bodies.delete(d);
+    state.loose.delete(d);
   }
 }
 
 /** Takes a cleared id (or "all", "marks", "panel") out of what the scene holds; the guide clears the page by id between steps and tells the scene here. */
 export function applyClear(state: SceneState, target: string): void {
   if (target === 'all') {
-    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.joints.clear(); state.follows.clear(); state.rides.clear(); state.copies = 0;
+    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.joints.clear(); state.follows.clear(); state.rides.clear(); state.bodies.clear(); state.loose.clear(); state.copies = 0;
   } else if (target === 'marks' || target === 'panel') {
     // Marks, pins and flat diagrams are the screen's; the 3D stage is the rest.
     const wantMark = target === 'marks';
@@ -279,6 +290,79 @@ export function applyClear(state: SceneState, target: string): void {
     }
   } else {
     removeWithDescendants(state, target);
+  }
+}
+
+type EndSlots = [AttachEnd | null, AttachEnd | null];
+const ZERO: Vec3 = [0, 0, 0];
+
+/** A 3D solid or group is on record where it stands and how big it is; a tube or line has its ends held to the parts they lie on. */
+function holdBody(state: SceneState, name: string, out: Record<string, unknown>, path: string, notes: Notes): void {
+  const id = out.id as string;
+  state.bodies.delete(id);
+  state.loose.delete(id);
+  const place = { pos: (out.pos as Vec3 | undefined) ?? ZERO, rot: (out.rot as Vec3 | undefined) ?? ZERO, parent: out.parent as string | undefined };
+  const shape = out.shape as string;
+  if (name === 'addSolid') {
+    const size = out.size as Vec3;
+    if (shape === 'box' || shape === 'sphere' || shape === 'cylinder') state.bodies.set(id, { shape, size, ...place });
+    else if (shape === 'plane') state.bodies.set(id, { shape: 'box', size: [size[0], size[1], 0], ...place });
+    else state.bodies.set(id, { shape: 'group', ...place }); // a cone or a torus is not asked about, but things hang from it
+  } else if (name === 'addPart') state.bodies.set(id, { shape: 'box', size: out.size as Vec3, ...place });
+  else if (name === 'addBlob') state.bodies.set(id, { shape: 'blob', pts: out.pts as Vec3[], sizes: out.sizes as Vec3[], ...place });
+  else if (name === 'addExtrude' || name === 'addLathe' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
+  else if (name === 'addTube' || (name === 'addPath' && shape === 'line')) {
+    holdEnds(state, id, out, path, notes);
+    return;
+  } else return;
+  if (state.bodies.get(id)?.shape !== 'group') landLate(state, id, (out.at as number | undefined) ?? 0, path, notes);
+}
+
+const ends = (pts: readonly Vec3[]): [number, number] => [0, pts.length - 1];
+
+/** A tube or line with an end on a part (within a small tolerance of its surface, either side) is meant to touch it: the end is moved onto the surface and kept there. */
+function holdEnds(state: SceneState, id: string, out: Record<string, unknown>, path: string, notes: Notes): void {
+  const pts = (out.pts as Vec3[]).map((p): Vec3 => [p[0], p[1], p[2]]);
+  const tol = attachTolerance(out.radius as number | undefined);
+  const slots: EndSlots = [null, null];
+  ends(pts).forEach((at, slot) => {
+    const hit = landOn(state.bodies, out.parent as string | undefined, pts[at] as Vec3, tol);
+    if (!hit) return;
+    pts[at] = hit.snapped;
+    slots[slot] = { to: hit.part, at: hit.local };
+    note(notes, 'trimmed', `${path}.pts[${at}]`, `repaired: the ${slot === 0 ? 'start' : 'end'} of "${id}" lies on "${hit.part}"; it is joined to it and goes with it`);
+  });
+  if (slots[0] || slots[1]) {
+    out.pts = pts;
+    out.attach = slots;
+  }
+  if (!slots[0] || !slots[1]) state.loose.set(id, { action: out, step: state.turnSteps });
+}
+
+/** A part has just arrived: a tube or line with an end in the air that lies on it was meant for it, so the tube is made over to end on the part (the same id replaces it). */
+function landLate(state: SceneState, part: string, at: number, path: string, notes: Notes): void {
+  for (const [id, loose] of [...state.loose]) {
+    if (id === part) continue;
+    const a = loose.action;
+    const pts = (a.pts as Vec3[]).map((p): Vec3 => [p[0], p[1], p[2]]);
+    const slots: EndSlots = [...((a.attach as EndSlots | undefined) ?? [null, null])] as EndSlots;
+    const tol = attachTolerance(a.radius as number | undefined);
+    let changed = false;
+    ends(pts).forEach((point, slot) => {
+      if (slots[slot]) return;
+      const hit = landOn(state.bodies, a.parent as string | undefined, pts[point] as Vec3, tol, part);
+      if (!hit) return;
+      pts[point] = hit.snapped;
+      slots[slot] = { to: hit.part, at: hit.local };
+      changed = true;
+      note(notes, 'trimmed', path, `repaired: the ${slot === 0 ? 'start' : 'end'} of "${id}" lies on "${part}", which came after it; the tube is made over to end on it`);
+    });
+    if (!changed) continue;
+    // Made over when the part comes in (and not before the tube's own time, when both are in this step).
+    const next = { ...a, pts, attach: slots, at: Math.max(at, loose.step === state.turnSteps ? (a.at as number | undefined) ?? 0 : 0) };
+    state.after.push(next as unknown as Action);
+    if (slots[0] && slots[1]) state.loose.delete(id);
+    else state.loose.set(id, { action: next, step: state.turnSteps });
   }
 }
 
@@ -416,6 +500,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     else state.parts.delete(id);
     state.parents.set(id, parent);
     state.depth.set(id, parent === undefined ? 1 : (state.depth.get(parent) ?? 0) + 1);
+    holdBody(state, variant.name, out, path, notes);
   } else if (variant.op === 'clear') {
     applyClear(state, out.target as string);
   }
@@ -592,18 +677,21 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
     }
   }
 
-  function attempt(raw: unknown, at: string): { action: Action | null; why: Notes } {
+  function attempt(raw: unknown, at: string): { action: Action | null; why: Notes; after: Action[] } {
     const why: Notes = [];
+    state.after.length = 0;
     const a = validateAction(raw, state, at, why);
-    return { action: a, why };
+    return { action: a, why, after: a ? state.after.splice(0) : [] };
   }
 
   const missing = (why: Notes): boolean => why.some((n) => n.kind === 'dropped' && n.message.includes('unknown id "'));
 
-  function accept(action: Action, why: Notes): void {
+  function accept(action: Action, why: Notes, after: Action[] = []): void {
     for (const n of why) note(notes, n.kind, n.path, n.message);
-    kept.push(action);
-    events.action(action);
+    for (const a of [action, ...after]) {
+      kept.push(a);
+      events.action(a);
+    }
   }
 
   function retryHeld(final: boolean): void {
@@ -614,7 +702,7 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
       for (const h of held) {
         const r = attempt(h.raw, h.path);
         if (r.action) {
-          accept(r.action, r.why);
+          accept(r.action, r.why, r.after);
           progress = true;
         } else if (!final && missing(r.why)) {
           still.push({ ...h, why: r.why });
@@ -641,7 +729,7 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
     state.turnActions++;
     const r = attempt(raw, at);
     if (r.action) {
-      accept(r.action, r.why);
+      accept(r.action, r.why, r.after);
       retryHeld(false);
     } else if (missing(r.why) && held.length < HELD_MAX) {
       held.push({ raw, path: at, age: 0, why: r.why });
