@@ -35,6 +35,8 @@ type Recipe = {
   roughness: number; metalness: number; clearcoat?: number; clearcoatRoughness?: number;
   /** The opacity the surface has at full strength. */
   opacity?: number; envMapIntensity?: number; emissive?: number; doubleSided?: boolean;
+  /** A soft light along the edges that turn from the viewer (cloth, skin, tissue). */
+  sheen?: number;
 };
 
 const RECIPES: Record<SurfaceName, Recipe> = {
@@ -46,7 +48,7 @@ const RECIPES: Record<SurfaceName, Recipe> = {
   glow: { roughness: 0.6, metalness: 0, emissive: 1.25 },
   paper: { roughness: 0.96, metalness: 0, doubleSided: true },
   // Living tissue: soft and a little wet, a gentle sheen over a matte body.
-  tissue: { roughness: 0.62, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.55 },
+  tissue: { roughness: 0.62, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.55, sheen: 0.8 },
   // Painted metal: a little of the metal under the paint shows in the shine, and the lacquer over it is glassy.
   enamel: { roughness: 0.34, metalness: 0.55, clearcoat: 1, clearcoatRoughness: 0.12, envMapIntensity: 1.1 },
   // Sand-cast metal: rough and even, with no mirror in it.
@@ -64,6 +66,11 @@ export function makeSurface(name: string | undefined, tier: TierSettings): Surfa
     clearcoat: tier.clearcoat ? r.clearcoat ?? 0 : 0, clearcoatRoughness: r.clearcoatRoughness ?? 0,
     envMapIntensity: r.envMapIntensity ?? 1, transparent: true, side: r.doubleSided ? DoubleSide : 0,
   }) as Surface;
+  if (r.sheen) {
+    m.sheen = r.sheen;
+    m.sheenRoughness = 0.5;
+    m.sheenColor.setRGB(1, 0.9, 0.88);
+  }
   m.userData = { base: r.opacity ?? 1, glow: r.emissive ?? 0 };
   if (name === 'glass') m.depthWrite = false;
   if (name === 'section') hatched(m);

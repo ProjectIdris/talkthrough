@@ -52,6 +52,44 @@ export function latheGeometry(profile: readonly Vec2[], sides: number): BufferGe
   return toCreasedNormals(geo, sides <= 8 ? 0.4 : 0.9);
 }
 
+/**
+ * A cylinder (or an elliptic one: `sz` is its depth) with a small rounded rim, so its edge catches the light instead of ending in a razor line.
+ * The rim is a quarter circle of about a seventh of the smaller of the radius and half the height, at most 0.12 (the same limit as a box's rounding).
+ */
+export function roundedCylinderGeometry(sx: number, sy: number, sz: number, sides: number): BufferGeometry {
+  const r = Math.max(1e-4, sx / 2), h = Math.max(1e-4, sy);
+  const b = Math.min(0.12, Math.min(r, h / 2) * 0.14);
+  const profile: Vec2[] = [[0, -h / 2]];
+  const steps = 4;
+  for (let k = 0; k <= steps; k++) {
+    const a = (k / steps) * (Math.PI / 2);
+    profile.push([r - b + b * Math.sin(a), -h / 2 + b - b * Math.cos(a)]);
+  }
+  for (let k = steps; k >= 0; k--) {
+    const a = (k / steps) * (Math.PI / 2);
+    profile.push([r - b + b * Math.sin(a), h / 2 - b + b * Math.cos(a)]);
+  }
+  profile.push([0, h / 2]);
+  const geo = latheGeometry(profile, sides);
+  return geo.scale(1, 1, sz / Math.max(sx, 1e-6));
+}
+
+/**
+ * Light to shade over a blob: its vertices get a colour from the way each faces (up a little lighter, down a good deal darker), which the
+ * material multiplies into its own colour. One flat colour made soft tissue read as a cut-out.
+ */
+export function shadeByHeight(geo: BufferGeometry): void {
+  const normal = geo.getAttribute('normal');
+  if (!normal) return;
+  const colour = new Float32Array(normal.count * 3);
+  for (let i = 0; i < normal.count; i++) {
+    const up = normal.getY(i) * 0.5 + 0.5;
+    const v = 0.72 + 0.36 * up;
+    colour[i * 3] = v; colour[i * 3 + 1] = v; colour[i * 3 + 2] = v;
+  }
+  geo.setAttribute('color', new BufferAttribute(colour, 3));
+}
+
 /** Points along the path: smooth (a spline) for tubes, straight between the points for lines. */
 export function samplePath(pts: readonly Vec3[], smooth: boolean, perSegment: number): Vec3[] {
   const raw = pts.map((p) => [p[0], p[1], p[2]]);

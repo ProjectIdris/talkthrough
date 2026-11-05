@@ -15,7 +15,7 @@ import {
 import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
-import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, samplePath, tubeGeometry } from './geometry.ts';
+import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { TIERS, applySurface, makeSurface } from './materials.ts';
 import type { Surface, Tier } from './materials.ts';
@@ -194,6 +194,7 @@ export class PanelScene {
     const material = 'material' in def ? def.material : undefined;
     const addMesh: AddMesh = (geo, surfaceName, edges) => {
       const surface = makeSurface(surfaceName, settings);
+      if (geo.getAttribute('color')) surface.vertexColors = true;
       const mesh = new Mesh(geo, surface);
       mesh.castShadow = settings.shadows;
       mesh.receiveShadow = settings.shadows;
@@ -216,7 +217,11 @@ export class PanelScene {
       }
       case 'text': this.buildText(node, o); break;
       case 'tube': case 'line': case 'arrow': this.buildPath(node, o, addMesh); break;
-      default: node.obj = addMesh(this.solidGeometry(def), material, def.shape !== 'blob' && ('edges' in def ? def.edges !== false : true));
+      default: {
+        const geo = this.solidGeometry(def);
+        if (def.shape === 'blob') shadeByHeight(geo);
+        node.obj = addMesh(geo, material, def.shape !== 'blob' && ('edges' in def ? def.edges !== false : true));
+      }
     }
     if (node.obj instanceof Sprite) node.baseScale = node.obj.scale.clone();
     return node;
@@ -250,7 +255,7 @@ export class PanelScene {
       case 'sphere': return new SphereGeometry(0.5, d.curve, Math.round(d.curve * 0.6)).scale(...(def as { size: Vec3 }).size);
       case 'cylinder': {
         const [sx, sy, sz] = (def as { size: Vec3 }).size;
-        return new CylinderGeometry(sx / 2, sx / 2, sy, d.curve).scale(1, 1, sz / Math.max(sx, 1e-6));
+        return roundedCylinderGeometry(sx, sy, sz, d.curve);
       }
       case 'cone': {
         const [sx, sy, sz] = (def as { size: Vec3 }).size;

@@ -106,3 +106,31 @@ test('a tube that arches over never twists: its rings turn smoothly where the pa
   for (let i = 1; i < path.length; i++) worst = Math.max(worst, ringVertex(i).angleTo(ringVertex(i - 1)));
   assert.ok(worst < 0.5, `the largest turn from one ring to the next is ${((worst * 180) / Math.PI).toFixed(0)} degrees`);
 });
+
+// ---- solids that read as objects -----------------------------------------------------------------
+
+test('a plain cylinder has a rounded rim, a blob is lit from above to below, and tissue has a soft edge light', async () => {
+  const { roundedCylinderGeometry, shadeByHeight } = await import('../src/overlay/geometry.ts');
+  const { makeSurface, TIERS } = await import('../src/overlay/materials.ts');
+  const cyl = roundedCylinderGeometry(2, 3, 2, 24);
+  cyl.computeBoundingBox();
+  const size = cyl.boundingBox!.getSize(new Vector3());
+  assert.ok(Math.abs(size.x - 2) < 1e-4 && Math.abs(size.y - 3) < 1e-4 && Math.abs(size.z - 2) < 1e-4, `the size asked for: ${size.toArray().join(', ')}`);
+  // Nothing sits on the sharp corner a plain cylinder has: no vertex at the full radius on a cap's plane.
+  const pos = cyl.getAttribute('position');
+  let corner = false;
+  for (let i = 0; i < pos.count; i++) if (Math.abs(Math.abs(pos.getY(i)) - 1.5) < 1e-6 && Math.hypot(pos.getX(i), pos.getZ(i)) > 0.99) corner = true;
+  assert.ok(!corner, 'the rim is rounded off');
+  const blob = roundedCylinderGeometry(2, 2, 2, 12);
+  shadeByHeight(blob);
+  const colour = blob.getAttribute('color');
+  const normal = blob.getAttribute('normal');
+  let top = 0, bottom = 0;
+  for (let i = 0; i < normal.count; i++) {
+    if (normal.getY(i) > 0.99) top = colour.getX(i);
+    if (normal.getY(i) < -0.99) bottom = colour.getX(i);
+  }
+  assert.ok(top > bottom + 0.2, `lighter facing up (${top.toFixed(2)}) than down (${bottom.toFixed(2)})`);
+  assert.ok(makeSurface('tissue', TIERS.high).sheen > 0, 'tissue has a sheen');
+  assert.equal(makeSurface('metal', TIERS.high).sheen, 0);
+});
