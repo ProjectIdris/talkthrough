@@ -21,7 +21,7 @@ const api: TalkthroughApi = {
   pointerHeld: (on) => ipcRenderer.send(CHANNEL.pointerHeld, on === true),
   modelHit: (result) => ipcRenderer.send(CHANNEL.modelHit, result),
   guideReady: (token, revision) => ipcRenderer.send(CHANNEL.guideReady, token, revision),
-  rendered: (token) => ipcRenderer.send(CHANNEL.rendered, token),
+  rendered: (token, metadata) => metadata === undefined ? ipcRenderer.send(CHANNEL.rendered, token) : ipcRenderer.send(CHANNEL.rendered, token, metadata),
   done: () => ipcRenderer.send(CHANNEL.done),
   offer: () => ipcRenderer.send(CHANNEL.offer),
   buttons: (list) => ipcRenderer.send(CHANNEL.buttons, Array.isArray(list) ? list : []),

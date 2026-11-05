@@ -22,6 +22,16 @@ test('several scene files make one thread', () => {
   assert.deepEqual(o.grab?.scenes, ['a.json', 'b.json']);
 });
 
+test('grab layout attempts are bounded and optional', () => {
+  const base = ['--grab', 'a.json', '--out', 'o'];
+  assert.equal(parseArgs(base).grab?.layoutSeeks, undefined);
+  assert.equal(parseArgs([...base, '--layout-seeks', '0']).grab?.layoutSeeks, undefined);
+  assert.equal(parseArgs([...base, '--layout-seeks', '30', '--grab-metadata']).grab?.layoutSeeks, 30);
+  assert.equal(parseArgs([...base, '--layout-seeks', '30', '--grab-metadata']).grab?.metadata, true);
+  for (const n of ['-1', '121', '1.5', 'NaN']) assert.throws(() => parseArgs([...base, '--layout-seeks', n]), /layout-seeks/);
+  assert.throws(() => parseArgs(['--layout-seeks', '2']), /--grab/);
+});
+
 test('bad values are refused with a clear message', () => {
   assert.throws(() => parseSteps('x:1'), /bad --steps/);
   assert.throws(() => parseSteps('1:-2'), /bad --steps/);

@@ -1496,7 +1496,23 @@ function applyScene(message: SceneMessage): void {
       fader.disarm();
       player.seek(placedScene(message.scene), message.step, message.t, message.view);
       draw(player.update());
-      void painted().then(() => window.talkthrough.rendered(message.token));
+      if (message.captureMetadata) {
+        void painted().then(() => {
+          const camera = lastDisplayedFrame?.panel && modelRect ? lastDisplayedFrame.camera : null;
+          if (seekClock === undefined || !Number.isFinite(seekClock) || (camera && ![camera.az, camera.el, camera.zoom].every(Number.isFinite))) {
+            window.talkthrough.rendered(message.token);
+            return;
+          }
+          const world = panelScene.camera;
+          const position: [number, number, number] = [world.position.x, world.position.y, world.position.z];
+          const quaternion: [number, number, number, number] = [world.quaternion.x, world.quaternion.y, world.quaternion.z, world.quaternion.w];
+          window.talkthrough.rendered(message.token, {
+            seekClock,
+            camera: camera ? { az: camera.az, el: camera.el, zoom: camera.zoom } : null,
+            worldCamera: camera && [...position, ...quaternion].every(Number.isFinite) ? { position, quaternion } : null,
+          });
+        });
+      } else void painted().then(() => window.talkthrough.rendered(message.token));
       break;
   }
   request();

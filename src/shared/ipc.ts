@@ -58,6 +58,8 @@ export type PageAction = { what: 'settings' | 'hearing' | 'pin' } | { what: 'cop
 
 /** A frame grab can show the model as a person has left it: turned, zoomed or opened. Camera angles in degrees, explode 0 closed to 1 open; any left out stay as the scene has them. */
 export type SeekView = { az?: number; el?: number; zoom?: number; explode?: number };
+/** Observed at a requested capture acknowledgement; null camera means no drawn stage. */
+export type CaptureMetadata = { seekClock: number; camera: { az: number; el: number; zoom: number } | null; worldCamera: { position: [number, number, number]; quaternion: [number, number, number, number] } | null };
 
 /** Part of one pen stroke: points are appended per id; coordinates run 0..1000 across the whole overlay window. */
 export type Stroke = { id: number; points: Array<[number, number]>; done: boolean; /** The stroke `id` was taken back (undo): drop it, with its points, from what is sent to the model. */ removed?: true };
@@ -113,7 +115,7 @@ export type SceneMessage =
    * Frame grabs: stop the clock and draw the scene as it is `t` seconds into step `step`
    * (earlier steps complete), with no speech. Once painted, answer with `rendered(token)`.
    */
-  | { kind: 'seek'; scene: Scene; step: number; t: number; token: number; view?: SeekView }
+  | { kind: 'seek'; scene: Scene; step: number; t: number; token: number; view?: SeekView; captureMetadata?: true }
   /**
    * Live turns, while a model is still writing. `begin` starts a turn (1 = fresh scene, later = continues),
    * each `step` is one validated step to append (the first starts at once, the rest queue behind it), and
@@ -357,7 +359,7 @@ export interface TalkthroughApi {
   pointerHeld(on: boolean): void;
   modelHit(result: { x: number; y: number; revision: number; hit: boolean }): void;
   guideReady(token: number, revision: number): void;
-  rendered(token: number): void;
+  rendered(token: number, metadata?: CaptureMetadata): void;
   done(): void;
   /** The user clicked the escalation offer. */
   offer(): void;

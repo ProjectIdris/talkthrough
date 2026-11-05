@@ -8,7 +8,7 @@ export type Options = {
    * Draw these scene files offscreen at the given moments, write PNGs, and quit. Several files are
    * played as turns of one thread (a follow-up continues the scene before it), their steps numbered on.
    */
-  grab?: { scenes: string[]; steps: GrabStep[]; out: string; width: number; height: number; scaleFactor: number };
+  grab?: { scenes: string[]; steps: GrabStep[]; out: string; width: number; height: number; scaleFactor: number; layoutSeeks?: number; metadata?: boolean };
   /** An image shown behind the drawing (frame grabs only). */
   backdrop?: string;
   /** Quit by itself after this many seconds (for any on-screen run). */
@@ -96,6 +96,8 @@ export function parseArgs(argv: readonly string[]): Options {
   let grabScene: string | undefined;
   let grabSteps: GrabStep[] = [{ step: 0, t: 0 }];
   let grabOut: string | undefined;
+  let layoutSeeks: number | undefined;
+  let grabMetadata = false;
   let size = { width: 1280, height: 720 };
   let scaleFactor = 1;
   for (let i = 0; i < argv.length; i++) {
@@ -104,6 +106,8 @@ export function parseArgs(argv: readonly string[]): Options {
       case '--grab': grabScene = value(i, a); i++; break;
       case '--steps': grabSteps = parseSteps(value(i, a)); i++; break;
       case '--out': grabOut = value(i, a); i++; break;
+      case '--layout-seeks': layoutSeeks = Number(value(i, a)); i++; break;
+      case '--grab-metadata': grabMetadata = true; break;
       case '--size': size = parseSize(value(i, a)); i++; break;
       case '--scale': scaleFactor = Number(value(i, a)); i++; break;
       case '--backdrop': options.backdrop = value(i, a); i++; break;
@@ -157,10 +161,12 @@ export function parseArgs(argv: readonly string[]): Options {
     }
   }
   if (options.detailAfter !== undefined && !(options.detailAfter >= 0)) throw new Error('--detail-after must be zero or more seconds');
+  if (layoutSeeks !== undefined && (!Number.isInteger(layoutSeeks) || layoutSeeks < 0 || layoutSeeks > 120)) throw new Error('--layout-seeks must be an integer from 0 to 120');
+  if (grabScene === undefined && (layoutSeeks !== undefined || grabMetadata)) throw new Error('--layout-seeks and --grab-metadata require --grab');
   if (grabScene !== undefined) {
     if (grabOut === undefined) throw new Error('--grab needs --out <folder>');
     if (!(scaleFactor > 0)) throw new Error('--scale must be a positive number');
-    options.grab = { scenes: grabScene.split(","), steps: grabSteps, out: grabOut, ...size, scaleFactor };
+    options.grab = { scenes: grabScene.split(","), steps: grabSteps, out: grabOut, ...size, scaleFactor, ...(layoutSeeks ? { layoutSeeks } : {}), ...(grabMetadata ? { metadata: true } : {}) };
   }
   if (options.maxSeconds !== undefined && !(options.maxSeconds > 0)) throw new Error('--max-seconds must be positive');
   return options;
