@@ -267,12 +267,13 @@ test('the raw text of both calls is reported once, in order', async () => {
   }
 });
 
-test('the later calls are reminded that a figure adds what the page lacks and follows what the page shows (the second call of two, and each next step)', () => {
+test('the later calls are reminded that the question sets the task and the page is material, never a subject to report on (the second call of two, and each next step)', () => {
   const rest = questionText({ ...request, stage: { part: 'rest', first: { say: 'Hello.', actions: [] } } });
   const next = questionText({ ...request, stage: { part: 'next', n: 2, shown: [{ say: 'Hello.', actions: [] }], plan: ['x'] } });
   for (const text of [rest, next]) {
-    assert.match(text, /A figure adds what the page lacks and follows what the page shows: never draw again what the page already has/);
-    assert.match(text, /where the page has none say that it is general knowledge/);
+    assert.match(text, /The question sets the task; the page is material/);
+    assert.match(text, /Never draw again what the page already has/);
+    assert.match(text, /never a subject to report on: do not say where knowledge comes from/);
     assert.ok(text.includes('What the page only says in words (a rearrangement, a process) a step draws and does not only speak'));
   }
 });
