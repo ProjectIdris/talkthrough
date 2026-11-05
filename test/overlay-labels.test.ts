@@ -283,3 +283,16 @@ test('a card too small for the tags does not leave them unplaced', () => {
   const p = b.place(1, { anchor: cardAnchors[0] as Pt, w: 130, h: 32 }, () => cardEnv());
   assert.ok(p.rect.w === 130 && p.rect.x >= 0 && p.rect.y >= 0);
 });
+
+test('with a card round the model, a tag is wholly inside it or wholly outside it: never cut by its edge', () => {
+  const card: Rect = { x: 740, y: 280, w: 620, h: 420 };
+  const b = new LabelBoard();
+  b.beginFrame({ width: W, height: H, model: MODEL, dragging: false, now: 0, within: card });
+  const e = env();
+  // Eight tags of 150 x 36 cannot all fit in what the card leaves round the model.
+  const spots: Pt[] = [{ x: 900, y: 380 }, { x: 1000, y: 420 }, { x: 1100, y: 500 }, { x: 1200, y: 480 }, { x: 860, y: 480 }, { x: 960, y: 300 }, { x: 1150, y: 330 }, { x: 1000, y: 500 }];
+  const rects = spots.map((anchor, i) => b.place(i + 1, { anchor, ...SIZE }, () => e).rect);
+  const touches = (r: Rect) => r.x < card.x + card.w && r.x + r.w > card.x && r.y < card.y + card.h && r.y + r.h > card.y;
+  const inside = (r: Rect) => r.x >= card.x && r.y >= card.y && r.x + r.w <= card.x + card.w && r.y + r.h <= card.y + card.h;
+  for (const [i, r] of rects.entries()) assert.ok(inside(r) || !touches(r), `tag ${i} straddles the card's edge: ${JSON.stringify(r)}`);
+});

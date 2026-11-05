@@ -344,7 +344,7 @@ test('a mark written inside the rectangle a diagram was asked for goes with the 
   assert.equal(followDiagram(placer, ring, 16 / 9), undefined);
 });
 
-test('with no blank place the size asked for, a diagram becomes taller and narrower to sit in a margin rather than over the text', () => {
+test('explanation first: with no blank place the size asked for, a diagram keeps its size and shape and sits over the text, rather than shrinking or narrowing into a margin', () => {
   const COLS = 192, ROWS = 108;
   const gray = new Uint8Array(COLS * ROWS);
   // Text fills the middle of the page (columns 25% to 75%); the margins either side are blank.
@@ -352,10 +352,9 @@ test('with no blank place the size asked for, a diagram becomes taller and narro
   const placer = new Placer(pageGrid(gray, COLS, ROWS), { aspect: 16 / 9 });
   const placed = placeAction(placer, { op: 'diagram', id: 'p', kind: 'steps', x: 300, y: 500, w: 420, h: 300 } as Action, 1080) as { x: number; y: number; w: number; h: number };
   const text = { x: 250, y: 60, w: 500, h: 940 };
-  assert.ok(!overlap(placed, text), `off the text: ${JSON.stringify(placed)}`);
-  assert.ok(placed.w < 420 && placed.w >= 150, `narrower: ${placed.w}`);
-  assert.ok(placed.h > 300, `and taller: ${placed.h}`);
-  assert.ok(placed.w * placed.h >= 420 * 300 * 0.7, 'with most of the area it asked for');
+  void text;
+  assert.equal(placed.w, 420, `not narrowed: ${JSON.stringify(placed)}`);
+  assert.equal(placed.h, 300, 'and not shrunk');
   // A blank place the size asked for is still taken as asked.
   const roomy = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(238), COLS, ROWS), { aspect: 16 / 9 });
   const asked = placeAction(roomy, { op: 'diagram', id: 'q', kind: 'steps', x: 300, y: 500, w: 420, h: 300 } as Action, 1080);
@@ -459,7 +458,7 @@ test('only the marks that belong to a diagram are drawn over its card: of two id
   assert.deepEqual(splitOwned(frames, new Set()).over, []);
 });
 
-test('a chart that is moved keeps a sensible shape: never squeezed into a strip, so it takes a smaller size or stays rather than a narrow margin', () => {
+test('a chart that is moved keeps the shape and size it was asked for: never squeezed into a strip or shrunk to keep off the page text', () => {
   const COLS = 192, ROWS = 108;
   const gray = new Uint8Array(COLS * ROWS);
   // Text over the left 82% of the page: the only blank part is a strip on the right that is too narrow for a chart of its asked shape.
@@ -468,11 +467,9 @@ test('a chart that is moved keeps a sensible shape: never squeezed into a strip,
   const placer = new Placer(pageGrid(gray, COLS, ROWS), { aspect });
   const want = { op: 'diagram', id: 'c', kind: 'chart', x: 100, y: 200, w: 340, h: 380 } as Action;
   const placed = placeAction(placer, want, 1080) as typeof want & { x: number; y: number; w: number; h: number };
-  assert.ok((placed.w / placed.h) * aspect >= 1.1 - 1e-6, `width to height on the screen is ${((placed.w / placed.h) * aspect).toFixed(2)}: ${JSON.stringify(placed)}`);
-  assert.ok(placed.w * placed.h >= 340 * 380 * 0.4, 'and it is not shrunk to nothing');
-  // A list of steps may still be a strip.
-  const strip = placeAction(new Placer(pageGrid(gray, COLS, ROWS), { aspect }), { op: 'diagram', id: 's', kind: 'steps', x: 100, y: 200, w: 340, h: 380 } as Action, 1080) as typeof want & { w: number; h: number };
-  assert.ok((strip.w / strip.h) * aspect < 1, `a steps list is allowed to be narrow: ${JSON.stringify(strip)}`);
+  assert.ok(placed.w === 340 && placed.h === 380, `as asked: ${JSON.stringify(placed)}`);
+  const steps = placeAction(new Placer(pageGrid(gray, COLS, ROWS), { aspect }), { op: 'diagram', id: 's', kind: 'steps', x: 100, y: 200, w: 340, h: 380 } as Action, 1080) as typeof want & { w: number; h: number };
+  assert.ok(steps.w === 340 && steps.h === 380, `a list of steps too: ${JSON.stringify(steps)}`);
 });
 
 test('a flow refuses nodes below a readable size: its card grows to the least size at which they read, and is left alone when they already do or never would', () => {

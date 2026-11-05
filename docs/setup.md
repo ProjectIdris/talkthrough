@@ -36,6 +36,10 @@ Do the thing that went wrong, quit from the tray, and read `talkthrough-log.txt`
 
 Talkthrough needs two things outside itself: a way to hear you and a model.
 
+## Graphics
+
+The overlay is drawn by the graphics card by default, with antialiasing, soft shadows and ambient occlusion. A machine with no usable card runs on Chromium's software rasteriser by itself, at a lighter quality tier. To force the software path (to see what such a machine sees, or to rule the driver out), start with `--software` or set `TALKTHROUGH_SOFTWARE=1`. `--gpu` and `TALKTHROUGH_GPU=1`, the old switch for leaving the card on, are still accepted and now change nothing.
+
 ## Settings
 
 Open **Settings…** from the tray icon. One window has the route and model, the detail route, the voice (the system voice, or a voice server's address), the speech recogniser's address, the two keys held to ask, the windows to skip, the two switches (*let a guide act for me*, *place marks on real controls*; both off until you turn them on, each with a line saying what it does) and the API key. Saving writes the file below, through the same checks as the file: a value that does not pass (an http voice address that is not on this computer, two keys that are the same) is not saved, and the window says why. Changes take effect when Talkthrough restarts (the window has a button for that), except the list of windows to skip, which protects as soon as it is saved.

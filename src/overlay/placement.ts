@@ -219,10 +219,12 @@ const POINTED_HIT = 1.5;
  * a width and a height (units; about a quarter of the screen across) that leave the cards after it their room. A model drawn into a few hundred pixels of a large screen is hard to read and to turn.
  */
 const STAGE_GROW = 2;
-const STAGE_BIGGEST = { w: 260, h: 440 };
+const STAGE_BIGGEST = { w: 320, h: 560 };
 /** Growth under this factor is not worth moving the stage for. */
 const STAGE_GROW_LEAST = 1.12;
 
+/** A place has to be this much cheaper (a few percent of the page's text under it) before a card, diagram or stage leaves where it was asked for: text may be covered when that reads better. */
+const MOVE_WORTH = 8;
 const TOP_BAND = 200;
 const TOP_COST = 6;
 
@@ -344,13 +346,17 @@ export class Placer {
     // Nowhere is free (the whole page is text): do not shuffle it about, leave it where the model put it.
     // (Unless where it was written is on the page's controls or figures and the best place is not: then it moves, onto the prose.)
     if (this.ink.mean(best) > 0.3 && this.fixtures.mean(best) >= this.fixtures.mean(home)) return home;
-    return homeCost - bestCost < 0.25 ? home : best;
+    return homeCost - bestCost < (keepOut.some((r) => overlap(home, r) > 0) ? 0.25 : MOVE_WORTH) ? home : best;
   }
 
   /** Where the stage goes: the nearest rectangle of its shape (or a little smaller) that is off the page's text and what is pointed at. */
   panel(want: Box): Box {
     // What the answer points at is what the stage explains or sits beside: covering it counts for three times what covering the page's text does.
-    const placed = this.enlarge(this.search(want, [1, 0.88, 0.76, 0.64, 0.52], [...this.reserved, ...this.reserved, ...this.reserved]));
+    // Explanation first: the stage keeps the size it was asked for (it moves to the quietest place of that size, and may sit over page text if that
+    // is where it reads best); it is made smaller only when no place of its size is clear of what the answer points at.
+    const keep = [...this.reserved, ...this.reserved, ...this.reserved];
+    const full = this.search(want, [1], keep);
+    const placed = this.enlarge(this.reserved.some((r) => overlap(full, r) > 0) ? this.search(want, [1, 0.88, 0.76, 0.64, 0.52], keep) : full);
     this.stage = placed;
     return placed;
   }
@@ -365,26 +371,45 @@ export class Placer {
     if (!(most >= STAGE_GROW_LEAST)) return box;
     const avoid = [...this.reserved, ...this.cards.values()];
     const lo = this.margin;
-    for (let f = most; f >= STAGE_GROW_LEAST - 1e-9; f -= 0.1) {
-      const w = box.w * f, h = box.h * f;
-      const anchors: Array<[number, number]> = [
-        [box.x + (box.w - w) / 2, box.y + (box.h - h) / 2], // about the centre
-        [box.x, box.y], [box.x + box.w - w, box.y], [box.x, box.y + box.h - h], [box.x + box.w - w, box.y + box.h - h], // from each corner
-      ];
-      for (const [ax, ay] of anchors) {
-        const x = clamp(ax, lo, 1000 - lo - w), y = clamp(ay, lo, 1000 - lo - h);
-        const grown = { x, y, w, h };
-        const padded = { x: x - 6, y: y - 10, w: w + 12, h: h + 20 };
-        if (this.ink.mean(padded) >= BLANK || avoid.some((r) => overlap(grown, r) > 0)) continue;
-        return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+    const grow = (blankOnly: boolean): { box: Box; f: number } | undefined => {
+      for (let f = most; f >= STAGE_GROW_LEAST - 1e-9; f -= 0.1) {
+        const w = box.w * f, h = box.h * f;
+        const anchors: Array<[number, number]> = [
+          [box.x + (box.w - w) / 2, box.y + (box.h - h) / 2], // about the centre
+          [box.x, box.y], [box.x + box.w - w, box.y], [box.x, box.y + box.h - h], [box.x + box.w - w, box.y + box.h - h], // from each corner
+        ];
+        let best: { box: Box; cost: number } | undefined;
+        for (const [ax, ay] of anchors) {
+          const x = clamp(ax, lo, 1000 - lo - w), y = clamp(ay, lo, 1000 - lo - h);
+          const grown = { x, y, w, h };
+          const padded = { x: x - 6, y: y - 10, w: w + 12, h: h + 20 };
+          if (avoid.some((r) => overlap(grown, r) > 0)) continue;
+          if (blankOnly && this.ink.mean(padded) >= BLANK) continue;
+          const cost = blankOnly ? 0 : this.edge.mean(grown) * 6 + this.prose.mean(padded) * 30 + this.fixtures.mean(padded) * 30 * FIXTURE_COST;
+          if (!best || cost < best.cost) best = { box: { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) }, cost };
+          if (blankOnly) break;
+        }
+        if (best) return { box: best.box, f };
       }
-    }
-    return box;
+      return undefined;
+    };
+    // Into blank page first; when that gives only a little of what the stage could have, into page text too (an explanation is the priority, and
+    // text under a stage is the lesser loss), still never over what the answer points at or over the cards.
+    const blank = grow(true);
+    if (blank && blank.f >= most - 0.15) return blank.box;
+    const over = grow(false);
+    if (over && over.f > (blank?.f ?? 1) + 0.2) return over.box;
+    return blank?.box ?? box;
+  }
+
+  /** The stage as something to keep a card or diagram off: it counts several times over, because the model in it is what is being explained. */
+  private stageKeepOut(): Box[] {
+    return this.stage ? Array.from({ length: 8 }, () => this.stage as Box) : [];
   }
 
   /** Where a card or crop goes: the nearest free place, keeping out of the stage, the other cards and what is pointed at. */
   card(want: Box, id?: string): Box {
-    const keepOut = [...this.reserved, ...this.cards.values(), ...(this.stage ? [this.stage] : [])];
+    const keepOut = [...this.reserved, ...this.cards.values(), ...this.stageKeepOut()];
     const placed = this.search(want, [1], keepOut, [1], 0, true);
     this.cards.set(id ?? `#${this.cards.size}`, placed);
     return placed;
@@ -392,12 +417,18 @@ export class Placer {
 
   /** Where a flat diagram goes: like a card, but it may also be a little smaller, down to three quarters (its drawing scales to its rectangle, and its small print needs the room). */
   diagram(want: Box, id: string, asked: Box = want, minRatio = 0): Box {
-    const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...(this.stage ? [this.stage] : [])];
+    const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...this.stageKeepOut()];
     // What the answer points at is what the diagram explains: keeping off it counts for three times as much as it does for a card.
     // It may also be taller and narrower (down to 0.6 of the width), to fit a margin or the gap beside a column of text instead of covering the text.
     // A kind that is spoilt by a strip (a chart) has a least width to height; it gives up size before shape, down to 0.64.
     // It goes smaller before it covers the page's controls or figures: down to what it can still be read at (DIAGRAM_MIN_SIZE).
-    const placed = this.search(want, [1, 0.88, 0.76, 0.64], [...keepOut, ...this.reserved, ...this.reserved], [1, 0.8, 0.65, 0.55, 0.5], 150, true, minRatio, DIAGRAM_MIN_SIZE);
+    // Explanation first: it keeps the size and the shape it was asked for, and goes to the quietest place of that size, over page text if that reads best.
+    // Only when no such place is clear of what the answer points at, the cards and the stage does it go smaller or narrower, as before.
+    const keep = [...keepOut, ...this.reserved, ...this.reserved];
+    const full = this.search(want, [1], keep, [1], 0, true, minRatio, DIAGRAM_MIN_SIZE);
+    const placed = keepOut.some((r) => overlap(full, r) > 0)
+      ? this.search(want, [1, 0.88, 0.76, 0.64], keep, [1, 0.8, 0.65, 0.55, 0.5], 150, true, minRatio, DIAGRAM_MIN_SIZE)
+      : full;
     this.cards.set(id, placed);
     this.homes.set(id, { from: asked, to: placed });
     return placed;
@@ -410,7 +441,7 @@ export class Placer {
    */
   regrow(id: string, grown: Box): Box | undefined {
     const was = this.cards.get(id) ?? this.homes.get(id)?.to ?? grown;
-    const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...(this.stage ? [this.stage] : [])];
+    const keepOut = [...this.reserved, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...this.stageKeepOut()];
     const placed = this.search(grown, [1], [...keepOut, ...this.reserved, ...this.reserved], [1], 0, true);
     if (this.coverage(placed, keepOut) > this.coverage(was, keepOut) + GROWTH_COVER_SLACK) return undefined;
     this.cards.set(id, placed);

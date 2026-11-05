@@ -9,17 +9,18 @@
 
 import {
   AmbientLight, Box3, BufferGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight, EdgesGeometry, Euler,
-  Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Material, Mesh, MeshBasicMaterial, Object3D,
+  Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Material, Matrix4, Mesh, MeshBasicMaterial, Object3D,
   PerspectiveCamera, PlaneGeometry, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector3,
 } from 'three';
 import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
-import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, samplePath, tubeGeometry } from './geometry.ts';
+import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { TIERS, applySurface, makeSurface } from './materials.ts';
 import type { Surface, Tier } from './materials.ts';
 import { buildPart } from './parts.ts';
+import { TAG_HEIGHT_FACTOR, tagTextPx } from './theme.ts';
 import { convexHull } from './labels.ts';
 import type { Pt } from './labels.ts';
 import type { Piece } from './parts.ts';
@@ -45,7 +46,19 @@ export const FRAMING_UNITS = 12;
 /** The sphere round the model gets this much room on the stage, and the camera never comes nearer than this to it (world units). */
 const FIT_MARGIN = 1.1;
 const MIN_FIT_DISTANCE = 0.8;
+/** Text in the scene is drawn as tall as a tag on screen, and at most this many times that, so it reads like the tags beside it and a big stage does not make it outweigh them. */
+const MAX_TEXT_OVER_TAG = 1.3;
 const PATH_RADIUS = 0.06;
+function boxCorners(box: Box3, matrix: Matrix4 | undefined): Vector3[] {
+  const out: Vector3[] = [];
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+    const v = new Vector3(x, y, z);
+    out.push(matrix ? v.applyMatrix4(matrix) : v);
+  }
+  return out;
+}
+/** A part as the camera's fit sees it: its bounding sphere and the eight corners of its own box. */
+type PartHull = { sphere: Sphere; corners: Vector3[] };
 const DEG = Math.PI / 180;
 
 type CanvasLike = HTMLCanvasElement | OffscreenCanvas;
@@ -113,6 +126,10 @@ export class PanelScene {
   /** The framing sphere the camera is using, which eases to the model's own as parts come and go. */
   private shownFit: { center: Vector3; radius: number } | undefined;
   private fitClock: number | undefined;
+  /** The visible parts' bounding spheres and box corners at rest (no machine pose, no pulse), worked out in `sync` for the camera's fit. */
+  private restSpheres: PartHull[] = [];
+  /** Where the text sprites were put on screen by the last `tidyTexts` (window pixels): what is drawn includes them. */
+  private textRects: ScreenRect[] = [];
   private settling = false;
   private cutaway = new Cutaway();
 
@@ -180,6 +197,7 @@ export class PanelScene {
     const material = 'material' in def ? def.material : undefined;
     const addMesh: AddMesh = (geo, surfaceName, edges) => {
       const surface = makeSurface(surfaceName, settings);
+      if (geo.getAttribute('color')) surface.vertexColors = true;
       const mesh = new Mesh(geo, surface);
       mesh.castShadow = settings.shadows;
       mesh.receiveShadow = settings.shadows;
@@ -202,7 +220,11 @@ export class PanelScene {
       }
       case 'text': this.buildText(node, o); break;
       case 'tube': case 'line': case 'arrow': this.buildPath(node, o, addMesh); break;
-      default: node.obj = addMesh(this.solidGeometry(def), material, def.shape !== 'blob' && ('edges' in def ? def.edges !== false : true));
+      default: {
+        const geo = this.solidGeometry(def);
+        if (def.shape === 'blob') shadeByHeight(geo);
+        node.obj = addMesh(geo, material, def.shape !== 'blob' && ('edges' in def ? def.edges !== false : true));
+      }
     }
     if (node.obj instanceof Sprite) node.baseScale = node.obj.scale.clone();
     return node;
@@ -236,7 +258,7 @@ export class PanelScene {
       case 'sphere': return new SphereGeometry(0.5, d.curve, Math.round(d.curve * 0.6)).scale(...(def as { size: Vec3 }).size);
       case 'cylinder': {
         const [sx, sy, sz] = (def as { size: Vec3 }).size;
-        return new CylinderGeometry(sx / 2, sx / 2, sy, d.curve).scale(1, 1, sz / Math.max(sx, 1e-6));
+        return roundedCylinderGeometry(sx, sy, sz, d.curve);
       }
       case 'cone': {
         const [sx, sy, sz] = (def as { size: Vec3 }).size;
@@ -304,25 +326,38 @@ export class PanelScene {
     if (!probe) return;
     const font = `700 ${fontPx}px system-ui, "Segoe UI", Roboto, sans-serif`;
     probe.font = font;
-    const pad = 16;
-    const width = Math.max(16, Math.ceil(probe.measureText(text).width) + pad * 2);
-    const height = fontPx + pad * 2;
+    // The same look as a tag (a dark pill, a dot in the object's colour, white text), not an outlined word: it reads over bars, shadows and the page.
+    const dot = fontPx * 0.4, padX = fontPx * 0.8, padY = fontPx * 0.55, gap = fontPx * 0.35; // a tag's proportions
+    const textW = Math.ceil(probe.measureText(text).width);
+    const width = Math.ceil(padX + dot + gap + textW + padX);
+    const height = Math.ceil(fontPx + padY * 2);
     const canvas = make(width, height);
     const ctx = canvas.getContext('2d') as CanvasRenderingContext2D | null;
     if (!ctx) return;
+    const r = height / 2;
+    ctx.fillStyle = 'rgba(20,24,36,1)';
+    ctx.beginPath();
+    ctx.moveTo(r, 0);
+    ctx.lineTo(width - r, 0);
+    ctx.arc(width - r, r, r, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(r, height);
+    ctx.arc(r, r, r, Math.PI / 2, (3 * Math.PI) / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = `rgb(${Math.round(o.color[0])},${Math.round(o.color[1])},${Math.round(o.color[2])})`;
+    ctx.beginPath();
+    ctx.arc(padX + dot / 2, height / 2, dot / 2, 0, Math.PI * 2);
+    ctx.fill();
     ctx.font = font;
     ctx.textBaseline = 'middle';
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = 14;
-    ctx.strokeStyle = 'rgba(8,12,20,0.9)';
-    ctx.strokeText(text, pad, height / 2 + 4);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(text, pad, height / 2 + 4);
+    ctx.fillText(text, padX + dot + gap, height / 2 + 3);
     const texture = new CanvasTexture(canvas as HTMLCanvasElement);
     texture.colorSpace = SRGBColorSpace;
     const mat = new SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
     const sprite = new Sprite(mat);
-    sprite.scale.set((def.height * width) / height, def.height, 1);
+    const shown = (def.height * height) / fontPx; // def.height is the size of the letters; the pill is a little taller
+    sprite.scale.set((shown * width) / height, shown, 1);
     sprite.renderOrder = 999;
     node.obj = sprite;
     node.texture = texture;
@@ -353,7 +388,7 @@ export class PanelScene {
         return { key: o.key, parentKey: o.parentKey, pos: o.pos, ...(explode ? { explode } : {}), ...(o.shape === 'text' ? { fixed: true } : {}) };
       }), frame.userExplode ?? 0)
       : undefined;
-    const layout = (with_: Map<number, Vec3> | undefined): void => {
+    const layout = (with_: Map<number, Vec3> | undefined, rest = false): void => {
       for (const o of frame.objects) {
         live.add(o.key);
         let node = this.nodes.get(o.key);
@@ -372,7 +407,7 @@ export class PanelScene {
         // A part whose parent was swapped for a richer one (an object added again under its id) moves to the new parent.
         const holder = o.parentKey !== null ? this.nodes.get(o.parentKey)?.obj : undefined;
         if (holder && node.obj.parent !== holder && !isAncestor(node.obj, holder)) holder.add(node.obj);
-        this.apply(node, o, o.parentKey !== null ? spreads.get(o.parentKey) ?? 0 : 0, with_?.get(o.key));
+        this.apply(node, o, o.parentKey !== null ? spreads.get(o.parentKey) ?? 0 : 0, with_?.get(o.key), rest);
       }
     };
     // The camera has to stand further back for an opened model than for a closed one: measure how far the parts reach both ways.
@@ -392,19 +427,30 @@ export class PanelScene {
         this.nodes.delete(key);
       }
     }
+    // The camera fits the model at rest: a machine's pose and a part's pulse move parts about, and a camera that followed them would breathe.
+    // So the parts' spheres are taken once with poses and pulses left out, then the frame is laid out as it really stands.
+    if (frame.objects.some((o) => o.pose || o.pulse !== 0)) {
+      layout(offsets, true);
+      this.scene.updateMatrixWorld(true);
+      this.restSpheres = this.partSpheres();
+      layout(offsets);
+    }
     this.scene.updateMatrixWorld(true);
+    if (!frame.objects.some((o) => o.pose || o.pulse !== 0)) this.restSpheres = this.partSpheres();
     this.aim(frame, aspect, view, standBack);
+    if (view) this.tidyTexts(view);
     // The person's Cut goes through the middle of the model from the side the camera looks from.
     this.cutaway.update(frame, this.nodes, this.scene, this.camera.getWorldDirection(new Vector3()).negate());
     this.placeShadow(frame);
   }
 
-  private apply(node: Node, o: ObjectFrame, parentSpread: number, offset?: Vec3): void {
-    const pulse = o.pulse;
+  private apply(node: Node, o: ObjectFrame, parentSpread: number, offset?: Vec3, rest = false): void {
+    const pulse = rest ? 0 : o.pulse;
+    const pose = rest ? undefined : o.pose;
     const grow = 1 + 0.07 * pulse;
     // Spread by the model's own explode, then by the person's control; a machine's pose stands in for the rest values.
-    const at = spreadPosition(o.pose?.pos ?? o.pos, (o.def as { explode?: Vec3 }).explode, parentSpread);
-    const rot = o.pose?.rot ?? o.rot;
+    const at = spreadPosition(pose?.pos ?? o.pos, (o.def as { explode?: Vec3 }).explode, parentSpread);
+    const rot = pose?.rot ?? o.rot;
     node.obj.position.set(at[0] + (offset?.[0] ?? 0), at[1] + (offset?.[1] ?? 0), at[2] + (offset?.[2] ?? 0));
     node.obj.rotation.copy(new Euler(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'XYZ'));
     node.obj.scale.set(node.baseScale.x * o.scale[0] * grow, node.baseScale.y * o.scale[1] * grow, node.baseScale.z * o.scale[2] * grow);
@@ -452,16 +498,13 @@ export class PanelScene {
     // Zoom 1 is the whole model filling the stage, whatever size it was written at (a model of 3 units and one of 30 both fit).
     // The distance comes from a sphere round the visible parts; it also takes in an opened (exploded) model, which is
     // laid out by now, so the camera stands back for it without being told.
-    const fit = this.eased(this.modelSphere(), view?.now);
+    const az = cam.az * DEG, el = Math.max(-89, Math.min(89, cam.el)) * DEG;
+    const fit = this.eased(this.fitTarget(az, el, tan, aspect), view?.now);
     let base = (FRAMING_UNITS / 2 / (aspect >= 1 ? 1 : aspect)) / tan;
-    if (fit) {
-      const tanShort = tan * Math.min(1, aspect);
-      base = Math.max(MIN_FIT_DISTANCE, (fit.radius * FIT_MARGIN * Math.sqrt(1 + tanShort * tanShort)) / tanShort);
-    }
+    if (fit) base = Math.max(MIN_FIT_DISTANCE, fit.radius);
     void standBack;
     this.fitCenter = fit ? fit.center : undefined;
     const dist = base / Math.max(0.05, cam.zoom);
-    const az = cam.az * DEG, el = Math.max(-89, Math.min(89, cam.el)) * DEG;
     const target = this.focusPoint(cam.focus, new Vector3());
     this.camera.aspect = aspect;
     this.camera.fov = fov;
@@ -476,6 +519,46 @@ export class PanelScene {
     this.camera.lookAt(target);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld(true);
+  }
+
+  /**
+   * Text sprites in the scene (a value over a bar, a name on a part) are kept readable on screen: none shorter than a tag (same letter size and floor, `tagTextPx`) or more than 1.3 times as tall, and
+   * two that would sit on each other are moved apart vertically (by the sprite's anchor, so they stay at their point in the world).
+   */
+  private tidyTexts(view: StageView): void {
+    this.textRects = [];
+    const sprites: Array<{ node: Node; cx: number; cy: number; w: number; h: number; depth: number }> = [];
+    const p = new Vector3();
+    const proj = this.camera.projectionMatrix.elements;
+    const tagH = Math.ceil(tagTextPx(view.height, view.rect) * TAG_HEIGHT_FACTOR);
+    for (const node of this.nodes.values()) {
+      const sprite = node.obj;
+      if (!(sprite instanceof Sprite)) continue;
+      sprite.center.set(0.5, 0.5);
+      if (!sprite.visible) continue;
+      sprite.getWorldPosition(p);
+      const depth = -p.clone().applyMatrix4(this.camera.matrixWorldInverse).z;
+      if (depth <= 0) continue;
+      p.project(this.camera);
+      const cx = ((p.x + 1) / 2) * view.width, cy = ((1 - p.y) / 2) * view.height;
+      const h = (sprite.scale.y * proj[5] * view.height) / (2 * depth);
+      const k = h <= 0 ? 1 : h < tagH ? Math.min(12, tagH / h) : h > tagH * MAX_TEXT_OVER_TAG ? (tagH * MAX_TEXT_OVER_TAG) / h : 1;
+      if (k !== 1) sprite.scale.multiplyScalar(k);
+      sprites.push({ node, cx, cy, w: (sprite.scale.x / sprite.scale.y) * h * k, h: h * k, depth });
+    }
+    // Nearest first keeps its place; each later one moves up (then down) until it clears what is already placed.
+    sprites.sort((a, b) => a.depth - b.depth);
+    const placed: Array<{ x0: number; y0: number; x1: number; y1: number }> = [];
+    for (const t of sprites) {
+      const gap = 2;
+      const clear = (dy: number): boolean => placed.every((r) => t.cx + t.w / 2 <= r.x0 || t.cx - t.w / 2 >= r.x1 || t.cy + dy + t.h / 2 + gap <= r.y0 || t.cy + dy - t.h / 2 - gap >= r.y1);
+      let dy = 0;
+      for (let i = 1; i <= 12 && !clear(dy); i++) dy = (i % 2 === 1 ? -1 : 1) * Math.ceil(i / 2) * (t.h + gap);
+      if (!clear(dy)) dy = 0;
+      if (dy !== 0) (t.node.obj as Sprite).center.set(0.5, 0.5 + dy / t.h);
+      placed.push({ x0: t.cx - t.w / 2, y0: t.cy + dy - t.h / 2, x1: t.cx + t.w / 2, y1: t.cy + dy + t.h / 2 });
+      this.textRects.push({ x: t.cx - t.w / 2, y: t.cy + dy - t.h / 2, w: t.w, h: t.h });
+    }
   }
 
   /** True while the framing is still gliding to the model's size: the page should keep drawing frames. */
@@ -513,30 +596,105 @@ export class PanelScene {
    * A sphere round every visible part, from the parts' own bounding spheres (so a part turning on its axis does not make
    * the camera breathe the way a box round it would). Undefined when nothing is there.
    */
-  private modelSphere(): { center: Vector3; radius: number } | undefined {
-    const spheres: Sphere[] = [];
+  private partSpheres(): PartHull[] {
+    const spheres: PartHull[] = [];
     for (const node of this.nodes.values()) {
       if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
       for (const p of node.pieces) {
         const mesh = p.object as Mesh;
         const geo = mesh.geometry;
         if (!geo) continue;
+        if (mesh instanceof InstancedMesh) {
+          // The geometry is one instance; the piece is where all of them are.
+          const box = new Box3().setFromObject(mesh);
+          if (!box.isEmpty()) spheres.push({ sphere: box.getBoundingSphere(new Sphere()), corners: boxCorners(box, undefined) });
+          continue;
+        }
         if (!geo.boundingSphere) geo.computeBoundingSphere();
-        if (!geo.boundingSphere) continue;
-        spheres.push(geo.boundingSphere.clone().applyMatrix4(mesh.matrixWorld));
+        if (!geo.boundingBox) geo.computeBoundingBox();
+        if (!geo.boundingSphere || !geo.boundingBox) continue;
+        spheres.push({ sphere: geo.boundingSphere.clone().applyMatrix4(mesh.matrixWorld), corners: boxCorners(geo.boundingBox, mesh.matrixWorld) });
       }
     }
-    if (spheres.length === 0) return undefined;
-    const lo = new Vector3(Infinity, Infinity, Infinity), hi = new Vector3(-Infinity, -Infinity, -Infinity);
-    for (const s of spheres) {
-      lo.min(new Vector3(s.center.x - s.radius, s.center.y - s.radius, s.center.z - s.radius));
-      hi.max(new Vector3(s.center.x + s.radius, s.center.y + s.radius, s.center.z + s.radius));
-    }
-    const center = lo.add(hi).multiplyScalar(0.5);
-    let radius = 0;
-    for (const s of spheres) radius = Math.max(radius, s.center.distanceTo(center) + s.radius);
-    return { center, radius };
+    return spheres;
   }
+
+  /**
+   * Where the model is on screen, tightly: for each part the overlap of its box's projection and its bounding sphere's, joined. A box alone
+   * reaches past a round part by a corner's worth, which made a ball look bigger than it was (and its buttons and tags keep away from nothing).
+   */
+  private tightRect(width: number, height: number): ScreenRect | undefined {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const box = new Box3();
+    const p = new Vector3();
+    const proj = this.camera.projectionMatrix.elements;
+    for (const node of this.nodes.values()) {
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
+      for (const piece of node.pieces) {
+        const mesh = piece.object as Mesh;
+        box.setFromObject(mesh);
+        if (box.isEmpty()) continue;
+        let a0 = Infinity, b0 = Infinity, a1 = -Infinity, b1 = -Infinity;
+        for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+          p.set(x, y, z).project(this.camera);
+          const sx = ((p.x + 1) / 2) * width, sy = ((1 - p.y) / 2) * height;
+          a0 = Math.min(a0, sx); a1 = Math.max(a1, sx); b0 = Math.min(b0, sy); b1 = Math.max(b1, sy);
+        }
+        if (!(mesh instanceof InstancedMesh) && mesh.geometry) {
+          if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+          const bs = mesh.geometry.boundingSphere?.clone().applyMatrix4(mesh.matrixWorld);
+          if (bs) {
+            const view = bs.center.clone().applyMatrix4(this.camera.matrixWorldInverse);
+            const depth = -view.z, d3 = view.length();
+            if (depth > 0 && bs.radius < d3 * 0.9) {
+              const r = bs.radius / Math.sqrt(1 - (bs.radius / d3) ** 2);
+              p.copy(bs.center).project(this.camera);
+              const cx = ((p.x + 1) / 2) * width, cy = ((1 - p.y) / 2) * height;
+              const rx = (r * proj[0] * width) / (2 * depth), ry = (r * proj[5] * height) / (2 * depth);
+              a0 = Math.max(a0, cx - rx); a1 = Math.min(a1, cx + rx); b0 = Math.max(b0, cy - ry); b1 = Math.min(b1, cy + ry);
+            }
+          }
+        }
+        if (a0 > a1 || b0 > b1) continue;
+        x0 = Math.min(x0, a0); x1 = Math.max(x1, a1); y0 = Math.min(y0, b0); y1 = Math.max(y1, b1);
+      }
+    }
+    return x0 <= x1 && y0 <= y1 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : undefined;
+  }
+
+  /**
+   * Where the camera stands to show the model at rest as large as the stage allows from this direction: the middle of the parts' box and the
+   * distance (returned as `radius`, so it eases like the old sphere did) at which every part's sphere sits inside the stage's frustum, with the
+   * margin. A tall or long model fills its stage instead of leaving it mostly empty, and, being made from the rest pose, it does not breathe
+   * when a part pulses or a machine moves. Never further than the all-round sphere would put it.
+   */
+  private fitTarget(az: number, el: number, tan: number, aspect: number): { center: Vector3; radius: number } | undefined {
+    const parts = this.restSpheres;
+    if (parts.length === 0) return undefined;
+    const lo = new Vector3(Infinity, Infinity, Infinity), hi = new Vector3(-Infinity, -Infinity, -Infinity);
+    for (const p of parts) for (const c of p.corners) { lo.min(c); hi.max(c); }
+    const center = lo.add(hi).multiplyScalar(0.5);
+    const toCam = new Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
+    const right = new Vector3().crossVectors(new Vector3(0, 1, 0), toCam);
+    if (right.lengthSq() < 1e-9) right.set(1, 0, 0);
+    right.normalize();
+    const up = new Vector3().crossVectors(toCam, right).normalize();
+    const tanY = tan, tanX = tan * aspect;
+    const kx = Math.sqrt(1 + tanX * tanX), ky = Math.sqrt(1 + tanY * tanY);
+    const rel = new Vector3();
+    let dist = 0;
+    for (const { sphere: s, corners } of parts) {
+      // Each part needs the nearer of what its box asks and what its bounding sphere asks: a long thin part is held by its box, a round one by its sphere.
+      let byBox = 0;
+      for (const c of corners) {
+        rel.copy(c).sub(center);
+        byBox = Math.max(byBox, rel.dot(toCam) + Math.max(Math.abs(rel.dot(right)) / tanX, Math.abs(rel.dot(up)) / tanY));
+      }
+      rel.copy(s.center).sub(center);
+      const bySphere = rel.dot(toCam) + Math.max((Math.abs(rel.dot(right)) + s.radius * kx) / tanX, (Math.abs(rel.dot(up)) + s.radius * ky) / tanY);
+      dist = Math.max(dist, Math.min(byBox, bySphere));
+    }
+    return { center, radius: dist * FIT_MARGIN };  }
 
   /** How far the visible parts reach from a point: the largest distance to a corner of a part's box. */
   private reach(from: Vector3): number {
@@ -556,14 +714,23 @@ export class PanelScene {
   private placeShadow(frame: Frame): void {
     this.box.makeEmpty();
     this.hasBox = false;
+    // How solid the model is, by its biggest part: a shadow under a see-through shell would grey the layers inside it.
+    let biggest = 0, solidity = 1;
     for (const node of this.nodes.values()) {
       if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
       const b = new Box3().setFromObject(node.obj);
       if (!b.isEmpty()) {
         this.box.union(b);
         this.hasBox = true;
+        const sz = b.getSize(new Vector3());
+        const volume = sz.x * sz.y * sz.z;
+        if (volume > biggest) {
+          biggest = volume;
+          solidity = node.alpha * Math.min(1, ...node.pieces.map((p) => p.surface?.userData.base ?? 1));
+        }
       }
     }
+    const weight = 0.12 + 0.88 * Math.max(0, Math.min(1, solidity)) ** 1.5;
     const presence = frame.panel ? Math.max(0, Math.min(1, frame.panel.appear * frame.panel.fade)) : 0;
     const show = this.hasBox && presence > 0.003;
     if (this.blob) this.blob.visible = show;
@@ -576,11 +743,11 @@ export class PanelScene {
     const floorY = this.box.min.y - 0.03 * Math.max(size.x, size.y, size.z);
     this.floor.position.set(centre.x, floorY, centre.z);
     this.floor.scale.set(span * 4, 1, span * 4);
-    (this.floor.material as ShadowMaterial).opacity = 0.26 * presence;
+    (this.floor.material as ShadowMaterial).opacity = 0.24 * presence * weight;
     if (this.blob && this.blobMaterial) {
       this.blob.position.set(centre.x, floorY + 0.002, centre.z);
-      this.blob.scale.set(size.x * 1.35 + 1, 1, size.z * 1.35 + 1);
-      this.blobMaterial.opacity = 0.42 * presence;
+      this.blob.scale.set(size.x * 1.15 + 0.6, 1, size.z * 1.15 + 0.6);
+      this.blobMaterial.opacity = 0.36 * presence * weight;
     }
     const dir = new Vector3(-0.16, 1, 0.3).normalize();
     this.light.target.position.copy(centre);
@@ -622,14 +789,16 @@ export class PanelScene {
       }
       return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
     };
-    const model = rect(corners);
+    const model = this.tightRect(width, height) ?? rect(corners);
     const size = this.box.getSize(new Vector3());
     const floorY = min.y - 0.03 * Math.max(size.x, size.y, size.z);
     const span = Math.max(size.x, size.z, 1) * 1.6;
     const centre = this.box.getCenter(new Vector3());
     const shadow = rect([-1, 1].flatMap((sx) => [-1, 1].map((sz) => new Vector3(centre.x + sx * span, floorY, centre.z + sz * span))));
-    const x0 = Math.min(model.x, shadow.x), y0 = Math.min(model.y, shadow.y);
-    const x1 = Math.max(model.x + model.w, shadow.x + shadow.w), y1 = Math.max(model.y + model.h, shadow.y + shadow.h);
+    let x0 = Math.min(model.x, shadow.x), y0 = Math.min(model.y, shadow.y);
+    let x1 = Math.max(model.x + model.w, shadow.x + shadow.w), y1 = Math.max(model.y + model.h, shadow.y + shadow.h);
+    // The text drawn over the model may stand a little beyond it (moved apart from its neighbours): the scissor has to let it through.
+    for (const r of this.textRects) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
     // A little room all round: what is drawn (a lit edge, a part a pixel or two past its box) must not be cut by the scissor.
     const pad = 6 + 0.04 * Math.max(model.w, model.h);
     return { model, drawn: { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad } };

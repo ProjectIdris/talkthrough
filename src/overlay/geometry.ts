@@ -52,6 +52,44 @@ export function latheGeometry(profile: readonly Vec2[], sides: number): BufferGe
   return toCreasedNormals(geo, sides <= 8 ? 0.4 : 0.9);
 }
 
+/**
+ * A cylinder (or an elliptic one: `sz` is its depth) with a small rounded rim, so its edge catches the light instead of ending in a razor line.
+ * The rim is a quarter circle of about a seventh of the smaller of the radius and half the height, at most 0.12 (the same limit as a box's rounding).
+ */
+export function roundedCylinderGeometry(sx: number, sy: number, sz: number, sides: number): BufferGeometry {
+  const r = Math.max(1e-4, sx / 2), h = Math.max(1e-4, sy);
+  const b = Math.min(0.12, Math.min(r, h / 2) * 0.14);
+  const profile: Vec2[] = [[0, -h / 2]];
+  const steps = 4;
+  for (let k = 0; k <= steps; k++) {
+    const a = (k / steps) * (Math.PI / 2);
+    profile.push([r - b + b * Math.sin(a), -h / 2 + b - b * Math.cos(a)]);
+  }
+  for (let k = steps; k >= 0; k--) {
+    const a = (k / steps) * (Math.PI / 2);
+    profile.push([r - b + b * Math.sin(a), h / 2 - b + b * Math.cos(a)]);
+  }
+  profile.push([0, h / 2]);
+  const geo = latheGeometry(profile, sides);
+  return geo.scale(1, 1, sz / Math.max(sx, 1e-6));
+}
+
+/**
+ * Light to shade over a blob: its vertices get a colour from the way each faces (up a little lighter, down a good deal darker), which the
+ * material multiplies into its own colour. One flat colour made soft tissue read as a cut-out.
+ */
+export function shadeByHeight(geo: BufferGeometry): void {
+  const normal = geo.getAttribute('normal');
+  if (!normal) return;
+  const colour = new Float32Array(normal.count * 3);
+  for (let i = 0; i < normal.count; i++) {
+    const up = normal.getY(i) * 0.5 + 0.5;
+    const v = 0.72 + 0.36 * up;
+    colour[i * 3] = v; colour[i * 3 + 1] = v; colour[i * 3 + 2] = v;
+  }
+  geo.setAttribute('color', new BufferAttribute(colour, 3));
+}
+
 /** Points along the path: smooth (a spline) for tubes, straight between the points for lines. */
 export function samplePath(pts: readonly Vec3[], smooth: boolean, perSegment: number): Vec3[] {
   const raw = pts.map((p) => [p[0], p[1], p[2]]);
@@ -113,8 +151,25 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
     tangent.set(next[0] - prev[0], next[1] - prev[1], next[2] - prev[2]);
     if (tangent.lengthSq() < 1e-12) tangent.set(0, 0, 1);
     tangent.normalize();
-    const ref = Math.abs(tangent.dot(UP)) > 0.95 ? FORWARD : UP;
-    wide.crossVectors(tangent, ref).normalize();
+    // A round tube carries the last ring's frame along (parallel transport), so it never twists where the path passes straight up or down:
+    // choosing a frame from "up" at every ring flips it there, which drew a hard seam across a bent tube. A flat ribbon keeps its frame from "up"
+    // (a ribbon that starts flat and bends up then faces the viewer, as the scene language says), made continuous: never turned over from one ring to the next.
+    // The reference turns from up to forward smoothly as the path nears the vertical (a hard switch at 0.95 turned a ribbon a quarter turn between two rings).
+    const lean = Math.abs(tangent.dot(UP));
+    const k = Math.max(0, Math.min(1, (lean - 0.3) / 0.68));
+    const mix = k * k * (3 - 2 * k);
+    const ref = new Vector3().addScaledVector(UP, 1 - mix).addScaledVector(FORWARD, mix).normalize();
+    if (flat === 1 && i > 0) {
+      wide.addScaledVector(tangent, -wide.dot(tangent));
+      if (wide.lengthSq() < 1e-12) wide.crossVectors(tangent, ref);
+      wide.normalize();
+    } else {
+      const before = i > 0 ? wide.clone() : undefined;
+      wide.crossVectors(tangent, ref);
+      if (wide.lengthSq() < 1e-12) wide.crossVectors(tangent, Math.abs(tangent.dot(UP)) > 0.95 ? FORWARD : UP);
+      wide.normalize();
+      if (before && wide.dot(before) < 0) wide.negate();
+    }
     thin.crossVectors(wide, tangent).normalize();
     centre.set(p[0], p[1], p[2]);
     const radius = baseRadius * (swell ? swellAt(swell, rings > 1 ? i / (rings - 1) : 0) : 1);

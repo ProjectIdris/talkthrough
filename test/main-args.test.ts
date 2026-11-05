@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isCheckRun, parseArgs, parseSize, parseSteps } from '../src/main/args.ts';
+import { isCheckRun, parseArgs, parseSize, parseSteps, wantsSoftware } from '../src/main/args.ts';
 
 test('a normal launch has no options set', () => {
   const o = parseArgs(['.']);
   assert.equal(o.grab, undefined);
   assert.equal(o.gpu, false);
+  assert.equal(o.software, false);
   assert.equal(o.visibleToCapture, false);
   assert.equal(o.exitAfterChord, 0);
 });
@@ -51,4 +52,13 @@ test('a run with any development or check option is a check run (it takes no sys
   for (const flag of flags) assert.equal(isCheckRun(parseArgs(['.', ...flag])), true, flag.join(' '));
   // An option added later (a recording, a replay) counts without anyone remembering to list it.
   for (const extra of [{ replayAnswer: 'tape.json' }, { record: 'take.mp4' }, { drive: 'steps.json' }]) assert.equal(isCheckRun({ ...parseArgs(['.']), ...extra } as never), true, Object.keys(extra)[0]);
+});
+
+test('the graphics card is the default; software drawing only on --software or TALKTHROUGH_SOFTWARE=1', () => {
+  assert.equal(wantsSoftware(parseArgs(['.']), {}), false);
+  assert.equal(wantsSoftware(parseArgs(['.', '--gpu']), {}), false, '--gpu is the default now');
+  assert.equal(wantsSoftware(parseArgs(['.', '--software']), {}), true);
+  assert.equal(wantsSoftware(parseArgs(['.']), { TALKTHROUGH_SOFTWARE: '1' }), true);
+  assert.equal(wantsSoftware(parseArgs(['.']), { TALKTHROUGH_GPU: '1' }), false, 'the old explicit switch still works (and means nothing new)');
+  assert.equal(isCheckRun(parseArgs(['.', '--software'])), false, 'a person may use it');
 });

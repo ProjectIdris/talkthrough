@@ -21,8 +21,10 @@ export type Options = {
   fakeMic: boolean;
   /** Keep the overlay visible to screen capture and recordings (it is hidden from them by default). */
   visibleToCapture: boolean;
-  /** Leave hardware acceleration on. Off by default while the GPU is reserved. */
+  /** Leave hardware acceleration on. This is the default; the option is kept so check runs written for it still work. */
   gpu: boolean;
+  /** Draw with the system's software rasteriser instead of the graphics card (also TALKTHROUGH_SOFTWARE=1). */
+  software: boolean;
   /** Press and release the chord once through the key hook itself (checks the whole path without a keyboard). */
   selfChord: boolean;
   /** Quit after this many chord presses have been fully processed (checks). */
@@ -81,7 +83,7 @@ export type Options = {
 
 export function parseArgs(argv: readonly string[]): Options {
   const options: Options = {
-    playSample: false, noHotkey: false, fakeMic: false, visibleToCapture: false, gpu: false, exitAfterChord: 0, selfChord: false,
+    playSample: false, noHotkey: false, fakeMic: false, visibleToCapture: false, gpu: false, software: false, exitAfterChord: 0, selfChord: false,
     hidden: false, silentVoice: false, chordHoldMs: 2000, logSteps: false, frameEveryMs: 700, settleSeconds: 9, recordFps: 30, driveAfter: 12,
   };
   const value = (i: number, name: string): string => {
@@ -109,6 +111,7 @@ export function parseArgs(argv: readonly string[]): Options {
       case '--fake-mic': options.fakeMic = true; break;
       case '--visible-to-capture': options.visibleToCapture = true; break;
       case '--gpu': options.gpu = true; break;
+      case '--software': options.software = true; break;
       case '--settings': options.settings = value(i, a); i++; break;
       case '--save-pen': options.savePen = value(i, a); i++; break;
       case '--fake-stroke': {
@@ -189,8 +192,13 @@ export function parseSize(text: string): { width: number; height: number } {
   return { width: Number(m[1]), height: Number(m[2]) };
 }
 
+/** Whether this run draws on the system's software rasteriser: only when asked (`--software` or `TALKTHROUGH_SOFTWARE=1`). The graphics card is the default; with none, Chromium falls back to software by itself. */
+export function wantsSoftware(options: Pick<Options, 'software'>, env: Record<string, string | undefined> = process.env): boolean {
+  return options.software || env.TALKTHROUGH_SOFTWARE === '1';
+}
+
 /** The options a person's own run may carry: everything else on the command line is for a check or a development run. */
-const PRODUCT_OPTIONS: ReadonlySet<string> = new Set(['settings', 'gpu', 'logSteps']);
+const PRODUCT_OPTIONS: ReadonlySet<string> = new Set(['settings', 'gpu', 'software', 'logSteps']);
 
 /**
  * Whether this run was started with any development or check option (a self-made key press, a saved page in place of the screen, a recording,

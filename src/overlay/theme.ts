@@ -31,3 +31,11 @@ export const THEME: Theme = {
 export function fontAt(face: string, px: number): string {
   return face.replace('{px}', String(Math.round(px * 10) / 10));
 }
+
+/** The size of a tag's letters (CSS pixels): by the screen, a little smaller beside a stage much smaller than a usual one (never under 11). Text in the scene is drawn with the same. */
+export function tagTextPx(viewHeight: number, stage?: { w: number; h: number }): number {
+  const beside = stage ? Math.max(0.7, Math.min(1, Math.min(stage.w, stage.h) / (viewHeight * 0.5))) : 1;
+  return Math.max(11, Math.max(13, viewHeight * 0.0195) * beside);
+}
+/** A tag is this many times its letters tall (the padding above and below them). */
+export const TAG_HEIGHT_FACTOR = 2.1;

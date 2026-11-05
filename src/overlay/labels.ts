@@ -149,6 +149,8 @@ type Entry = { target: Rect; shown: Rect; request: PinRequest; seen: number; tan
 const FADE_OUT_SECONDS = 0.12;
 const FADE_IN_SECONDS = 0.2;
 
+/** What a tag over page text costs, in the pixels of distance from its point it would go to keep off it: text may be covered when that keeps the tag near its part and readable. */
+const BUSY_COST = 300;
 const MARGIN = 8;
 const GAP = 8;
 /** Frames a tag may sit with a leader across another leader or tag before it is placed again. */
@@ -435,7 +437,7 @@ export class LabelBoard {
         if (avoid.some((k) => overlaps(rect, k, KEEP_OUT_PAD))) continue;
         const attach = attachPoint(rect, a);
         let cost = dist * 0.9 + env.occ.fraction({ x: rect.x - 6, y: rect.y - 6, w: w + 12, h: h + 12 }) * 6000;
-        if (env.busy) cost += Math.min(1, env.busy.mean(rect) * 2.5) * 1500;
+        if (env.busy) cost += Math.min(1, env.busy.mean(rect) * 2.5) * BUSY_COST;
         cost += env.occ.along(a, attach, 26 * s) * 24;
         if (hintAngle !== undefined) {
           let d = Math.abs(ang - hintAngle) % (Math.PI * 2);

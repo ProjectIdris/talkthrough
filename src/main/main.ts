@@ -1,7 +1,7 @@
 import { app, dialog, safeStorage, screen, shell } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { isCheckRun, parseArgs } from './args.ts';
+import { isCheckRun, parseArgs, wantsSoftware } from './args.ts';
 import { createHttpBackend } from '../adapters/backend.ts';
 import { createClaudeModel } from '../adapters/claude-model.ts';
 import { createCodexModel } from '../adapters/codex-model.ts';
@@ -57,9 +57,9 @@ process.on('unhandledRejection', (reason) => {
 
 const options = parseArgs(process.argv.slice(1));
 
-// The GPU is reserved for other work for now: software rendering unless asked. WebGL still works
-// (it falls back to the system's software rasteriser; no extra Chromium flag is needed).
-if (!options.gpu && process.env.TALKTHROUGH_GPU !== '1') app.disableHardwareAcceleration();
+// The graphics card draws the overlay by default; with none, Chromium falls back to its software rasteriser by itself.
+// `--software` (or TALKTHROUGH_SOFTWARE=1) forces the software path. `--gpu` / TALKTHROUGH_GPU=1 are the old explicit switch and now change nothing.
+if (wantsSoftware(options)) app.disableHardwareAcceleration();
 if (options.grab && options.grab.scaleFactor !== 1) app.commandLine.appendSwitch('force-device-scale-factor', String(options.grab.scaleFactor));
 if (options.fakeMic) {
   app.commandLine.appendSwitch('use-fake-device-for-media-stream');
