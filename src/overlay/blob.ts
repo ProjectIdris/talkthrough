@@ -15,6 +15,9 @@ export const BLOB_MAX_TRIANGLES = 160_000;
 export const SCENE_BLOB_TRIANGLES = { low: 40_000, mid: 90_000, high: 180_000 } as const;
 export const BLOB_MIN_TRIANGLES = 2_500;
 
+/** The thinnest a lump may be, as a share of its widest side. */
+const MIN_THICKNESS = 0.2;
+
 type Lump = { c: Vec3; r: Vec3 };
 
 /** Influence reaches this many (normalised) radii out; 1 is a hard union, more blends over a wider neck. */
@@ -95,7 +98,10 @@ export function blobGeometry(centres: readonly Vec3[], sizes: readonly Vec3[], s
 function cut(centres: readonly Vec3[], sizes: readonly Vec3[], soft: number, cells: number): BufferGeometry {
   const lumps: Lump[] = centres.map((c, i) => {
     const s = (sizes[Math.min(i, sizes.length - 1)] ?? [1, 1, 1]) as Vec3;
-    return { c, r: [Math.max(1e-3, s[0] / 2), Math.max(1e-3, s[1] / 2), Math.max(1e-3, s[2] / 2)] as Vec3 };
+    // A flat lump (a leaf, a petal) keeps a rounded rim: never thinner than a fifth of its width, so its edge is not a razor.
+    const widest = Math.max(s[0], s[1], s[2]) / 2;
+    const floor = Math.max(1e-3, widest * MIN_THICKNESS);
+    return { c, r: [Math.max(floor, s[0] / 2), Math.max(floor, s[1] / 2), Math.max(floor, s[2] / 2)] as Vec3 };
   });
   const field = new Field(lumps, soft);
   const reachR = Math.sqrt(field.q);

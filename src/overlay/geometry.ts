@@ -128,6 +128,11 @@ export function swellAt(swell: readonly Vec2[], t: number): number {
   return Math.max(0.02, last[1]);
 }
 
+/** A tube thinner than this (flat) is a ribbon and is left as cut; rounder ones are capped. */
+const CAP_MIN_FLAT = 0.5;
+/** Rings in a rounded cap. */
+const CAP_RINGS = 5;
+
 /**
  * A tube along the sampled points. `flat` squashes it into a ribbon whose wide side runs across the
  * path (across x for a path going up or along z, across z for a path going along x), so a cable seen from the front shows its width.
@@ -144,6 +149,7 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
   const a = new Vector3();
   const b = new Vector3();
   const centre = new Vector3();
+  const frames: Array<{ centre: Vector3; wide: Vector3; thin: Vector3; tangent: Vector3; radius: number }> = [];
   for (let i = 0; i < rings; i++) {
     const p = path[i] as Vec3;
     const prev = path[Math.max(0, i - 1)] as Vec3;
@@ -179,6 +185,7 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
     thin.crossVectors(wide, tangent).normalize();
     centre.set(p[0], p[1], p[2]);
     const radius = baseRadius * (swell ? swellAt(swell, rings > 1 ? i / (rings - 1) : 0) : 1);
+    frames.push({ centre: centre.clone(), wide: wide.clone(), thin: thin.clone(), tangent: tangent.clone(), radius });
     for (let j = 0; j <= radial; j++) {
       const ang = (j / radial) * Math.PI * 2;
       const c = Math.cos(ang), s = Math.sin(ang);
@@ -200,12 +207,63 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
       idx.push(p0, p2, p1, p1, p2, p3);
     }
   }
+  // A free end is closed with a rounded cap that follows the tube's taper (a stem's top, a vessel's open end), so nothing looks sawn off. The caps go after
+  // the body in the vertex list; the index list is the start cap, the body, the end cap (see drawFraction). A ribbon is left as cut.
+  const bodyIndices = idx.length;
+  let startCap = 0, endCap = 0;
+  if (flat >= CAP_MIN_FLAT && rings >= 2) {
+    const cap = (frame: (typeof frames)[number], dir: 1 | -1): number[] => {
+      const base = pos.length / 3;
+      const out: number[] = [];
+      for (let k = 1; k <= CAP_RINGS; k++) {
+        const th = (k / CAP_RINGS) * (Math.PI / 2);
+        const scale = Math.cos(th);
+        const lift = frame.radius * Math.sin(th) * dir;
+        for (let j = 0; j <= radial; j++) {
+          const ang = (j / radial) * Math.PI * 2;
+          const c = Math.cos(ang), sn = Math.sin(ang);
+          const r = frame.radius * scale;
+          pos.push(
+            frame.centre.x + frame.wide.x * c * r + frame.thin.x * sn * r * flat + frame.tangent.x * lift,
+            frame.centre.y + frame.wide.y * c * r + frame.thin.y * sn * r * flat + frame.tangent.y * lift,
+            frame.centre.z + frame.wide.z * c * r + frame.thin.z * sn * r * flat + frame.tangent.z * lift,
+          );
+          // Normals of a sphere-like cap: outward from the ring, tilted along the tangent as the cap closes.
+          const nx = frame.wide.x * c * flat * scale + frame.thin.x * sn * scale + frame.tangent.x * Math.sin(th) * dir;
+          const ny = frame.wide.y * c * flat * scale + frame.thin.y * sn * scale + frame.tangent.y * Math.sin(th) * dir;
+          const nz = frame.wide.z * c * flat * scale + frame.thin.z * sn * scale + frame.tangent.z * Math.sin(th) * dir;
+          const l = Math.hypot(nx, ny, nz) || 1;
+          nor.push(nx / l, ny / l, nz / l);
+        }
+      }
+      // The first cap ring joins the tube's own end ring (same size), the others each the one before.
+      const ends = dir === 1 ? (rings - 1) * row : 0;
+      for (let k = 0; k < CAP_RINGS; k++) {
+        for (let j = 0; j < radial; j++) {
+          const a0 = k === 0 ? ends + j : base + (k - 1) * row + j;
+          const b0 = base + k * row + j;
+          if (dir === 1) out.push(a0, b0, a0 + 1, a0 + 1, b0, b0 + 1);
+          else out.push(a0, a0 + 1, b0, a0 + 1, b0 + 1, b0);
+        }
+      }
+      return out;
+    };
+    const first = cap(frames[0]!, -1);
+    const last = cap(frames[rings - 1]!, 1);
+    startCap = first.length;
+    endCap = last.length;
+    idx.unshift(...first);
+    idx.push(...last);
+  }
+  void bodyIndices;
   const geo = new BufferGeometry();
   geo.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
   geo.setAttribute('normal', new BufferAttribute(new Float32Array(nor), 3));
   geo.setIndex(idx);
   geo.userData.rings = rings;
   geo.userData.indicesPerRing = radial * 6;
+  geo.userData.startCap = startCap;
+  geo.userData.endCap = endCap;
   return geo;
 }
 
@@ -214,7 +272,10 @@ export function drawFraction(geo: BufferGeometry, fraction: number): void {
   const rings = (geo.userData.rings as number | undefined) ?? 2;
   const per = (geo.userData.indicesPerRing as number | undefined) ?? 0;
   const segments = Math.max(0, Math.min(rings - 1, Math.round(fraction * (rings - 1))));
-  geo.setDrawRange(0, segments * per);
+  // The start cap shows with the first piece of the tube, the end cap with the last: a tube being drawn on has no cap at its moving head.
+  const startCap = (geo.userData.startCap as number | undefined) ?? 0;
+  const endCap = (geo.userData.endCap as number | undefined) ?? 0;
+  geo.setDrawRange(0, segments === 0 ? 0 : startCap + segments * per + (segments === rings - 1 ? endCap : 0));
 }
 
 /** The point `fraction` of the way along a sampled path (for the head of an arrow being drawn). */

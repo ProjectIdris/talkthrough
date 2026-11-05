@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { Vector3 } from 'three';
 import assert from 'node:assert/strict';
 import { blobGeometry, BLOB_CELLS } from '../src/overlay/blob.ts';
 import { swellAt, tubeGeometry } from '../src/overlay/geometry.ts';
@@ -166,4 +167,14 @@ test('lumps that overlap by a third, as the guide asks, melt into one mass: no c
   };
   assert.ok(waist(0.5) >= 0.97, `the usual blend leaves a waist of ${waist(0.5).toFixed(3)} (a crease between the lumps, a cloverleaf in a heart)`);
   assert.ok(waist(0.3) < waist(0.5), 'a firmer blend still keeps more of a waist');
+});
+
+test('a flat lump (a leaf) keeps a rounded rim: it is never thinner than a fifth of its width', () => {
+  const geo = blobGeometry([[0, 0, 0]], [[4, 0.2, 2]], 0.5, BLOB_CELLS.high);
+  geo.computeBoundingBox();
+  const size = geo.boundingBox!.getSize(new Vector3());
+  assert.ok(size.y >= 0.2 * size.x - 0.02, `${size.y.toFixed(2)} thick across ${size.x.toFixed(2)}`);
+  const normal = blobGeometry([[0, 0, 0]], [[4, 1, 2]], 0.5, BLOB_CELLS.high);
+  normal.computeBoundingBox();
+  assert.ok(Math.abs(normal.boundingBox!.getSize(new Vector3()).y - 1) < 0.05, 'a lump already thick enough is left as written');
 });
