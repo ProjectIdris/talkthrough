@@ -546,7 +546,7 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       if (kind !== 'stop') {
         const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : kind === 'swing' ? 2 : 1;
         plan.loops.push({ key: o.key, kind, axis, amount: a.amount ?? 1, pivot: a.pivot ? asVec(a.pivot) : [0, 0, 0] });
-        const sp = spinPlanFrom({ key: driver, axis: 2, angle: loopStart(kind), rate: 0 });
+        const sp = spinPlanFrom({ key: driver, axis: 2, angle: loopStart(kind) + (by ? 0 : a.phase ?? 0), rate: 0 });
         plan.spins.push(sp);
         if (by) setLock(sp, at, { byKey: by.key, ratio: a.ratio ?? 1, phase: a.phase ?? 0 }, 2);
         else setRate(sp, at, 360 / (a.period ?? 2), 0, 2);

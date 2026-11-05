@@ -440,7 +440,7 @@ export const VARIANTS: readonly Variant[] = [
       axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true, doc: 'seconds for one cycle (default 2)' },
       by: { k: 'ref', of: 'object3d', opt: true, doc: 'a spinning part to stay in step with' },
       ratio: { k: 'num', min: -20, max: 20, opt: true, doc: 'with by: cycles per turn of that part (default 1)' },
-      phase: { k: 'num', min: -3600, max: 3600, opt: true, doc: 'with by: degrees of that part ahead' },
+      phase: { k: 'num', min: -3600, max: 3600, opt: true, doc: 'degrees ahead (180 is half a cycle behind another loop at 0)' },
       pivot: { k: 'vec3', ...WORLD, opt: true, doc: 'swing: from the object to the point it turns about' }, at: AT,
     },
   },

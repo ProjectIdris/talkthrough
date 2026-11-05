@@ -2910,7 +2910,7 @@
             "number",
             "null"
           ],
-          "description": "with by: degrees of that part ahead; -3600 to 3600"
+          "description": "degrees ahead (180 is half a cycle behind another loop at 0); -3600 to 3600"
         },
         "pivot": {
           "type": [

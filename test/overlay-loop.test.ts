@@ -122,3 +122,10 @@ test('a loop locked to a part is bound at the same point as crank and cam: an un
   const self = validate(box('p'), { op: 'loop', id: 'p', kind: 'slide', amount: 2, by: 'p' });
   assert.equal(self.kept.find((a) => a.op === 'loop')?.by, undefined);
 });
+
+test('a free loop with a phase starts that many degrees into its cycle, so two can beat half a cycle apart', () => {
+  const plan = run(box('a'), box('b'), { op: 'loop', id: 'a', kind: 'pulse', amount: 1.5, period: 2 }, { op: 'loop', id: 'b', kind: 'pulse', amount: 1.5, period: 2, phase: 180 });
+  const size = (t: number, id: string) => (obj(evaluate(plan, t), id)?.pose?.scale?.[0] ?? 1);
+  near(size(0, 'a'), 1); near(size(0, 'b'), 1.5);
+  near(size(1, 'a'), 1.5); near(size(1, 'b'), 1);
+});
