@@ -5,7 +5,8 @@ import type { DisplayInfo, Milestone, SceneMessage, Stroke } from '../shared/ipc
 import { createButtonCatchers, validRects } from './button-catchers.ts';
 import type { ButtonCatchers, ButtonRect } from './button-catchers.ts';
 import { electronCatcherWindow } from './button-window.ts';
-import { createClickGuard, createKeyHold, ignoreMouse, keyWanted } from './interaction.ts';
+import { createClickGuard, createKeyGate, createKeyHold, ignoreMouse, keyWanted } from './interaction.ts';
+import type { Region } from './interaction.ts';
 import type { VoiceBridge } from './voice-bridge.ts';
 
 /** A stroke piece sent just after the pen went off (the last points of a drag) still counts for this long. */
@@ -20,6 +21,8 @@ export type OverlayOptions = {
   hideFromCapture: boolean;
   /** Development runs: never show the windows (they still render, and can be snapshotted). */
   hidden?: boolean;
+  /** False in a check or development run: the E key is never taken from the system (default true). */
+  globalKeys?: boolean;
   /** Development runs: tell the pages to speak nothing. */
   silent?: boolean;
   /** Called when an overlay page reports ready, with a one-line description of its window. */
@@ -40,7 +43,7 @@ export type OverlayOptions = {
   onDetail?: (displayId: number) => void;
 };
 
-type Overlay = { catchers: ButtonCatchers; buttons: ButtonRect[]; window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; pen: boolean; penOffAt: number; /** The person pressed on the model (E is then ours until they leave it). */ engaged: boolean; guard: ReturnType<typeof createClickGuard> };
+type Overlay = { catchers: ButtonCatchers; buttons: ButtonRect[]; window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; pen: boolean; penOffAt: number; /** The person pressed on the model (E is then ours until they leave it). */ engaged: boolean; /** The model's region on the screen (what the page last said the pointer is over) and the gate that checks the real cursor against it. */ region?: Region; gate: ReturnType<typeof createKeyGate>; guard: ReturnType<typeof createClickGuard> };
 
 /**
  * One overlay window per display: transparent, frameless, always on top, off the taskbar, never
@@ -52,6 +55,7 @@ export function createOverlayManager(options: OverlayOptions) {
 
   // The E key: taken from the system only while it is wanted (see keyWanted), never by focusing a window.
   const keys = createKeyHold({
+    enabled: options.globalKeys !== false,
     accelerator: 'E',
     register: (accelerator, onKey) => {
       try {
@@ -74,8 +78,13 @@ export function createOverlayManager(options: OverlayOptions) {
     },
   });
   const stateOf = (overlay: Overlay) => ({ engaged: overlay.engaged, held: overlay.guard.held, penOn: overlay.pen, alive: !overlay.window.isDestroyed() });
-  /** Everything that decides whether E is ours goes through here after it changes. */
-  const refreshKey = (): void => keys.want(keyWanted([...overlays.values()].map(stateOf)));
+  /** Everything that decides whether E is ours goes through here after it changes. The real cursor is checked each time: a page that says the pointer is on the model while the cursor is elsewhere does not keep E. */
+  const refreshKey = (): void => {
+    for (const overlay of overlays.values()) if (overlay.engaged && !overlay.gate.check(overlay.region)) overlay.engaged = false;
+    keys.want(keyWanted([...overlays.values()].map(stateOf)));
+  };
+  // Between the page's renewals: the cursor leaving the region, or ten seconds without it moving there, gives the key back.
+  if (options.globalKeys !== false) setInterval(() => { if (keys.held) refreshKey(); }, 500).unref();
 
   function infoFor(display: Display): DisplayInfo {
     const info: DisplayInfo = { id: display.id, bounds: { ...display.bounds }, scaleFactor: display.scaleFactor };
@@ -140,6 +149,7 @@ export function createOverlayManager(options: OverlayOptions) {
       }),
       buttons: [],
       window, display, ready: false, queue: [], pageWantsClicks: false, pen: false, penOffAt: 0, engaged: false,
+      gate: createKeyGate({ cursor: () => screen.getCursorScreenPoint() }),
       // The page repeats "the pointer is over the model" while it is true; if it goes quiet, the window lets clicks through again.
       guard: createClickGuard({
         onExpire: () => {
@@ -163,6 +173,14 @@ export function createOverlayManager(options: OverlayOptions) {
     });
   }
 
+  /** The region the page named (in its own pixels) as a rectangle on the screen, or undefined when it named none. */
+  function screenRegion(overlay: Overlay, raw: unknown): Region | undefined {
+    const r = raw as Partial<Region> | null | undefined;
+    if (!r || ![r.x, r.y, r.w, r.h].every((n) => typeof n === 'number' && Number.isFinite(n)) || (r.w as number) <= 0 || (r.h as number) <= 0) return undefined;
+    const b = overlay.window.getBounds();
+    return { x: b.x + (r.x as number), y: b.y + (r.y as number), w: r.w as number, h: r.h as number };
+  }
+
   function find(event: IpcMainEvent): Overlay | undefined {
     for (const overlay of overlays.values()) {
       if (overlay.window.webContents === event.sender) return overlay;
@@ -180,10 +198,11 @@ export function createOverlayManager(options: OverlayOptions) {
     options.onReady?.(`overlay for display ${overlay.display.id}: window ${b.width}x${b.height} at ${b.x},${b.y} (display ${overlay.display.bounds.width}x${overlay.display.bounds.height} at ${overlay.display.bounds.x},${overlay.display.bounds.y}, scale ${overlay.display.scaleFactor}), alwaysOnTop ${w.isAlwaysOnTop()}, focusable ${w.isFocusable()}, visible ${w.isVisible()}`);
     for (const message of overlay.queue.splice(0)) event.sender.send(CHANNEL.scene, message);
   });
-  ipcMain.on(CHANNEL.interactive, (event, over: unknown) => {
+  ipcMain.on(CHANNEL.interactive, (event, over: unknown, region: unknown) => {
     const overlay = find(event);
     if (!overlay || typeof over !== 'boolean') return;
     overlay.pageWantsClicks = over;
+    overlay.region = over ? screenRegion(overlay, region) : undefined;
     if (over) overlay.guard.grant();
     else {
       overlay.guard.release();
@@ -197,7 +216,7 @@ export function createOverlayManager(options: OverlayOptions) {
   ipcMain.on(CHANNEL.engage, (event, on: unknown) => {
     const overlay = find(event);
     if (!overlay || typeof on !== 'boolean') return;
-    overlay.engaged = on && overlay.guard.held && !overlay.pen;
+    overlay.engaged = on && overlay.guard.held && !overlay.pen && overlay.gate.press(overlay.region);
     refreshKey();
   });
   ipcMain.on(CHANNEL.stroke, (event, stroke: unknown) => {

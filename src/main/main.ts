@@ -1,7 +1,7 @@
 import { app, dialog, safeStorage, screen, shell } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { parseArgs } from './args.ts';
+import { isCheckRun, parseArgs } from './args.ts';
 import { createHttpBackend } from '../adapters/backend.ts';
 import { createClaudeModel } from '../adapters/claude-model.ts';
 import { createCodexModel } from '../adapters/codex-model.ts';
@@ -158,6 +158,7 @@ async function main(): Promise<void> {
     ...(options.backdrop ? { backdrop: options.backdrop } : {}),
     hideFromCapture: !options.visibleToCapture,
     hidden: options.hidden,
+    globalKeys: !isCheckRun(options),
     silent: options.silentVoice,
     ...(voice ? { voice } : {}),
     onReady: log,

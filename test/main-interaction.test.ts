@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { CLICK_LEASE_MS, createClickGuard, createKeyHold, ignoreMouse, keyWanted } from '../src/main/interaction.ts';
+import { CLICK_LEASE_MS, createClickGuard, createKeyGate, createKeyHold, ignoreMouse, keyWanted } from '../src/main/interaction.ts';
 
 test('click-through unless the page wants clicks, and never click-through while the pen is on', () => {
   assert.equal(ignoreMouse(false, false), true);
@@ -149,4 +152,87 @@ test('however the press ends, the key does not outlive it: leaving, the lease ru
     assert.equal(hold.held, false, `given back when ${name}`);
   }
   assert.deepEqual(calls.filter((c) => c === 'register').length, calls.filter((c) => c === 'unregister').length, 'every take was given back');
+});
+
+test('a check or development run registers no system-wide key at all, whatever the page says', () => {
+  const calls: string[] = [];
+  const hold = createKeyHold({ enabled: false, accelerator: 'E', register: () => { calls.push('register'); return true; }, unregister: () => { calls.push('unregister'); }, onKey: () => undefined });
+  hold.want(true);
+  hold.want(true);
+  assert.deepEqual(calls, []);
+  assert.equal(hold.held, false);
+});
+
+// ---- the real pointer: a synthetic one can never hold the key ---------------------------------------------
+
+const REGION = { x: 100, y: 100, w: 300, h: 200 };
+
+function gateRig(idleMs?: number) {
+  const at = { cursor: { x: 0, y: 0 }, now: 0 };
+  const gate = createKeyGate({ cursor: () => at.cursor, now: () => at.now, ...(idleMs ? { idleMs } : {}) });
+  return { at, gate };
+}
+
+test('the key is ours only while the real cursor is inside the model\'s region and has moved or pressed there in the last ten seconds', () => {
+  const { at, gate } = gateRig();
+  assert.equal(gate.check(REGION), false, 'cursor outside');
+  at.cursor = { x: 150, y: 150 };
+  at.now = 1000;
+  assert.equal(gate.check(REGION), true, 'moved into it');
+  at.now = 6000;
+  assert.equal(gate.check(REGION), true, 'resting there, within ten seconds');
+  at.now = 11_500;
+  assert.equal(gate.check(REGION), false, 'ten seconds without a movement gives it back');
+  at.cursor = { x: 151, y: 150 };
+  at.now = 12_000;
+  assert.equal(gate.check(REGION), true, 'a real movement takes it again');
+  at.cursor = { x: 900, y: 900 };
+  assert.equal(gate.check(REGION), false, 'leaving the region gives it back at once');
+  assert.equal(gate.check(undefined), false, 'no region, no key');
+});
+
+test('a page that keeps saying "over the model" while the cursor is elsewhere does not keep E', () => {
+  // The overlay manager's wiring in miniature: the page's lease is renewed again and again (a driven page does that), the cursor stays elsewhere.
+  const t = manualTimers();
+  const { at, gate } = gateRig();
+  const calls: string[] = [];
+  const hold = createKeyHold({ accelerator: 'E', register: () => { calls.push('register'); return true; }, unregister: () => { calls.push('unregister'); }, onKey: () => undefined });
+  const state = { engaged: false, penOn: false, alive: true };
+  const guard = createClickGuard({ onExpire: () => { state.engaged = false; refresh(); }, setTimer: t.setTimer, clearTimer: t.clearTimer });
+  const refresh = () => {
+    if (state.engaged && !gate.check(REGION)) state.engaged = false;
+    hold.want(keyWanted([{ ...state, held: guard.held }]));
+  };
+  at.cursor = { x: 1500, y: 900 }; // the person's real cursor, nowhere near the model
+  for (let i = 0; i < 5; i++) {
+    guard.grant(); // "the pointer is over the model", said again by a page driven with synthetic events
+    state.engaged = gate.press(REGION); // and "pressed", which counts only with the real cursor inside
+    refresh();
+    assert.equal(hold.held, false, `renewal ${i}`);
+  }
+  assert.deepEqual(calls, []);
+  // the same page with the real cursor on the model does get it
+  at.cursor = { x: 200, y: 200 };
+  guard.grant();
+  state.engaged = gate.press(REGION);
+  refresh();
+  assert.equal(hold.held, true);
+  // and loses it the moment the cursor goes
+  at.cursor = { x: 1500, y: 900 };
+  refresh();
+  assert.equal(hold.held, false);
+});
+
+test('the only system-wide shortcut in the app is the E key, held through createKeyHold, and main turns it off for every check run', () => {
+  const found: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (/\.(ts|mjs|cjs|js)$/.test(entry.name) && /globalShortcut/.test(readFileSync(path, 'utf8'))) found.push(entry.name);
+    }
+  };
+  for (const dir of ['../src', '../scripts']) walk(fileURLToPath(new URL(dir, import.meta.url)));
+  assert.deepEqual(found, ['overlay-windows.ts']);
+  assert.match(readFileSync(fileURLToPath(new URL('../src/main/main.ts', import.meta.url)), 'utf8'), /globalKeys: !isCheckRun\(options\)/);
 });

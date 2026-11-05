@@ -70,6 +70,8 @@ export function keyWanted(states: Iterable<KeyState>): boolean {
 }
 
 export type KeyHoldOptions = {
+  /** False in a check or development run: no system-wide key is ever registered, whatever the page says. Default true. */
+  enabled?: boolean;
   accelerator: string;
   /** Registers a system-wide key; false when another program already owns it. */
   register: (accelerator: string, onKey: () => void) => boolean;
@@ -77,11 +79,59 @@ export type KeyHoldOptions = {
   onKey: () => void;
 };
 
+export type Point = { x: number; y: number };
+export type Region = { x: number; y: number; w: number; h: number };
+
+/** How long the key stays ours after the real pointer last moved, or pressed, inside the model's region. */
+export const KEY_IDLE_MS = 10_000;
+
+const inRegion = (p: Point, r: Region): boolean => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+
+/**
+ * Whether the E key may stay ours, from the REAL pointer (the operating system's cursor, never what the page says: a page driven with synthetic
+ * pointer events believes the pointer is on the model while the cursor is somewhere else). Asked each time the lease renews and now and then
+ * between: ours only while the cursor is inside the model's region and it was last moved there, or pressed there, less than `idleMs` ago.
+ * One gate per window, because it remembers where the cursor was last time.
+ */
+export function createKeyGate(options: { cursor: () => Point; now?: () => number; idleMs?: number }) {
+  const now = options.now ?? ((): number => Date.now());
+  const idleMs = options.idleMs ?? KEY_IDLE_MS;
+  let last: Point | undefined;
+  let activeAt: number | undefined;
+  return {
+    /** True while the key may stay ours. */
+    check(region: Region | undefined): boolean {
+      const c = options.cursor();
+      const moved = !last || c.x !== last.x || c.y !== last.y;
+      last = c;
+      if (!region || !inRegion(c, region)) {
+        activeAt = undefined;
+        return false;
+      }
+      if (moved) activeAt = now();
+      return activeAt !== undefined && now() - activeAt < idleMs;
+    },
+    /** The page says the person pressed: that counts only when the real cursor is inside the region. */
+    press(region: Region | undefined): boolean {
+      const c = options.cursor();
+      last = c;
+      if (!region || !inRegion(c, region)) {
+        activeAt = undefined;
+        return false;
+      }
+      activeAt = now();
+      return true;
+    },
+  };
+}
+
 /** Holds the key while it is wanted and gives it back the moment it is not (call `want` whenever anything that decides it changes). */
 export function createKeyHold(options: KeyHoldOptions) {
   let registered = false;
+  const enabled = options.enabled !== false;
   return {
     want(on: boolean): void {
+      if (!enabled) return;
       if (on && !registered) registered = options.register(options.accelerator, options.onKey);
       else if (!on && registered) {
         registered = false; // whatever unregister does, it is not ours any more
