@@ -36,10 +36,11 @@ export class StableControlBounds {
   private keys = new Set<number>();
   private view: { width: number; height: number } | undefined;
   private camera: string | undefined;
+  private panel: string | undefined;
 
-  reset(): void { this.bounds = undefined; this.keys.clear(); this.view = undefined; this.camera = undefined; }
+  reset(): void { this.bounds = undefined; this.keys.clear(); this.view = undefined; this.camera = undefined; this.panel = undefined; }
 
-  update(model: Box | undefined, keys: readonly number[], view: { width: number; height: number }, motion?: { camera: string; authored: boolean }): Box | undefined {
+  update(model: Box | undefined, keys: readonly number[], view: { width: number; height: number }, motion?: { camera: string; authored: boolean; panel?: string }): Box | undefined {
     if (!model || ![model.x, model.y, model.w, model.h, view.width, view.height].every(Number.isFinite) || model.w <= 0 || model.h <= 0 || view.width <= 0 || view.height <= 0) {
       this.reset();
       return undefined;
@@ -47,7 +48,9 @@ export class StableControlBounds {
     const next = new Set(keys);
     if (this.view && (this.view.width !== view.width || this.view.height !== view.height || [...this.keys].some(k => !next.has(k)))) this.reset();
     if (motion?.authored && this.camera !== undefined && this.camera !== motion.camera) this.reset();
+    if (this.panel !== undefined && motion?.panel !== this.panel) this.reset();
     this.camera = motion?.camera;
+    this.panel = motion?.panel;
     this.view = { width: view.width, height: view.height };
     this.keys = next;
     if (!this.bounds) this.bounds = { ...model };

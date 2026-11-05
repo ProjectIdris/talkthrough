@@ -298,7 +298,9 @@ function draw(frame: Frame, seekView = false): Frame {
       modelRect = frame.panel.frame ? card : bounds.model;
       const camera = frame.camera;
       const cameraKey = JSON.stringify([camera.az, camera.el, camera.zoom, camera.focus.key, camera.focus.k]);
-      controlRect = controlBounds.update(modelRect, frame.objects.map(o => o.key), view, { camera: cameraKey, authored: seekView || !player.settled });
+      const panel = frame.panel.rect;
+      const panelKey = JSON.stringify([panel.x, panel.y, panel.w, panel.h]);
+      controlRect = controlBounds.update(modelRect, frame.objects.map(o => o.key), view, { camera: cameraKey, authored: seekView || !player.settled, panel: panelKey });
       if (frame.panel.frame) cardRect = card;
       // Development: `?scissor=off` draws over the whole window, to see what the rectangle would cut (scripts/overlay-frames.cjs --scissor off).
       const r = params.get('scissor') === 'off' ? { x: 0, y: 0, w: view.width, h: view.height } : clampRect(bounds.drawn, 14);

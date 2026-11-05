@@ -40,6 +40,29 @@ test('authored view changes reset the envelope while idle motion and unchanged f
  assert.deepEqual(sample(210,'idle-again',false),{x:210,y:100,w:30,h:20},'idle turning warms rather than resetting the envelope');
 });
 
+test('authored panel relocation and resize reset the anchor without resetting an unchanged follow-up', async()=>{
+ const {validateScene}=await import('../src/scene/index.ts');
+ const {frameAt}=await import('../src/overlay/timeline.ts');
+ const {PanelScene}=await import('../src/overlay/scene3d.ts');
+ const scene=validateScene({steps:[
+  {say:'',actions:[{op:'panel',x:650,y:250,w:300,h:400},{op:'add',shape:'box',id:'a',size:[1,1,1]},{op:'add',shape:'box',id:'b',pos:[1,0,0],size:[1,1,1]}]},
+  {say:'',actions:[{op:'panel',x:50,y:250,w:300,h:400}]},
+  {say:'',actions:[{op:'panel',x:50,y:250,w:400,h:400}]},
+ ]});
+ assert.deepEqual(scene.issues,[]);const panel=new PanelScene(),anchor=new layout.StableControlBounds();
+ const sample=(step:number)=>{const f=frameAt(scene.scene!.steps,step,99),p=f.panel!.rect;panel.sync(f,1,{rect:{x:p.x,y:p.y*.8,w:p.w,h:p.h*.8},...view});const model=panel.screenBounds(view.width,view.height)!.model;const camera=JSON.stringify([f.camera.az,f.camera.el,f.camera.zoom,f.camera.focus.key,f.camera.focus.k]);const result=anchor.update(model,f.objects.map(o=>o.key),view,{camera,authored:true,panel:JSON.stringify([p.x,p.y,p.w,p.h])})!;return {model,result};};
+ const first=sample(0),moved=sample(1),resized=sample(2),same=sample(2);
+ assert.ok(first.model.x-moved.model.x>500,'fixture moves the actual model');
+ assert.deepEqual(moved.result,moved.model,'old location must not remain in the control envelope');
+ assert.deepEqual(resized.result,resized.model,'panel resize starts a new envelope');
+ assert.deepEqual(same.result,resized.result,'unchanged panel retains the envelope');
+ const f=frameAt(scene.scene!.steps,2,99),p=f.panel!.rect, panelKey=JSON.stringify([p.x,p.y,p.w,p.h]),c=f.camera;
+ const expanded=anchor.update({...resized.model,x:resized.model.x-5},[1,2],view,{camera:JSON.stringify([c.az,c.el,c.zoom,c.focus.key,c.focus.k]),authored:false,panel:panelKey})!;
+ assert.ok(expanded.x<resized.model.x,'ordinary pose expansion accumulates within the same panel');
+ assert.deepEqual(sample(2).result,expanded,'unchanged follow-up preserves the warmed envelope');
+ panel.destroy();
+});
+
 test('an existing rigid hinge loop has moving live bounds but stable controls after one sampled cycle', async()=>{
  const {validateScene}=await import('../src/scene/index.ts');
  const {frameAt}=await import('../src/overlay/timeline.ts');
