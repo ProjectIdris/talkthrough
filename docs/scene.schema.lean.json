@@ -1563,6 +1563,255 @@
       ],
       "additionalProperties": false
     },
+    "addConnector": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "connector"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "straight",
+            "slack",
+            "wrapped",
+            null
+          ]
+        },
+        "fromSide": {
+          "enum": [
+            "left",
+            "right",
+            "top",
+            "bottom",
+            "front",
+            "back",
+            null
+          ]
+        },
+        "toSide": {
+          "enum": [
+            "left",
+            "right",
+            "top",
+            "bottom",
+            "front",
+            "back",
+            null
+          ]
+        },
+        "fromAnchor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "toAnchor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sag": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "radius": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ]
+        },
+        "draw": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "from",
+        "to",
+        "kind",
+        "fromSide",
+        "toSide",
+        "fromAnchor",
+        "toAnchor",
+        "sag",
+        "radius",
+        "color",
+        "material",
+        "draw",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "addStream": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "stream"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "along": {
+          "type": "string"
+        },
+        "mark": {
+          "enum": [
+            "dot",
+            "dash",
+            "arrow",
+            null
+          ]
+        },
+        "count": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "size": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "toColor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shiftAt": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "by": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ratio": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "along",
+        "mark",
+        "count",
+        "size",
+        "color",
+        "toColor",
+        "shiftAt",
+        "period",
+        "by",
+        "ratio",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
     "addPart": {
       "type": "object",
       "properties": {
@@ -3040,6 +3289,12 @@
         },
         {
           "$ref": "#/$defs/addPath"
+        },
+        {
+          "$ref": "#/$defs/addConnector"
+        },
+        {
+          "$ref": "#/$defs/addStream"
         },
         {
           "$ref": "#/$defs/addPart"

@@ -14,15 +14,35 @@ const cube = (id: string, extra: object = {}) => ({ op: 'add', shape: 'box', id,
 const group = (id: string, extra: object = {}) => ({ op: 'add', shape: 'group', id, ...extra });
 const actionsOf = (r: ReturnType<typeof validateScene>) => (r.scene as Scene).steps.flatMap((s) => s.actions);
 
+/** The same data, except that a point of a tube or line may have been moved onto a part's surface (a short way). */
+function sameButEnds(a: unknown, b: unknown, where: string): void {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    assert.equal(a.length, b.length, where);
+    a.forEach((x, k) => sameButEnds(x, b[k], `${where}[${k}]`));
+  } else if (a !== null && b !== null && typeof a === 'object' && typeof b === 'object') {
+    assert.deepEqual(Object.keys(a as object).sort(), Object.keys(b as object).sort(), where);
+    for (const k of Object.keys(a as object)) {
+      const x: unknown = (a as Record<string, unknown>)[k];
+      const y: unknown = (b as Record<string, unknown>)[k];
+      if (k === 'pts' && Array.isArray(x) && Array.isArray(y) && Array.isArray(x[0]) && x[0].length === 3) {
+        assert.equal(x.length, y.length, where);
+        x.forEach((p, n) => assert.ok(Math.hypot(...(p as number[]).map((c, d) => c - ((y[n] as number[])[d] as number))) <= 0.5, `${where}.pts[${n}]`));
+      } else sameButEnds(x, y, `${where}.${k}`);
+    }
+  } else assert.deepEqual(a, b, where);
+}
+
 test('every sample scene passes unchanged', () => {
   const samples = readdirSync(samplesDir).filter((f) => f.endsWith('.json') && !f.includes('followup'));
   assert.ok(samples.length >= 3);
   for (const name of samples) {
     const raw = load(name);
     const r = validateScene(raw);
-    assert.deepEqual(r.issues, [], name);
+    // A tube whose end lies on a part is joined to it (see scene-flow.test.ts): the notes say so, the end is moved a little onto the surface and carries its attachment. Nothing else is touched.
+    assert.deepEqual(r.issues.filter((i) => !/^repaired: /.test(i.message)), [], name);
     assert.equal(r.ok, true);
-    assert.deepEqual(r.scene, raw, name);
+    const plain = JSON.parse(JSON.stringify(r.scene), (k, v) => (k === 'attach' ? undefined : v));
+    sameButEnds(plain, raw, name);
   }
 });
 

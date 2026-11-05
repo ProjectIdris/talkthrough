@@ -131,9 +131,9 @@ export function swellAt(swell: readonly Vec2[], t: number): number {
 /**
  * A tube along the sampled points. `flat` squashes it into a ribbon whose wide side runs across the
  * path (across x for a path going up or along z, across z for a path going along x), so a cable seen from the front shows its width.
- * The index runs ring after ring, so `drawRange` reveals it from the start.
+ * The index runs ring after ring, so `drawRange` reveals it from the start. `across`, when given, is the way the wide side faces (a belt's width runs along its wheels' axis).
  */
-export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: number, radial: number, swell?: readonly Vec2[]): BufferGeometry {
+export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: number, radial: number, swell?: readonly Vec2[], across?: Vec3): BufferGeometry {
   const rings = path.length;
   const pos: number[] = [];
   const nor: number[] = [];
@@ -169,6 +169,12 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
       if (wide.lengthSq() < 1e-12) wide.crossVectors(tangent, Math.abs(tangent.dot(UP)) > 0.95 ? FORWARD : UP);
       wide.normalize();
       if (before && wide.dot(before) < 0) wide.negate();
+    }
+    // A given `across` (a belt's width along its wheels' axis) is the way the wide side faces, whatever the path does.
+    if (across) {
+      wide.set(across[0], across[1], across[2]).addScaledVector(tangent, -tangent.x * across[0] - tangent.y * across[1] - tangent.z * across[2]);
+      if (wide.lengthSq() < 1e-8) wide.crossVectors(tangent, ref);
+      wide.normalize();
     }
     thin.crossVectors(wide, tangent).normalize();
     centre.set(p[0], p[1], p[2]);

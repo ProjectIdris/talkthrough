@@ -28,6 +28,8 @@ import type { FocusFrame, Frame, ObjectFrame, Rgb } from './timeline.ts';
 import { spreadPosition, userOffsets } from './explode.ts';
 import type { Part } from './explode.ts';
 import { Cutaway } from './cutaway.ts';
+import { buildConnector, buildStream, updateAttached, updateConnectors, updateStreams } from './scene3d-flow.ts';
+import type { FlowNode } from './scene3d-flow.ts';
 
 /** The longer side of the stage sees this many degrees; the shorter side follows from its shape, so a wide stage does not skew what sits at its edges. */
 export const FOV_DEGREES = 35;
@@ -96,6 +98,11 @@ type Node = {
   anchors?: Record<string, Vec3>;
   /** For tubes, lines and arrows: what is needed to draw them part way. */
   path?: { geo: BufferGeometry; sampled: Vec3[]; head: Mesh | undefined; /** A tube thick for its length (a stem, a vessel, a limb, a pipe): part of the body, not a trailing cable. */ body: boolean };
+  /** A connector's tube and what it was last built from; a stream's markers (see scene3d-flow.ts). */
+  connector?: FlowNode['connector'];
+  stream?: FlowNode['stream'];
+  /** A tube or line with an end on a part: its points as drawn at rest (see scene3d-flow.ts). */
+  attached?: FlowNode['attached'];
 };
 
 type AddMesh = (geo: BufferGeometry, surface: string | undefined, edges: boolean) => Mesh;
@@ -220,6 +227,8 @@ export class PanelScene {
       }
       case 'text': this.buildText(node, o); break;
       case 'tube': case 'line': case 'arrow': this.buildPath(node, o, addMesh); break;
+      case 'connector': buildConnector(node, o, addMesh, this.detail.radial); break;
+      case 'stream': buildStream(node, o, addMesh); break;
       default: {
         const geo = this.solidGeometry(def);
         if (def.shape === 'blob') shadeByHeight(geo);
@@ -437,6 +446,11 @@ export class PanelScene {
     }
     this.scene.updateMatrixWorld(true);
     if (!frame.objects.some((o) => o.pose || o.pulse !== 0)) this.restSpheres = this.partSpheres();
+    // Connectors and streams are placed from where their parts now are; what hangs on a connector then needs its matrices again.
+    updateAttached(this.nodes, frame, this.detail.radial, PATH_RADIUS);
+    if (updateConnectors(this.nodes, frame, this.detail.radial)) this.scene.updateMatrixWorld(true);
+    updateStreams(this.nodes, frame);
+    this.scene.updateMatrixWorld(true);
     this.aim(frame, aspect, view, standBack);
     if (view) this.tidyTexts(view);
     // The person's Cut goes through the middle of the model from the side the camera looks from.
@@ -600,7 +614,7 @@ export class PanelScene {
   private partSpheres(): PartHull[] {
     const spheres: PartHull[] = [];
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
       for (const p of node.pieces) {
         const mesh = p.object as Mesh;
         const geo = mesh.geometry;
@@ -630,7 +644,7 @@ export class PanelScene {
     const p = new Vector3();
     const proj = this.camera.projectionMatrix.elements;
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
       for (const piece of node.pieces) {
         const mesh = piece.object as Mesh;
         box.setFromObject(mesh);
@@ -703,7 +717,7 @@ export class PanelScene {
     const box = new Box3();
     const corner = new Vector3();
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
       box.setFromObject(node.obj);
       if (box.isEmpty()) continue;
       for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) far = Math.max(far, corner.set(x, y, z).distanceTo(from));
@@ -718,7 +732,7 @@ export class PanelScene {
     // How solid the model is, by its biggest part: a shadow under a see-through shell would grey the layers inside it.
     let biggest = 0, solidity = 1;
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
       const b = new Box3().setFromObject(node.obj);
       if (!b.isEmpty()) {
         this.box.union(b);
@@ -813,7 +827,7 @@ export class PanelScene {
     const hulls: Pt[][] = [];
     const corner = new Vector3();
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.path) continue;
+      if (!node.obj.visible || node.obj instanceof Sprite || node.path || node.stream) continue;
       for (const piece of node.pieces) {
         const o = piece.object;
         if (!(o instanceof Mesh) || !o.visible) continue;
