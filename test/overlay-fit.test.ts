@@ -149,3 +149,18 @@ test('the floor shadow is lighter under a see-through model, so it does not grey
   const seeThrough = opacityFor('glass');
   assert.ok(seeThrough < solid * 0.8, `glass ${seeThrough.toFixed(3)} against plastic ${solid.toFixed(3)}`);
 });
+
+test('what is drawn includes the text that was moved off its point, so the render scissor does not cut it', () => {
+  const stage = { x: 700, y: 100, w: 300, h: 300 };
+  const frame = settled(
+    { op: 'add', shape: 'box', id: 'a', size: [30, 4, 4] },
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ op: 'add', shape: 'text', id: `t${n}`, pos: [0, 2, 0], text: `Q${n}: 2.1`, height: 0.4, color: 'white' })),
+    { op: 'orbit', az: 0, el: 0, dur: 0 },
+  );
+  const scene = new PanelScene({ makeCanvas: fakeCanvas });
+  scene.sync(frame, 1, { rect: stage, ...WIN });
+  const { drawn } = scene.screenBounds(WIN.width, WIN.height)!;
+  for (const r of textRects(scene, frame)) {
+    assert.ok(r.x0 >= drawn.x - 1 && r.x1 <= drawn.x + drawn.w + 1 && r.y0 >= drawn.y - 1 && r.y1 <= drawn.y + drawn.h + 1, `a label at ${JSON.stringify(r)} is inside what is drawn ${JSON.stringify(drawn)}`);
+  }
+});

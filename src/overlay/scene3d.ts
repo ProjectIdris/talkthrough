@@ -128,6 +128,8 @@ export class PanelScene {
   private fitClock: number | undefined;
   /** The visible parts' bounding spheres and box corners at rest (no machine pose, no pulse), worked out in `sync` for the camera's fit. */
   private restSpheres: PartHull[] = [];
+  /** Where the text sprites were put on screen by the last `tidyTexts` (window pixels): what is drawn includes them. */
+  private textRects: ScreenRect[] = [];
   private settling = false;
   private cutaway = new Cutaway();
 
@@ -333,7 +335,7 @@ export class PanelScene {
     const ctx = canvas.getContext('2d') as CanvasRenderingContext2D | null;
     if (!ctx) return;
     const r = height / 2;
-    ctx.fillStyle = 'rgba(20,24,36,0.94)';
+    ctx.fillStyle = 'rgba(20,24,36,1)';
     ctx.beginPath();
     ctx.moveTo(r, 0);
     ctx.lineTo(width - r, 0);
@@ -524,6 +526,7 @@ export class PanelScene {
    * two that would sit on each other are moved apart vertically (by the sprite's anchor, so they stay at their point in the world).
    */
   private tidyTexts(view: StageView): void {
+    this.textRects = [];
     const sprites: Array<{ node: Node; cx: number; cy: number; w: number; h: number; depth: number }> = [];
     const p = new Vector3();
     const proj = this.camera.projectionMatrix.elements;
@@ -554,6 +557,7 @@ export class PanelScene {
       if (!clear(dy)) dy = 0;
       if (dy !== 0) (t.node.obj as Sprite).center.set(0.5, 0.5 + dy / t.h);
       placed.push({ x0: t.cx - t.w / 2, y0: t.cy + dy - t.h / 2, x1: t.cx + t.w / 2, y1: t.cy + dy + t.h / 2 });
+      this.textRects.push({ x: t.cx - t.w / 2, y: t.cy + dy - t.h / 2, w: t.w, h: t.h });
     }
   }
 
@@ -791,8 +795,10 @@ export class PanelScene {
     const span = Math.max(size.x, size.z, 1) * 1.6;
     const centre = this.box.getCenter(new Vector3());
     const shadow = rect([-1, 1].flatMap((sx) => [-1, 1].map((sz) => new Vector3(centre.x + sx * span, floorY, centre.z + sz * span))));
-    const x0 = Math.min(model.x, shadow.x), y0 = Math.min(model.y, shadow.y);
-    const x1 = Math.max(model.x + model.w, shadow.x + shadow.w), y1 = Math.max(model.y + model.h, shadow.y + shadow.h);
+    let x0 = Math.min(model.x, shadow.x), y0 = Math.min(model.y, shadow.y);
+    let x1 = Math.max(model.x + model.w, shadow.x + shadow.w), y1 = Math.max(model.y + model.h, shadow.y + shadow.h);
+    // The text drawn over the model may stand a little beyond it (moved apart from its neighbours): the scissor has to let it through.
+    for (const r of this.textRects) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
     // A little room all round: what is drawn (a lit edge, a part a pixel or two past its box) must not be cut by the scissor.
     const pad = 6 + 0.04 * Math.max(model.w, model.h);
     return { model, drawn: { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad } };
