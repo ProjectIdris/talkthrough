@@ -2,6 +2,17 @@
 // ways; main checks it with the very checks the settings file goes through (main/settings.ts) before anything is written.
 
 export type Route = 'codex' | 'claude' | 'openai' | 'local';
+
+/** Where a local model is looked for when no address is set: Ollama's own. */
+export const DEFAULT_LOCAL_URL = 'http://127.0.0.1:11434/v1';
+
+/** The models each connector is known to offer, for the pick lists; any other name can still be typed. A local model is whatever the user's server holds, so it has no list. */
+export const KNOWN_MODELS: Record<Route, readonly string[]> = {
+  claude: ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5', 'claude-fable-5-1'],
+  codex: ['gpt-6-luna', 'gpt-6.1-sol'],
+  openai: ['gpt-6-luna', 'gpt-6.1-sol'],
+  local: [],
+};
 export type SplitMode = 'off' | 'two' | 'steps';
 export type { CaptionMode } from './captions.ts';
 import type { CaptionMode } from './captions.ts';

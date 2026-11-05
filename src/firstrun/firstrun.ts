@@ -5,6 +5,7 @@
 import { CHORD_KEYS, splitHotkey } from '../shared/chord-keys.ts';
 import { modelLine } from '../main/model-plan.ts';
 import type { FirstRunInfo, ToolsFound } from '../shared/ipc.ts';
+import { DEFAULT_LOCAL_URL } from '../shared/settings-form.ts';
 import type { Route, SettingsForm } from '../shared/settings-form.ts';
 
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -108,7 +109,8 @@ function renderRoutes(): void {
     claude: tools.claude ? ['found on this computer', 'ok'] : ['not found', 'warn'],
     codex: tools.codex ? ['found on this computer', 'ok'] : ['not found', 'warn'],
     openai: tools.apiKey ? ['key saved', 'ok'] : ['no key yet', ''],
-    local: localUrl() && localName() ? ['address set', 'ok'] : ['set up below', ''],
+    // Ollama's own address is used when none is set; "address set" is only for one the person typed.
+    local: !localName() ? ['set up below', ''] : ['', DEFAULT_LOCAL_URL].includes(localUrl()) ? ['default address', ''] : ['address set', 'ok'],
   };
   for (const chip of document.querySelectorAll<HTMLElement>('[data-chip]')) {
     const [word, kind] = chips[chip.dataset.chip as Route];

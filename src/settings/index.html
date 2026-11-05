@@ -22,6 +22,7 @@
   .indent .row { border-top: 0; padding: 6px 0; }
   .cols2 { display: flex; gap: 10px; }
   .cols2 > * { flex: 1; width: auto !important; }
+  .row .ctl select#splitAnswer, .row .ctl select#captions { width: 290px; }
 </style>
 </head>
 <body>
@@ -79,7 +80,7 @@
   <div class="row hide" id="laterModelRow"><div class="what"><div class="lab">Model for the later steps</div><div class="hint" id="laterModelHint"></div></div><div class="ctl"><input type="text" id="laterModel" autocomplete="off" spellcheck="false"></div></div>
 
   <div class="subhead" style="margin-top:14px">More</div>
-  <div class="row first" id="splitRow"><div class="what"><div class="lab">Write the answer</div><div class="hint" id="warnSplit"></div></div><div class="ctl"><select id="splitAnswer"><option value="off">In one call</option><option value="two">In two calls</option><option value="steps">One step at a time</option></select></div></div>
+  <div class="row first" id="splitRow"><div class="what"><div class="lab">Write the answer</div><div class="hint" id="warnSplit"></div></div><div class="ctl"><select id="splitAnswer"><option value="off">In one call</option><option value="two">In two calls</option><option value="steps">One step at a time (recommended)</option></select></div></div>
   <div class="row"><div class="what"><div class="lab">More detail</div><div class="hint">When you ask for more detail, a stronger model redraws what is on screen in finer detail. It uses more of your allowance and only runs when you ask.</div></div><div class="ctl"><select id="detailRoute"><option value="">Off</option><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="openai">API key</option><option value="local">Local model</option></select></div></div>
   <div class="row hide" id="detailbox"><div class="what"><div class="lab">Model for more detail</div><div class="hint">Empty: a stronger default for that connector.</div></div><div class="ctl"><input type="text" id="detailModel" autocomplete="off" spellcheck="false"></div></div>
 </div>

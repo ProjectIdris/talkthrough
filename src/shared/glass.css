@@ -54,6 +54,7 @@ input[type=checkbox].tog:checked::after { left: 20px; }
 .hint.ok { color: var(--ok); }
 .row .ctl { display: flex; align-items: center; gap: 8px; flex: none; }
 .row .ctl input[type=text], .row .ctl input[type=password], .row .ctl select { width: 230px; }
+.row .ctl.col { flex-direction: column; align-items: flex-end; }
 .status { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 
 /* A choice of one among a few, as cards (the first run's steps, the connectors). */

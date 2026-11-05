@@ -4,6 +4,7 @@ import { DEFAULT_HOTKEY, parseHotkey } from './chord.ts';
 import { cleanSkipList, DEFAULT_SKIP_LIST } from './skip-list.ts';
 import { isLoopbackUrl } from '../adapters/local-model.ts';
 import { normaliseLater } from './model-plan.ts';
+import { DEFAULT_LOCAL_URL } from '../shared/settings-form.ts';
 import type { Route, SplitMode } from '../shared/settings-form.ts';
 import { DEFAULT_CAPTION_MODE, isCaptionMode } from '../shared/captions.ts';
 import type { CaptionMode } from '../shared/captions.ts';
@@ -131,7 +132,7 @@ export const DETAIL_MODELS: Record<Route, string> = {
 };
 export const DETAIL_EFFORT = 'medium';
 /** Where a local model is looked for when no address is set: Ollama's own. */
-export const DEFAULT_LOCAL_BASE_URL = 'http://127.0.0.1:11434/v1';
+export const DEFAULT_LOCAL_BASE_URL = DEFAULT_LOCAL_URL;
 /** How long a detail answer may take (a stronger model writing a richer scene is slower than a quick answer's 60 s). */
 export const DETAIL_TIMEOUT_MS = 240_000;
 

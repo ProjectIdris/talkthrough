@@ -2,7 +2,7 @@
 // never decides what is valid. The API key goes to main once and is never sent back: this page only learns whether one is saved.
 
 import { CHORD_KEYS, DEFAULT_HOTKEY, MAX_HOTKEY_KEYS, hotkeyWarning, keyNameOfDom, splitHotkey } from '../shared/chord-keys.ts';
-import { changedKeys, savedMessage, SWITCH_WARNINGS } from '../shared/settings-form.ts';
+import { changedKeys, DEFAULT_LOCAL_URL, KNOWN_MODELS, savedMessage, SWITCH_WARNINGS } from '../shared/settings-form.ts';
 import type { Route, SettingsForm } from '../shared/settings-form.ts';
 import type { AudioDevice, ToolsFound } from '../shared/ipc.ts';
 
@@ -53,7 +53,55 @@ function arrange(): void {
   el('laterModelHint').textContent = later === 'same' ? 'Another model on the same connector, such as a stronger one for the longer steps.' : laterOn ? `Empty: ${prettyRouteModel(laterRoute) || 'that connector\'s own model'}.` : '';
   el('splitRow').classList.toggle('hide', route !== 'claude' || laterOn);
   el('firstModelHint').textContent = route === 'openai' ? 'The model your key may use.' : route === 'local' ? 'Must take pictures (a vision model).' : route === 'claude' ? 'For example claude-sonnet-5-5.' : '';
+  pick('modelName', route);
+  pick('laterModel', later === '' ? '' : ((later === 'same' ? route : later) as Route));
+  pick('detailModel', detail === '' ? '' : (detail as Route));
   renderChips();
+}
+
+/**
+ * A model box that lists the models its connector is known to offer, with "Other" to type any other name. The text box stays the value the form reads: choosing from the
+ * list fills it, and it shows only for "Other". A local model, or no connector yet, is free text alone.
+ */
+const OTHER = '__other';
+function pick(inputId: string, route: Route | ''): void {
+  const input = text(inputId);
+  const known = route === '' ? [] : KNOWN_MODELS[route];
+  const id = `${inputId}Pick`;
+  let menu = document.getElementById(id) as HTMLSelectElement | null;
+  if (known.length === 0) {
+    menu?.classList.add('hide');
+    input.classList.remove('hide');
+    input.parentElement?.classList.remove('col');
+    return;
+  }
+  if (!menu) {
+    menu = Object.assign(document.createElement('select'), { id });
+    menu.setAttribute('aria-label', 'Model');
+    menu.addEventListener('change', () => {
+      const m = menu as HTMLSelectElement;
+      if (m.value === OTHER) {
+        input.classList.remove('hide');
+        input.value = '';
+        input.focus();
+      } else {
+        input.value = m.value;
+        input.classList.add('hide');
+      }
+    });
+    input.before(menu);
+  }
+  menu.classList.remove('hide');
+  menu.replaceChildren(
+    new Option('Default', ''),
+    ...known.map((name) => new Option(name, name)),
+    new Option('Other (type a name)', OTHER),
+  );
+  const value = input.value.trim();
+  const listed = value === '' || known.includes(value);
+  menu.value = listed ? value : OTHER;
+  input.classList.toggle('hide', listed);
+  input.parentElement?.classList.add('col');
 }
 
 function prettyRouteModel(route: Route): string {
@@ -65,7 +113,8 @@ function renderChips(): void {
     claude: tools.claude ? ['found', 'ok'] : ['not found', 'warn'],
     codex: tools.codex ? ['found', 'ok'] : ['not found', 'warn'],
     openai: keySaved ? ['key saved', 'ok'] : ['no key yet', ''],
-    local: text('localBaseUrl').value.trim() ? ['address set', 'ok'] : ['set an address', ''],
+    // An empty address, or Ollama's own, is the default one; only another address is one the person set.
+    local: ['', DEFAULT_LOCAL_URL].includes(text('localBaseUrl').value.trim()) ? ['default address', ''] : ['address set', 'ok'],
   };
   for (const chip of document.querySelectorAll<HTMLElement>('[data-chip]')) {
     const [word, kind] = chips[chip.dataset.chip as Route];
