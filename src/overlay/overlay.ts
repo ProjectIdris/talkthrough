@@ -3,7 +3,7 @@
 // soft shadow on the page); marks, tags pinned to parts, and cards are drawn on a 2D canvas above it.
 // Everything is data-driven by validated scenes (see src/scene).
 
-import { NeutralToneMapping, PMREMGenerator, SRGBColorSpace, WebGLRenderer } from 'three';
+import { NeutralToneMapping, PMREMGenerator, SRGBColorSpace, VSMShadowMap, WebGLRenderer } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { DisplayInfo, SceneMessage } from '../shared/ipc.ts';
@@ -94,6 +94,8 @@ renderer.toneMappingExposure = 0.9;
 renderer.setClearColor(0x000000, 0);
 renderer.autoClear = false;
 renderer.shadowMap.enabled = settings.shadows;
+// A variance map is blurred, so the edge of a shadow is smooth; the default filter's edge is grainy.
+renderer.shadowMap.type = VSMShadowMap;
 
 /** The high tier's occlusion and smoothing; absent on the others, and if the graphics stack will not run it. */
 let finishing: Finishing | undefined;
