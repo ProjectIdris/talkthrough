@@ -125,4 +125,4 @@ Offscreen windows always render at a device scale of 1; add `--hidden --dpr 2` t
 
 ## Software rendering
 
-The renderer works without a GPU: Electron with hardware acceleration off runs WebGL on the system's software rasteriser. The mid tier is meant for that; the high tier is judged on a real GPU: `--gpu yes` on the frame tool leaves hardware acceleration on, `--clean yes` leaves the app's own buttons out of the picture, and `--metrics yes` prints what the graphics process holds and times twenty seeks.
+The app uses the graphics card by default and falls back to the system's software rasteriser when there is none; `--software` (or `TALKTHROUGH_SOFTWARE=1`) forces software. The renderer works without a GPU: Electron with hardware acceleration off runs WebGL on the software rasteriser. The mid tier is meant for that; the high tier is judged on a real GPU: the frame tool itself starts in software, and `--gpu yes` on it leaves hardware acceleration on leaves hardware acceleration on, `--clean yes` leaves the app's own buttons out of the picture, and `--metrics yes` prints what the graphics process holds and times twenty seeks.
