@@ -4,7 +4,7 @@
 
 import type { Vec3 } from '../scene/types.ts';
 import type { View } from './marks.ts';
-import { THEME, fontAt } from './theme.ts';
+import { THEME, fontAt, tagTextPx } from './theme.ts';
 import type { Theme } from './theme.ts';
 import { attachPoint } from './labels.ts';
 import type { PinRequest, Placement } from './labels.ts';
@@ -156,7 +156,7 @@ export function drawPin(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): vo
   const color = accentFor(m, theme, order);
   // A tag is sized by the screen; beside a stage much smaller than a usual one (half the screen's height) it comes down, to 70% at most.
   const beside = a.stage ? Math.max(0.7, Math.min(1, Math.min(a.stage.w, a.stage.h) / (view.height * 0.5))) : 1;
-  const textPx = Math.max(11, Math.max(13, view.height * 0.0195) * beside);
+  const textPx = tagTextPx(view.height, a.stage);
   const anchor = { x: snapPx(where.x, view.dpr), y: snapPx(where.y, view.dpr) };
 
   ctx.save();

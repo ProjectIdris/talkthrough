@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import type { Sprite } from 'three';
 import { PanelScene } from '../src/overlay/scene3d.ts';
+import { TAG_HEIGHT_FACTOR, tagTextPx } from '../src/overlay/theme.ts';
 import { frameAt } from '../src/overlay/timeline.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
 import type { Step } from '../src/scene/index.ts';
@@ -82,7 +83,8 @@ test('text in the scene is never drawn tiny, and labels at one spot do not pile 
   scene.sync(frame, 1, { rect: stage, ...WIN });
   const rects = textRects(scene, frame);
   assert.equal(rects.length, 3);
-  for (const r of rects) assert.ok(r.h >= 17.9 && r.h <= 24.1, `readable, not huge: ${r.h.toFixed(1)} px tall`);
+  const tag = Math.ceil(tagTextPx(WIN.height, stage) * TAG_HEIGHT_FACTOR);
+  for (const r of rects) assert.ok(r.h >= tag - 0.1 && r.h <= tag * 1.3 + 0.1, `as tall as a tag (${tag} px), not more than 1.3 times: ${r.h.toFixed(1)} px`);
   for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
     const a = rects[i]!, b = rects[j]!;
     assert.ok(a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0, `labels ${i} and ${j} do not overlap`);

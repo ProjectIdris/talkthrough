@@ -20,6 +20,7 @@ import type { Detail } from './geometry.ts';
 import { TIERS, applySurface, makeSurface } from './materials.ts';
 import type { Surface, Tier } from './materials.ts';
 import { buildPart } from './parts.ts';
+import { TAG_HEIGHT_FACTOR, tagTextPx } from './theme.ts';
 import { convexHull } from './labels.ts';
 import type { Pt } from './labels.ts';
 import type { Piece } from './parts.ts';
@@ -45,10 +46,8 @@ export const FRAMING_UNITS = 12;
 /** The sphere round the model gets this much room on the stage, and the camera never comes nearer than this to it (world units). */
 const FIT_MARGIN = 1.1;
 const MIN_FIT_DISTANCE = 0.8;
-/** A text sprite in the scene is drawn at least this tall on screen (CSS pixels). */
-const MIN_TEXT_PX = 18;
-/** and no taller than this, so a stage that grew does not make the labels outweigh the tags. */
-const MAX_TEXT_PX = 24;
+/** Text in the scene is drawn as tall as a tag on screen, and at most this many times that, so it reads like the tags beside it and a big stage does not make it outweigh them. */
+const MAX_TEXT_OVER_TAG = 1.3;
 const PATH_RADIUS = 0.06;
 function boxCorners(box: Box3, matrix: Matrix4 | undefined): Vector3[] {
   const out: Vector3[] = [];
@@ -326,7 +325,7 @@ export class PanelScene {
     const font = `700 ${fontPx}px system-ui, "Segoe UI", Roboto, sans-serif`;
     probe.font = font;
     // The same look as a tag (a dark pill, a dot in the object's colour, white text), not an outlined word: it reads over bars, shadows and the page.
-    const dot = fontPx * 0.34, padX = fontPx * 0.5, padY = fontPx * 0.28, gap = fontPx * 0.28;
+    const dot = fontPx * 0.4, padX = fontPx * 0.8, padY = fontPx * 0.55, gap = fontPx * 0.35; // a tag's proportions
     const textW = Math.ceil(probe.measureText(text).width);
     const width = Math.ceil(padX + dot + gap + textW + padX);
     const height = Math.ceil(fontPx + padY * 2);
@@ -521,13 +520,14 @@ export class PanelScene {
   }
 
   /**
-   * Text sprites in the scene (a value over a bar, a name on a part) are kept readable on screen: none smaller than `MIN_TEXT_PX` or taller than `MAX_TEXT_PX`, and
+   * Text sprites in the scene (a value over a bar, a name on a part) are kept readable on screen: none shorter than a tag (same letter size and floor, `tagTextPx`) or more than 1.3 times as tall, and
    * two that would sit on each other are moved apart vertically (by the sprite's anchor, so they stay at their point in the world).
    */
   private tidyTexts(view: StageView): void {
     const sprites: Array<{ node: Node; cx: number; cy: number; w: number; h: number; depth: number }> = [];
     const p = new Vector3();
     const proj = this.camera.projectionMatrix.elements;
+    const tagH = Math.ceil(tagTextPx(view.height, view.rect) * TAG_HEIGHT_FACTOR);
     for (const node of this.nodes.values()) {
       const sprite = node.obj;
       if (!(sprite instanceof Sprite)) continue;
@@ -539,7 +539,7 @@ export class PanelScene {
       p.project(this.camera);
       const cx = ((p.x + 1) / 2) * view.width, cy = ((1 - p.y) / 2) * view.height;
       const h = (sprite.scale.y * proj[5] * view.height) / (2 * depth);
-      const k = h <= 0 ? 1 : h < MIN_TEXT_PX ? Math.min(8, MIN_TEXT_PX / h) : h > MAX_TEXT_PX ? MAX_TEXT_PX / h : 1;
+      const k = h <= 0 ? 1 : h < tagH ? Math.min(12, tagH / h) : h > tagH * MAX_TEXT_OVER_TAG ? (tagH * MAX_TEXT_OVER_TAG) / h : 1;
       if (k !== 1) sprite.scale.multiplyScalar(k);
       sprites.push({ node, cx, cy, w: (sprite.scale.x / sprite.scale.y) * h * k, h: h * k, depth });
     }
