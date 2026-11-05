@@ -192,20 +192,26 @@ test('a narrow box around one dense paragraph line does not grow into the adjoin
   page.fill(311, 35, 460, 130, 70); // adjacent photo/figure content, separated by a narrow gutter
   const s = page.snapper();
   const out = s.snapMark(box(58, 38, 302, 51));
+  const selectedLine = { x0: 60, x1: 300, y0: 40, y1: 44 };
+  const nextLine = { y0: 51, y1: 55 };
+  const photoLeft = 311;
   const assertFitsSelectedLine = (mark: Mark): void => {
     const b = mark as Extract<Mark, { op: 'box' }>;
     const x0 = b.x * kx, x1 = (b.x + b.w) * kx;
     const { y0, y1 } = cellsOfBox(mark);
-    assert.ok(x0 <= 60 && x1 >= 300, `the selected line (x 60..300) stays inside, got ${x0.toFixed(1)}..${x1.toFixed(1)}`);
-    assert.ok(y0 <= 40 && y1 >= 44, `the selected line (y 40..44) stays inside, got ${y0.toFixed(1)}..${y1.toFixed(1)}`);
-    assert.ok(x1 <= 310, `paragraph fit stays left of adjacent content, got ${x1.toFixed(1)}`);
-    assert.ok(y1 < 64, `one selected line stays a one-line mark, got ${y1.toFixed(1)}`);
+    assert.ok(x0 <= selectedLine.x0 && x1 >= selectedLine.x1, `the selected line (x ${selectedLine.x0}..${selectedLine.x1}) stays inside, got ${x0.toFixed(1)}..${x1.toFixed(1)}`);
+    assert.ok(y0 <= selectedLine.y0 && y1 >= selectedLine.y1, `the selected line (y ${selectedLine.y0}..${selectedLine.y1}) stays inside, got ${y0.toFixed(1)}..${y1.toFixed(1)}`);
+    assert.ok(x1 <= photoLeft - 1, `the box leaves the fixture's one-cell gutter before the photo at x=${photoLeft}, got right=${x1.toFixed(1)}`);
+    assert.ok(y1 <= nextLine.y0 || y0 >= nextLine.y1, `the box excludes the adjacent line (y ${nextLine.y0}..${nextLine.y1}), got ${y0.toFixed(1)}..${y1.toFixed(1)}`);
   };
   assertFitsSelectedLine(out);
+  assertFitsSelectedLine(box(58, 38, 302, nextLine.y0)); // unchanged input ending exactly at the next line's top is still valid
 
   // Exercise the same geometry contract against plausible bad outputs, not just the real snap result.
   assert.throws(() => assertFitsSelectedLine(box(0, 0, 1, 1)), /selected line/);
   assert.throws(() => assertFitsSelectedLine(box(100, 40, 200, 44)), /selected line/);
+  assert.throws(() => assertFitsSelectedLine(box(58, 38, 302, 52)), /adjacent line/); // crosses into its first row
+  assert.throws(() => assertFitsSelectedLine(box(58, 38, 302, 60)), /adjacent line/);
 });
 
 test('where the gap between lines is only a few cells, the air at a cut line is no more than half of it: an edge never lands inside the next line', () => {
