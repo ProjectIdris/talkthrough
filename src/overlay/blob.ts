@@ -19,7 +19,11 @@ type Lump = { c: Vec3; r: Vec3 };
 
 /** Influence reaches this many (normalised) radii out; 1 is a hard union, more blends over a wider neck. */
 function reach(soft: number): number {
-  return 1 + 2 * Math.max(0.05, Math.min(1, soft));
+  const s = Math.max(0.05, Math.min(1, soft));
+  // Up to 0.3 as it always was (a firm blend leaves lumps apart). Above that the blend widens faster, so the usual 0.5 melts lumps that overlap by a third
+  // into one mass instead of leaving a crease between them (equal lumps in a square read as a cloverleaf).
+  const eff = s <= 0.3 ? s : 0.3 + (s - 0.3) * 1.9;
+  return 1 + 2 * eff;
 }
 
 /** The field of the lumps and its gradient at p; the surface is where the field equals `level`. */
