@@ -363,3 +363,72 @@ test('with a card round the model, a tag is wholly inside it or wholly outside i
   const inside = (r: Rect) => r.x >= card.x && r.y >= card.y && r.x + r.w <= card.x + card.w && r.y + r.h <= card.y + card.h;
   for (const [i, r] of rects.entries()) assert.ok(inside(r) || !touches(r), `tag ${i} straddles the card's edge: ${JSON.stringify(r)}`);
 });
+
+test('a tag prefers a leader that does not cross a control when a clear placement exists', () => {
+  const anchor = { x: 900, y: 380 }, req = { anchor, ...SIZE }, e = env();
+  const initial = board().place(1, req, () => e);
+  const obstacle = { x: (anchor.x + initial.attach.x) / 2 - 5, y: (anchor.y + initial.attach.y) / 2 - 5, w: 10, h: 10 };
+  assert.ok(segmentHitsRect(anchor, initial.attach, obstacle));
+  const placed = board().place(1, req, () => ({ ...e, keepOut: [obstacle] }));
+  assert.equal(segmentHitsRect(anchor, placed.attach, obstacle), false, 'initial search should choose a clear leader');
+});
+
+test('a persistent new control crossing moves an existing tag to a clear leader', () => {
+  const anchor = { x: 900, y: 380 }, req = { anchor, ...SIZE }, e = env(), b = board();
+  const initial = b.place(1, req, () => e);
+  const obstacle = { x: (anchor.x + initial.attach.x) / 2 - 5, y: (anchor.y + initial.attach.y) / 2 - 5, w: 10, h: 10 };
+  assert.ok(segmentHitsRect(anchor, initial.attach, obstacle));
+  let p = initial;
+  for (let i = 1; i <= 100; i++) {
+    b.beginFrame({ width: W, height: H, model: MODEL, dragging: false, now: i * 16 });
+    p = b.place(1, req, () => ({ ...e, keepOut: [obstacle] }));
+  }
+  assert.equal(segmentHitsRect(anchor, p.attach, obstacle), false, 'persistent crossing must mend when a clear alternative exists');
+});
+
+test('a control containing the anchor does not hide the tag or cause endless movement', () => {
+  const anchor = { x: 900, y: 380 }, req = { anchor, ...SIZE }, e = { ...env(), keepOut: [{x: 880, y: 360, w: 40, h: 40}] }, b = board();
+  let p = b.place(1, req, () => e);
+  for (let i = 1; i <= 160; i++) { b.beginFrame({ width: W, height: H, model: MODEL, dragging: false, now: i * 16 }); p = b.place(1, req, () => e); }
+  assert.equal(p.rect.w, SIZE.w); assert.equal(p.rect.h, SIZE.h); assert.equal(p.alpha, 1); assert.equal(b.moving, false);
+});
+
+test('an enclosed anchor with no clear route keeps a full-size tag and retries boundedly', () => {
+  const anchor = { x: 900, y: 380 }, req = { anchor, ...SIZE }, b = board();
+  const keepOut = [{x: 870,y:350,w:60,h:5},{x:870,y:405,w:60,h:5},{x:870,y:355,w:5,h:50},{x:925,y:355,w:5,h:50}];
+  const e = { ...env(), keepOut };
+  let p = b.place(1, req, () => e); let changes = 0; let last = p.rect;
+  for (let i = 1; i <= 240; i++) { b.beginFrame({ width: W, height: H, model: MODEL, dragging: false, now: i * 16 }); p = b.place(1, req, () => e); if (p.rect.x !== last.x || p.rect.y !== last.y) changes++; last = p.rect; }
+  assert.equal(p.rect.w, SIZE.w); assert.equal(p.rect.h, SIZE.h); assert.equal(p.alpha, 1); assert.equal(changes, 0);
+});
+
+test('a moving control crossing a retained leader is avoided after it stops', () => {
+  const anchor = { x: 900, y: 380 }, req = { anchor, ...SIZE }, e = env(), b = board();
+  const initial = b.place(1, req, () => e);
+  const target = { x: (anchor.x + initial.attach.x) / 2 - 5, y: (anchor.y + initial.attach.y) / 2 - 5, w: 10, h: 10 };
+  let p = initial;
+  for (let i = 1; i <= 120; i++) {
+    const control = { ...target, x: target.x + Math.max(0, 25 - i) * 5 };
+    b.beginFrame({ width: W, height: H, model: MODEL, dragging: false, now: i * 16 });
+    p = b.place(1, req, () => ({ ...e, keepOut: [control] }));
+  }
+  assert.equal(segmentHitsRect(anchor, p.attach, target), false);
+});
+
+test('card placement prefers a clear outside-card leader to a crossing in-card leader', () => {
+  const card = {x:500,y:250,w:300,h:300}, anchor = {x:510,y:300}, obstacle = {x:600,y:200,w:20,h:400};
+  const b = new LabelBoard(), occ = new Occupancy(1000,800), request = {anchor,w:120,h:32};
+  b.beginFrame({width:1000,height:800,model:undefined,dragging:false,now:0,within:card});
+  const p=b.place(1,request,()=>({occ,keepOut:[obstacle]}));
+  assert.equal(segmentHitsRect(anchor,p.attach,obstacle),false);
+  assert.ok(p.rect.x+p.rect.w<=card.x || p.rect.x>=card.x+card.w || p.rect.y+p.rect.h<=card.y || p.rect.y>=card.y+card.h,'outside result must not straddle card');
+});
+
+test('retained card tag escapes a persistent control crossing and stays clear', () => {
+  const card = {x:500,y:250,w:300,h:300}, anchor = {x:510,y:300}, obstacle = {x:600,y:200,w:20,h:400};
+  const b = new LabelBoard(), occ = new Occupancy(1000,800), request = {anchor,w:120,h:32};
+  b.beginFrame({width:1000,height:800,model:undefined,dragging:false,now:0,within:card});
+  b.place(1,request,()=>({occ})); let p;
+  for(let i=1;i<=240;i++){b.beginFrame({width:1000,height:800,model:undefined,dragging:false,now:i*16,within:card});p=b.place(1,request,()=>({occ,keepOut:[obstacle]}));}
+  assert.ok(p);assert.equal(segmentHitsRect(anchor,p.attach,obstacle),false);assert.equal(b.moving,false);
+});

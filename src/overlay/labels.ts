@@ -190,6 +190,10 @@ export function segmentHitsRect(a: Pt, b: Pt, r: Rect): boolean {
   return segmentsCross(a, b, tl, tr) || segmentsCross(a, b, tr, br) || segmentsCross(a, b, br, bl) || segmentsCross(a, b, bl, tl);
 }
 
+// If the anchor is inside a control, every route starts inside it; do not churn trying to avoid the impossible.
+const leaderHitsControl = (a: Pt, b: Pt, r: Rect): boolean =>
+  !(a.x >= r.x && a.x <= r.x + r.w && a.y >= r.y && a.y <= r.y + r.h) && segmentHitsRect(a, b, r);
+
 const sameSpot = (a: Rect, b: Rect) => a === b || (a.x === b.x && a.y === b.y);
 
 const overlaps = (a: Rect, b: Rect, pad: number) => a.x < b.x + b.w + pad && b.x < a.x + a.w + pad && a.y < b.y + b.h + pad && b.y < a.y + a.h + pad;
@@ -354,7 +358,7 @@ export class LabelBoard {
     // A tag that is not wholly inside the card (the card came later, or moved) is placed again, to a place inside it if there is one.
     if (entry.fitWait) entry.fitWait--;
     if (this.within && !this.fits(entry.target) && !entry.fitWait) {
-      const rect = this.scan(entry.request, env(), others.map((o) => o.target), others.map((o): [Pt, Pt] => [o.request.anchor, attachPoint(o.target, o.request.anchor)]), env().keepOut ?? [], true);
+      const rect = this.scan(entry.request, env(), others.map((o) => o.target), others.map((o): [Pt, Pt] => [o.request.anchor, attachPoint(o.target, o.request.anchor)]), env().keepOut ?? [], true, true);
       if (rect) {
         entry.target = rect;
         entry.tangled = 0;
@@ -374,7 +378,7 @@ export class LabelBoard {
     }
     const tangledAt = (rect: Rect): boolean => {
       const mine: [Pt, Pt] = [entry.request.anchor, attachPoint(rect, entry.request.anchor)];
-      return others.some((other) => {
+      return keepOut.some((control) => leaderHitsControl(mine[0], mine[1], control)) || others.some((other) => {
         const theirs: [Pt, Pt] = [other.request.anchor, attachPoint(other.target, other.request.anchor)];
         return segmentsCross(mine[0], mine[1], theirs[0], theirs[1]) || segmentHitsRect(mine[0], mine[1], other.target) || segmentHitsRect(theirs[0], theirs[1], rect);
       });
@@ -410,7 +414,14 @@ export class LabelBoard {
 
   private search(req: PinRequest, env: Env, placed: Rect[], leaders: Array<[Pt, Pt]>): Rect {
     // Prefer a place inside the card and clear of controls, then any clear viewport place, before accepting a place that overlaps a control.
-    return (this.within ? this.scan(req, env, placed, leaders, env.keepOut ?? [], true) : undefined) ?? this.scan(req, env, placed, leaders, env.keepOut ?? []) ?? (this.within ? this.scan(req, env, placed, leaders, [], true) : undefined) ?? this.scan(req, env, placed, leaders, []) ?? { x: Math.max(MARGIN, Math.min(this.width - req.w - MARGIN, req.anchor.x - req.w / 2)), y: Math.max(MARGIN, req.anchor.y - req.h - 30), w: req.w, h: req.h };
+    const avoid = env.keepOut ?? [];
+    return (this.within ? this.scan(req, env, placed, leaders, avoid, true, true) : undefined)
+      ?? this.scan(req, env, placed, leaders, avoid, false, true, !!this.within)
+      ?? (this.within ? this.scan(req, env, placed, leaders, avoid, true) : undefined)
+      ?? this.scan(req, env, placed, leaders, avoid)
+      ?? (this.within ? this.scan(req, env, placed, leaders, [], true) : undefined)
+      ?? this.scan(req, env, placed, leaders, [])
+      ?? { x: Math.max(MARGIN, Math.min(this.width - req.w - MARGIN, req.anchor.x - req.w / 2)), y: Math.max(MARGIN, req.anchor.y - req.h - 30), w: req.w, h: req.h };
   }
 
   /** Whether a tag lies wholly inside the card (always, when there is no card). */
@@ -419,11 +430,12 @@ export class LabelBoard {
     return !c || (r.x >= c.x && r.y >= c.y && r.x + r.w <= c.x + c.w && r.y + r.h <= c.y + c.h);
   }
 
-  private scan(req: PinRequest, env: Env, placed: Rect[], leaders: Array<[Pt, Pt]>, avoid: readonly Rect[], inCard = false): Rect | undefined {
+  private scan(req: PinRequest, env: Env, placed: Rect[], leaders: Array<[Pt, Pt]>, avoid: readonly Rect[], inCard = false, clearLeader = false, outsideCard = false): Rect | undefined {
     const s = this.height / 1080;
     const { anchor: a, w, h } = req;
     const hintAngle = req.hint && (req.hint.x !== 0 || req.hint.y !== 0) ? Math.atan2(req.hint.y, req.hint.x) : undefined;
     let best: { rect: Rect; cost: number } | undefined;
+    let bestClear: { rect: Rect; cost: number } | undefined;
     let fallback: { rect: Rect; cost: number } | undefined;
     for (const dist of [26, 52, 84, 124, 172, 230, 300, 380, 460]) {
       for (let step = 0; step < 24; step++) {
@@ -433,9 +445,11 @@ export class LabelBoard {
         const rect = { x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w, h };
         if (rect.x < MARGIN || rect.y < MARGIN || rect.x + w > this.width - MARGIN || rect.y + h > this.height - MARGIN) continue;
         if (inCard && !this.fits(rect)) continue;
+        if (outsideCard && this.within && overlaps(rect, this.within, 0)) continue;
         if (placed.some((p) => overlaps(rect, p, GAP))) continue;
         if (avoid.some((k) => overlaps(rect, k, KEEP_OUT_PAD))) continue;
         const attach = attachPoint(rect, a);
+        if (clearLeader && avoid.some((control) => leaderHitsControl(a, attach, control))) continue;
         let cost = dist * 0.9 + env.occ.fraction({ x: rect.x - 6, y: rect.y - 6, w: w + 12, h: h + 12 }) * 6000;
         if (env.busy) cost += Math.min(1, env.busy.mean(rect) * 2.5) * BUSY_COST;
         cost += env.occ.along(a, attach, 26 * s) * 24;
@@ -450,8 +464,9 @@ export class LabelBoard {
         if (placed.some((p) => segmentHitsRect(a, attach, p))) continue;
         if (leaders.some(([la, lb]) => segmentHitsRect(la, lb, rect))) continue;
         if (!best || cost < best.cost) best = { rect, cost };
+        if (!avoid.some((control) => leaderHitsControl(a, attach, control)) && (!bestClear || cost < bestClear.cost)) bestClear = { rect, cost };
       }
     }
-    return best?.rect ?? fallback?.rect;
+    return bestClear?.rect ?? best?.rect ?? fallback?.rect;
   }
 }
