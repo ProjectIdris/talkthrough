@@ -8,6 +8,16 @@ const num=(v:unknown,lo:number,hi:number):v is number=>typeof v==='number'&&Numb
 const vector=(v:unknown):Vec|undefined=>{if(!Array.isArray(v)||data(v,'length')!==3)return;const a=[data(v,'0'),data(v,'1'),data(v,'2')];if(!a.every(x=>num(x,-100,100)))return;return a as Vec;};
 const array=(v:unknown,min:number,max:number):unknown[]|undefined=>{if(!Array.isArray(v))return;const length=data(v,'length');if(typeof length!=='number'||length<min||length>max)return;const a=[];for(let i=0;i<length;i++){const d=Object.getOwnPropertyDescriptor(v,String(i));if(!d||!('value' in d))return;a.push(d.value);}return a;};
 const length=(v:Vec)=>Math.hypot(...v);
+/** Diagnose only finite endpoint values; read own data without invoking accessors. */
+export function flexEndpointIssue(raw:unknown):string|undefined {
+ try {
+  for(const [name,min,max] of [['joints',2,6],['sections',3,8]] as const){
+   const items=array(data(raw,name),min,max);if(!items)continue;
+   const first=data(items[0],'u'),last=data(items.at(-1),'u');
+   if(num(first,0,1)&&num(last,0,1)&&(first!==0||last!==1))return `${name}: first u must be 0 and last u must be 1`;
+  }
+ }catch{return;}
+}
 export function parseFlexDefinition(raw:unknown):FlexDefinition|undefined {
  try {
   const mirror=data(raw,'mirror')??'none',root=data(raw,'root'),parentPoint=vector(data(root,'parentPoint')),normal=vector(data(root,'normal')),maxGap=data(root,'maxGap');

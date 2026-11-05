@@ -1,6 +1,18 @@
 ﻿import {test} from 'node:test';import assert from 'node:assert/strict';
 import {validateScene,createSceneState,createDetailState} from '../src/scene/validate.ts';import {sceneSchema} from '../src/scene/schema.ts';
+import {flexEndpointIssue} from '../src/scene/flex-validate.ts';
 const flex={op:'add',shape:'flexSurface',id:'reed',parent:'mount',root:{parentPoint:[.45,0,0],normal:[1,0,0],maxGap:.1},joints:[{id:'a',u:0,offset:[0,0,0],axis:[0,0,1],min:-30,max:30},{id:'b',u:1,offset:[0,0,0],axis:[0,0,1],min:-20,max:20}],sections:[{u:0,center:[.45,0,0],chord:[0,0,1],halfWidth:.2,camber:0,profileDelta:0},{u:.5,center:[1,0,0],chord:[0,0,1],halfWidth:.5,camber:0,profileDelta:.1},{u:1,center:[2,0,0],chord:[0,0,1],halfWidth:.2,camber:0,profileDelta:0}]};
+test('surface endpoints give an actionable bounded reason and do not admit a dependent cycle',()=>{
+ const mount={op:'add',shape:'box',id:'mount',size:[1,1,1]},bad={...flex,joints:[flex.joints[0],{...flex.joints[1],u:.85}]};
+ const cycle={op:'flexCycle',ids:['reed'],period:2,keys:[{t:0,angles:[0,0],profile:0},{t:.5,angles:[10,10],profile:1},{t:1,angles:[0,0],profile:0}]};
+ const r=validateScene({steps:[{say:'x',actions:[mount,bad,cycle]}]});assert.equal(r.scene?.steps[0]?.actions.length,1);assert.ok(r.issues.some(i=>i.kind==='dropped'&&/joint.*first.*0.*last.*1/i.test(i.message)),JSON.stringify(r.issues));
+ const good=validateScene({steps:[{say:'x',actions:[mount,flex,cycle]}]});assert.equal(good.scene?.steps[0]?.actions.length,3,JSON.stringify(good.issues));
+ const badSection={...flex,sections:[{...flex.sections[0],u:.05},...flex.sections.slice(1)]};const s=validateScene({steps:[{say:'x',actions:[mount,badSection]}]});assert.ok(s.issues.some(i=>i.kind==='dropped'&&/section.*first.*0.*last.*1/i.test(i.message)));
+});
+test('endpoint diagnosis never invokes accessor properties',()=>{
+ let reads=0;const bad={...flex,joints:[flex.joints[0],Object.defineProperty({},'u',{get(){reads++;throw Error('getter');}})]};
+ assert.equal(flexEndpointIssue(bad),undefined);const r=validateScene({steps:[{say:'x',actions:[{op:'add',shape:'box',id:'mount',size:[1,1,1]},bad]}]});assert.equal(r.scene?.steps[0]?.actions.length,1);assert.equal(reads,0);
+});
 test('scene schema and validator accept explicit bounded articulated surface',()=>{const result=validateScene({steps:[{say:'A reed opens.',actions:[{op:'add',shape:'box',id:'mount',size:[1,1,1]},flex]}]});assert.equal(result.scene?.steps[0]?.actions.length,2,JSON.stringify(result.issues));assert.ok(JSON.stringify(sceneSchema).includes('flexSurface'));});
 
 

@@ -1256,7 +1256,8 @@
             "normal",
             "maxGap"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "The seven root-edge samples must each reach a unique outward parent intersection within maxGap."
         },
         "joints": {
           "type": "array",
@@ -1297,7 +1298,8 @@
               "max"
             ],
             "additionalProperties": false
-          }
+          },
+          "description": "Ordered joints: first u exactly 0, last u exactly 1; keep the tip joint in the chain."
         },
         "sections": {
           "type": "array",
@@ -1338,7 +1340,8 @@
               "profileDelta"
             ],
             "additionalProperties": false
-          }
+          },
+          "description": "Ordered sections: first u exactly 0, last u exactly 1."
         },
         "color": {
           "type": [
@@ -1393,7 +1396,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "An articulated one-edge surface attached to a supported rigid parent. Give ordered joints and cross-sections; use flexCycle to animate it."
+      "description": "An articulated one-edge surface attached to a supported opaque uncut rigid parent. The first and last joint and section u are exactly 0 and 1. Every root-edge sample must start inside or on the parent and reach a unique outward intersection within maxGap, including where a curved parent narrows. Use flexCycle to animate it."
     },
     "addExtrude": {
       "type": "object",

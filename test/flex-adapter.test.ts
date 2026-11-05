@@ -5,6 +5,11 @@ test('actual shared adapter prompt and lean schema expose bounded articulated au
  const q=questionText({question:'How does this mechanism work?',screenshot:'',thread:[],stage:{part:'next',n:2,plan:['Explain motion'],shown:[{say:'It opens a valve.',actions:[]}]}} as never);
  assert.match(q,/step 2/i);assert.match(system,/root/);assert.match(system,/period/);
 });
+test('shared guide and full schema describe endpoint and whole-root requirements',async()=>{
+ const {sceneSchema}=await import('../src/scene/schema.ts');const prompt=systemPrompt(),full=JSON.stringify(sceneSchema);
+ assert.match(prompt,/first u is exactly 0.*last u is exactly 1/i);assert.match(prompt,/seven root-edge samples.*unique outward intersection within maxGap/i);
+ assert.match(full,/first u exactly 0, last u exactly 1/i);assert.match(full,/root-edge sample.*unique outward intersection within maxGap/i);
+});
 
 
 test('real staged adapter routing preserves the flex-capable schema for planned and unplanned later calls',async()=>{

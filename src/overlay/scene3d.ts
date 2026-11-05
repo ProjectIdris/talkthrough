@@ -287,8 +287,11 @@ export class PanelScene {
       registerFlexPick(rig.mesh,pickMesh);node.flexPick=pickMesh;node.geometries.push(pickGeometry);
       node.obj=rig.mesh;node.flexRig=rig;node.geometries.push(geo);node.materials.push(surface);
       node.pieces.push({object:rig.mesh,surface,tint:true,color:undefined,lines:undefined,closed:true});
-    } catch {
-      if(!this.flexWarnings.has(o.key)&&this.flexWarnings.size<128){this.flexWarnings.add(o.key);console.warn(`talkthrough: articulated surface ${o.key} has invalid or unsupported root`);}
+    } catch (error) {
+      const reason=error instanceof Error && error.message==='root exit unavailable or ambiguous'
+        ? 'root seam needs a unique outward intersection within maxGap at every sample'
+        : 'invalid or unsupported root';
+      if(!this.flexWarnings.has(o.key)&&this.flexWarnings.size<128){this.flexWarnings.add(o.key);console.warn(`talkthrough: articulated surface ${o.key}: ${reason}`);}
     }
   }
 

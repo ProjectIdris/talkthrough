@@ -3,7 +3,7 @@
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
 import { nearestPaletteColor } from './colors.ts';
-import { parseFlexCycle, parseFlexDefinition } from './flex-validate.ts';
+import { flexEndpointIssue, parseFlexCycle, parseFlexDefinition } from './flex-validate.ts';
 import type { FlexDefinition } from './flex-validate.ts';
 import { attachTolerance, landOn } from './attach.ts';
 import type { Body } from './attach.ts';
@@ -511,7 +511,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   }
   if (variant.name === 'addFlexSurface') {
     const flex = parseFlexDefinition(out);
-    if (!flex) { note(notes, 'dropped', path, 'invalid articulated surface'); return null; }
+    if (!flex) { note(notes, 'dropped', path, flexEndpointIssue(out) ?? 'invalid articulated surface'); return null; }
     if (state.rigidParents.get(out.parent as string) !== true) { note(notes, 'dropped', path, 'surface needs a supported opaque uncut rigid parent'); return null; }
     if (!state.flexes.has(out.id as string) && state.flexes.size >= 4) { note(notes, 'dropped', path, 'at most four articulated surfaces'); return null; }
     Object.assign(out, flex);

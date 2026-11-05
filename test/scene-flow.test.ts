@@ -56,6 +56,12 @@ test('a stream along the id of a group that holds one pipe runs along that pipe,
   assert.ok(issues.some((i) => /repaired: "heart" is not a path.*"aorta"/.test(i.message)), JSON.stringify(issues));
 });
 
+test('clearing a path also clears its stream and attached pin', () => {
+  const { state, issues } = run(tube('pipe'), { op:'add',shape:'stream',id:'flow',along:'pipe' }, { op:'pin',id:'tag',on:'pipe',text:'Flow' }, { op:'clear',target:'pipe' });
+  for (const id of ['pipe','flow','tag']) assert.equal(state.ids.has(id),false,id);
+  assert.equal(issues.filter(i=>i.kind==='dropped').length,0,JSON.stringify(issues));
+});
+
 test('a stream along a box, with several pipes in the scene and none under it, is dropped rather than guessed', () => {
   const { shape, issues } = run(box('b'), tube('p1'), tube('p2'), { op: 'add', shape: 'stream', id: 's', along: 'b' });
   assert.equal(shape('stream').length, 0);

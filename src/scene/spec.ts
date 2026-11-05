@@ -270,10 +270,10 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addFlexSurface', op: 'add', shapes: ['flexSurface'], creates: 'solid',
-    doc: 'An articulated one-edge surface attached to a supported rigid parent. Give ordered joints and cross-sections; use flexCycle to animate it.',
+    doc: 'An articulated one-edge surface attached to a supported opaque uncut rigid parent. The first and last joint and section u are exactly 0 and 1. Every root-edge sample must start inside or on the parent and reach a unique outward intersection within maxGap, including where a curved parent narrows. Use flexCycle to animate it.',
     fields: {
       shape: { k: 'enum', values: ['flexSurface'] }, id: { k: 'newId' }, parent: { k: 'parent' }, pos: POS, rot: ROT,
-      mirror: { k: 'enum', values: ['none', 'localX'], opt: true }, root: { k: 'flexRoot' }, joints: { k: 'flexJoints' }, sections: { k: 'flexSections' },
+      mirror: { k: 'enum', values: ['none', 'localX'], opt: true }, root: { k: 'flexRoot', doc: 'The seven root-edge samples must each reach a unique outward parent intersection within maxGap.' }, joints: { k: 'flexJoints', doc: 'Ordered joints: first u exactly 0, last u exactly 1; keep the tip joint in the chain.' }, sections: { k: 'flexSections', doc: 'Ordered sections: first u exactly 0, last u exactly 1.' },
       color: COLOR_OPT, material: MATERIAL, opacity: OPACITY, at: AT,
     },
   },

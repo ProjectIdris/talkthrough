@@ -116,7 +116,7 @@ Except `flexSurface`, all take `parent`? (the id of a group, or of a part or sha
 
 ### Articulated surfaces
 
-A `flexSurface` must name an existing opaque, uncut, rigid box, sphere, cylinder, cone, extrude or lathe as its `parent`. Its root edge is projected only onto that parent; failure leaves the surface suppressed. `root` has `parentPoint`, outward `normal` and `maxGap` (0.01?0.15); the first section center after placement must match the point. `mirror` is `none` or `localX` and reflects geometry, joints, root and attached feature angles.
+A `flexSurface` must name an existing opaque, uncut, rigid box, sphere, cylinder, cone, extrude or lathe as its `parent`. Each of its seven root-edge samples must start inside or on that parent and reach a unique outward intersection within maxGap, including where a curved parent narrows; failure leaves the surface suppressed. `root` has `parentPoint`, outward `normal` and `maxGap` (0.01?0.15); the first section center after placement must match the point. `mirror` is `none` or `localX` and reflects geometry, joints, root and attached feature angles.
 
 `joints` has 2?6 ordered records `{id,u,offset,axis,min,max}` (first u=0, last u=1), with an independent fixed root anchor. `sections` has 3?8 ordered `{u,center,chord,halfWidth,camber,profileDelta}` records (first u=0, last u=1). Each joint axis is nonzero in bind space and its pivot is the interpolated center plus offset. Use reasonable smooth, nondegenerate sections. At most four surfaces are live at once. Generic transforms and rigid parenting of the surface are refused to preserve its root; move its rigid parent and use `flexAttach` for features.
 
