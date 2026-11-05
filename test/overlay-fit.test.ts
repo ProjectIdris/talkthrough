@@ -134,3 +134,16 @@ test('a plain cylinder has a rounded rim, a blob is lit from above to below, and
   assert.ok(makeSurface('tissue', TIERS.high).sheen > 0, 'tissue has a sheen');
   assert.equal(makeSurface('metal', TIERS.high).sheen, 0);
 });
+
+test('the floor shadow is lighter under a see-through model, so it does not grey the layers inside', () => {
+  const stage = { x: 100, y: 100, w: 400, h: 400 };
+  const opacityFor = (material: string): number => {
+    const frame = settled({ op: 'add', shape: 'sphere', id: 'a', size: [6, 6, 6], material, opacity: 0.4 }, { op: 'add', shape: 'sphere', id: 'b', size: [2, 2, 2] });
+    const scene = new PanelScene({ makeCanvas: fakeCanvas });
+    scene.sync(frame, 1, { rect: stage, ...WIN });
+    return ((scene as unknown as { floor: { material: { opacity: number } } }).floor.material.opacity);
+  };
+  const solid = opacityFor('plastic');
+  const seeThrough = opacityFor('glass');
+  assert.ok(seeThrough < solid * 0.8, `glass ${seeThrough.toFixed(3)} against plastic ${solid.toFixed(3)}`);
+});

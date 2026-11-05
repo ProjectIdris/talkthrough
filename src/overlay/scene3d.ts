@@ -708,14 +708,23 @@ export class PanelScene {
   private placeShadow(frame: Frame): void {
     this.box.makeEmpty();
     this.hasBox = false;
+    // How solid the model is, by its biggest part: a shadow under a see-through shell would grey the layers inside it.
+    let biggest = 0, solidity = 1;
     for (const node of this.nodes.values()) {
       if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body)) continue;
       const b = new Box3().setFromObject(node.obj);
       if (!b.isEmpty()) {
         this.box.union(b);
         this.hasBox = true;
+        const sz = b.getSize(new Vector3());
+        const volume = sz.x * sz.y * sz.z;
+        if (volume > biggest) {
+          biggest = volume;
+          solidity = node.alpha * Math.min(1, ...node.pieces.map((p) => p.surface?.userData.base ?? 1));
+        }
       }
     }
+    const weight = 0.3 + 0.7 * Math.max(0, Math.min(1, solidity));
     const presence = frame.panel ? Math.max(0, Math.min(1, frame.panel.appear * frame.panel.fade)) : 0;
     const show = this.hasBox && presence > 0.003;
     if (this.blob) this.blob.visible = show;
@@ -728,11 +737,11 @@ export class PanelScene {
     const floorY = this.box.min.y - 0.03 * Math.max(size.x, size.y, size.z);
     this.floor.position.set(centre.x, floorY, centre.z);
     this.floor.scale.set(span * 4, 1, span * 4);
-    (this.floor.material as ShadowMaterial).opacity = 0.26 * presence;
+    (this.floor.material as ShadowMaterial).opacity = 0.24 * presence * weight;
     if (this.blob && this.blobMaterial) {
       this.blob.position.set(centre.x, floorY + 0.002, centre.z);
-      this.blob.scale.set(size.x * 1.35 + 1, 1, size.z * 1.35 + 1);
-      this.blobMaterial.opacity = 0.42 * presence;
+      this.blob.scale.set(size.x * 1.15 + 0.6, 1, size.z * 1.15 + 0.6);
+      this.blobMaterial.opacity = 0.36 * presence * weight;
     }
     const dir = new Vector3(-0.16, 1, 0.3).normalize();
     this.light.target.position.copy(centre);
