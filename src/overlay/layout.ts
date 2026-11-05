@@ -30,6 +30,37 @@ export function inRect(rect: { x: number; y: number; w: number; h: number } | un
 
 type Box = { x: number; y: number; w: number; h: number };
 
+/** A control-only envelope. Live model bounds remain the source of pointer hits. */
+export class StableControlBounds {
+  private bounds: Box | undefined;
+  private keys = new Set<number>();
+  private view: { width: number; height: number } | undefined;
+  private camera: string | undefined;
+
+  reset(): void { this.bounds = undefined; this.keys.clear(); this.view = undefined; this.camera = undefined; }
+
+  update(model: Box | undefined, keys: readonly number[], view: { width: number; height: number }, motion?: { camera: string; authored: boolean }): Box | undefined {
+    if (!model || ![model.x, model.y, model.w, model.h, view.width, view.height].every(Number.isFinite) || model.w <= 0 || model.h <= 0 || view.width <= 0 || view.height <= 0) {
+      this.reset();
+      return undefined;
+    }
+    const next = new Set(keys);
+    if (this.view && (this.view.width !== view.width || this.view.height !== view.height || [...this.keys].some(k => !next.has(k)))) this.reset();
+    if (motion?.authored && this.camera !== undefined && this.camera !== motion.camera) this.reset();
+    this.camera = motion?.camera;
+    this.view = { width: view.width, height: view.height };
+    this.keys = next;
+    if (!this.bounds) this.bounds = { ...model };
+    else {
+      const x = Math.min(this.bounds.x, model.x), y = Math.min(this.bounds.y, model.y);
+      const right = Math.max(this.bounds.x + this.bounds.w, model.x + model.w);
+      const bottom = Math.max(this.bounds.y + this.bounds.h, model.y + model.h);
+      this.bounds = { x, y, w: right - x, h: bottom - y };
+    }
+    return { ...this.bounds };
+  }
+}
+
 /** Room kept between a model and the edge of its card, in CSS pixels. */
 export const STAGE_ROOM = 16;
 /** How near the display's edge a card may grow. */

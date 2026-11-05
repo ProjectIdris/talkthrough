@@ -28,7 +28,7 @@ import { snapActions } from './snap.ts';
 import type { Snapper } from './snap.ts';
 import type { PageGrid } from './placement.ts';
 import type { Busy } from './labels.ts';
-import { StageGrowth, cardShows, panelRect } from './layout.ts';
+import { StableControlBounds, StageGrowth, cardShows, panelRect } from './layout.ts';
 import { createHold, modelButtonRects, overModel, wheelFactor } from './orbit.ts';
 import { DiagramPainter } from './diagram-draw.ts';
 import { drawMarks, labelLayout } from './marks.ts';
@@ -229,6 +229,7 @@ let raf = 0;
 let wake: ReturnType<typeof setTimeout> | undefined;
 
 function resize(): void {
+  controlBounds.reset();
   const width = display?.bounds.width ?? window.innerWidth;
   const height = display?.bounds.height ?? window.innerHeight;
   const dpr = window.devicePixelRatio || display?.scaleFactor || 1;
@@ -256,16 +257,19 @@ reduceMotion.addEventListener('change', () => request());
 
 /** How far the visible card has grown to hold the model this time it is up. */
 const stageGrowth = new StageGrowth();
+const controlBounds = new StableControlBounds();
+let controlRect: ScreenRect | undefined;
 
 /** The stage's size in pixels this frame: tags are drawn smaller beside a small stage. */
 let stageSize: { w: number; h: number } | undefined;
 let lastDisplayedFrame: Frame | undefined;
 
-function draw(frame: Frame): Frame {
+function draw(frame: Frame, seekView = false): Frame {
   renderer.setScissorTest(false);
   renderer.clear();
   const rect = panelRect(frame.panel, view);
   modelRect = undefined;
+  controlRect = undefined;
   modelHitRect = undefined;
   cardRect = undefined;
   stageSize = undefined;
@@ -292,6 +296,9 @@ function draw(frame: Frame): Frame {
     if (bounds) {
       modelHitRect = bounds.model;
       modelRect = frame.panel.frame ? card : bounds.model;
+      const camera = frame.camera;
+      const cameraKey = JSON.stringify([camera.az, camera.el, camera.zoom, camera.focus.key, camera.focus.k]);
+      controlRect = controlBounds.update(modelRect, frame.objects.map(o => o.key), view, { camera: cameraKey, authored: seekView || !player.settled });
       if (frame.panel.frame) cardRect = card;
       // Development: `?scissor=off` draws over the whole window, to see what the rectangle would cut (scripts/overlay-frames.cjs --scissor off).
       const r = params.get('scissor') === 'off' ? { x: 0, y: 0, w: view.width, h: view.height } : clampRect(bounds.drawn, 14);
@@ -313,10 +320,11 @@ function draw(frame: Frame): Frame {
           renderer.render(panelScene.scene, panelScene.camera);
         }
       }
-    }
+    } else controlBounds.reset();
   } else {
     // No stage, or one too faint to see: nothing here may take the pointer.
     stageGrowth.card(undefined, undefined, view);
+    controlBounds.reset();
     frameEl.style.display = 'none';
     panelScene.sync(frame, 1);
   }
@@ -537,8 +545,8 @@ function labelEnvironment(): LabelEnv {
 
 /** What the buttons beside the model will cover once they show (they come when the model is finished, after its tags are placed): no tag sits there. */
 function buttonKeepOut(): ScreenRect[] {
-  if (!modelRect) return [];
-  const rects = modelButtonRects(modelRect, view, buttonSizes());
+  if (!controlRect) return [];
+  const rects = modelButtonRects(controlRect, view, buttonSizes());
   return [rects.explode, rects.cut, ...(rects.detail ? [rects.detail] : [])];
 }
 
@@ -787,7 +795,7 @@ function captionUntilChange(now: number): number | undefined {
 
 /** Shows the Explode / Assemble control at the corner of a finished model with parts to spread, and hides it otherwise. */
 function placeExplode(frame: Frame): void {
-  if (!modelRect || !player.settled || frame.objects.length < 2 || pen.active) {
+  if (!controlRect || !player.settled || frame.objects.length < 2 || pen.active) {
     explodeEl.style.display = 'none';
     detailEl.style.display = 'none';
     cutEl.style.display = 'none';
@@ -801,7 +809,7 @@ function placeExplode(frame: Frame): void {
   const cutLabel = player.cut ? 'Whole' : hasFlex ? 'Cut rigid parts' : 'Cut';
   cutEl.title = hasFlex ? 'Cut rigid parts; flexible parts stay whole' : 'Cut the model open to see inside';
   if (labelOf(cutEl).textContent !== cutLabel) labelOf(cutEl).textContent = cutLabel;
-  const rects = modelButtonRects(modelRect, view, buttonSizes());
+  const rects = modelButtonRects(controlRect, view, buttonSizes());
   explodeEl.style.left = `${rects.explode.x}px`;
   explodeEl.style.top = `${rects.explode.y}px`;
   // Cut touches Explode on its right, and More detail touches Cut: one capsule.
@@ -884,6 +892,7 @@ function pressButton(id: string): void {
 }
 
 function clearEverything(): void {
+  controlBounds.reset();
   cancelOwnedPointer();
   guideTarget = undefined;
   guideTargetLive = false;
@@ -1123,6 +1132,7 @@ document.addEventListener('pointermove', (e) => {
   }
   if (!dragging) return;
   dragOwner.move(e.pointerId);
+  controlBounds.reset();
   player.dragCamera(-e.movementX * DRAG_DEGREES_PER_PIXEL, e.movementY * DRAG_DEGREES_PER_PIXEL);
   if (fader.armed) fader.touch(performance.now());
   request();
@@ -1173,12 +1183,14 @@ window.addEventListener('blur', () => { dragOwner.blur(); if (dismissPointer !==
 document.addEventListener('wheel', (e) => {
   if (pen.active || dragging || !modelAt(e.clientX, e.clientY)) return;
   e.preventDefault();
+  controlBounds.reset();
   player.zoomCamera(wheelFactor(e.deltaY, e.deltaMode));
   if (fader.armed) fader.touch(performance.now());
   request();
 }, { passive: false });
 document.addEventListener('dblclick', (e) => {
   if (pen.active || !modelAt(e.clientX, e.clientY)) return;
+  controlBounds.reset();
   player.resetCamera();
   if (fader.armed) fader.touch(performance.now());
   request();
@@ -1260,6 +1272,7 @@ function beginTurn(turn: number, detail = false): void {
   guideTargetLive = false;
   guideArmToken = undefined;
   seekClock = undefined;
+  if (turn <= 1 && !detail) controlBounds.reset();
   fader.disarm();
   // A detail pass adds to what is on screen: nothing is cleared, and the offer and notices stay as they are.
   if (detail) return;
@@ -1480,6 +1493,7 @@ function applyScene(message: SceneMessage): void {
       clearEverything();
       break;
     case 'dismiss':
+      controlBounds.reset();
       cancelOwnedPointer();
       guideTarget = undefined;
       guideTargetLive = false;
@@ -1502,7 +1516,7 @@ function applyScene(message: SceneMessage): void {
       seekClock = (seekClock ?? 0) + 1000 / 30;
       fader.disarm();
       player.seek(placedScene(message.scene), message.step, message.t, message.view);
-      draw(player.update());
+      draw(player.update(), true);
       if (message.captureMetadata) {
         void painted().then(() => {
           const camera = lastDisplayedFrame?.panel && modelRect ? lastDisplayedFrame.camera : null;
