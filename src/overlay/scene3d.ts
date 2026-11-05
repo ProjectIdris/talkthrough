@@ -10,7 +10,7 @@
 import {
   AmbientLight, Box3, BufferGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight, EdgesGeometry, Euler,
   Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Material, Matrix4, Mesh, MeshBasicMaterial, Object3D,
-  PerspectiveCamera, PlaneGeometry, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector3,
+  PerspectiveCamera, PlaneGeometry, Raycaster, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3,
 } from 'three';
 import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
@@ -139,6 +139,7 @@ export class PanelScene {
   private textRects: ScreenRect[] = [];
   private settling = false;
   private cutaway = new Cutaway();
+  private pinWarnings = new Set<number>();
 
   constructor(deps: PanelDeps = {}) {
     this.deps = deps;
@@ -805,17 +806,100 @@ export class PanelScene {
     this.light.target.updateMatrixWorld();
   }
 
-  /** Where a point on an object falls in the window, in CSS pixels; `visible` is false behind the camera. */
+  /** Where a visible point on the named object falls in the window, in CSS pixels. */
   project(key: number, point: Vec3 | undefined, width: number, height: number, anchor?: string): { x: number; y: number; visible: boolean } | undefined {
     const node = this.nodes.get(key);
-    if (!node) return undefined;
-    const world = new Vector3();
+    const hidden = () => {
+      if (!this.pinWarnings.has(key) && this.pinWarnings.size < 128) { this.pinWarnings.add(key); console.warn(`talkthrough: pin target ${key} has no visible surface`); }
+      return { x: 0, y: 0, visible: false };
+    };
+    if (!node) { hidden(); return undefined; }
+    const isVisible = (obj: Object3D): boolean => {
+      for (let p: Object3D | null = obj; p; p = p.parent) if (!p.visible) return false;
+      return true;
+    };
+    if (!isVisible(node.obj) || node.alpha <= 0.003) return hidden();
+    // Scene text is a camera-facing sprite drawn with depth testing disabled.
+    // Its origin is also used by the text-layout and clipping calculations.
+    if (node.obj instanceof Sprite) {
+      const world = point ? new Vector3(...point).applyMatrix4(node.obj.matrixWorld) : node.obj.getWorldPosition(new Vector3());
+      const ndc = world.project(this.camera);
+      return { x: ((ndc.x + 1) / 2) * width, y: ((1 - ndc.y) / 2) * height, visible: ndc.x >= -1 && ndc.x <= 1 && ndc.y >= -1 && ndc.y <= 1 && ndc.z > -1 && ndc.z < 1 };
+    }
+    const target: Mesh[] = [], occluders: Mesh[] = [];
+    for (const other of this.nodes.values()) {
+      if (!isVisible(other.obj) || other.alpha <= 0.003) continue;
+      const belongs = other === node || isAncestor(node.obj, other.obj);
+      for (const part of other.pieces) {
+        if (!(part.object instanceof Mesh) || !isVisible(part.object) || !part.surface || part.surface.opacity <= 0.003) continue;
+        if (belongs) target.push(part.object);
+        else if (part.surface.opacity >= 0.98) occluders.push(part.object);
+      }
+    }
+    if (!target.length) return hidden();
+    const candidates: Vector3[] = [];
     const named = anchor !== undefined && node.anchors && Object.hasOwn(node.anchors, anchor) ? node.anchors[anchor] : undefined;
-    if (named) world.set(named[0], named[1], named[2]).applyMatrix4(node.obj.matrixWorld);
-    else if (point) world.set(point[0], point[1], point[2]).applyMatrix4(node.obj.matrixWorld);
-    else new Box3().setFromObject(node.obj).getCenter(world);
-    const ndc = world.clone().project(this.camera);
-    return { x: ((ndc.x + 1) / 2) * width, y: ((1 - ndc.y) / 2) * height, visible: ndc.z > -1 && ndc.z < 1 };
+    const explicit = named ?? point;
+    if (explicit) candidates.push(new Vector3(...explicit).applyMatrix4(node.obj.matrixWorld));
+    else {
+      const box = new Box3().setFromObject(node.obj);
+      if (!box.isEmpty()) candidates.push(box.getCenter(new Vector3()));
+      if (node.path?.sampled.length) for (let i = 0; i < 12; i++) {
+        const p = node.path.sampled[Math.floor((node.path.sampled.length - 1) * i / 11)]!;
+        candidates.push(new Vector3(...p).applyMatrix4(node.obj.matrixWorld));
+      }
+      // Triangle interiors provide candidates on surfaces even when an AABB centre is empty.
+      for (const mesh of target.slice(0, 8)) {
+        const geo = mesh.geometry, pos = geo.getAttribute('position'), index = geo.getIndex();
+        if (!pos) continue;
+        const count = Math.floor((index?.count ?? pos.count) / 3);
+        const start = Math.floor(geo.drawRange.start / 3), end = Math.min(count, Math.floor((geo.drawRange.start + geo.drawRange.count) / 3));
+        for (let i = 0; i < 8 && end > start; i++) {
+          const tri = start + Math.floor((end - start - 1) * i / 7), v = new Vector3();
+          for (let j = 0; j < 3; j++) v.add(new Vector3().fromBufferAttribute(pos, index ? index.getX(tri * 3 + j) : tri * 3 + j));
+          v.multiplyScalar(1 / 3);
+          if (mesh instanceof InstancedMesh && mesh.count > 0) {
+            const instance = new Matrix4();
+            mesh.getMatrixAt(Math.floor((mesh.count - 1) * i / 7), instance);
+            v.applyMatrix4(instance);
+          }
+          candidates.push(v.applyMatrix4(mesh.matrixWorld));
+        }
+      }
+    }
+    const ray = new Raycaster();
+    ray.near = this.camera.near;
+    ray.far = this.camera.far;
+    const allowed = (hit: { point: Vector3; object: Object3D }): boolean => {
+      const material = (hit.object as Mesh).material;
+      const mats = Array.isArray(material) ? material : [material];
+      return mats.some((m) => m && m.visible && !(m.clippingPlanes ?? []).some((plane) => plane.distanceToPoint(hit.point) < -1e-6));
+    };
+    for (const world of candidates) {
+      const ndc = world.clone().project(this.camera);
+      if (ndc.x < -1 || ndc.x > 1 || ndc.y < -1 || ndc.y > 1 || ndc.z <= -1 || ndc.z >= 1) continue;
+      // A named or explicit point on the removed side of a cut is not visible,
+      // even if the same camera ray happens to meet the back of the object.
+      if (explicit && !target.some((mesh) => {
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        return mats.some((m) => m.visible && !(m.clippingPlanes ?? []).some((plane) => plane.distanceToPoint(world) < -1e-6));
+      })) continue;
+      ray.setFromCamera(new Vector2(ndc.x, ndc.y), this.camera);
+      const hit = ray.intersectObjects(target, false).find(allowed);
+      if (!hit) continue;
+      const blocker = ray.intersectObjects(occluders, false).find(allowed);
+      if (blocker && blocker.distance < hit.distance - 1e-5) continue;
+      if (explicit) {
+        // A point on the far-facing surface is occluded by the object's own
+        // front. Interior points still project to the visible target surface.
+        const away = world.clone().sub(this.camera.position).normalize();
+        const reverse = new Raycaster(world.clone().addScaledVector(away, 1e-4), away.negate(), 0, 2e-4);
+        if (reverse.intersectObjects(target, false).some(allowed)) continue;
+      }
+      this.pinWarnings.delete(key);
+      return { x: ((ndc.x + 1) / 2) * width, y: ((1 - ndc.y) / 2) * height, visible: true };
+    }
+    return hidden();
   }
 
   /** The window rectangle the model fills, and the part of the page its shadow touches too; undefined when there is no model. */
