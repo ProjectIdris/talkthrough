@@ -1,0 +1,78 @@
+/* The Glass look shared by the settings window and the first-run window: dark glass cards, thin light lines, one blue accent, a ringed dot.
+   The overlay (the screen chrome) has its own copy of the few rules it needs, since it must read on any page and loads no file but its own. */
+:root {
+  --bg: #0e1320; --bg2: #131a2a; --panel: rgba(255, 255, 255, 0.045); --line: rgba(255, 255, 255, 0.12); --text: #eef3fb; --muted: #9fb0c6;
+  --accent: #7cc4ff; --ink: #0a1220; --ok: #6ee7a8; --warn: #ffcf6b; --err: #ff8a93; --radius: 14px; --shadow: 0 12px 34px rgba(0, 0, 0, 0.4);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; color-scheme: dark; background: var(--bg); color: var(--text); font: 14px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+h1 { font-size: 20px; margin: 0; letter-spacing: -0.005em; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.hide { display: none !important; }
+a.link, button.link { color: var(--accent); background: none; border: 0; padding: 0; margin: 0; font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: none; }
+a.link:hover, button.link:hover { text-decoration: underline; }
+
+/* The ringed dot: a status that is told by colour and by its word beside it. */
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent); display: inline-block; flex: none; }
+.dot.ok { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 28%, transparent); }
+.dot.warn { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 28%, transparent); }
+.dot.err { background: var(--err); box-shadow: 0 0 0 3px color-mix(in srgb, var(--err) 28%, transparent); }
+
+button, .btn { font: inherit; font-weight: 650; border: 0; border-radius: 10px; padding: 8px 16px; background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); cursor: pointer; }
+button:hover, .btn:hover { background: color-mix(in srgb, var(--text) 17%, transparent); }
+button.primary, .btn.primary { background: var(--accent); color: var(--ink); }
+button.primary:hover, .btn.primary:hover { background: color-mix(in srgb, var(--accent) 82%, #fff); }
+button:disabled { opacity: 0.5; cursor: default; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+input[type=text], input[type=password], select, textarea {
+  font: inherit; color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); border: 1px solid var(--line); border-radius: 9px; padding: 7px 11px; min-width: 0;
+}
+select { padding-right: 8px; }
+select option { background: #1a2234; color: var(--text); }
+input[type=text]::placeholder, input[type=password]::placeholder, textarea::placeholder { color: color-mix(in srgb, var(--muted) 70%, transparent); }
+textarea { width: 100%; min-height: 92px; resize: vertical; }
+
+/* A switch: a real checkbox, so the page reads and writes it like any other. */
+input[type=checkbox].tog { appearance: none; -webkit-appearance: none; width: 40px; height: 23px; border-radius: 99px; background: color-mix(in srgb, var(--text) 22%, transparent); position: relative; flex: none; margin: 0; cursor: pointer; }
+input[type=checkbox].tog::after { content: ""; position: absolute; left: 3px; top: 3px; width: 17px; height: 17px; border-radius: 50%; background: #fff; transition: left 0.12s; }
+input[type=checkbox].tog:checked { background: var(--accent); }
+input[type=checkbox].tog:checked::after { left: 20px; }
+
+/* Grouped cards: a small heading, then rows of a label with its hint on the left and the control on the right. */
+.card { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 18px 6px; margin: 0 0 14px; background: var(--panel); }
+.card > .ct { font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); font-weight: 700; margin: 0 0 4px; }
+.row { display: flex; gap: 16px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+.row.first, .ct + .row { border-top: 0; }
+.row.stack { flex-direction: column; align-items: stretch; gap: 8px; }
+.row .what { flex: 1; min-width: 0; }
+.lab { font-weight: 600; }
+.hint { font-size: 12.5px; color: var(--muted); margin-top: 1px; }
+.hint.warn { color: var(--warn); }
+.hint.err { color: var(--err); }
+.hint.ok { color: var(--ok); }
+.row .ctl { display: flex; align-items: center; gap: 8px; flex: none; }
+.row .ctl input[type=text], .row .ctl input[type=password], .row .ctl select { width: 230px; }
+.status { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+
+/* A choice of one among a few, as cards (the first run's steps, the connectors). */
+.opt { display: flex; gap: 14px; align-items: flex-start; padding: 13px 15px; border: 1px solid var(--line); border-radius: var(--radius); margin: 0 0 10px; background: var(--panel); cursor: pointer; }
+.opt.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--panel)); }
+.opt input[type=radio] { appearance: none; -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); flex: none; margin: 2px 0 0; background: transparent; }
+.opt input[type=radio]:checked { border-color: var(--accent); background: radial-gradient(var(--accent) 45%, transparent 50%); }
+.opt .ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); flex: none; font-weight: 800; }
+.opt .name { font-weight: 650; }
+.opt .what { flex: 1; min-width: 0; }
+.chip { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--muted); margin-left: 6px; }
+.chip.ok { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
+.chip.warn { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tiles .opt { margin: 0; }
+
+.key { display: inline-flex; align-items: center; justify-content: center; min-width: 92px; height: 46px; padding: 0 16px; border-radius: 12px; font-weight: 700; letter-spacing: 0.01em; background: linear-gradient(var(--bg2), var(--bg)); border: 1px solid var(--line); box-shadow: 0 2px 0 color-mix(in srgb, var(--text) 14%, transparent), 0 8px 18px rgba(0, 0, 0, 0.18); color: var(--text); }
+.kc { padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); background: color-mix(in srgb, var(--text) 6%, transparent); font-weight: 650; font-size: 13px; white-space: nowrap; }
+.kc.recording { border-color: var(--accent); color: var(--accent); }
+.meter { display: flex; align-items: flex-end; gap: 3px; height: 28px; }
+.meter i { width: 4px; border-radius: 2px; background: var(--accent); opacity: 0.9; min-height: 3px; }
+progress { width: 100%; height: 6px; accent-color: var(--accent); }

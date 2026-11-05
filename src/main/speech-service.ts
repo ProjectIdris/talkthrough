@@ -114,6 +114,6 @@ export function createSpeechService(options: SpeechServiceOptions): SpeechServic
 /** The sizes the settings page tells the person before they say yes. */
 export const WHISPER_OFFER = {
   tag: WHISPER_PINS.tag,
-  program: { name: WHISPER_PINS.program.file, bytes: WHISPER_PINS.program.bytes, from: 'github.com (the whisper.cpp project)' },
-  models: Object.entries(WHISPER_PINS.models).map(([name, m]) => ({ name, label: m.label, bytes: m.bytes, from: 'huggingface.co (the whisper.cpp project)' })),
+  program: { name: WHISPER_PINS.program.file, bytes: WHISPER_PINS.program.bytes, from: 'github.com' },
+  models: Object.entries(WHISPER_PINS.models).map(([name, m]) => ({ name, label: m.label, bytes: m.bytes, from: 'huggingface.co' })),
 };

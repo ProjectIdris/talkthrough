@@ -3,23 +3,43 @@
 // state only; overlay.ts shows it. Times are given by the caller.
 
 export type Status = 'listening' | 'working' | 'backend' | 'detail' | 'waiting' | 'checking' | 'idle';
-export type NoticeLevel = 'info' | 'error';
+export type NoticeLevel = 'info' | 'error' | 'warning';
+/** A button on a notice that fixes what it says. */
+export type NoticeAction = 'hearing' | 'settings';
+/** The words on the button of each action. */
+export const ACTION_LABELS: Record<NoticeAction, string> = { hearing: 'Set up hearing', settings: 'Open Settings' };
+
+/** What the dock says for each status (the page shows a few more things beside it for listening and thinking). */
+export const STATUS_LABELS: Record<Exclude<Status, 'idle'>, string> = {
+  listening: 'Listening',
+  working: 'Thinking',
+  backend: 'With the backend',
+  detail: 'Adding detail\u2026',
+  waiting: 'Your turn: click',
+  checking: 'Checking',
+};
 
 /** How long a notice stays before it fades, and how long the fade takes. */
-export const NOTICE_MS: Record<NoticeLevel, number> = { info: 4000, error: 6500 };
+export const NOTICE_MS: Record<NoticeLevel, number> = { info: 4000, error: 6500, warning: 6500 };
+/** A notice with a button stays this much longer: there is something to press. */
+export const ACTION_EXTRA_MS = 4000;
 export const NOTICE_FADE_MS = 500;
 
 export type HudView = {
   status: Status;
   /** The reason text of the offer, or null when there is none. */
   offer: string | null;
-  notice: { text: string; level: NoticeLevel; alpha: number } | null;
+  notice: { text: string; level: NoticeLevel; alpha: number; action?: NoticeAction } | null;
 };
 
 export class HudState {
   private status: Status = 'idle';
   private offerReason: string | null = null;
-  private notice: { text: string; level: NoticeLevel; at: number } | undefined;
+  private notice: { text: string; level: NoticeLevel; at: number; action?: NoticeAction } | undefined;
+
+  private life(n: { level: NoticeLevel; action?: NoticeAction }): number {
+    return NOTICE_MS[n.level] + (n.action ? ACTION_EXTRA_MS : 0);
+  }
 
   setStatus(status: Status): void {
     this.status = status;
@@ -34,8 +54,8 @@ export class HudState {
     this.offerReason = null;
   }
 
-  showNotice(text: string, level: NoticeLevel, now: number): void {
-    this.notice = { text, level, at: now };
+  showNotice(text: string, level: NoticeLevel, now: number, action?: NoticeAction): void {
+    this.notice = { text, level, at: now, ...(action ? { action } : {}) };
   }
 
   dismissNotice(): void {
@@ -65,9 +85,9 @@ export class HudState {
     let notice: HudView['notice'] = null;
     if (this.notice) {
       const age = now - this.notice.at;
-      const life = NOTICE_MS[this.notice.level];
+      const life = this.life(this.notice);
       if (age >= life + NOTICE_FADE_MS) this.notice = undefined;
-      else notice = { text: this.notice.text, level: this.notice.level, alpha: age <= life ? 1 : 1 - (age - life) / NOTICE_FADE_MS };
+      else notice = { text: this.notice.text, level: this.notice.level, alpha: age <= life ? 1 : 1 - (age - life) / NOTICE_FADE_MS, ...(this.notice.action ? { action: this.notice.action } : {}) };
     }
     return { status: this.status, offer: this.offerReason, notice };
   }
@@ -76,7 +96,7 @@ export class HudState {
   untilChange(now: number): number | undefined {
     if (!this.notice) return undefined;
     const age = now - this.notice.at;
-    const life = NOTICE_MS[this.notice.level];
+    const life = this.life(this.notice);
     if (age < life) return life - age;
     return age < life + NOTICE_FADE_MS ? 0 : undefined;
   }

@@ -1,7 +1,8 @@
 import { BrowserWindow, globalShortcut, ipcMain, screen } from 'electron';
 import type { Display, IpcMainEvent } from 'electron';
 import { CHANNEL } from '../shared/ipc.ts';
-import type { DisplayInfo, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
+import type { DisplayInfo, Milestone, PageAction, SceneMessage, Stroke } from '../shared/ipc.ts';
+import { readAction } from './page-action.ts';
 import { createButtonCatchers, validRects } from './button-catchers.ts';
 import type { ButtonCatchers, ButtonRect } from './button-catchers.ts';
 import { electronCatcherWindow } from './button-window.ts';
@@ -50,8 +51,15 @@ export type OverlayOptions = {
   onMilestone?: (milestone: Milestone) => void;
   /** Called when the user clicks the escalation offer. */
   onOffer?: (displayId: number) => void;
-  /** A voice server (the pages ask it for the audio of a step's words, and fall back to the system voice when it is down or slow). */
-  voice?: { bridge: VoiceBridge; firstAudioMs: number; cooldownMs: number };
+  /** Called when the person presses a button the page put on a notice or on a words-only answer (open the settings, copy the words, pin the answer). */
+  onAction?: (displayId: number, action: PageAction) => void;
+  /**
+   * Voices made by main (the pages ask for the audio of a step's words): a voice server (`bridge`), and the system voice made here (`system`, see system-voice.ts) so it can
+   * play through the speaker the person chose. Either may be missing; each falls back to the next and last to the page's own speech synthesis.
+   */
+  voice?: { bridge?: VoiceBridge; system?: VoiceBridge; firstAudioMs: number; cooldownMs: number };
+  /** The speaker the person chose (a Web Audio sink id); absent: the system's default. */
+  speaker?: string;
   /** A detail model is set up (the page then offers "More detail"), and what to do when the user asks for it. */
   onDetail?: (displayId: number) => void;
 };
@@ -131,7 +139,8 @@ export function createOverlayManager(options: OverlayOptions) {
     if (options.silent) info.silent = true;
     if (options.onDetail) info.detail = true;
     if (options.captions) info.captions = options.captions;
-    if (options.voice) info.voice = { firstAudioMs: options.voice.firstAudioMs, cooldownMs: options.voice.cooldownMs };
+    if (options.voice) info.voice = { firstAudioMs: options.voice.firstAudioMs, cooldownMs: options.voice.cooldownMs, ...(options.voice.bridge ? {} : { server: false }), ...(options.voice.system ? { system: true } : {}) };
+    if (options.speaker) info.speaker = options.speaker;
     return info;
   }
 
@@ -216,7 +225,8 @@ export function createOverlayManager(options: OverlayOptions) {
     const pageId = window.webContents.id;
     window.on('closed', () => {
       overlay.catchers.dispose();
-      options.voice?.bridge.cancelGroup(String(pageId));
+      options.voice?.bridge?.cancelGroup(String(pageId));
+      options.voice?.system?.cancelGroup(String(pageId));
       overlay.guard.release();
       overlay.engaged = false;
       overlays.delete(display.id);
@@ -302,6 +312,11 @@ export function createOverlayManager(options: OverlayOptions) {
     const m = milestone as { what?: unknown; at?: unknown } | null;
     if (overlay && m && (m.what === 'first-mark' || m.what === 'first-word') && typeof m.at === 'number') options.onMilestone?.({ what: m.what, at: m.at });
   });
+  ipcMain.on(CHANNEL.action, (event, action: unknown) => {
+    const overlay = find(event);
+    const a = readAction(action);
+    if (overlay && a) options.onAction?.(overlay.display.id, a);
+  });
   ipcMain.on(CHANNEL.offer, (event) => {
     const overlay = find(event);
     if (overlay) options.onOffer?.(overlay.display.id);
@@ -315,8 +330,8 @@ export function createOverlayManager(options: OverlayOptions) {
   // The voice server's audio, for the page that asked: a request is named by the page's window and its own number.
   const voiceKey = (event: IpcMainEvent, id: number): string => `${event.sender.id}:${id}`;
   ipcMain.on(CHANNEL.voiceSpeak, (event, request: unknown) => {
-    const r = request as { id?: unknown; text?: unknown } | null;
-    const bridge = options.voice?.bridge;
+    const r = request as { id?: unknown; text?: unknown; via?: unknown } | null;
+    const bridge = r?.via === 'system' ? options.voice?.system : options.voice?.bridge;
     if (!bridge || !find(event) || !r || !Number.isSafeInteger(r.id) || typeof r.text !== 'string' || r.text.trim() === '') return;
     const sender = event.sender, id = r.id as number;
     bridge.speak(voiceKey(event, id), r.text, (e) => {
@@ -324,7 +339,9 @@ export function createOverlayManager(options: OverlayOptions) {
     }, String(sender.id));
   });
   ipcMain.on(CHANNEL.voiceCancel, (event, id: unknown) => {
-    if (find(event) && Number.isSafeInteger(id)) options.voice?.bridge.cancel(voiceKey(event, id as number));
+    if (!find(event) || !Number.isSafeInteger(id)) return;
+    options.voice?.bridge?.cancel(voiceKey(event, id as number));
+    options.voice?.system?.cancel(voiceKey(event, id as number));
   });
   ipcMain.on(CHANNEL.detail, (event) => {
     const overlay = find(event);
@@ -450,7 +467,8 @@ export function createOverlayManager(options: OverlayOptions) {
       }
     },
     dispose(): void {
-      options.voice?.bridge.dispose();
+      options.voice?.bridge?.dispose();
+      options.voice?.system?.dispose();
       screen.off('display-added', sync);
       screen.off('display-removed', sync);
       screen.off('display-metrics-changed', sync);

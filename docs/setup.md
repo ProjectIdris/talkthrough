@@ -54,7 +54,7 @@ The window writes a JSON file, `%APPDATA%\talkthrough\settings.json` (the app lo
 | --- | --- | --- |
 | `speechServerUrl` | Base URL of a local speech recogniser (see below). Without it the app cannot hear you and says so. | none |
 | `speechLimitMs` | Sent to the speech server as `limit_ms`: how long its main recogniser may take before a quicker one answers. About 1000 suits a CPU-only server. | server's own |
-| `model` | `"codex"`, `"claude"` or `"openai"` | `"codex"` |
+| `model` | The connector that writes the first step: `"claude"` (Claude Code), `"codex"`, `"openai"` (an API key) or `"local"` (a model on this computer) | `"codex"` |
 | `codexModel` | Model name in your Codex catalog | `"gpt-6-luna"` |
 | `voiceServerUrl` | A local text-to-speech server that makes the voice (https, or a loopback address): the full address a request is POSTed to. Without it the system voice speaks. The words of each spoken step are sent there, and nothing else. See [Voice](#voice). | none |
 | `voiceServerVoice` | Which voice to ask the server for (sent as `voice`), if it has several | none |
@@ -65,12 +65,14 @@ The window writes a JSON file, `%APPDATA%\talkthrough\settings.json` (the app lo
 | `backendTimeoutMs` | How long to wait for the backend's answer, 5,000 to 900,000 | `180000` |
 | `codexFast` | Fast mode for the Codex process this app starts (uses more of your usage allowance; your own Codex settings are not touched) | `false` |
 | `claudeModel` | Claude model name | `"claude-haiku-5-5"` |
-| `claudeLaterModel` | Claude route, answered a step at a time: a second model for the steps after step 1 (step 1 stays with `claudeModel`); not set, or the same name, means one model | not set |
+| `laterRoute`, `laterModel` | The connector and model that write the steps after step 1, when they are not the first step's: `laterRoute` names the connector (left out: the first step's), `laterModel` the model (left out: that connector's own). Naming a different one makes the answer be written one step to a call, on any connector. The older `claudeLaterModel` (Claude route) is read as `laterModel` | the same as step 1 |
+| `localModel`, `localBaseUrl` | The local connector: the model's name on an OpenAI-compatible server on this computer (Ollama, LM Studio, llama.cpp's server), and its API address (loopback only), for example `http://127.0.0.1:11434/v1` (Ollama) or `http://127.0.0.1:1234/v1` (LM Studio). The model must take pictures (a vision model): every question carries a screenshot. No key is used and nothing leaves the computer. *Test connection* in Settings checks that the server is there, lists the model and takes a picture | none, `http://127.0.0.1:11434/v1` |
+| `microphone`, `microphoneName`, `speaker`, `speakerName` | The microphone and the speaker, by the system's device id and name (chosen in Settings); left out: the system's default. A device that has gone is replaced by the default, with one short notice. Every voice plays through the speaker, the system voice too | system default |
 | `openaiModel` | Model name for the API-key route | `"gpt-6-luna"` |
 | `openaiServiceTier` | Optional service tier for the API-key route (`"fast"` costs more) | none |
 | `openaiBaseUrl` | Optional API address, https only (or a loopback address) | OpenAI's |
 | `codexCommand`, `claudeCommand` | Full path of the tool, if it is not on `PATH` | found on `PATH` |
-| `hotkey` | The two keys held to ask, as `first+second`, from `right-ctrl`, `right-shift`, `right-alt`, `left-ctrl`, `left-shift`, `left-alt`. Holding the first alone opens the microphone early. The left-hand keys are used by many shortcuts. Read at start | `"right-ctrl+right-shift"` |
+| `hotkey` | The keys held to ask: one key, or up to four held together, joined by `+` (for example `right-ctrl+right-shift`, `f13`, `left-ctrl+left-alt+f9`). Names are in `src/shared/chord-keys.ts`; Settings has a *Change* button that records the keys as you press them. Escape is never offered (it cancels a question). A single key fires whenever you press it, so one you use for typing or shortcuts is a poor choice (Settings says so; keys such as F13 to F24 are safe). Holding the first key of a chord that starts with Ctrl, Shift or Alt alone opens the microphone early; a single key or a typing key never does. Read at start | `"right-ctrl+right-shift"` |
 | `captureBlocklist` | Words naming windows never to look at: if the window in front has one in its app name, program file or title (any case), holding the keys does nothing: nothing is recorded, captured or sent, and the overlay says so. Only the window in front is checked. If the window in front cannot be read (the read fails, comes back empty, or takes more than 0.3 seconds), the press is refused the same way, with a notice saying so, rather than looked at: with a list, no answer means no. An empty list `[]` turns it off, and then nothing is read at all | `["1Password", "Bitwarden", "KeePass", "LastPass", "Dashlane", "Proton Pass"]` |
 | `micWindowMs` | How long Right Ctrl may be held alone before the early microphone and screen grab are dropped | `1000` |
 | `screenshotEdge` | Longer side of the screenshot sent to the model, in pixels | `1280` |
@@ -81,17 +83,18 @@ The window writes a JSON file, `%APPDATA%\talkthrough\settings.json` (the app lo
 | `splitAnswer` | Claude route only, so the first words come sooner: `"steps"` writes one step to a call, each asked for when the one before has ended (the first words come in about three to four seconds); `"two"` writes step 1 alone, then the rest in a second call while step 1 is spoken; `"off"` writes the whole answer in one call (the first words come later, in six to ten seconds on a rich page). Each question under `steps` or `two` uses two or more calls of your Claude allowance. If a later call fails, the answer ends where it was. Choosing "In one call" in the settings window writes `"off"` to the file. (The older `twoStepAnswer: true` means `"two"`, `false` means `"off"`.) | `"steps"` |
 | `keepRecord` | Keep a record of each question (see *A record of each question* above). Off until you turn it on, also in **Settings…** | `false` |
 | `recordFolder` | A full folder path for that record | the app's data folder, `questions` inside it |
-| `detailRoute` | Turns on the **detail pass**: `"codex"`, `"claude"` or `"openai"`, the route that writes a much richer version of the scene on screen when you ask for more detail (see below) | none (off) |
+| `detailRoute` | Turns on the **detail pass**: `"codex"`, `"claude"`, `"openai"` or `"local"`, the route that writes a much richer version of the scene on screen when you ask for more detail (see below) | none (off) |
 | `detailModel` | Model the detail route uses | `"gpt-6.1-sol"` for `codex` and `openai`, `"claude-sonnet-5-5"` for `claude` |
 | `detailEffort` | Reasoning effort for the detail pass | `"medium"` |
 
 ## Choose how it runs your model
 
-Talkthrough sends your screenshot and question to a model you choose. Set `model` in the settings file:
+Talkthrough sends your screenshot and question to a model you choose. Set `model` in the settings file (or choose it in Settings, or in the first-run window, which looks on this computer for Claude Code and Codex and says what it found):
 
 1. **`"codex"`: your own locally installed Codex CLI**, signed in by you. The app runs `codex app-server` itself with a read-only sandbox, no approvals, its tool features off and an empty working folder, and ends the question if anything tries to use a tool.
 2. **`"claude"`: your own Claude Code**, signed in by you. The app runs it in print mode with no tools, no MCP servers, no slash commands and no settings files, and refuses to go on if its first message lists anything else.
 3. **`"openai"`: an API key.** The app calls the OpenAI Responses API directly, streamed, with strict structured outputs and nothing stored on the provider's side. Choose *Settings…* from the tray menu and paste your key: it is stored encrypted for your Windows account (Electron's `safeStorage`; nothing is saved if that is unavailable; this protects it from other users and from copies of the disk, not from other programs running as you, which can decrypt it the same way), is only ever sent to the API address as a header, and is never logged. Costs are billed to your account by the provider.
+4. **`"local"`: a model on this computer**, through an OpenAI-compatible server you run (Ollama, LM Studio). The app calls its Chat Completions API, streamed, with the screenshot as an image part and the scene schema as the answer format (a server that refuses a schema is asked again in plain JSON mode with the schema in the prompt). The address must be on this computer. The model must take pictures; *Test connection* in Settings sends a small generated picture and one word of question to check.
 
 For the first two, Talkthrough only starts the tool you already have; it never reads or stores your sign-in. If your Codex setup lists tool servers (MCP), the app switches each one off for the process it starts; the list is read when that process starts, so a server added later is switched off at the next start. **Check your provider's terms for automated use before you pick one.** To use something else, write a `Model` adapter (`src/adapters/model.ts`).
 

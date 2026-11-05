@@ -69,7 +69,7 @@ test('an answer streams as begin, steps opened and closed around their actions, 
   await question(r);
   assert.deepEqual(r.kinds(), ['pen', 'status:hush', 'pen', 'status:working', 'screenshot', 'begin', 'step-open', 'action', 'step-close', 'step-open', 'step-close', 'end']); // the second step reuses the first one's id, so its action is dropped
   const begin = r.sent.find((m) => m.kind === 'begin');
-  assert.deepEqual(begin, { kind: 'begin', turn: 1 });
+  assert.deepEqual(begin, { kind: 'begin', turn: 1, question: 'what is this' }, 'the question goes with the first step, for the heading of a words-only answer');
 });
 
 test('a hotkey of one key has no early step: start with no arm before it asks the same question, with the pen on and the mic opened by the start', async () => {
@@ -86,10 +86,10 @@ test('a second question soon after continues the thread (turn 2); a reset starts
   const r = rig();
   await question(r);
   await question(r);
-  assert.deepEqual(r.sent.filter((m) => m.kind === 'begin'), [{ kind: 'begin', turn: 1 }, { kind: 'begin', turn: 2 }]);
+  assert.deepEqual(r.sent.filter((m) => m.kind === 'begin'), [{ kind: 'begin', turn: 1, question: 'what is this' }, { kind: 'begin', turn: 2, question: 'what is this' }]);
   r.session.reset();
   await question(r);
-  assert.deepEqual(r.sent.filter((m) => m.kind === 'begin').at(-1), { kind: 'begin', turn: 1 });
+  assert.deepEqual(r.sent.filter((m) => m.kind === 'begin').at(-1), { kind: 'begin', turn: 1, question: 'what is this' });
 });
 
 test('Right Ctrl alone drops the early microphone after the window, and releasing it alone cancels at once', async () => {
@@ -811,7 +811,7 @@ test('guide mode: Escape ends the walk and clears the page, and the next questio
   assert.deepEqual(w.sent.slice(-2), [{ kind: 'status', status: 'idle' }, { kind: 'clear' }]);
   assert.ok(w.stopped() >= 1);
   await question(w);
-  assert.deepEqual(w.sent.filter((m) => m.kind === 'begin').at(-1), { kind: 'begin', turn: 1 });
+  assert.deepEqual(w.sent.filter((m) => m.kind === 'begin').at(-1), { kind: 'begin', turn: 1, question: 'what is this' });
 });
 
 test('guide mode: a new question ends the walk without clearing the page', async () => {
@@ -1206,4 +1206,27 @@ test('the voice server is woken when the keys first go down, and a wake-up that 
   assert.doesNotThrow(() => failing.session.arm());
   const throwing = rig({ wakeVoice: (() => { throw new Error('at once'); }) as never });
   assert.doesNotThrow(() => throwing.session.arm());
+});
+
+const firstNotice = (r: ReturnType<typeof rig>) => {
+  const n = r.sent.find((m) => m.kind === 'notice');
+  return n?.kind === 'notice' ? n : undefined;
+};
+
+test('a fault of hearing carries the button that sets hearing up, a fault of the model the button that opens the settings, and others none', async () => {
+  const none = rig({ speech: null });
+  await question(none);
+  assert.deepEqual([firstNotice(none)?.level, firstNotice(none)?.action], ['error', 'hearing']);
+  assert.match(firstNotice(none)?.text ?? '', /^I can't hear you yet/);
+  const down = rig({ speech: { id: 'down', transcribe: async () => { throw new SpeechToTextError('unavailable', 'x'); } } });
+  await question(down);
+  assert.equal(firstNotice(down)?.action, 'hearing');
+  for (const [code, action] of [['unavailable', 'settings'], ['auth', 'settings'], ['rate-limited', undefined], ['bad-output', undefined]] as const) {
+    const r = rig({ model: () => ({ id: 'm', ask: async function* () { throw new ModelError(code, 'x'); } }) });
+    await question(r);
+    assert.equal(firstNotice(r)?.action, action, code);
+  }
+  const quiet = rig({}, 100);
+  await question(quiet);
+  assert.equal(firstNotice(quiet)?.action, undefined, 'a clip too short says so and offers nothing');
 });

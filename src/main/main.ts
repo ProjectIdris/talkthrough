@@ -1,4 +1,4 @@
-import { app, dialog, safeStorage, screen, shell } from 'electron';
+import { app, clipboard, dialog, safeStorage, screen, shell } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { isCheckRun, parseArgs, wantsSoftware } from './args.ts';
@@ -38,6 +38,7 @@ import { createConsentCard } from './consent-card.ts';
 import { electronCardWindow } from './consent-window.ts';
 import { createNavConsent } from './nav-consent.ts';
 import { createVoiceBridge, createVoiceWaker } from './voice-bridge.ts';
+import { createSystemVoice } from './system-voice.ts';
 import { createStageModel } from '../adapters/stage-model.ts';
 import { createRecorder, recordedVoice, replayModel, runDrive, saveVoice, tapeModel } from './showcase.ts';
 import { createLoopback } from './loopback.ts';
@@ -49,6 +50,13 @@ import { DEFAULT_LOCAL_BASE_URL, DETAIL_EFFORT, DETAIL_MODELS, DETAIL_TIMEOUT_MS
 import { createTray } from './tray.ts';
 import { createQuestionRecord, recordDir } from './record.ts';
 import { observeModel } from './record-model.ts';
+import { createTrayStatus } from './tray-state.ts';
+import type { TrayState } from './tray-state.ts';
+import { findTools } from './tools-found.ts';
+import { micLevels } from './mic-levels.ts';
+import { modelLine } from './model-plan.ts';
+import type { MicTestResult } from '../shared/ipc.ts';
+const SYSTEM_VOICE_FIRST_AUDIO_MS = 4000;
 
 // Nothing in this process may ever pop an error dialog on the user's screen: log it and leave.
 dialog.showErrorBox = () => undefined;
@@ -87,6 +95,7 @@ const overlayPage = (!app.isPackaged && process.env.TALKTHROUGH_OVERLAY_PAGE) ||
 const audioPage = join(__dirname, '..', 'audio', 'index.html');
 const settingsPreload = join(__dirname, 'settings-preload.cjs');
 const settingsPage = join(__dirname, '..', 'settings', 'index.html');
+const firstRunPage = join(__dirname, '..', 'firstrun', 'index.html');
 
 // A second launch must not get as far as making windows or the key hook.
 const firstInstance = options.grab !== undefined || app.requestSingleInstanceLock();
@@ -168,10 +177,18 @@ async function main(): Promise<void> {
     : undefined;
   // A voice server, when the person has set one up (never in a development run that speaks nothing): the pages ask main for its audio.
   // With text only nothing is spoken, so no voice server is asked and no system voice is used.
-  const voice = (settings.voiceServerUrl || options.voiceDir) && !options.silentVoice && settings.captions !== 'text'
+  const speaking = !options.silentVoice && settings.captions !== 'text';
+  const serverBridge = (settings.voiceServerUrl || options.voiceDir) && speaking
+    ? ((bridge) => (options.saveVoice ? saveVoice(bridge, options.saveVoice, log) : bridge))(options.voiceDir ? recordedVoice(options.voiceDir, log) : createVoiceBridge({ url: settings.voiceServerUrl!, ...(settings.voiceServerVoice ? { voice: settings.voiceServerVoice } : {}), timeoutMs: settings.voiceTimeoutMs, log }))
+    : undefined;
+  // The page's own speech synthesis can only play on the default output. With a speaker chosen (Windows), the system voice is made here instead and plays through it.
+  const systemVoice = settings.speaker && speaking && process.platform === 'win32' && !options.voiceDir ? createSystemVoice({ log }) : undefined;
+  void systemVoice?.warm();
+  const voice = serverBridge || systemVoice
     ? {
-      bridge: ((bridge) => (options.saveVoice ? saveVoice(bridge, options.saveVoice, log) : bridge))(options.voiceDir ? recordedVoice(options.voiceDir, log) : createVoiceBridge({ url: settings.voiceServerUrl!, ...(settings.voiceServerVoice ? { voice: settings.voiceServerVoice } : {}), timeoutMs: settings.voiceTimeoutMs, log })),
-      firstAudioMs: settings.voiceFirstAudioMs,
+      ...(serverBridge ? { bridge: serverBridge } : {}),
+      ...(systemVoice ? { system: systemVoice } : {}),
+      firstAudioMs: serverBridge ? settings.voiceFirstAudioMs : SYSTEM_VOICE_FIRST_AUDIO_MS,
       cooldownMs: settings.voiceCooldownMs,
     }
     : undefined;
@@ -189,6 +206,7 @@ async function main(): Promise<void> {
     ...(options.windowSize ? { size: options.windowSize } : {}),
     ...(options.record && !options.recordAudio ? { muted: true } : {}),
     ...(voice ? { voice } : {}),
+    ...(settings.speaker && speaking && process.platform === 'win32' ? { speaker: settings.speaker } : {}),
     onReady: log,
     ...(record
       ? {
@@ -209,6 +227,13 @@ async function main(): Promise<void> {
     onEscape: () => pressEscape(),
     answerBusy: () => session?.busy() === true,
     onOffer: (displayId) => void session?.offer(displayId),
+    // A button on a notice or on a words-only answer: the settings (at the hearing section for a fault of hearing), the words on the clipboard, a pin.
+    onAction: (displayId, action) => {
+      if (action.what === 'settings') settingsWindow.open();
+      else if (action.what === 'hearing') settingsWindow.open('hearing');
+      else if (action.what === 'copy') clipboard.writeText(action.text);
+      else session?.pin(displayId);
+    },
     ...(settings.detailRoute ? { onDetail: (displayId: number) => void session?.detail(displayId) } : {}),
     onMilestone: (m) => session?.milestone(m),
   });
@@ -243,6 +268,22 @@ async function main(): Promise<void> {
   const frontReader = createFrontWindowReader({ file: unpacked(join(__dirname, 'front-window-worker.cjs')), addonDir: unpacked(join(__dirname, '..', '..', 'node_modules', 'get-windows')), log });
   const skipped = createSkipCheck(() => skipList, { read: () => frontReader.read(), log });
   if (skipList.length > 0) void frontReader.read().catch(() => undefined); // starts the reader now, not at the first press
+  const settingsService = createSettingsService({ path: settingsPath, warn: (m) => log(`settings: ${m}`) });
+  /** The microphone test of the first run: about three seconds recorded, how loud each part was, and what the recogniser made of it (the words are shown to the person and never logged). */
+  const runMicTest = async (): Promise<MicTestResult> => {
+    try {
+      await media.startMic();
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const clip = await media.stopMic();
+      const levels = micLevels(clip.samples, clip.sampleRate);
+      let heard = '';
+      if (Math.max(0, ...levels) > 0.04 && speech) heard = (await speech.transcribe({ samples: clip.samples, sampleRate: clip.sampleRate }).catch(() => ({ text: '' }))).text.trim();
+      return { ok: true, levels, heard };
+    } catch {
+      media.abortMic();
+      return { ok: false, message: 'The microphone could not be used. Check that Windows allows it, or choose another in Settings.' };
+    }
+  };
   const settingsWindow = createSettingsWindow({
     onSaved: (form) => {
       skipList = form.captureBlocklist;
@@ -250,9 +291,18 @@ async function main(): Promise<void> {
     },
     preload: settingsPreload,
     page: settingsPage,
+    firstRunPage,
     keys,
     speech: speechService,
-    settings: createSettingsService({ path: settingsPath, warn: (m) => log(`settings: ${m}`) }),
+    tools: async () => ({ ...findTools({ claudeCommand: settings.claudeCommand, codexCommand: settings.codexCommand }), apiKey: keys.has() }),
+    devices: () => media.devices(),
+    micTest: () => runMicTest(),
+    modelLine: () => modelLine(settingsService.read()),
+    onFirstRunDone: (restart) => {
+      prefs.set({ firstRunDone: true });
+      log(`first run done${restart ? ' (restarting for what was chosen)' : ''}`);
+    },
+    settings: settingsService,
     onRestart: () => {
       app.relaunch();
       quit();
@@ -338,6 +388,9 @@ async function main(): Promise<void> {
   const controlHelper = (settings.controlSnap || settings.guideNavigation) && !captureImage ? createHelper({ nav: settings.guideNavigation }) : undefined;
   const uia = controlHelper && settings.controlSnap ? createUiaReader({ helper: controlHelper }) : undefined;
   const navigator = controlHelper && settings.guideNavigation && navConsent ? createNavigator({ helper: controlHelper }) : undefined;
+  // What the tray icon says follows what the page is told (status and notices); the tray exists a little later, so it is handed over then.
+  let trayStatusTarget: { setState(state: TrayState): void } | undefined;
+  const trayStatus = createTrayStatus((state) => trayStatusTarget?.setState(state));
   session = createSession({
     skipped,
     ...(uia
@@ -427,6 +480,7 @@ async function main(): Promise<void> {
     speech,
     model: () => model,
     send: (displayId, message) => {
+      trayStatus.feed(message);
       if (options.logSteps && message.kind === 'step') log(`step ${JSON.stringify(message.step)}`);
       if (options.logSteps && message.kind === 'step-open') log(`step-open ${JSON.stringify(message.say)}`);
       if (options.logSteps && message.kind === 'action') log(`action ${JSON.stringify(message.action)}`);
@@ -467,6 +521,9 @@ async function main(): Promise<void> {
     },
   });
   media.onStarted = () => session?.micStarted();
+  // The microphone the person chose; if it has gone the system default records, and they are told once.
+  if (settings.microphone) media.setMicrophone(settings.microphone);
+  media.onMicFallback = () => overlays.send(displayUnderPointer().id, { kind: 'notice', text: 'The microphone you chose is not available, so the system default is used.', level: 'info' });
   const reported = new WeakSet<object>();
 
   const playSample = (displayId: number) => {
@@ -489,6 +546,7 @@ async function main(): Promise<void> {
     media.dispose();
     settingsWindow.dispose();
     frontReader.dispose();
+    trayStatus.dispose();
     tray.destroy();
     // Let the model's process end (and its working folder go) before we leave, but never hang on it.
     void Promise.race([Promise.all([model.close?.(), detailModel?.close?.(), speechService.engine.close?.()]), new Promise((r) => setTimeout(r, 3000))]).finally(() => app.exit(0));
@@ -522,6 +580,7 @@ async function main(): Promise<void> {
       : {}),
   });
   navConsent?.onChange(() => tray.refresh());
+  trayStatusTarget = tray;
 
   let hotkey: ReturnType<typeof startHotkey> | null = null;
   if (!options.noHotkey) {
@@ -551,6 +610,8 @@ async function main(): Promise<void> {
     }
   }
   log(hotkey ? `ready: hold ${chord.label}` : 'ready (hotkey off)');
+  // A first run (no settings file yet and the window never finished), or one asked for: the window that explains the keys and sets up hearing and answers.
+  if (options.firstRun || (!isCheckRun(options) && !options.hidden && !prefs.get().firstRunDone && !existsSync(settingsPath))) settingsWindow.openFirstRun();
 
   if (options.playSample) playSample(screen.getPrimaryDisplay().id);
   if (options.selfChord) {

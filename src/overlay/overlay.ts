@@ -13,7 +13,9 @@ import { createSpeechSynthesisVoice } from '../adapters/speech-synthesis-voice.t
 import { createServerVoice } from './server-voice.ts';
 import { timedVoice } from '../adapters/timed-voice.ts';
 import { AutoFade, fadeFrame } from './fade.ts';
-import { HudState } from './hud.ts';
+import { ACTION_LABELS, HudState, STATUS_LABELS } from './hud.ts';
+import type { NoticeAction } from './hud.ts';
+import { answerBox } from './answer-box.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
 import { PageMemory } from './page-memory.ts';
@@ -58,6 +60,19 @@ const explodeEl = byId<HTMLButtonElement>('explode');
 const detailEl = byId<HTMLButtonElement>('detail');
 const cutEl = byId<HTMLButtonElement>('cut');
 const undoEl = byId<HTMLButtonElement>('undo');
+const statusLabel = statusEl.querySelector('.lbl') as HTMLSpanElement;
+const noticeDot = noticeEl.querySelector('.dot') as HTMLSpanElement;
+const noticeText = byId<HTMLSpanElement>('notice-text');
+const noticeAction = byId<HTMLButtonElement>('notice-action');
+const answerEl = byId<HTMLDivElement>('answer');
+const answerQuestion = byId<HTMLSpanElement>('answer-q');
+const answerText = byId<HTMLParagraphElement>('answer-text');
+const answerSpoken = byId<HTMLSpanElement>('answer-spoken');
+const answerCopy = byId<HTMLButtonElement>('answer-copy');
+const answerPin = byId<HTMLButtonElement>('answer-pin');
+const answerClose = byId<HTMLButtonElement>('answer-close');
+/** The label inside one of the capsule's segments. */
+const labelOf = (el: HTMLElement): HTMLElement => el.querySelector('.lbl') as HTMLElement;
 const marksCtx = marksCanvas.getContext('2d') as CanvasRenderingContext2D;
 
 /** The quality tier: asked for in the page address, or chosen from what the graphics stack is. */
@@ -417,7 +432,7 @@ function labelEnvironment(): { occ: Occupancy; busy?: Busy } {
   for (const el of [explodeEl, cutEl, detailEl]) {
     if (el.style.display === 'none') continue;
     const x = parseFloat(el.style.left) || 0, y = parseFloat(el.style.top) || 0;
-    const w = el.offsetWidth || 74, h = el.offsetHeight || 26;
+    const w = el.offsetWidth || 90, h = el.offsetHeight || 32;
     occ.fillConvex([{ x: x - 4, y: y - 4 }, { x: x + w + 4, y: y - 4 }, { x: x + w + 4, y: y + h + 4 }, { x: x - 4, y: y + h + 4 }]);
   }
   const busy = busyMap();
@@ -434,17 +449,21 @@ function buttonKeepOut(): ScreenRect[] {
 
 function buttonSizes(): { explode: { w: number; h: number }; cut: { w: number; h: number }; detail?: { w: number; h: number } } {
   return {
-    explode: { w: explodeEl.offsetWidth || 74, h: explodeEl.offsetHeight || 26 },
-    cut: { w: cutEl.offsetWidth || 50, h: cutEl.offsetHeight || 26 },
-    ...(display?.detail && detailState === 'none' ? { detail: { w: detailEl.offsetWidth || 90, h: detailEl.offsetHeight || 26 } } : {}),
+    explode: { w: explodeEl.offsetWidth || 104, h: explodeEl.offsetHeight || 32 },
+    cut: { w: cutEl.offsetWidth || 70, h: cutEl.offsetHeight || 32 },
+    ...(display?.detail && detailState === 'none' ? { detail: { w: detailEl.offsetWidth || 124, h: detailEl.offsetHeight || 32 } } : {}),
   };
 }
+
+/** What the button on the notice on screen does (it is the notice's own: 'hearing' or 'settings'). */
+let noticeActionKind: NoticeAction | undefined;
 
 function showHud(): void {
   const now = performance.now();
   const v = hud.view(now);
   statusEl.className = v.status === 'idle' ? '' : v.status;
   statusEl.style.display = v.status === 'idle' ? 'none' : 'flex';
+  if (v.status !== 'idle' && statusLabel.textContent !== STATUS_LABELS[v.status]) statusLabel.textContent = STATUS_LABELS[v.status];
   if (v.offer === null) {
     offerEl.style.display = 'none';
   } else {
@@ -453,11 +472,15 @@ function showHud(): void {
   }
   if (v.notice === null) {
     noticeEl.style.display = 'none';
+    noticeActionKind = undefined;
   } else {
-    noticeEl.style.display = 'block';
-    noticeEl.className = v.notice.level;
+    noticeEl.style.display = 'flex';
+    noticeEl.className = `${v.notice.level}${v.notice.action ? ' hasaction' : ''}`;
+    noticeDot.className = `dot ${v.notice.level === 'error' ? 'err' : v.notice.level === 'warning' ? 'warn' : ''}`;
     noticeEl.style.opacity = String(v.notice.alpha);
-    if (noticeEl.textContent !== v.notice.text) noticeEl.textContent = v.notice.text;
+    if (noticeText.textContent !== v.notice.text) noticeText.textContent = v.notice.text;
+    noticeActionKind = v.notice.action;
+    if (v.notice.action && noticeAction.textContent !== ACTION_LABELS[v.notice.action]) noticeAction.textContent = ACTION_LABELS[v.notice.action];
   }
 }
 
@@ -492,7 +515,7 @@ let captionMode: string | undefined;
 function setCaptions(mode: 'voice' | 'text' | 'both'): void {
   if (mode === captionMode) return;
   captionMode = mode;
-  captionDriver = mode === 'voice' ? undefined : createCaptionDriver({ mode, onChange: (s) => { captionState = s; request(); } });
+  captionDriver = mode === 'voice' ? undefined : createCaptionDriver({ mode, onChange: (s) => { captionState = s; box.words(s); request(); } });
   player.setCaptions(captionDriver);
   if (mode === 'text') player.setVoice(createSilentVoice(undefined, readingSeconds));
 }
@@ -518,7 +541,7 @@ function captionKeepOut(frame: Frame): Rect[] {
 /** Draws the caption: the words said so far, in the pill that is sized for the whole sentence, clear of the marks; it goes a while after the step ends. */
 function showCaption(frame: Frame): void {
   const s = captionState;
-  if (!s || s.upTo <= 0) {
+  if (answerShown || !s || s.upTo <= 0) {
     if (captionEl.style.display !== 'none') captionEl.style.display = 'none';
     captionDrawn = { text: '', upTo: -1 };
     captionAt = undefined;
@@ -552,6 +575,49 @@ function showCaption(frame: Frame): void {
   captionEl.style.top = `${at.y}px`;
 }
 
+// ---- The answer box -----------------------------------------------------------------------------------------------------------------
+
+/** An answer with no drawing is shown as words in a box (see answer-box.ts); this is its state. */
+const box = answerBox();
+let answerShown = false;
+let boxDrawn = '';
+let boxCopied = 0;
+
+/** A words-only answer is on screen now, in its box: the page reports it as something that is up (so Escape and the like treat it as a drawing). */
+function textBoxUp(): boolean {
+  return answerShown;
+}
+
+function showAnswer(): void {
+  const k = fader.alpha(performance.now());
+  const shown = captionMode !== undefined && captionMode !== 'voice' && box.visible() && k > 0;
+  answerShown = shown;
+  if (!shown) {
+    if (answerEl.style.display !== 'none') answerEl.style.display = 'none';
+    boxDrawn = '';
+    return;
+  }
+  const view = box.view();
+  const key = JSON.stringify([view.question, view.said, view.rest, captionMode]);
+  if (key !== boxDrawn) {
+    boxDrawn = key;
+    answerQuestion.textContent = view.question || 'Your question';
+    const said = document.createElement('span');
+    said.textContent = view.said;
+    const rest = document.createElement('span');
+    rest.className = 'off';
+    rest.textContent = view.rest;
+    answerText.replaceChildren(said, rest);
+    answerSpoken.textContent = captionMode === 'both' ? 'Spoken as well' : 'Shown only, not spoken';
+  }
+  answerEl.style.display = 'block';
+  answerEl.style.opacity = String(k);
+  // The offer card sits at the bottom right too: the box goes above it.
+  answerEl.style.bottom = `${offerEl.style.display === 'flex' ? 28 + offerEl.offsetHeight + 14 : 44}px`;
+  const copied = performance.now() < boxCopied;
+  if (answerCopy.textContent !== (copied ? 'Copied' : 'Copy')) answerCopy.textContent = copied ? 'Copied' : 'Copy';
+}
+
 /** Milliseconds until the caption next changes by itself (it starts to go), or undefined. */
 function captionUntilChange(now: number): number | undefined {
   const s = captionState;
@@ -567,24 +633,29 @@ function placeExplode(frame: Frame): void {
     cutEl.style.display = 'none';
     return;
   }
-  explodeEl.style.display = 'block';
-  cutEl.style.display = 'block';
+  explodeEl.style.display = 'flex';
+  cutEl.style.display = 'flex';
   const label = player.exploded ? 'Assemble' : 'Explode';
-  if (explodeEl.textContent !== label) explodeEl.textContent = label;
+  if (labelOf(explodeEl).textContent !== label) labelOf(explodeEl).textContent = label;
   const rects = modelButtonRects(modelRect, view, buttonSizes());
   explodeEl.style.left = `${rects.explode.x}px`;
   explodeEl.style.top = `${rects.explode.y}px`;
-  // Cut sits under Explode, at the same right edge.
+  // Cut touches Explode on its right, and More detail touches Cut: one capsule.
   const cutLabel = player.cut ? 'Whole' : 'Cut';
-  if (cutEl.textContent !== cutLabel) cutEl.textContent = cutLabel;
+  if (labelOf(cutEl).textContent !== cutLabel) labelOf(cutEl).textContent = cutLabel;
   cutEl.style.left = `${rects.cut.x}px`;
   cutEl.style.top = `${rects.cut.y}px`;
-  // "More detail" sits to the left of Explode, once per answer, and only where a detail model is set up.
-  if (!display?.detail || detailState !== 'none') {
+  // "More detail" is the last segment, once per answer, and only where a detail model is set up.
+  const withDetail = Boolean(display?.detail) && detailState === 'none';
+  explodeEl.classList.add('first');
+  explodeEl.classList.remove('last');
+  cutEl.classList.toggle('last', !withDetail);
+  detailEl.classList.add('last');
+  if (!withDetail) {
     detailEl.style.display = 'none';
     return;
   }
-  detailEl.style.display = 'block';
+  detailEl.style.display = 'flex';
   const place = rects.detail;
   if (place) {
     detailEl.style.left = `${place.x}px`;
@@ -593,7 +664,7 @@ function placeExplode(frame: Frame): void {
 }
 
 /** The buttons the page shows, by the name main knows them by. */
-const buttonEls: Array<[string, HTMLElement]> = [['offer', offerButton], ['explode', explodeEl], ['cut', cutEl], ['detail', detailEl]];
+const buttonEls: Array<[string, HTMLElement]> = [['offer', offerButton], ['explode', explodeEl], ['cut', cutEl], ['detail', detailEl], ['fix', noticeAction], ['copy', answerCopy], ['pin', answerPin], ['close', answerClose]];
 let lastButtons = '';
 /**
  * Tells main where the buttons are, when that changes. The window is click-through and learns the pointer is over a button only
@@ -642,6 +713,7 @@ function loop(): void {
   if (k < 1) frame = fadeFrame(frame, k);
   reportShowing(frame, k);
   draw(frame);
+  showAnswer();
   showCaption(frame);
   if (pen.active) sendPen();
   showHud();
@@ -667,7 +739,7 @@ function request(): void {
 /** Whether a drawing of an answer is up, told to the program so the Escape key is ours only while it is (and given back the moment it is not). Said again every second while it is: the program lets it lapse if the page goes quiet. */
 let showingSent = false;
 function reportShowing(frame: Frame, k: number): void {
-  const up = k > 0 && (frame.panel !== null || frame.marks.length > 0 || frame.diagrams.length > 0 || frame.objects.length > 0);
+  const up = k > 0 && (frame.panel !== null || frame.marks.length > 0 || frame.diagrams.length > 0 || frame.objects.length > 0 || textBoxUp());
   if (up === showingSent) return;
   showingSent = up;
   window.talkthrough.showing(up);
@@ -676,7 +748,7 @@ setInterval(() => {
   if (showingSent) window.talkthrough.showing(true);
 }, 1000);
 
-const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl, cutEl, detailEl];
+const interactiveEls: HTMLElement[] = [offerEl, noticeEl, explodeEl, cutEl, detailEl, answerEl];
 
 /** True for a moment after the pen goes off, so a button released then still ends its stroke. */
 let penEnding = false;
@@ -720,7 +792,7 @@ function syncUndo(): void {
     if (undoEl.style.display !== 'none') undoEl.style.display = 'none';
     return;
   }
-  undoEl.style.display = 'block';
+  undoEl.style.display = 'flex';
   const at = undoPlace(box, view, { w: undoEl.offsetWidth || 70, h: undoEl.offsetHeight || 30 });
   undoEl.style.left = `${Math.round(at.x)}px`;
   undoEl.style.top = `${Math.round(at.y)}px`;
@@ -865,8 +937,34 @@ offerButton.addEventListener('click', () => {
   hold.release();
   request();
 });
-noticeEl.addEventListener('click', () => {
+noticeEl.addEventListener('click', (e) => {
+  if (e.target instanceof Node && noticeAction.contains(e.target)) return; // the button has its own
   hud.dismissNotice();
+  hold.release();
+  request();
+});
+// The button on a notice does what the notice says is needed: open the settings window (at its hearing section, for a fault of hearing).
+noticeAction.addEventListener('click', () => {
+  const what = noticeActionKind;
+  if (!what) return;
+  hud.dismissNotice();
+  hold.release();
+  window.talkthrough.action({ what });
+  request();
+});
+// The words-only answer: copy the words, pin the answer, or close the box.
+answerCopy.addEventListener('click', () => {
+  window.talkthrough.action({ what: 'copy', text: box.fullText() });
+  boxCopied = performance.now() + 1500;
+  setTimeout(request, 1600);
+  request();
+});
+answerPin.addEventListener('click', () => {
+  window.talkthrough.action({ what: 'pin' });
+  request();
+});
+answerClose.addEventListener('click', () => {
+  box.close();
   hold.release();
   request();
 });
@@ -968,6 +1066,9 @@ function applyScene(message: SceneMessage): void {
   switch (message.kind) {
     case 'play':
       beginTurn(message.turn);
+      box.reset('');
+      if (message.scene.steps.some((step) => step.actions.length > 0)) box.drew();
+      box.stepClosed();
       milestones.mark = true;
       milestones.word = true;
       player.play(placedScene(message.scene));
@@ -987,6 +1088,7 @@ function applyScene(message: SceneMessage): void {
       break;
     case 'begin':
       beginTurn(message.turn, message.detail === true);
+      if (message.detail !== true) box.reset(typeof message.question === 'string' ? message.question : '');
       placer()?.reset();
       if (message.detail !== true) ownedMarks.clear(); // a detail pass leaves the diagrams on screen, and the marks that go with them
       if (message.turn <= 1 && message.detail !== true) placer()?.setStage(undefined); // a detail pass keeps the stage it grows into
@@ -997,6 +1099,8 @@ function applyScene(message: SceneMessage): void {
       pen.fade(labelClock());
       fader.disarm();
       hud.stopWorking();
+      if (message.step.actions.length > 0) box.drew();
+      box.stepClosed();
       {
         const p = placer();
         if (p) foreseePoints(p, message.step.actions, view.width / view.height);
@@ -1010,9 +1114,11 @@ function applyScene(message: SceneMessage): void {
       player.openStep(message.say);
       break;
     case 'action':
+      box.drew();
       player.addAction(placedAction(message.action));
       break;
     case 'step-close':
+      box.stepClosed();
       player.closeStep();
       break;
     case 'toggle-explode':
@@ -1062,7 +1168,7 @@ function applyScene(message: SceneMessage): void {
         fader.arm(performance.now());
       }
       pen.fade(labelClock());
-      hud.showNotice(message.text, message.level, performance.now());
+      hud.showNotice(message.text, message.level, performance.now(), message.action);
       break;
     case 'clear':
       clearEverything();
@@ -1071,8 +1177,11 @@ function applyScene(message: SceneMessage): void {
       // Escape: the voice stops, what was still to be said is dropped, and what is drawn fades away quickly and goes.
       player.silence();
       pen.fade(labelClock());
-      hud.stopWorking();
-      hud.setStatus('idle');
+      shot.removeAttribute('src');
+      player.clear();
+      box.reset('');
+      fader.disarm();
+      hud.reset();
       pendingOffer = undefined;
       detailState = 'none';
       guiding = false;
@@ -1096,7 +1205,10 @@ window.talkthrough.onDisplay((info) => {
   // A voice server, with the system voice as its spare; a development run that speaks nothing overrides both.
   if (info.voice && !serverVoiceSet) {
     serverVoiceSet = true;
-    player.setVoice(createServerVoice(window.talkthrough.voice, info.voice, chooseVoice(), (line) => console.info(`talkthrough: ${line}`)));
+    player.setVoice(createServerVoice(window.talkthrough.voice, info.voice, chooseVoice(), (line) => console.info(`talkthrough: ${line}`), {
+      ...(info.speaker ? { speaker: info.speaker } : {}),
+      onSinkLost: () => hud.showNotice('The speaker you chose is not available, so the system default is used.', 'info', performance.now()),
+    }));
     // The step waits as long for the server's first sound as the voice does before the system voice speaks instead.
     player.setPatience(info.voice.firstAudioMs + VOICE_PATIENCE_MARGIN_MS);
   }

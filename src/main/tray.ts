@@ -1,24 +1,19 @@
 import { Menu, nativeImage, Tray } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
+import { TRAY_LINES, trayDotPixels, trayIconPixels } from './tray-state.ts';
+import type { TrayState } from './tray-state.ts';
 
 
-/** A 32x32 filled disc, drawn in code so the app needs no icon file yet. */
-function trayIcon() {
-  const size = 32;
-  const buffer = Buffer.alloc(size * size * 4);
-  const c = (size - 1) / 2;
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const d = Math.hypot(x - c, y - c);
-      const o = (y * size + x) * 4;
-      const inside = d <= 14;
-      // BGRA, a teal disc with a soft edge
-      buffer[o] = 200; buffer[o + 1] = 170; buffer[o + 2] = 20;
-      buffer[o + 3] = inside ? 255 : d <= 15 ? Math.round(255 * (15 - d)) : 0;
-    }
-  }
-  return nativeImage.createFromBitmap(buffer, { width: size, height: size });
+/** The icon for a state, drawn in code (see tray-state.ts) so the app needs no icon file. */
+function trayIcon(state: TrayState) {
+  const { width, height, data } = trayIconPixels(state);
+  return nativeImage.createFromBitmap(data, { width, height });
 }
+
+const dotIcon = (state: TrayState) => {
+  const { width, height, data } = trayDotPixels(state);
+  return nativeImage.createFromBitmap(data, { width, height });
+};
 
 /** The tray's part of guide navigation: Yes to the question (only while it is asked), and a pause for everything the app does for the person. */
 function guideItems(g: NonNullable<Parameters<typeof createTray>[0]['guideActions']>): MenuItemConstructorOptions[] {
@@ -45,11 +40,12 @@ export function createTray(handlers: {
   onPinScreenshot(on: boolean): void;
   /** Guide mode may act for the person (open a tab, a menu, scroll): a pause for all of it, and the Yes it asks for the first time. */
   guideActions?: { paused(): boolean; setPaused(on: boolean): void; asking(): boolean; answer(yes: boolean): void };
-}): Tray & { refresh(): void } {
-  const tray = new Tray(trayIcon());
-  tray.setToolTip('Talkthrough');
+}): Tray & { refresh(): void; /** Shows what the app is doing: the icon, the first line of the menu and the tip. */ setState(state: TrayState): void } {
+  let state: TrayState = 'ready';
+  const tray = new Tray(trayIcon(state));
+  tray.setToolTip(`Talkthrough: ${TRAY_LINES[state]}`);
   const build = () => Menu.buildFromTemplate([
-      { label: 'Talkthrough', enabled: false },
+      { label: TRAY_LINES[state], enabled: false, icon: dotIcon(state) },
       { label: `Hold ${handlers.hotkeyLabel} to ask`, enabled: false },
       { type: 'separator' },
       { label: 'Pin this answer', click: handlers.onPin },
@@ -63,5 +59,14 @@ export function createTray(handlers: {
       { label: 'Quit', click: handlers.onQuit },
     ]);
   tray.setContextMenu(build());
-  return Object.assign(tray, { refresh: () => tray.setContextMenu(build()) });
+  return Object.assign(tray, {
+    refresh: () => tray.setContextMenu(build()),
+    setState: (next: TrayState) => {
+      if (next === state) return;
+      state = next;
+      tray.setImage(trayIcon(state));
+      tray.setToolTip(`Talkthrough: ${TRAY_LINES[state]}`);
+      tray.setContextMenu(build());
+    },
+  });
 }

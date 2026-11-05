@@ -2,165 +2,125 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'">
 <title>Talkthrough settings</title>
+<link rel="stylesheet" href="../shared/glass.css">
 <style>
-  html, body { margin: 0; color-scheme: dark; background: #111622; color: #eef3fb; font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
-  main { max-width: 560px; margin: 0 auto; padding: 22px 22px 30px; }
-  h1 { font-size: 18px; margin: 0 0 4px; }
-  h2 { font-size: 14px; margin: 0 0 8px; letter-spacing: 0.01em; }
-  .lead { margin: 0 0 16px; color: #aab6c8; }
-  section { border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 12px; padding: 14px 16px 12px; margin: 0 0 14px; background: rgba(255, 255, 255, 0.03); }
-  p { margin: 0 0 10px; color: #aab6c8; }
-  p.warn { color: #ffd9a0; }
-  label { display: block; margin: 0 0 4px; font-weight: 600; }
-  label.inline { display: flex; align-items: flex-start; gap: 8px; font-weight: 600; margin: 0 0 2px; }
-  label.inline input { margin-top: 3px; }
-  input[type=text], input[type=password], select, textarea {
-    width: 100%; box-sizing: border-box; padding: 7px 9px; margin: 0 0 10px; font: inherit; color: #eef3fb;
-    background: #0b0f19; border: 1px solid rgba(255, 255, 255, 0.24); border-radius: 8px;
-  }
-  textarea { min-height: 96px; resize: vertical; }
-  input:focus, select:focus, textarea:focus { outline: 2px solid #7cc4ff; outline-offset: 0; }
-  .row { display: flex; align-items: center; gap: 10px; }
-  .row > * { flex: 1; }
-  .row span { flex: none; color: #aab6c8; }
-  button { font: inherit; font-weight: 650; padding: 7px 16px; margin: 0 8px 0 0; border: 0; border-radius: 9px; color: #eef3fb; background: rgba(255, 255, 255, 0.14); cursor: pointer; }
-  button:hover { background: rgba(255, 255, 255, 0.24); }
-  button.primary { color: #0d1320; background: #7cc4ff; }
-  button.primary:hover { background: #a3d6ff; }
-  .hide { display: none; }
-  #state { font-weight: 600; color: #eef3fb; }
-  #messages { margin: 0 0 10px; padding: 0 0 0 18px; color: #ff9d9d; }
-  #saved { color: #a8e6b0; margin: 0 0 10px; }
-  .hint { font-size: 12.5px; margin: -4px 0 10px; }
+  body { display: flex; flex-direction: column; }
+  header { padding: 22px 26px 0; }
+  header p { margin-top: 4px; }
+  main { flex: 1; overflow-y: auto; padding: 14px 26px 6px; }
+  .foot { display: flex; gap: 10px; align-items: center; padding: 14px 26px; border-top: 1px solid var(--line); background: var(--bg); }
+  .foot #feedback { flex: 1; font-size: 13px; min-width: 0; }
+  #messages { margin: 0; padding: 0 0 0 16px; color: var(--err); }
+  #saved { color: var(--ok); }
+  .card.flash { animation: flash 1.4s ease-out; }
+  @keyframes flash { 0% { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); } 100% { border-color: var(--line); box-shadow: none; } }
+  .subhead { font-weight: 700; margin: 10px 0 8px; }
+  .keys { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .indent { padding: 0 0 8px; }
+  .indent .row { border-top: 0; padding: 6px 0; }
+  .cols2 { display: flex; gap: 10px; }
+  .cols2 > * { flex: 1; width: auto !important; }
 </style>
 </head>
 <body>
+<header>
+  <h1>Settings</h1>
+  <p class="muted" id="lead">Saved to your settings file. Changes take effect when Talkthrough is restarted, except the list of windows to skip, which works at once.</p>
+</header>
 <main>
-<h1>Talkthrough settings</h1>
-<p class="lead">Saved to your settings file. Changes take effect when Talkthrough is restarted, except the list of windows to skip, which works at once.</p>
 
-<section>
-  <h2>How it thinks</h2>
-  <label for="model">Where the model runs</label>
-  <select id="model">
-    <option value="codex">Your Codex command-line tool</option>
-    <option value="claude">Your Claude Code</option>
-    <option value="openai">An OpenAI API key</option>
-  </select>
-  <div data-route="codex"><label for="codexModel">Model</label><input type="text" id="codexModel" autocomplete="off" spellcheck="false">
-    <label class="inline"><input type="checkbox" id="codexFast">Fast mode</label><p class="hint">Answers sooner and uses more of your Codex allowance.</p></div>
-  <div data-route="claude"><label for="claudeModel">Model</label><input type="text" id="claudeModel" autocomplete="off" spellcheck="false"></div>
-  <div data-route="openai"><label for="openaiModel">Model</label><input type="text" id="openaiModel" autocomplete="off" spellcheck="false"></div>
-  <div id="keybox" class="hide">
-    <label for="key">API key</label>
-    <p id="state">&nbsp;</p>
-    <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a key">
-    <button id="savekey" type="button">Save key</button><button id="removekey" type="button">Remove key</button>
-    <p class="hint">Stored encrypted for your Windows account. It is never shown again and never written to a log.</p>
-    <p id="keymessage" class="warn"></p>
-  </div>
-</section>
-
-<section>
-  <h2>Words and voice</h2>
-  <label for="captions">An answer is given as</label>
-  <select id="captions">
-    <option value="both">Voice and text (recommended)</option>
-    <option value="voice">Voice only</option>
-    <option value="text">Text only</option>
-  </select>
-  <p class="hint" id="warnCaptions"></p>
-</section>
-
-<section>
-  <h2>Speed (Claude route)</h2>
-  <label for="splitAnswer">Write the answer</label>
-  <select id="splitAnswer">
-    <option value="off">In one call</option>
-    <option value="two">In two calls: the first step, then the rest</option>
-    <option value="steps">One step at a time (recommended)</option>
-  </select>
-  <p class="hint" id="warnSplit"></p>
-</section>
-
-<section>
-  <h2>More detail</h2>
-  <label for="detailRoute">Route for the richer version</label>
-  <select id="detailRoute">
-    <option value="">Off</option>
-    <option value="codex">Codex</option>
-    <option value="claude">Claude Code</option>
-    <option value="openai">OpenAI API key</option>
-  </select>
-  <div id="detailbox" class="hide"><label for="detailModel">Model (empty: a stronger default for that route)</label><input type="text" id="detailModel" autocomplete="off" spellcheck="false"></div>
-  <p class="hint">When you ask for more detail, a stronger model redraws what is on screen in finer detail. It uses more of your allowance and only runs when you ask.</p>
-</section>
-
-<section>
-  <h2>Voice</h2>
-  <label class="inline"><input type="radio" name="voice" id="voiceSystem" value="system">The system voice</label>
-  <label class="inline"><input type="radio" name="voice" id="voiceServer" value="server">A voice server on this computer or on https</label>
-  <div id="voicebox" class="hide" style="margin-top:8px">
-    <label for="voiceServerUrl">Address</label><input type="text" id="voiceServerUrl" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8000/speak">
-    <label for="voiceServerVoice">Voice name (optional)</label><input type="text" id="voiceServerVoice" autocomplete="off" spellcheck="false">
-    <p class="hint">The words of each spoken step are sent to this address, and nothing else. If it is down or slow, the system voice speaks instead.</p>
-  </div>
-</section>
-
-<section>
-  <h2>Hearing</h2>
-  <p id="hearNow">&nbsp;</p>
+<div class="card" id="sectionHearing">
+  <div class="ct">Hearing</div>
+  <div class="row"><div class="what"><div class="lab">Hearing you with</div><div class="hint" id="hearHint">&nbsp;</div></div><div class="status"><span class="dot ok" id="hearDot"></span><span id="hearNow">&nbsp;</span></div></div>
   <div id="hearOffer" class="hide">
-    <p class="hint" id="hearOfferText"></p>
-    <label for="hearModel">Model</label><select id="hearModel"></select>
-    <button id="hearGet" type="button" class="primary">Download better hearing</button><button id="hearStop" type="button" class="hide">Stop</button>
-    <progress id="hearBar" class="hide" max="1" value="0" style="width:100%"></progress>
-    <p id="hearMessage" class="warn"></p>
+    <div class="row"><div class="what"><div class="lab">Clearer hearing (whisper.cpp)</div><div class="hint" id="hearOfferText"></div></div>
+      <div class="ctl"><select id="hearModel" aria-label="Model"></select><button id="hearGet" type="button" class="primary">Download</button><button id="hearStop" type="button" class="hide">Stop</button></div></div>
+    <div class="row stack hide" id="hearProgressRow"><progress id="hearBar" max="1" value="0"></progress><div class="hint" id="hearMessage"></div></div>
   </div>
-  <button id="hearRemove" type="button" class="hide">Remove the download</button>
-  <label for="speechServerUrl">Speech recogniser address (optional)</label>
-  <input type="text" id="speechServerUrl" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8001">
-  <p class="hint">If you run your own recogniser, your question is sent there, so it should be on this computer. It is tried first; whisper.cpp and then the recogniser Windows has come after it.</p>
-</section>
+  <div class="row hide" id="hearRemoveRow"><div class="what"><div class="lab">Clearer hearing is installed</div><div class="hint">It runs on this computer. You can remove it here.</div></div><div class="ctl"><button id="hearRemove" type="button">Remove the download</button></div></div>
+  <div class="row"><div class="what"><div class="lab">Your own speech server</div><div class="hint">Optional. If you run your own recogniser, your question is sent there, so it should be on this computer. It is tried first.</div></div><div class="ctl"><input type="text" id="speechServerUrl" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8001"></div></div>
+</div>
 
-<section>
-  <h2>Hold to ask</h2>
-  <div class="row"><select id="hotkeyA" aria-label="First key"></select><span>and</span><select id="hotkeyB" aria-label="Second key"></select></div>
-  <p class="hint">Hold both keys together while you speak. Holding the first one alone gets the microphone ready sooner. The left-hand keys are used by many shortcuts, so the right-hand ones are safer.</p>
-</section>
+<div class="card" id="sectionSound">
+  <div class="ct">Microphone and speaker</div>
+  <div class="row"><div class="what"><div class="lab">Microphone</div><div class="hint" id="micHint">Where your question is recorded.</div></div><div class="ctl"><select id="microphone" aria-label="Microphone"></select></div></div>
+  <div class="row"><div class="what"><div class="lab">Speaker</div><div class="hint" id="speakerHint">Every voice plays here, the system voice too.</div></div><div class="ctl"><select id="speaker" aria-label="Speaker"></select></div></div>
+</div>
 
-<section>
-  <h2>Windows to skip</h2>
-  <label for="captureBlocklist">One name per line</label>
-  <textarea id="captureBlocklist" spellcheck="false"></textarea>
-  <p class="hint">If the window in front has one of these words in its app name or title, holding the keys does nothing: nothing is recorded, captured or sent. Only the window in front is checked. The list starts with some password managers.</p>
-</section>
+<div class="card" id="sectionThinks">
+  <div class="ct">How it thinks</div>
+  <div class="subhead">First step</div>
+  <div class="tiles" id="firstTiles" role="radiogroup" aria-label="Where the first step is written">
+    <label class="opt" data-route="claude"><input type="radio" name="model" value="claude"><span class="what"><span class="name">Claude Code</span><span class="chip" data-chip="claude"></span><div class="hint">The tool you use for Claude, signed in on this computer.</div></span></label>
+    <label class="opt" data-route="codex"><input type="radio" name="model" value="codex"><span class="what"><span class="name">Codex</span><span class="chip" data-chip="codex"></span><div class="hint">Your Codex command-line tool and its sign-in.</div></span></label>
+    <label class="opt" data-route="openai"><input type="radio" name="model" value="openai"><span class="what"><span class="name">API key</span><span class="chip" data-chip="openai"></span><div class="hint">An OpenAI API key, stored encrypted for your Windows account.</div></span></label>
+    <label class="opt" data-route="local"><input type="radio" name="model" value="local"><span class="what"><span class="name">Local model</span><span class="chip" data-chip="local"></span><div class="hint">A model on this computer, through Ollama or LM Studio.</div></span></label>
+  </div>
+  <div class="row" style="margin-top:10px"><div class="what"><div class="lab">Model</div><div class="hint" id="firstModelHint"></div></div><div class="ctl"><input type="text" id="modelName" autocomplete="off" spellcheck="false"></div></div>
+  <div class="row hide" data-for="codex"><div class="what"><div class="lab">Fast mode</div><div class="hint">Answers sooner and uses more of your Codex allowance.</div></div><div class="ctl"><input type="checkbox" class="tog" id="codexFast" aria-label="Fast mode"></div></div>
+  <div id="keybox" class="hide">
+    <div class="row stack"><div><div class="lab">API key</div><div class="hint" id="state">&nbsp;</div></div>
+      <div class="cols2"><input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a key"><button id="savekey" type="button">Save key</button><button id="removekey" type="button">Remove key</button></div>
+      <div class="hint">Stored encrypted for your Windows account. It is never shown again and never written to a log.</div><div class="hint warn" id="keymessage"></div></div>
+  </div>
+  <div id="localbox" class="hide">
+    <div class="row"><div class="what"><div class="lab">Server address</div><div class="hint">An address on this computer. Ollama is http://127.0.0.1:11434/v1, LM Studio http://127.0.0.1:1234/v1.</div></div><div class="ctl"><input type="text" id="localBaseUrl" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:11434/v1"></div></div>
+    <div class="row stack"><div class="hint warn">Every question carries a screenshot, so the model must be a vision model (one that takes pictures). A text-only model cannot answer.</div>
+      <div style="display:flex;gap:10px;align-items:center"><button id="localTest" type="button">Test connection</button><span class="hint" id="localResult" style="margin:0"></span></div></div>
+  </div>
 
-<section>
-  <h2>Things it may do for you</h2>
-  <p class="hint" style="margin-top:0">All are off until you turn them on.</p>
-  <label class="inline"><input type="checkbox" id="guideNavigation">Let a guide act for me</label>
-  <p class="hint" id="warnNav"></p>
-  <label class="inline"><input type="checkbox" id="controlSnap">Place marks on real controls</label>
-  <p class="hint" id="warnSnap"></p>
-</section>
+  <div class="subhead" style="margin-top:14px">Later steps</div>
+  <div class="row first"><div class="what"><div class="lab">Written by</div><div class="hint" id="laterHint">One model writes every step.</div></div><div class="ctl"><select id="laterRoute" aria-label="Later steps">
+    <option value="">The same as the first step</option>
+    <option value="same">The same connector, another model</option>
+    <option value="claude">Claude Code</option><option value="codex">Codex</option><option value="openai">API key</option><option value="local">Local model</option></select></div></div>
+  <div class="row hide" id="laterModelRow"><div class="what"><div class="lab">Model for the later steps</div><div class="hint" id="laterModelHint"></div></div><div class="ctl"><input type="text" id="laterModel" autocomplete="off" spellcheck="false"></div></div>
 
-<section>
-  <h2>Record of questions</h2>
-  <label class="inline"><input type="checkbox" id="keepRecord">Keep a record of each question</label>
-  <p class="hint" id="warnRecord"></p>
+  <div class="subhead" style="margin-top:14px">More</div>
+  <div class="row first" id="splitRow"><div class="what"><div class="lab">Write the answer</div><div class="hint" id="warnSplit"></div></div><div class="ctl"><select id="splitAnswer"><option value="off">In one call</option><option value="two">In two calls</option><option value="steps">One step at a time</option></select></div></div>
+  <div class="row"><div class="what"><div class="lab">More detail</div><div class="hint">When you ask for more detail, a stronger model redraws what is on screen in finer detail. It uses more of your allowance and only runs when you ask.</div></div><div class="ctl"><select id="detailRoute"><option value="">Off</option><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="openai">API key</option><option value="local">Local model</option></select></div></div>
+  <div class="row hide" id="detailbox"><div class="what"><div class="lab">Model for more detail</div><div class="hint">Empty: a stronger default for that connector.</div></div><div class="ctl"><input type="text" id="detailModel" autocomplete="off" spellcheck="false"></div></div>
+</div>
+
+<div class="card" id="sectionWords">
+  <div class="ct">Words and voice</div>
+  <div class="row"><div class="what"><div class="lab">An answer is given as</div><div class="hint" id="warnCaptions"></div></div><div class="ctl"><select id="captions"><option value="both">Voice and text (recommended)</option><option value="voice">Voice only</option><option value="text">Text only</option></select></div></div>
+  <div class="row"><div class="what"><div class="lab">Voice</div><div class="hint">The system voice, or a voice server of your own on this computer or on https.</div></div>
+    <div class="ctl"><select id="voiceKind" aria-label="Voice"><option value="system">System voice</option><option value="server">A voice server</option></select></div></div>
+  <div id="voicebox" class="hide">
+    <div class="row"><div class="what"><div class="lab">Address</div><div class="hint">The words of each spoken step are sent to this address, and nothing else. If it is down or slow, the system voice speaks instead.</div></div><div class="ctl"><input type="text" id="voiceServerUrl" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8000/speak"></div></div>
+    <div class="row"><div class="what"><div class="lab">Voice name</div><div class="hint">Optional.</div></div><div class="ctl"><input type="text" id="voiceServerVoice" autocomplete="off" spellcheck="false"></div></div>
+  </div>
+</div>
+
+<div class="card" id="sectionKeys">
+  <div class="ct">Hold to ask</div>
+  <div class="row"><div class="what"><div class="lab">Keys</div><div class="hint" id="keysHint">Hold them while you speak, let go to ask. One key, or up to four held together.</div></div>
+    <div class="ctl"><span class="keys" id="keysShown"></span><button id="keysChange" type="button">Change</button></div></div>
+  <div class="row"><div class="what"><div class="hint warn hide" id="keysWarn"></div><div class="hint err hide" id="keysError"></div></div><div class="ctl"><button class="link" id="keysReset" type="button">Reset to default (Right Ctrl + Right Shift)</button></div></div>
+</div>
+
+<div class="card" id="sectionPrivacy">
+  <div class="ct">Privacy</div>
+  <div class="row stack"><div><div class="lab">Windows to skip</div><div class="hint">One name per line. If the window in front has one of these words in its app name or title, holding the keys does nothing: nothing is recorded, captured or sent. The list starts with some password managers.</div></div><textarea id="captureBlocklist" spellcheck="false"></textarea></div>
+  <div class="row"><div class="what"><div class="lab">Let a guide act for me</div><div class="hint" id="warnNav"></div></div><div class="ctl"><input type="checkbox" class="tog" id="guideNavigation" aria-label="Let a guide act for me"></div></div>
+  <div class="row"><div class="what"><div class="lab">Place marks on real controls</div><div class="hint" id="warnSnap"></div></div><div class="ctl"><input type="checkbox" class="tog" id="controlSnap" aria-label="Place marks on real controls"></div></div>
+</div>
+
+<div class="card" id="sectionRecord">
+  <div class="ct">Record of questions</div>
+  <div class="row"><div class="what"><div class="lab">Keep a record of each question</div><div class="hint" id="warnRecord"></div></div><div class="ctl"><input type="checkbox" class="tog" id="keepRecord" aria-label="Keep a record of each question"></div></div>
   <div id="recordbox" class="hide">
-    <label for="recordFolder">Folder (optional)</label><input type="text" id="recordFolder" autocomplete="off" spellcheck="false" placeholder="C:\Users\you\Documents\questions">
-    <p class="hint">A full folder path. Empty: a folder called questions inside Talkthrough's own data folder. Each question gets a dated folder inside it; older ones beyond the newest 50 are deleted, and nothing else in the folder is touched.</p>
+    <div class="row"><div class="what"><div class="lab">Folder (optional)</div><div class="hint">A full folder path. Empty: a folder called questions inside Talkthrough's own data folder. Each question gets a dated folder inside it; older ones beyond the newest 50 are deleted, and nothing else in the folder is touched.</div></div><div class="ctl"><input type="text" id="recordFolder" autocomplete="off" spellcheck="false" placeholder="C:\Users\you\Documents\questions"></div></div>
   </div>
-</section>
-
-<ul id="messages" class="hide"></ul>
-<p id="saved" class="hide"></p>
-<button id="save" class="primary" type="button">Save</button><button id="restart" type="button" class="hide">Restart now</button><button id="close" type="button">Close</button>
+</div>
 </main>
+<div class="foot">
+  <div id="feedback"><ul id="messages" class="hide"></ul><span id="saved" class="hide"></span></div>
+  <button id="restart" type="button" class="hide">Restart now</button><button id="close" type="button">Close</button><button id="save" class="primary" type="button">Save</button>
+</div>
 <script src="./settings.js"></script>
 </body>
 </html>

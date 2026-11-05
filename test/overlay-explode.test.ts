@@ -348,9 +348,10 @@ test('the buttons beside a model sit clear of its bounds (above, else beside or 
   const all = [r.explode, r.cut, r.detail!];
   for (const b of all) assert.ok(!meets(b, model), `a button over the model: ${JSON.stringify(b)}`);
   assert.ok(all.every((b) => b.y + b.h <= model.y), 'above the model when there is room');
-  assert.equal(r.cut.x + r.cut.w, r.explode.x + r.explode.w, 'Cut shares the right edge');
-  assert.ok(r.cut.y >= r.explode.y + r.explode.h, 'Cut is under Explode');
-  assert.ok(r.detail && r.detail.x + r.detail.w <= r.explode.x, 'More detail is to the left');
+  assert.equal(r.cut.x, r.explode.x + r.explode.w, 'Cut touches Explode on its right: one capsule');
+  assert.equal(r.detail!.x, r.cut.x + r.cut.w, 'More detail touches Cut on its right');
+  assert.ok(r.explode.y === r.cut.y && r.cut.y === r.detail!.y, 'one row');
+  assert.equal(r.detail!.x + r.detail!.w, model.x + model.w, 'the capsule ends at the model\'s right edge');
   for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert.ok(!meets(all[i]!, all[j]!), `${i} ${j} overlap`);
   assert.equal(modelButtonRects(model, view, { explode: sizes.explode, cut: sizes.cut }).detail, undefined, 'no detail model, no detail button');
   // No room above: beside it on the right; none there either: below.

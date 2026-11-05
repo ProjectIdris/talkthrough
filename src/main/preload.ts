@@ -6,7 +6,7 @@ import type { DisplayInfo, SceneMessage, TalkthroughApi } from '../shared/ipc.ts
 // The overlay page gets exactly these functions; it never sees ipcRenderer or the event objects.
 const api: TalkthroughApi = {
   voice: {
-    speak: (id, text) => ipcRenderer.send(CHANNEL.voiceSpeak, { id, text }),
+    speak: (id, text, via) => ipcRenderer.send(CHANNEL.voiceSpeak, { id, text, ...(via === 'system' ? { via } : {}) }),
     cancel: (id) => ipcRenderer.send(CHANNEL.voiceCancel, id),
     onEvent: (listener) => void ipcRenderer.on(CHANNEL.voiceEvent, (_event, id: number, event: VoiceEvent) => listener(id, event)),
   },

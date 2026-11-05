@@ -1,4 +1,4 @@
-// A click on one of the overlay's buttons (the escalation offer, Explode, Cut, More detail) must reach the button whether or
+// A click on one of the overlay's buttons (the escalation offer, Explode, Cut, More detail, the button on a notice, Copy, Pin and Close on a words-only answer) must reach the button whether or
 // not the pointer moved first. The overlay window is click-through and only learns the pointer is over a button from a mouse
 // move, so a tap, or a click that arrives with no move before it, went to the application underneath. The page now reports where
 // its buttons are; over each one main lays a tiny window that is never click-through and says nothing but "pressed". The overlay
@@ -8,7 +8,7 @@
 import type { Rect } from './consent-card.ts';
 
 /** The buttons the page may report. */
-export const BUTTON_IDS = ['offer', 'explode', 'cut', 'detail'] as const;
+export const BUTTON_IDS = ['offer', 'explode', 'cut', 'detail', 'fix', 'copy', 'pin', 'close'] as const;
 export type ButtonId = (typeof BUTTON_IDS)[number];
 
 /** Where a button is on the overlay page (CSS pixels from the page's top left, which is the display's top left). */

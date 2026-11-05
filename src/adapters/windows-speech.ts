@@ -60,9 +60,10 @@ export type WindowsSpeechOptions = {
   idleMs?: number;
 };
 
-function startPowerShell(): SpeechChild {
+/** Starts a long-lived Windows PowerShell child that runs this app's own script and talks in lines (also used by main/system-voice.ts). */
+export function startPowerShellChild(source: string): SpeechChild {
   const exe = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-  const encoded = Buffer.from(WINDOWS_SPEECH_SOURCE, 'utf16le').toString('base64');
+  const encoded = Buffer.from(source, 'utf16le').toString('base64');
   const child = spawn(exe, ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
   child.stdout.setEncoding('utf8');
   child.stdin.on('error', () => undefined);
@@ -125,7 +126,7 @@ export function createWindowsSpeechRecogniser(options: WindowsSpeechOptions = {}
   function start(): Promise<void> {
     if (ready) return ready;
     readyFail = undefined;
-    const c = (options.start ?? startPowerShell)();
+    const c = (options.start ?? (() => startPowerShellChild(WINDOWS_SPEECH_SOURCE)))();
     child = c;
     alive = true;
     ready = new Promise<void>((resolve, reject) => {

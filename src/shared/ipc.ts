@@ -29,7 +29,7 @@ export const CHANNEL = {
   buttons: 'tt:buttons',
   /** overlay -> main: the user clicked "More detail": ask the detail model for a richer version of the scene on screen. */
   detail: 'tt:detail',
-  /** overlay -> main: say these words with the voice server ({ id, text }); the audio comes back as `voiceEvent`s with the same id. */
+  /** overlay -> main: say these words ({ id, text, via? }) with the voice server, or with the system voice made by main when via is 'system'; the audio comes back as `voiceEvent`s with the same id. */
   voiceSpeak: 'tt:voice-speak',
   /** overlay -> main: stop speaking request `id`. */
   voiceCancel: 'tt:voice-cancel',
@@ -72,7 +72,14 @@ export type DisplayInfo = {
   /** A detail model is set up: the page may offer "More detail" beside a finished model. */
   detail?: boolean;
   /** A voice server is set up: the page speaks with it, and with the system voice when it is down or slow (see adapters/fallback-voice.ts). */
-  voice?: { firstAudioMs: number; cooldownMs: number };
+  voice?: {
+    firstAudioMs: number;
+    cooldownMs: number;
+    /** A voice server is set up (absent counts as yes). False: only the system voice made by main (see main/system-voice.ts) is used, through the chosen speaker. */
+    server?: boolean;
+    /** The system voice is also made by main (the words go to a PowerShell speech child and come back as audio), so it plays through the chosen speaker. */
+    system?: boolean;
+  };
   /** What an answer's words are given as (settings): the page shows them as captions, and with 'text' speaks nothing and keeps each step up for its reading time. Absent: voice only. */
   captions?: 'voice' | 'text' | 'both';
   /** The output device the person chose (a Web Audio sink id); absent: the system's default. Every voice plays through it (the page falls back to the default if the device has gone). */
@@ -127,7 +134,7 @@ export type SceneMessage =
    * coming, so nothing is cleared (whatever `turn` says), nothing is spoken, and an object whose id is on screen is
    * replaced in place by the one that arrives.
    */
-  | { kind: 'begin'; turn: number; detail?: true }
+  | { kind: 'begin'; turn: number; detail?: true; /** The question asked, for the small heading of a words-only answer (cut to 160 characters). */ question?: string }
   | { kind: 'step'; step: Step }
   /**
    * A step arriving piece by piece, as the model writes it: `step-open` brings its words (spoken at once, and
@@ -208,10 +215,20 @@ export const AUDIO_CHANNEL = {
   composeError: 'tt:cap-compose-error',
   useImage: 'tt:cap-use-image',
   release: 'tt:cap-release',
+  /** main -> page: list the audio devices (request id); page -> main: the list. */
+  listDevices: 'tt:audio-devices-list',
+  devices: 'tt:audio-devices',
+  /** page -> main: the microphone that was chosen could not be opened, so the default was used. */
+  micFallback: 'tt:mic-fallback',
 } as const;
 
 export interface TalkthroughAudioApi {
-  onStart(listener: () => void): void;
+  /** Recording starts; `deviceId` is the microphone the person chose (absent or empty: the system default). */
+  onStart(listener: (deviceId?: string) => void): void;
+  onListDevices(listener: (requestId: number) => void): void;
+  devices(requestId: number, list: DeviceList): void;
+  /** The chosen microphone is not there: the default was used instead. */
+  micFallback(): void;
   onStop(listener: () => void): void;
   onAbort(listener: () => void): void;
   onGrab(listener: (request: GrabRequest) => void): void;
@@ -311,7 +328,7 @@ export interface TalkthroughSettingsApi {
 export interface TalkthroughApi {
   /** The voice server's audio, through main (only when DisplayInfo says there is one). */
   voice: {
-    speak(id: number, text: string): void;
+    speak(id: number, text: string, via?: 'system'): void;
     cancel(id: number): void;
     onEvent(listener: (id: number, event: VoiceEvent) => void): void;
   };

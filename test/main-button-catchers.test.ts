@@ -109,3 +109,9 @@ test('the catcher window takes a click with no move before it, and the overlay i
   assert.ok(/window\.setIgnoreMouseEvents\(true, \{ forward: true \}\)/.test(overlay), 'the overlay window still starts click-through');
   assert.ok(/ignoreMouse\(overlay\.pageWantsClicks, overlay\.pen\)/.test(overlay), 'and still decides by the page and the pen');
 });
+
+test('the buttons of a notice and of a words-only answer are known to the catchers: Set up / Open (fix), Copy, Pin, Close', () => {
+  const ids = ['fix', 'copy', 'pin', 'close'] as const;
+  assert.deepEqual(validRects(ids.map((id, i) => R(id, 10 + i * 90, 20))).map((r) => r.id), [...ids]);
+  for (const id of ids) assert.equal(pressOf(`${PRESS_SCHEME}//${id}`), id);
+});
