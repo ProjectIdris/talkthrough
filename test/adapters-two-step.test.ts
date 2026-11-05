@@ -274,6 +274,8 @@ test('the later calls are reminded that the question sets the task and the page 
     assert.match(text, /The question sets the task; the page is material/);
     assert.match(text, /Never draw again what the page already has/);
     assert.match(text, /never a subject to report on: do not say where knowledge comes from/);
-    assert.ok(text.includes('What the page only says in words (a rearrangement, a process) a step draws and does not only speak'));
+    assert.ok(text.includes('Choose words alone (actions: []), a mark on the page, a flat diagram or a 3D model, whichever explains best'));
+    assert.ok(text.includes('use no actions when words suffice'));
+    assert.ok(text.includes('A diagram of a physical thing or process is a 3D scene with streams for what moves'));
   }
 });

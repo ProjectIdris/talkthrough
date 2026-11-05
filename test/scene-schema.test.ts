@@ -95,7 +95,11 @@ test('the schema files in docs are what this code builds', () => {
 test('the guide asks for a short first step and its example keeps to it', () => {
   // The first step is what the person waits for: a long one (a whole 3D model) held the first mark back for 17 s.
   assert.ok(sceneGuide.includes('Step 1 is short'));
-  assert.ok(sceneGuide.includes('the model is the answer') && sceneGuide.includes('set it running'), 'a machine is built and started, not only pointed at');
+  assert.ok(sceneGuide.includes('words alone (actions: []), a mark on the page, a flat diagram or a 3D model'), 'the form is chosen for the question');
+  assert.ok(sceneGuide.includes('one or two marks if useful (actions may be empty)'), 'step 1 can use words alone');
+  assert.ok(sceneGuide.indexOf('- Choose words alone') >= 0 && sceneGuide.indexOf('- Choose words alone') < sceneGuide.indexOf('- Step 1 is short'), 'choose before the drawing instructions');
+  assert.ok(sceneGuide.includes('use no actions when words suffice'));
+  assert.ok(sceneGuide.includes('When a model explains a machine or mechanism') && sceneGuide.includes('set it running'), 'a machine is built and started, not only pointed at');
   const steps = (sceneGuideExample as { steps: { say: string; actions: unknown[] }[] }).steps;
   assert.ok((steps[0]?.actions.length ?? 99) <= 2, 'the first step of the example has one or two marks');
   assert.ok((steps[0]?.say.length ?? 999) <= 90, 'and one short sentence');
@@ -109,7 +113,7 @@ test('the guide says the question sets the task and the page is material, never 
     'is material to use, never a subject to report on. Never open with what the page or picture is, and never say where your knowledge comes from or what the page does or does not contain, unless asked',
     'Do not draw again what the page already has (its graph, its table, its list of steps): point at it with marks',
     'Where the page gives the content (the proof its figure shows, the steps and amounts it lists), use that, not another',
-    'a step that explains such a thing draws it, it does not only speak it',
+    'Draw only when it explains better than words alone',
     'A label starts just to the right of its point, at the height of the point',
   ]) assert.ok(rule!.includes(part), part);
   assert.ok(!sceneGuide.includes('general knowledge and not from this page'), 'the old instruction to announce general knowledge is gone');
