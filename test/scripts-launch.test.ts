@@ -4,11 +4,10 @@ import { test } from 'node:test';
 // @ts-expect-error a plain script with no type declarations
 import { launchElectron } from '../scripts/launch.mjs';
 
-function fixture() {
+function fixture(env: Record<string, string> = { ELECTRON_RUN_AS_NODE: '1', PATH: 'tools' }) {
   const child = new EventEmitter();
   const exits: number[] = [], errors: string[] = [];
   let sent: { exe: string; args: string[]; options: { env: Record<string, string> } } | undefined;
-  const env = { ELECTRON_RUN_AS_NODE: '1', PATH: 'tools' };
   launchElectron('electron-program', ['.', '--no-hotkey'], {
     env,
     spawn: (exe: string, args: string[], options: { env: Record<string, string> }) => { sent = { exe, args, options }; return child; },
@@ -24,6 +23,16 @@ test('launch removes Node mode only from the child environment and forwards argu
   assert.deepEqual(f.sent?.args, ['.', '--no-hotkey']);
   assert.deepEqual(f.sent?.options.env, { PATH: 'tools' });
   assert.equal(f.env.ELECTRON_RUN_AS_NODE, '1');
+});
+
+test('launch removes Node mode from the child environment regardless of key casing', () => {
+  for (const key of ['ELECTRON_RUN_AS_NODE', 'electron_run_as_node', 'Electron_Run_As_Node']) {
+    const env = { [key]: '1', PATH: 'tools' };
+    const f = fixture(env);
+
+    assert.deepEqual(f.sent?.options.env, { PATH: 'tools' }, `child env retained ${key}`);
+    assert.equal(env[key], '1', `parent env changed for ${key}`);
+  }
 });
 
 test('launch preserves normal application exit codes', () => {
