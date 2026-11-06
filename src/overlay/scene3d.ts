@@ -150,6 +150,8 @@ export class PanelScene {
   private textRects: ScreenRect[] = [];
   private settling = false;
   private cutaway = new Cutaway();
+  private sharedEdges = new Map<string, { geometry: BufferGeometry; refs: number }>();
+  private edgeKeys = new WeakMap<BufferGeometry, string>();
   private pinWarnings = new Set<number>();
   private flexWarnings = new Set<number>();
   private flexBudgetWarnings = new Set<number>();
@@ -235,7 +237,7 @@ export class PanelScene {
       node.materials.push(surface);
       const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'torus';
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
-      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node);
+      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.edgeKey(def));
       node.pieces.push(piece);
       return mesh;
     };
@@ -295,9 +297,27 @@ export class PanelScene {
     }
   }
 
-  private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node): LineSegments {
+  private edgeKey(def: AddAction): string | undefined {
+    if (!['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'].includes(def.shape)) return undefined;
+    const solid = def as { size: Vec3; bevel?: number };
+    return JSON.stringify([this.tier, def.shape, solid.size, def.shape === 'box' ? solid.bevel ?? defaultBevel(solid.size) : null, 28]);
+  }
+
+  private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string): LineSegments {
     const mat = new LineBasicMaterial({ color: 0x10131a, transparent: true, opacity: 0.5 });
-    const lines = new LineSegments(new EdgesGeometry(geo, 28), mat);
+    let outline: BufferGeometry;
+    const existing = key && this.sharedEdges.get(key);
+    if (existing) { existing.refs++; outline = existing.geometry; }
+    else if (key) {
+      // EdgesGeometry.parameters retains the input mesh geometry. Copy the derived
+      // buffers so a surviving outline never retains a removed part's geometry.
+      const generated = new EdgesGeometry(geo, 28);
+      outline = new BufferGeometry().copy(generated);
+      generated.dispose();
+      this.sharedEdges.set(key, { geometry: outline, refs: 1 });
+      this.edgeKeys.set(outline, key);
+    } else outline = new EdgesGeometry(geo, 28);
+    const lines = new LineSegments(outline, mat);
     mesh.add(lines);
     node.geometries.push(lines.geometry);
     node.materials.push(mat);
@@ -434,7 +454,13 @@ export class PanelScene {
     this.cutaway.release(node);
     if(node.flexRig){unregisterFlexPick(node.flexRig.mesh);node.flexRig.skeleton.dispose();}
     node.obj.removeFromParent();
-    for (const g of node.geometries) g.dispose();
+    for (const g of node.geometries) {
+      const key = this.edgeKeys.get(g);
+      const shared = key && this.sharedEdges.get(key);
+      if (shared) {
+        if (--shared.refs === 0) { this.sharedEdges.delete(key!); this.edgeKeys.delete(g); g.dispose(); }
+      } else g.dispose();
+    }
     for (const m of node.materials) m.dispose();
     node.texture?.dispose();
   }
