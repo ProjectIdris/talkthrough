@@ -98,6 +98,41 @@ test('an instant explode still waits for the minimum braking ramp to stop the ma
   near(rotZ(withMotion(settle(plan), 10), 'crank'), 252 + 54);
 });
 
+test('a superseded speed ramp does not hold the next step after the replacement settles', () => {
+  const stopped = planStep(emptyFrame(), step(crank,
+    {op:'spin',id:'crank',rpm:60,dur:10}, {op:'spin',id:'crank',rpm:0,dur:0,at:1}));
+  near(stopped.duration, 1.2);
+  near(rotZ(settle(stopped),'crank'),18);
+  near(rotZ(withMotion(settle(stopped),5),'crank'),18);
+  const changed = planStep(emptyFrame(), step(crank,
+    {op:'spin',id:'crank',rpm:60,dur:10}, {op:'spin',id:'crank',rpm:30,dur:2,at:1}));
+  near(changed.duration,3);
+  const end=settle(changed);
+  near(rotZ(withMotion(end,1),'crank')!-rotZ(end,'crank')!,180);
+});
+
+test('another part or non-spin animation can still determine the step duration', () => {
+  const other={op:'add',shape:'box',id:'other',size:[1,1,1]};
+  const actions=[crank,other,
+    {op:'spin',id:'crank',rpm:60,dur:10},{op:'spin',id:'crank',rpm:0,dur:0,at:1},
+    {op:'spin',id:'other',rpm:30,dur:4}];
+  near(planStep(emptyFrame(),step(...actions)).duration,4);
+  const plan=planStep(emptyFrame(),step(...actions,{op:'move',id:'other',to:[1,0,0],dur:6}));
+  near(plan.duration,6);
+});
+
+test('locking or exploding supersedes an earlier ramp without losing real braking', () => {
+  const other={op:'add',shape:'box',id:'other',size:[1,1,1]};
+  const locked=planStep(emptyFrame(),step(crank,other,
+    {op:'spin',id:'other',rpm:30,dur:0}, {op:'spin',id:'crank',rpm:60,dur:10},
+    {op:'spin',id:'crank',by:'other',at:1}));
+  near(locked.duration,1.2);
+  const exploded=planStep(emptyFrame(),step(crank,
+    {op:'spin',id:'crank',rpm:60,dur:10},{op:'explode',id:'crank',to:1,dur:0,at:1}));
+  near(exploded.duration,1.3);
+  near(rotZ(withMotion(settle(exploded),5),'crank'),rotZ(settle(exploded),'crank')!);
+});
+
 test('a spin locked to another turns that many times as far, even while the other speeds up', () => {
   const cam = { op: 'add', shape: 'part', part: 'camshaft', id: 'cam', size: [4, 1, 1], pos: [3, 5, 0] };
   const plan = planStep(emptyFrame(), step(...engine, cam,

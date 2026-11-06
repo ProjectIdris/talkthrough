@@ -307,7 +307,18 @@ export function planStep(base: Frame, step: Step): StepPlan {
   const times = diagramTimes(step.actions);
   const events = step.actions.map((a, i) => ({ a, i, at: times.get(i) ?? Math.max(0, a.at ?? 0) }));
   events.sort((p, q) => p.at - q.at || p.i - q.i);
-  for (const { a, at } of events) applyAction(plan, a, at);
+  // A later speed/lock command replaces the remaining portion of that spin's
+  // ramp. Keep ramp time separate from all other action durations until the
+  // complete chronological sequence is known.
+  const activeRamps = new Map<number, number>();
+  let finishedRamps = 0;
+  const ramp = (key: number, at: number, length: number) => {
+    const previous = activeRamps.get(key);
+    if (previous !== undefined) finishedRamps = Math.max(finishedRamps, Math.min(previous, at));
+    activeRamps.set(key, at + length);
+  };
+  for (const { a, at } of events) applyAction(plan, a, at, ramp);
+  plan.duration = Math.max(plan.duration, finishedRamps, ...activeRamps.values());
   return plan;
 }
 
@@ -357,7 +368,7 @@ function descendants(plan: StepPlan, rootKey: number, at: number): ObjInst[] {
 
 const v3 = (v: Vec3 | undefined, d: Vec3): Vec3 => (v ? [v[0], v[1], v[2]] : [d[0], d[1], d[2]]);
 
-function applyAction(plan: StepPlan, a: Action, at: number): void {
+function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (key: number, at: number, length: number) => void): void {
   const dur = 'dur' in a && a.dur !== undefined ? a.dur : DEFAULT_DUR;
   const end = (len: number) => { plan.duration = Math.max(plan.duration, at + len); };
   switch (a.op) {
@@ -452,8 +463,10 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       // Pulled apart, a machine stops: its parts no longer fit together.
       if (a.op === 'explode' && a.to > 0 && plan.spins.length > 0) {
         const ramp = Math.max(0.3, dur);
-        for (const sp of plan.spins) stopSpin(sp, at, ramp);
-        end(ramp);
+        for (const sp of plan.spins) {
+          stopSpin(sp, at, ramp);
+          spinRamp(sp.key, at, sp.segs.at(-1)?.ramp ?? 0);
+        }
       }
       end(dur);
       return;
@@ -511,11 +524,11 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       if (a.by !== undefined) {
         if (!by || by.key === o.key) return;
         setLock(sp, at, { byKey: by.key, ratio: a.ratio ?? 1, phase: a.phase ?? 0 }, axis);
+        spinRamp(sp.key, at, 0);
       } else {
         const ramp = a.rpm === 0 || a.dur !== undefined ? dur : 0.8;
         setRate(sp, at, (a.rpm ?? 0) * 6, ramp, axis);
-        // Settled frames keep only the current rate, so finish the ramp before carrying it onward.
-        end(ramp);
+        spinRamp(sp.key, at, ramp);
       }
       end(0.2);
       return;
