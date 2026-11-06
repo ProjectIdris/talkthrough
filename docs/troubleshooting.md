@@ -62,6 +62,14 @@ Check **Settings…** for the selected route, not just which tools happen to be 
 
 A malformed settings file falls back to defaults and logs a warning. If you edit JSON by hand, check the `settings file:` path and any `settings:` warnings at startup before trying a live question. Use Settings to save a valid configuration; do not delete the whole app-data folder as a troubleshooting shortcut.
 
+## “3D is unavailable in this window”
+
+Talkthrough could not initialize WebGL. Text, voice and flat 2D diagrams/marks remain available through their normal settings; a 3D model and its attached labels and controls are not drawn. A model-only answer uses the text answer box when text captions are enabled. This notice does not mean that the missing model was rendered successfully.
+
+The notice appears only when the current answer includes a visible 3D model. Other application notices take priority. Click to dismiss it for the current answer. A new question can show it again.
+
+Use a 2D sample such as **diagram-flow** to check that the overlay is still working. If 3D is needed, check the graphics driver and the restrictions of the desktop or remote environment, then restart Talkthrough after resolving the graphics problem. Do not disable browser security or bypass the GPU blocklist. This fallback handles graphics initialization failure, not recovery from a context lost after startup.
+
 ## The drawing appears, but there is no voice
 
 Check the **captions** setting first: `text` intentionally makes no sound. Check the selected speaker, system output volume and whether the device is connected. A missing selected device falls back to the system default with a notice.
