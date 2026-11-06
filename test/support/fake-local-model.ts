@@ -18,6 +18,8 @@ export type FakeLocalOptions = {
   unfinished?: boolean;
   eventError?: string;
   finishReason?: string;
+  /** Send a terminal [DONE] without a finish-reason event. */
+  doneOnly?: boolean;
   /** A non-streaming HTTP success, a redirect, or an answer that never ends. */
   responseBody?: string;
   redirect?: string;
@@ -63,7 +65,7 @@ export async function startFakeLocal(options: FakeLocalOptions = {}): Promise<Fa
         for (let i = 0; i < text.length; i += 23) res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text.slice(i, i + 23) }, finish_reason: null }] })}\n\n`);
         if (options.unfinished) return void res.end();
         if (options.eventError) res.write(`data: ${JSON.stringify({ error: { message: options.eventError } })}\n\n`);
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: options.finishReason ?? 'stop' }] })}\n\n`);
+        if (!options.doneOnly) res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: options.finishReason ?? 'stop' }] })}\n\n`);
         res.write(`data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 1200, completion_tokens: 80 } })}\n\n`);
         res.write('data: [DONE]\n\n');
         return void res.end();

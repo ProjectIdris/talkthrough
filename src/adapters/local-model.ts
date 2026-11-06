@@ -118,7 +118,8 @@ export function createLocalModel(options: LocalModelOptions): Model {
         let out: ModelOutput[] = [];
         if (typeof choice.delta?.content === 'string' && choice.delta.content) out = stream.push(choice.delta.content);
         if (choice.finish_reason === 'length') throw new ModelError('bad-output', 'the answer was cut short (the model ran out of room)');
-        if (choice.finish_reason) finished = true;
+        if (choice.finish_reason === 'stop') finished = true;
+        else if (choice.finish_reason !== undefined && choice.finish_reason !== null) throw new ModelError('bad-output', 'the local model did not finish a normal answer');
         return out;
       };
 

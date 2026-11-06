@@ -267,3 +267,21 @@ test('test connection uses the configured default when the local address field i
     await server.close();
   }
 });
+
+for (const reason of ['content_filter','tool_calls','function_call','unknown-private-marker']) {
+  test(`local completion rejects non-success finish reason ${reason}`, async () => {
+    const server = await startFakeLocal({reply:scene,finishReason:reason});
+    try {
+      const result=await testLocalModel({baseUrl:server.baseUrl,model:'vision-model'});
+      assert.equal(result.ok,false);assert.doesNotMatch(result.message,/unknown-private-marker|content_filter|tool_calls/);
+      await assert.rejects(collect(createLocalModel({baseUrl:server.baseUrl,model:'vision-model'})),(e:unknown)=>e instanceof ModelError && e.code==='bad-output' && !e.message.includes(reason));
+    } finally { await server.close(); }
+  });
+}
+for (const doneOnly of [false,true]) {
+  test(`local completion accepts ${doneOnly?'DONE-only':'normal stop'}`, async () => {
+    const server=await startFakeLocal({reply:scene,doneOnly});
+    try {const result=await testLocalModel({baseUrl:server.baseUrl,model:'vision-model'});assert.equal(result.ok,true,result.message);assert.equal((await collect(createLocalModel({baseUrl:server.baseUrl,model:'vision-model'}))).filter(o=>o.type==='step').length,2);}
+    finally {await server.close();}
+  });
+}
