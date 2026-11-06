@@ -18,7 +18,7 @@ function grabChild(electron: string, out: string, args: string[], env: NodeJS.Pr
   const observed = JSON.parse(readFileSync(receipt, 'utf8'));
   assert.equal(observed.preReady, true);
   for (const key of ['userData', 'sessionData', 'storage']) assert.equal(resolve(observed[key]).toLowerCase(), resolve(profile).toLowerCase(), key);
-  return run;
+  return { ...run, workArea: observed.workArea as { width: number; height: number } };
 }
 
 test('grab profile mismatch fails before main or window using two scratch profiles', { timeout: 30_000 }, (t) => {
@@ -62,6 +62,28 @@ test('a grab draws a scene offscreen and writes a different frame per moment', {
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
+});
+
+test('a grab keeps its requested width when it exceeds the display work area', { timeout: 120_000 }, (t) => {
+  const runtime = electronRuntime();
+  if (runtime.reason) return t.skip(runtime.reason);
+  const build = spawnSync(process.execPath, ['scripts/build.mjs'], { encoding: 'utf8' });
+  assert.equal(build.status, 0, build.stderr);
+  const out = mkdtempSync(join(tmpdir(), 'tt-grab-wide-'));
+  try {
+    const env: NodeJS.ProcessEnv = { ...process.env, APPDATA: out, LOCALAPPDATA: out, TALKTHROUGH_OVERLAY_PAGE: resolve('test/support/stub-overlay/index.html') };
+    delete env.ELECTRON_RUN_AS_NODE;
+    const args = ['--grab', 'samples/scenes/request-flow.json', '--steps', '0:0', '--out', out, '--scale', '2'];
+    const probe = grabChild(runtime.executable!, out, [...args, '--size', '100x100'], env);
+    assert.equal(probe.status, 0, probe.stdout + probe.stderr);
+    assert.ok(Number.isInteger(probe.workArea.width) && probe.workArea.width > 0);
+    // Use the real scaled display size so even a large developer monitor exercises the clamp.
+    const width = probe.workArea.width + 64;
+    const run = grabChild(runtime.executable!, out, [...args, '--size', `${width}x360`], env);
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    const png = readFileSync(join(out, 'step0-t0.png'));
+    assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [width * 2, 720]);
+  } finally { rmSync(out, { recursive: true, force: true }); }
 });
 
 test('layout attempts retain duplicate requests and accept a legacy token-only renderer', { timeout: 120_000 }, (t) => {
