@@ -14,6 +14,16 @@ export type FakeLocalOptions = {
   models?: string[] | null;
   /** The text the model "writes", sent in pieces. */
   reply?: string;
+  /** End without a finish reason or the final marker. */
+  unfinished?: boolean;
+  eventError?: string;
+  finishReason?: string;
+  /** Send a terminal [DONE] without a finish-reason event. */
+  doneOnly?: boolean;
+  /** A non-streaming HTTP success, a redirect, or an answer that never ends. */
+  responseBody?: string;
+  redirect?: string;
+  stall?: boolean;
   /** Answer a call of chat/completions (1-based) with this status and error message instead. */
   fail?: (call: number, body: Record<string, any> | null) => { status: number; message: string } | undefined;
 };
@@ -38,6 +48,9 @@ export async function startFakeLocal(options: FakeLocalOptions = {}): Promise<Fa
         return void res.end(JSON.stringify({ object: 'list', data: (options.models ?? ['vision-model']).map((id) => ({ id, object: 'model' })) }));
       }
       if (req.url === '/v1/chat/completions') {
+        if (options.redirect) return void (res.writeHead(307, { Location: options.redirect }), res.end());
+        if (options.responseBody !== undefined) return void (res.writeHead(200, { 'Content-Type': 'text/html' }), res.end(options.responseBody));
+        if (options.stall) return void (res.writeHead(200, { 'Content-Type': 'text/event-stream' }), res.flushHeaders());
         const failure = options.fail?.(++calls, body);
         if (failure) {
           res.writeHead(failure.status, { 'Content-Type': 'application/json' });
@@ -50,7 +63,9 @@ export async function startFakeLocal(options: FakeLocalOptions = {}): Promise<Fa
         res.writeHead(200, { 'Content-Type': 'text/event-stream' });
         const text = options.reply ?? '';
         for (let i = 0; i < text.length; i += 23) res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text.slice(i, i + 23) }, finish_reason: null }] })}\n\n`);
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\n`);
+        if (options.unfinished) return void res.end();
+        if (options.eventError) res.write(`data: ${JSON.stringify({ error: { message: options.eventError } })}\n\n`);
+        if (!options.doneOnly) res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: options.finishReason ?? 'stop' }] })}\n\n`);
         res.write(`data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 1200, completion_tokens: 80 } })}\n\n`);
         res.write('data: [DONE]\n\n');
         return void res.end();

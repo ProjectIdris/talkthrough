@@ -118,20 +118,6 @@ const tier = chooseTier();
 // Said once, for the app log of a check run: which tier, on what graphics, and whether the finishing pass is on.
 console.info(`talkthrough: overlay tier ${tier} on ${graphicsName() || 'an unnamed renderer'}`);
 const settings = TIERS[tier];
-const renderer = new WebGLRenderer({ canvas: glCanvas, alpha: true, antialias: settings.msaa, premultipliedAlpha: true, stencil: true });
-renderer.localClippingEnabled = true; // a model can be cut open (cutaway.ts)
-renderer.outputColorSpace = SRGBColorSpace;
-renderer.toneMapping = NeutralToneMapping;
-renderer.toneMappingExposure = 0.9;
-renderer.setClearColor(0x000000, 0);
-renderer.autoClear = false;
-renderer.shadowMap.enabled = settings.shadows;
-// A variance map is blurred, so the edge of a shadow is smooth; the default filter's edge is grainy.
-renderer.shadowMap.type = VSMShadowMap;
-
-/** The high tier's occlusion and smoothing; absent on the others, and if the graphics stack will not run it. */
-let finishing: Finishing | undefined;
-
 const panelScene = new PanelScene({
   tier,
   makeCanvas: (width, height) => {
@@ -141,12 +127,42 @@ const panelScene = new PanelScene({
     return c;
   },
 });
-{
-  const pmrem = new PMREMGenerator(renderer);
-  panelScene.setEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture, 0.8);
-  pmrem.dispose();
+
+/** 3D is optional: a denied or unavailable WebGL context must not stop 2D, speech or IPC startup. */
+function createRenderer(): WebGLRenderer | undefined {
+  let candidate: WebGLRenderer | undefined;
+  try {
+    candidate = new WebGLRenderer({ canvas: glCanvas, alpha: true, antialias: settings.msaa, premultipliedAlpha: true, stencil: true });
+    candidate.localClippingEnabled = true; // a model can be cut open (cutaway.ts)
+    candidate.outputColorSpace = SRGBColorSpace;
+    candidate.toneMapping = NeutralToneMapping;
+    candidate.toneMappingExposure = 0.9;
+    candidate.setClearColor(0x000000, 0);
+    candidate.autoClear = false;
+    candidate.shadowMap.enabled = settings.shadows;
+    candidate.shadowMap.type = VSMShadowMap;
+    const pmrem = new PMREMGenerator(candidate);
+    const room = new RoomEnvironment();
+    try {
+      panelScene.setEnvironment(pmrem.fromScene(room, 0.04).texture, 0.8);
+    } finally {
+      room.dispose();
+      pmrem.dispose();
+    }
+    return candidate;
+  } catch (error) {
+    // A partially initialized renderer may itself reject cleanup. Neither failure owns the overlay.
+    try { candidate?.dispose(); } catch { /* the window will release the context */ }
+    glCanvas.style.display = 'none';
+    console.warn('talkthrough: 3D unavailable; continuing with 2D and narration', error);
+    return undefined;
+  }
 }
-if (tier === 'high') {
+const renderer = createRenderer();
+
+/** The high tier's occlusion and smoothing; absent on the others, and if the graphics stack will not run it. */
+let finishing: Finishing | undefined;
+if (renderer && tier === 'high') {
   try {
     finishing = new Finishing(renderer, panelScene.scene, panelScene.camera);
     console.info('talkthrough: high tier finishing pass on');
@@ -155,6 +171,34 @@ if (tier === 'high') {
     console.info('talkthrough: high tier finishing pass unavailable, drawing plainly');
   }
 }
+
+/** Never publish bounds, labels or controls for a model that cannot actually be drawn. */
+function displayedFrame(frame: Frame): Frame {
+  if (renderer) return frame;
+  return { ...frame, panel: null, objects: [], marks: frame.marks.filter((m) => m.mark.op !== 'pin') };
+}
+
+/** With no 3D, model-only steps are words-only answers rather than captions for an invisible model. */
+function drawsAction(action: Action): boolean {
+  if (renderer) return true;
+  if (action.op === 'style' || action.op === 'highlight' || action.op === 'tick' || action.op === 'clear') {
+    const frame = lastSourceFrame;
+    if (!frame) return false;
+    const id = action.op === 'clear' ? action.target : action.id;
+    const flat = (target: string) => frame.marks.some((m) => m.id === target && m.mark.op !== 'pin') ||
+      frame.diagrams.some((d) => d.id === target || d.items.some((item) => item.id === target));
+    if (action.op === 'clear' && (id === 'all' || id === 'marks')) return frame.marks.some((m) => m.mark.op !== 'pin') || frame.diagrams.length > 0;
+    if (action.op === 'clear' && id === 'panel') return false;
+    // The timeline resolves object IDs before marks and diagrams.
+    if (action.op !== 'tick' && frame.objects.some((o) => o.id === id)) return false;
+    if (action.op === 'tick') return frame.diagrams.some((d) => d.def.kind === 'steps' && d.items.some((item) => item.id === id && item.def.op === 'node'));
+    return flat(id);
+  }
+  return ['box', 'circle', 'underline', 'arrow', 'poly', 'point', 'trace', 'label', 'card', 'image', 'diagram', 'node', 'edge', 'series', 'dot'].includes(action.op);
+}
+
+let graphicsNoticeDismissed = false;
+let graphicsNoticeShown = false;
 
 /**
  * Speaks with the system voice, or paces steps silently where there is no speech synthesis at all.
@@ -236,8 +280,8 @@ function resize(): void {
   view = { width, height, dpr };
   document.documentElement.style.width = `${width}px`;
   document.documentElement.style.height = `${height}px`;
-  renderer.setPixelRatio(Math.min(dpr, settings.maxPixelRatio));
-  renderer.setSize(width, height);
+  renderer?.setPixelRatio(Math.min(dpr, settings.maxPixelRatio));
+  renderer?.setSize(width, height);
   marksCanvas.width = Math.round(width * dpr);
   marksCanvas.height = Math.round(height * dpr);
   marksCanvas.style.width = `${width}px`;
@@ -263,17 +307,19 @@ let controlRect: ScreenRect | undefined;
 /** The stage's size in pixels this frame: tags are drawn smaller beside a small stage. */
 let stageSize: { w: number; h: number } | undefined;
 let lastDisplayedFrame: Frame | undefined;
+let lastSourceFrame: Frame | undefined;
 
 function draw(frame: Frame, seekView = false): Frame {
-  renderer.setScissorTest(false);
-  renderer.clear();
+  frame = displayedFrame(frame);
+  renderer?.setScissorTest(false);
+  renderer?.clear();
   const rect = panelRect(frame.panel, view);
   modelRect = undefined;
   controlRect = undefined;
   modelHitRect = undefined;
   cardRect = undefined;
   stageSize = undefined;
-  if (rect && frame.panel) {
+  if (renderer && rect && frame.panel) {
     const { x, y, w, h, alpha } = rect;
     panelScene.sync(frame, w / h, { rect: { x, y, w, h }, width: view.width, height: view.height, now: labelClock() });
     stageSize = { w, h };
@@ -563,9 +609,18 @@ function buttonSizes(): { explode: { w: number; h: number }; cut: { w: number; h
 /** What the button on the notice on screen does (it is the notice's own: 'hearing' or 'settings'). */
 let noticeActionKind: NoticeAction | undefined;
 
-function showHud(): void {
+function showHud(frame: Frame): void {
   const now = performance.now();
   const v = hud.view(now);
+  // Real application notices take precedence. The graphics notice returns when they finish, and
+  // only while the current frame actually asks for a model; clear/new 2D answers cannot retain it.
+  graphicsNoticeShown = !v.notice && !renderer && !graphicsNoticeDismissed &&
+    !!frame.panel && frame.panel.appear * frame.panel.fade > 0.02 &&
+    frame.objects.some((o) => o.appear * o.fade * o.opacity > 0.02);
+  if (graphicsNoticeShown) v.notice = {
+    text: '3D is unavailable in this window. Text, voice and 2D drawings can still be used.',
+    level: 'warning', alpha: 1,
+  };
   statusEl.className = v.status === 'idle' ? '' : v.status;
   statusEl.style.display = v.status === 'idle' ? 'none' : 'flex';
   if (v.status !== 'idle' && statusLabel.textContent !== STATUS_LABELS[v.status]) statusLabel.textContent = STATUS_LABELS[v.status];
@@ -922,7 +977,9 @@ function loop(): void {
     frame = player.update();
   }
   if (k < 1) frame = fadeFrame(frame, k);
-  showHud();
+  lastSourceFrame = frame;
+  showHud(frame);
+  frame = displayedFrame(frame);
   showAnswer();
   showFollowupControls(frame, k);
   syncUndo();
@@ -953,7 +1010,7 @@ function request(): void {
 /** Whether a drawing of an answer is up, told to the program so the Escape key is ours only while it is (and given back the moment it is not). Said again every second while it is: the program lets it lapse if the page goes quiet. */
 let showingSent = false;
 function reportShowing(frame: Frame, k: number): void {
-  const up = k > 0 && (frame.panel !== null || frame.marks.length > 0 || frame.diagrams.length > 0 || frame.objects.length > 0 || textBoxUp());
+  const up = k > 0 && (frame.panel !== null || frame.marks.length > 0 || frame.diagrams.length > 0 || frame.objects.length > 0 || textBoxUp() || graphicsNoticeShown);
   if (up === showingSent) return;
   showingSent = up;
   window.talkthrough.showing(up);
@@ -1244,7 +1301,8 @@ sendFollowupEl.addEventListener('click', () => interactionBridge.followup?.('sen
 cancelFollowupEl.addEventListener('click', () => interactionBridge.followup?.('cancel'));
 noticeEl.addEventListener('click', (e) => {
   if (e.target instanceof Node && noticeAction.contains(e.target)) return; // the button has its own
-  hud.dismissNotice();
+  if (graphicsNoticeShown) graphicsNoticeDismissed = true;
+  else hud.dismissNotice();
   hold.release();
   request();
 });
@@ -1288,11 +1346,12 @@ function beginTurn(turn: number, detail = false): void {
   // A detail pass adds to what is on screen: nothing is cleared, and the offer and notices stay as they are.
   if (detail) return;
   hud.newTurn();
+  graphicsNoticeDismissed = false;
   pendingOffer = undefined;
   detailState = 'none';
   guiding = false;
   // The first turn of a question starts clean; later turns continue it, keeping objects and ids.
-  if (turn <= 1) { player.clear(); lastDisplayedFrame = undefined; placer()?.release('all'); }
+  if (turn <= 1) { player.clear(); lastDisplayedFrame = undefined; lastSourceFrame = undefined; placer()?.release('all'); }
   milestones.mark = false;
   milestones.word = false;
 }
@@ -1312,12 +1371,14 @@ function placedScene(scene: Scene): Scene {
   const owned = ownedByDiagram(scene.steps, aspect, view.height, sourceAspect, p.captionMeasure());
   const snapped = scene.steps.map((step, i) => ({ ...step, actions: step.actions.map((a, j) => (owned[i]![j] ? a : (snappedActions([a])[0] as Action))) }));
   snapped.forEach((step, i) => reserveMarks(p, step.actions.filter((_, j) => !owned[i]![j]), aspect));
-  const placed = snapped.map((step) => ({ ...step, actions: step.actions.map((a) => placeAction(p, a, view.height)) }));
+  const placed = snapped.map((step) => ({ ...step, actions: step.actions.map((a) => !renderer && a.op === 'panel' ? a : placeAction(p, a, view.height)) }));
   // The points of a step are known to its names before they are marked (so a name written first finds its point); the next step's are not.
   return { ...scene, steps: placed.map((step, i) => { foreseePoints(p, step.actions, aspect); return { ...step, actions: step.actions.map((a, j) => settleMark(p, owned[i]![j] ? followDiagram(p, a, aspect) ?? a : a)) }; }) };
 }
 
 function placedAction(action: Action): Action {
+  // Retain the timeline action for the unavailable-3D notice, but do not reserve invisible space.
+  if (!renderer && action.op === 'panel') return action;
   const p = placer();
   if (!p) return action;
   const following = followDiagram(p, action, view.width / view.height);
@@ -1386,7 +1447,7 @@ function applyScene(message: SceneMessage): void {
     case 'play':
       beginTurn(message.turn);
       box.reset('');
-      if (message.scene.steps.some((step) => step.actions.length > 0)) box.drew();
+      if (message.scene.steps.some((step) => step.actions.some(drawsAction))) box.drew();
       box.stepClosed();
       milestones.mark = true;
       milestones.word = true;
@@ -1424,7 +1485,7 @@ function applyScene(message: SceneMessage): void {
       pen.fade(labelClock());
       fader.disarm();
       hud.stopWorking();
-      if (message.step.actions.length > 0) box.drew();
+      if (message.step.actions.some(drawsAction)) box.drew();
       box.stepClosed();
       {
         const p = placer();
@@ -1441,7 +1502,7 @@ function applyScene(message: SceneMessage): void {
       break;
     case 'action':
       rememberGuideTarget(message.action);
-      box.drew();
+      if (drawsAction(message.action)) box.drew();
       player.addAction(placedAction(message.action));
       break;
     case 'step-close':
@@ -1502,7 +1563,7 @@ function applyScene(message: SceneMessage): void {
         fader.arm(performance.now());
       }
       pen.fade(labelClock());
-      hud.showNotice(message.text, message.level, performance.now(), message.action);
+      hud.showNotice(message.text, message.level, performance.now(), message.action, message.persistent);
       break;
     case 'clear':
       clearEverything();

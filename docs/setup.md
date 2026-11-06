@@ -1,11 +1,17 @@
 # Setting up Talkthrough
 
-Windows, Node.js 24 or newer.
+Windows is the desktop setup described here. Running from source also requires Node.js 24 or newer; the Windows installer does not require a separate Node.js installation.
+
+For a source checkout, run these commands in the folder containing `package.json`:
 
 ```
 npm install
 npm start        # builds, then starts the app in the tray
 ```
+
+On first launch, choose a model route and check that hearing is available. Codex and Claude Code must already be installed and signed in; the API-key route needs your key, and the local route needs a running vision-model server. See [model routes](#choose-how-it-runs-your-model) and [Speech](#speech). A paid model route can use your allowance or incur API charges when you ask a question.
+
+To check the overlay before connecting a model or microphone, choose **Play a sample scene** from the tray. It draws a built-in scene without asking a model or recording a question. If anything fails, start with [Troubleshooting](troubleshooting.md).
 
 Hold **Right Ctrl + Right Shift** (or the single key or chord you chose in *Settings*), ask out loud, let go. The overlay answers on the screen you were looking at. The tray icon has *Settings…*, *Play a sample scene*, *Clear the overlay* and *Quit*.
 
@@ -25,11 +31,11 @@ Use a disposable checkout with its own `node_modules`, not a linked or shared di
 
 ### Uninstalling, and what it leaves
 
-The installer puts the program under `%LOCALAPPDATA%\Programs\Talkthrough` and adds a Start menu entry; *Apps > Installed apps* (or the uninstaller in that folder) removes both. It leaves **your own files** on purpose, in `%APPDATA%\Talkthrough`: your settings file, the encrypted API key file (`api-key.bin`), your pins (the `pins` folder), the app's preferences (`prefs.json`) and the browser engine's caches. After uninstalling, delete that folder to remove all of it.
+The installer puts the program under `%LOCALAPPDATA%\Programs\Talkthrough` and adds a Start menu entry; *Apps > Installed apps* (or the uninstaller in that folder) removes both. It leaves **your own files** on purpose, in `%APPDATA%\Talkthrough`: your settings file, the encrypted API key file (`api-key.bin`), your pins (the `pins` folder), the app's preferences (`prefs.json`), downloaded hearing files (`speech`), question records (`questions`, if enabled) and the browser engine's caches. After uninstalling, delete that folder if you no longer want those files. A custom `recordFolder`, exported pins and files saved with development flags are elsewhere and are not removed with it.
 
 ### A record of each question
 
-To see exactly what went wrong with an answer, turn on **Keep a record of each question** in **Settings…** (or `"keepRecord": true`). Each question then gets its own dated folder, named like `2026-11-05_14-32-07`, with what was sent (the screenshot, any closer crops), what was heard, what the model was called with and answered (its name, how long it took, the raw text it wrote), what was drawn, what the checker repaired, which voice spoke each step and why, and what broke. The newest 50 are kept; older ones are deleted, and nothing else in the folder is touched. It is off by default because the folders hold your screenshots and your words: they stay on your computer, but they are there until the 50 are used up. The folder is `questions` in the app's data folder unless `recordFolder` names another (a full path).
+To see exactly what went wrong with an answer, turn on **Keep a record of each question** in **Settings…** (or `"keepRecord": true`). Each question then gets its own dated folder, named like `2026-11-05_14-32-07`, with what was sent (the screenshot, any closer crops), what was heard, what the model was called with and answered (its name, how long it took, the raw text it wrote), what was drawn, what the checker repaired, which voice spoke each step and why, and what broke. The newest 50 dated record folders are kept; older matching folders are deleted when a new record begins. Use a dedicated folder for records, not one containing other dated folders you want to keep. It is off by default because the folders hold your screenshots and your words: Talkthrough writes them locally, but they remain until you delete them or enough newer records replace them. Turning the setting off does not erase existing records. A folder in a cloud-synced location may also be copied by your sync service. The folder is `questions` in the app's data folder unless `recordFolder` names another (a full path).
 
 ### A log from an installed copy
 
@@ -41,7 +47,7 @@ The app writes its log to the console it was started from, and an installed copy
 
 Do the thing that went wrong, quit from the tray, and read `talkthrough-log.txt`. It lists what the app did, with no screenshot, no question text and no model answer unless you start it with `--log-steps` (which also writes each answer's raw text, one `answer-raw` line per answer, so a garbled one can be read). Remove anything private before you share it.
 
-Choose a model. On Windows, Talkthrough can hear using an installed English Windows recogniser; other hearing options are described below.
+For a source checkout, capture a normal log with `npm start > talkthrough-log.txt 2>&1`. See [collecting a useful report](troubleshooting.md#collecting-a-useful-report) for what to include and what to remove.
 
 ## Graphics
 
@@ -55,7 +61,7 @@ The window writes a JSON file, `%APPDATA%\talkthrough\settings.json` (the app lo
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `speechServerUrl` | Optional base URL of a speech recogniser you run (see below). The app can use installed Windows hearing without it. | none |
+| `speechServerUrl` | Optional base URL of a speech recogniser you run (https, or a loopback address; see below). The app can use installed Windows hearing without it. | none |
 | `speechLimitMs` | Sent to the speech server as `limit_ms`: how long its main recogniser may take before a quicker one answers. About 1000 suits a CPU-only server. | server's own |
 | `model` | The connector that writes the first step: `"claude"` (Claude Code), `"codex"`, `"openai"` (an API key) or `"local"` (a model on this computer) | `"codex"` |
 | `codexModel` | Model name in your Codex catalog | `"gpt-6-luna"` |
@@ -96,8 +102,8 @@ Talkthrough sends your screenshot and question to a model you choose. Set `model
 
 1. **`"codex"`: your own locally installed Codex CLI**, signed in by you. The app runs `codex app-server` itself with a read-only sandbox, no approvals, its tool features off and an empty working folder, and ends the question if anything tries to use a tool.
 2. **`"claude"`: your own Claude Code**, signed in by you. The app runs it in print mode with no tools, no MCP servers, no slash commands and no settings files, and refuses to go on if its first message lists anything else.
-3. **`"openai"`: an API key.** The app calls the OpenAI Responses API directly, streamed, with strict structured outputs and nothing stored on the provider's side. Choose *Settings…* from the tray menu and paste your key: it is stored encrypted for your Windows account (Electron's `safeStorage`; nothing is saved if that is unavailable; this protects it from other users and from copies of the disk, not from other programs running as you, which can decrypt it the same way), is only ever sent to the API address as a header, and is never logged. Costs are billed to your account by the provider.
-4. **`"local"`: a model on this computer**, through an OpenAI-compatible server you run (Ollama, LM Studio). The app calls its Chat Completions API, streamed, with the screenshot as an image part and the scene schema as the answer format (a server that refuses a schema is asked again in plain JSON mode with the schema in the prompt). The address must be on this computer. The model must take pictures; *Test connection* in Settings sends a small generated picture and one word of question to check.
+3. **`"openai"`: an API key.** The app calls the OpenAI Responses API directly, streamed, with strict structured outputs and `store: false`. This opts out of storing the response for later API retrieval; it is not a promise about all provider-side retention. Check your provider's data policies. Choose *Settings…* from the tray menu and paste your key: it is stored encrypted for your Windows account (Electron's `safeStorage`; nothing is saved if that is unavailable; this protects it from other users and from copies of the disk, not from other programs running as you, which can decrypt it the same way), is only ever sent to the API address as a header, and is never logged. Costs are billed to your account by the provider.
+4. **`"local"`: a model on this computer**, through an OpenAI-compatible server you run (Ollama, LM Studio). The app calls its Chat Completions API, streamed, with the screenshot as an image part and the scene schema as the answer format (a server that refuses a schema is asked again in plain JSON mode with the schema in the prompt). The address must be on this computer. The model must take pictures. Press *Test connection* in Settings or *Test* during first run to send a small generated picture and a fixed setup question to that local address. The check uses the same streamed scene request and schema fallback as a real question, and passes only after a complete, usable scene comes back. It sends no screenshot, recording, conversation, or saved API key. It does not prove picture understanding or visual quality, and does not test screen capture, hearing, voice, or the hotkey. Talkthrough calls only the configured local server for this check.
 
 For the first two, Talkthrough only starts the tool you already have; it never reads or stores your sign-in. If your Codex setup lists tool servers (MCP), the app switches each one off for the process it starts; the list is read when that process starts, so a server added later is switched off at the next start. **Check your provider's terms for automated use before you pick one.** To use something else, write a `Model` adapter (`src/adapters/model.ts`).
 
@@ -117,7 +123,7 @@ On Windows, Talkthrough can use the installed English Windows speech recogniser 
 
 For another local option, choose **Clearer hearing** in the first-run window or Settings and explicitly download whisper.cpp and a model. Neither is bundled: the app shows the download before you agree, checks the files, and lets you remove them in Settings. The recogniser runs on your computer. It writes a temporary WAV while processing each question and removes it when the run ends.
 
-You can instead configure your own speech recogniser server using `speechServerUrl`. Your recording is sent to that address, so run it on your own computer. The app does not start the server. The client sends `POST /transcribe` with raw 16 kHz mono float32 samples and expects `{"text": "..."}`; `GET /health` checks availability. An optional `POST /warm` lets a sleeping server prepare in the background. A server without that route is not asked again for a while.
+You can instead configure your own speech recogniser server using `speechServerUrl`. Your recording is sent to that address, so run it on your own computer. Only HTTPS or a loopback HTTP address is accepted, and redirects are refused so the recording cannot be forwarded to an unconfigured destination. The app does not start the server. The client sends `POST /transcribe` with raw 16 kHz mono float32 samples and expects `{"text": "..."}`; `GET /health` checks availability. An optional `POST /warm` lets a sleeping server prepare in the background. A server without that route is not asked again for a while.
 
 When configured, the server is initially tried before a downloaded whisper.cpp recogniser and Windows hearing. If a recogniser is unavailable or fails, the app tries the next one; it remembers the last one that worked and tries it first for later questions. An empty recognition result or a cancelled question ends that attempt rather than falling through. On platforms without Windows hearing, an available configured server or downloaded recogniser is needed.
 

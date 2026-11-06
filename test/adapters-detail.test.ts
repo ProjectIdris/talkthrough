@@ -35,3 +35,21 @@ test('a scene too long for the prompt is cut at a step and says so', () => {
   assert.ok(kept >= 1 && kept < 40);
   assert.ok(text.length < 40000);
 });
+
+
+test('follow-up prompts label interrupted history so it cannot be mistaken for a complete answer', () => {
+  const steps = [{ say: 'First part.', actions: [] }];
+  const text = questionText(request({ thread: [{ question: 'Earlier question', steps, incomplete: true }] }));
+  assert.match(text, /Earlier question/);
+  assert.match(text, /interrupted.*incomplete/i);
+  assert.ok(text.includes(JSON.stringify({ steps })), 'the useful partial answer is still available');
+  const completed = questionText(request({ thread: [{ question: 'Earlier question', steps }] }));
+  assert.doesNotMatch(completed, /interrupted.*incomplete/i);
+});
+
+test('a large retained turn cannot truncate away its incomplete status', () => {
+  const steps = [{ say: 'Retained scene '.repeat(500), actions: [] }];
+  const text = questionText(request({ thread: [{ question: 'Earlier question', steps, incomplete: true }] }));
+  assert.match(text, /interrupted.*incomplete/i);
+  assert.ok(text.length < 10_000, 'history remains bounded');
+});

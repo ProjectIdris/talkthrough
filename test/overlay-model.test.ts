@@ -376,3 +376,32 @@ test('a tube is closed with a rounded cap at each free end that follows its tape
   ribbon.computeBoundingBox();
   assert.ok(Math.abs((ribbon.boundingBox as Box3).max.y - 4) < 0.01, 'a ribbon ends where its path does');
 });
+
+
+test('an incomplete-answer warning remains visible through narration until a new turn or dismissal', () => {
+  const hud = new HudState();
+  hud.showNotice('Answer interrupted. What is shown is incomplete.', 'warning', 0, undefined, true);
+  assert.equal(hud.view(120_000).notice?.alpha, 1, 'long narration cannot outlive the warning');
+  assert.equal(hud.untilChange(0), undefined, 'a persistent warning schedules no fade');
+  hud.newTurn();
+  assert.equal(hud.view(120_000).notice, null);
+  hud.showNotice('Incomplete', 'warning', 0, undefined, true);
+  hud.dismissNotice();
+  assert.equal(hud.view(120_000).notice, null);
+});
+
+test('temporary guide notices fade back to the retained incomplete-answer warning', () => {
+  const hud = new HudState();
+  hud.showNotice('Answer interrupted. What is shown is incomplete.', 'warning', 0, undefined, true);
+  hud.showNotice('Nothing changed. Try the highlighted control.', 'info', 100);
+  assert.match(hud.view(100).notice?.text ?? '', /Nothing changed/);
+  const after = 100 + NOTICE_MS.info + NOTICE_FADE_MS;
+  assert.match(hud.view(after).notice?.text ?? '', /interrupted.*incomplete/i);
+  assert.equal(hud.view(after).notice?.alpha, 1);
+  assert.equal(hud.untilChange(after), undefined);
+  hud.showNotice('Another temporary notice', 'info', after);
+  hud.dismissNotice();
+  assert.match(hud.view(after).notice?.text ?? '', /interrupted.*incomplete/i, 'dismissing a temporary notice restores the warning');
+  hud.dismissNotice();
+  assert.equal(hud.view(after).notice, null, 'the warning itself can still be dismissed');
+});

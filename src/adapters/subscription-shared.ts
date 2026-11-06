@@ -213,7 +213,8 @@ export function questionText(request: ModelRequest, options: { shownAlreadyHeld?
   if (turns.length > 0) {
     let history = '';
     for (const turn of turns) {
-      history += `Question: ${turn.question}\nShown: ${JSON.stringify({ steps: turn.steps })}\n`;
+      // Put status after the scene so tail-trimming a large turn cannot erase its incomplete flag.
+      history += `Question: ${turn.question}\nShown: ${JSON.stringify({ steps: turn.steps })}\n${turn.incomplete ? 'Answer status: interrupted and incomplete; only the steps above were retained.\n' : ''}`;
     }
     if (history.length > HISTORY_CHARS) history = history.slice(history.length - HISTORY_CHARS);
     parts.push(`Earlier in this conversation (what you drew stays on screen until cleared, and its ids can be used again):\n${history}`);

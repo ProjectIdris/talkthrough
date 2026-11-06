@@ -67,3 +67,62 @@ test('an aborted call is reported as aborted, and a url is required', async () =
   );
   assert.throws(() => createLocalSpeechServerRecogniser({ url: '' }), /needs a url/);
 });
+
+test('the speech adapter rejects insecure remote URLs before any recording is sent', () => {
+  for (const url of ['http://speech.example.test', 'http://192.168.1.4:8001', 'ftp://localhost', 'not a url']) {
+    assert.throws(() => createLocalSpeechServerRecogniser({ url }), /https.*loopback/, url);
+  }
+  for (const url of ['https://speech.example.test', 'http://localhost:8001', 'http://127.0.0.1:8001', 'http://[::1]:8001']) {
+    assert.doesNotThrow(() => createLocalSpeechServerRecogniser({ url }), url);
+  }
+});
+
+for (const status of [307, 308]) {
+  test(`a ${status} redirect cannot forward recorded audio to another destination`, async () => {
+    const clip = { samples: new Float32Array([0.5, 0.25]), sampleRate: 16000 };
+    let destinationRequests = 0;
+    let originalBytes = 0;
+    await withServer((_req, res) => {
+      destinationRequests++;
+      reply(res, 200, { text: 'forwarded' });
+    }, async (destination) => {
+      await withServer((_req, res, body) => {
+        originalBytes += body.length;
+        res.writeHead(status, { Location: `${destination}/transcribe` });
+        res.end();
+      }, async (url) => {
+        await assert.rejects(createLocalSpeechServerRecogniser({ url }).transcribe(clip),
+          (error: unknown) => error instanceof SpeechToTextError && error.code === 'unavailable');
+      });
+    });
+    assert.equal(originalBytes, 8, 'only the explicitly configured server received the synthetic clip');
+    assert.equal(destinationRequests, 0, 'the redirect target was never contacted');
+  });
+}
+
+test('the speech health check does not follow redirects to an unconfigured server', async () => {
+  let destinationRequests = 0;
+  await withServer((_req, res) => {
+    destinationRequests++;
+    reply(res, 200, {});
+  }, async (destination) => {
+    await withServer((_req, res) => {
+      res.writeHead(302, { Location: `${destination}/health` });
+      res.end();
+    }, async (url) => {
+      await assert.rejects(createLocalSpeechServerRecogniser({ url }).warm!(),
+        (error: unknown) => error instanceof SpeechToTextError && error.code === 'unavailable');
+    });
+  });
+  assert.equal(destinationRequests, 0);
+});
+
+test('a synthetic speech server bound to 127.0.0.2 receives the configured local request', async () => {
+  const server = createServer((_req, res) => { _req.resume(); _req.on('end', () => reply(res, 200, {text:'local result'})); });
+  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.2', resolve); });
+  try {
+    const address = server.address(); assert.ok(address && typeof address === 'object');
+    const recogniser = createLocalSpeechServerRecogniser({url:`http://127.0.0.2:${address.port}`});
+    assert.equal((await recogniser.transcribe({samples:new Float32Array([.1]),sampleRate:16000})).text,'local result');
+  } finally { await new Promise<void>((resolve, reject) => server.close(e => e ? reject(e) : resolve())); }
+});

@@ -189,18 +189,23 @@ test('a model failure before any step is a notice and nothing else', async () =>
   assert.equal(r.kinds().at(-1), 'notice:error');
 });
 
-test('a failure after steps have played keeps what was drawn and ends the answer there, logged: no error, no wiped page', async () => {
+test('a failure after completed steps keeps the scene and visibly marks the answer incomplete', async () => {
   const model = { id: 'm', ask: async function* () { yield { type: 'step' as const, step: step('One.') }; yield { type: 'step' as const, step: step('Two.') }; throw new ModelError('bad-output', 'scene text has mismatched brackets'); } };
   const lines: string[] = [];
   const reports: Array<{ steps: number; error?: string; cutShort?: string; endMs?: number }> = [];
   const r = rig({ model: () => model, log: (l) => void lines.push(l), onReport: (rep) => void reports.push(rep) });
   await question(r);
   const k = r.kinds();
-  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'step', 'step', 'end'], 'both steps shown, the answer ended, no notice');
+  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'step', 'step', 'end', 'notice:warning'], 'both steps stay; the warning does not clear or interrupt playback');
+  const warning = r.sent.find((m) => m.kind === 'notice');
+  assert.ok(warning?.kind === 'notice');
+  assert.match(warning.text, /interrupted.*incomplete/i);
+  assert.match(warning.text, /follow-up.*continue.*again.*retry/i);
+  assert.equal(warning.persistent, true, 'the warning must outlast the queued narration');
   assert.ok(lines.some((l) => /answer cut short after 2 steps/.test(l) && /mismatched brackets/.test(l)), lines.join(' | '));
   const rep = reports.at(-1)!;
   assert.equal(rep.steps, 2);
-  assert.equal(rep.error, undefined, 'not an error');
+  assert.equal(rep.error, undefined, 'partial output is tracked separately from a failure with nothing to show');
   assert.match(rep.cutShort ?? '', /mismatched brackets/);
   assert.ok(rep.endMs !== undefined, 'it counts as finished, so a follow-up (More detail) can still be asked');
 });
@@ -697,7 +702,8 @@ test('a stream that breaks in the middle of a step closes it on the page before 
   const r = rig({ model: () => broken });
   await question(r);
   const k = kindsOf(r.sent);
-  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'open:Half.', 'action:a', 'step-close', 'end', 'status', 'notice']);
+  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'open:Half.', 'action:a', 'step-close', 'end', 'notice']);
+  assert.ok(r.sent.some((m) => m.kind === 'notice' && m.level === 'warning' && m.persistent));
 });
 
 test('a step that arrives whole (no pieces) is checked and sent in one go, as before', async () => {
@@ -761,7 +767,7 @@ const guided = (id: string, say: string, withWait = true) => ({
 });
 
 /** A session whose screen is `screen` (set it to change what a look at the display shows) and whose clicks the test makes. */
-function walkRig(plans: unknown[][], navigation?: GuideNavigation, heard?: string[], modelSaw?: Frame, chain?: (req: ModelRequest, asked: number) => AsyncGenerator<ModelOutput>) {
+function walkRig(plans: unknown[][], navigation?: GuideNavigation, heard?: string[], modelSaw?: Frame, chain?: (req: ModelRequest, asked: number) => AsyncGenerator<ModelOutput>, backend?: Backend, pin?: SessionDeps['pin']) {
   let said = 0;
   let screen = flat(235);
   let listener: GuideListener | undefined;
@@ -769,6 +775,8 @@ function walkRig(plans: unknown[][], navigation?: GuideNavigation, heard?: strin
   let asks = 0;
   const requests: ModelRequest[] = [];
   const r = rig({
+    ...(backend ? { backend } : {}),
+    ...(pin ? { pin } : {}),
     // The session asks for its model more than once a question: the plan is picked when a question is asked of it.
     ...(heard ? { speech: { id: 'fake', transcribe: async () => ({ text: heard[said++] ?? '' }) } } : {}),
     model: () => ({ ...createScriptedModel([]), ask: (req: ModelRequest) => { requests.push(req); return chain ? chain(req, asks++) : createScriptedModel(plans[asks++] ?? []).ask(req); } }),
@@ -1336,4 +1344,165 @@ test('a fault of hearing carries the button that sets hearing up, a fault of the
   const quiet = rig({}, 100);
   await question(quiet);
   assert.equal(firstNotice(quiet)?.action, undefined, 'a clip too short says so and offers nothing');
+});
+
+
+test('follow-ups know that a retained answer was interrupted, including a later unfinished step', async () => {
+  const histories: ModelRequest['thread'][] = [];
+  const pins: Array<Parameters<NonNullable<SessionDeps['pin']>>[0]> = [];
+  const model: Model = { id: 'partial', async *ask(req) {
+    histories.push([...req.thread]);
+    if (histories.length === 1) {
+      yield { type: 'step', step: step('One.') };
+      yield { type: 'say', say: 'Unfinished.' };
+      yield { type: 'action', action: { op: 'box', id: 'unfinished', x: 1, y: 1, w: 5, h: 5, color: 'red' } };
+      throw new ModelError('unavailable', 'lost connection');
+    }
+    yield { type: 'step', step: { say: 'The rest.', actions: [] } };
+  } };
+  const r = rig({ model: () => model, pin: (input) => { pins.push(input); return {file:'x.json'}; } });
+  await question(r);
+  const kinds = r.kinds();
+  assert.deepEqual(kinds.slice(kinds.indexOf('begin')), ['begin', 'step', 'step-open', 'action', 'step-close', 'end', 'notice:warning']);
+  r.session.pin(7);
+  assert.deepEqual(pins[0]?.steps, [step('One.'), {say:'Unfinished.',actions:[{op:'box',id:'unfinished',x:1,y:1,w:5,h:5,color:'red'}]}]);
+  await question(r);
+  assert.deepEqual(histories[1], [{ question: 'what is this', steps: [step('One.'), {say:'Unfinished.', actions:[{op:'box',id:'unfinished',x:1,y:1,w:5,h:5,color:'red'}]}], incomplete: true }]);
+  await question(r);
+  assert.equal(histories[2]?.[1]?.incomplete, undefined, 'successful follow-ups are not mislabeled');
+});
+
+test('first interrupted streamed step keeps only emitted validated content in history and pin', async () => {
+  const histories: ModelRequest['thread'][] = [];
+  const pins: Array<Parameters<NonNullable<SessionDeps['pin']>>[0]> = [];
+  const model: Model = {id:'partial', async *ask(req) {
+    histories.push([...req.thread]);
+    if (histories.length === 1) {
+      yield {type:'say',say:'Partial.'};
+      yield {type:'action',action:{op:'box',id:'partial',x:1,y:1,w:5,h:5,color:'red'}};
+      yield {type:'action',action:{op:'not-real',id:'bad'}};
+      yield {type:'action',action:{op:'pin',id:'missing-pin',target:'never-created',text:'missing'}};
+      throw new ModelError('unavailable','lost connection');
+    }
+    yield {type:'step',step:{say:'Continue.',actions:[]}};
+  }};
+  const r=rig({model:()=>model,pin:(input)=>{pins.push(input);return {file:'x.json'};}});
+  await question(r);
+  assert.ok(r.sent.some(m=>m.kind==='notice' && m.level==='warning' && m.persistent));
+  r.session.pin(7);
+  const partial={say:'Partial.',actions:[{op:'box',id:'partial',x:1,y:1,w:5,h:5,color:'red'}]};
+  assert.deepEqual(pins[0]?.steps,[partial]);
+  assert.deepEqual(pins[0]?.thread,[{question:'what is this',steps:[partial],incomplete:true}]);
+  await question(r);
+  assert.deepEqual(histories[1],[{question:'what is this',steps:[partial],incomplete:true}]);
+});
+
+test('an interrupted guide warns without clearing its scene or ending its click-wait early', async () => {
+  const w = walkRig([], undefined, undefined, undefined, async function* () {
+    yield { type: 'step', step: guided('file', 'Click File.') };
+    throw new ModelError('unavailable', 'lost connection');
+  });
+  await question(w);
+  assert.ok(w.sent.some((m) => m.kind === 'notice' && m.level === 'warning' && m.persistent));
+  assert.ok(w.kinds().includes('status:waiting'));
+  assert.ok(!w.kinds().includes('end'), 'the guide still owns its waiting step');
+  assert.ok(!w.kinds().includes('status:idle'), 'a warning must not cancel the waiting indicator');
+  await w.click(450, 120, flat(90));
+  assert.ok(w.kinds().includes('end'), 'the completed partial guide still closes normally');
+});
+test('review probe: interrupted held guide actions must not appear as visible scene ids', async () => {
+ let requested: BackendRequest | undefined;
+ const model: Model={id:'fake',async *ask(){yield {type:'step',step:guided('file','Click File.')};yield {type:'say',say:'Next.'};yield {type:'action',action:{op:'box',id:'ghost',x:1,y:1,w:5,h:5,color:'red'}};throw new ModelError('unavailable','lost');}};
+ const r=rig({model:()=>model,guide:{capture:async()=>flat(235),listen:()=>()=>{}},backend:{id:'fake',ask:async req=>{requested=req;return {message:'ok'}}}});
+ await question(r);assert.equal(r.sent.some(m=>m.kind==='action' && (m.action as {id?:string}).id==='ghost'),false,'held action was not sent');
+ await r.session.offer(7);assert.ok(requested);assert.equal(Object.hasOwn(requested!.scene!.ids,'ghost'),false,'unshown held action must not be reported as visible');r.session.dispose();
+});
+
+test('review probe: held failed action must not reserve an unseen id for a follow-up', async () => {
+ const w=walkRig([],undefined,undefined,undefined,async function* (_req,n) {
+  if(n===0){yield {type:'step',step:guided('file','Click File.')};yield {type:'say',say:'Next.'};yield {type:'action',action:{op:'box',id:'ghost',x:1,y:1,w:5,h:5,color:'red'}};throw new ModelError('unavailable','lost');}
+  yield {type:'step',step:{say:'Now show it.',actions:[{op:'box',id:'ghost',x:1,y:1,w:5,h:5,color:'red'}]}};
+ });
+ await question(w);assert.equal(w.sent.some(m=>m.kind==='action' && (m.action as {id?:string}).id==='ghost'),false);
+ await w.click(450,120,flat(90));await question(w);
+ assert.equal(w.requests.length,2,'follow-up reached model');
+ assert.ok(w.sent.some(m=>m.kind==='step' && m.step.actions.some(a=>'id' in a && a.id==='ghost')),'follow-up should be able to add an id never shown');w.session.dispose();
+});
+
+test('guide queued completed step owns its ids only after it is shown', async () => {
+  const requests: BackendRequest[]=[];
+  const pins: Array<Parameters<NonNullable<SessionDeps['pin']>>[0]> = [];
+  const backend: Backend={id:'fake',ask:async req=>{requests.push(req);return {message:'ok'};}};
+  const w=walkRig([[guided('first','Click first.'), guided('second','Click second.'), guided('third','Done.',false)]],undefined,undefined,undefined,undefined,backend,(input)=>{pins.push(input);return {file:'x'};});
+  await question(w);
+  assert.equal(w.sent.some(m=>m.kind==='step' && m.step.actions.some(a=>'id' in a && a.id==='second')),false);
+  await w.session.offer(7);
+  assert.equal(Object.hasOwn(requests.at(-1)!.scene!.ids,'second'),false);
+  assert.equal(JSON.stringify(requests.at(-1)!.scene!.steps).includes('second'),false);
+  w.session.pin(7);
+  assert.equal(JSON.stringify(pins.at(-1)!.steps).includes('second'),false);
+  await w.click(450,120,flat(90));
+  await w.session.offer(7);
+  assert.equal(Object.hasOwn(requests.at(-1)!.scene!.ids,'second'),true);
+  assert.equal(Object.hasOwn(requests.at(-1)!.scene!.ids,'third'),false);
+  assert.equal(JSON.stringify(requests.at(-1)!.scene!.steps).includes('second'),true);
+  w.session.pin(7);
+  assert.equal(JSON.stringify(pins.at(-1)!.steps).includes('second'),true);
+  assert.ok(pins.at(-1)!.steps.some((s) => (s as {actions?: Array<{op?:string;target?:string}>}).actions?.some(a => a.op==='clear' && a.target==='first')), 'the pinned visible sequence includes the guide clear');
+  w.escape();
+});
+
+test('a failed held replan step cannot reserve an unseen id', async () => {
+  const requests: BackendRequest[]=[];
+  const backend: Backend={id:'fake',ask:async req=>{requests.push(req);return {message:'ok'};}};
+  const w=walkRig([],undefined,undefined,undefined,async function*(_req,n) {
+    if(n===0) { yield {type:'step',step:guided('first','First.')}; return; }
+    yield {type:'step',step:guided('next','Next.')};
+    yield {type:'say',say:'Not shown.'};
+    yield {type:'action',action:{op:'box',id:'ghost-replan',x:1,y:1,w:5,h:5,color:'red'}};
+    throw new ModelError('unavailable','lost');
+  },backend);
+  await question(w);
+  await w.click(800,800,flat(90));
+  await w.session.offer(7);
+  assert.equal(Object.hasOwn(requests.at(-1)!.scene!.ids,'ghost-replan'),false);
+  assert.ok(w.sent.some(m=>m.kind==='step' && m.step.actions.some(a=>'id' in a && a.id==='next')));
+  w.escape();
+});
+
+for (const streamed of [false,true]) test(`validator-emitted follow-on actions preserve displayed queued ids (${streamed?'streamed':'whole'})`, async () => {
+  const requests: BackendRequest[]=[];
+  const backend: Backend={id:'fake',ask:async req=>{requests.push(req);return {message:'ok'};}};
+  const actions: unknown[]=[{op:'add',shape:'tube',id:'wire',pts:[[2,2,0],[0,2,0],[0,0.17,0]],radius:.07},
+    {op:'add',shape:'box',id:'sw',size:[1,.3,.5],pos:[0,0,0],at:1},
+    ...Array.from({length:22},(_,i)=>({op:'box',id:`mark${i}`,x:20+i,y:40,w:10,h:10,color:'red'})),
+    {op:'box',id:'overflow',x:5,y:5,w:5,h:5,color:'red'}];
+  const w=walkRig([],undefined,undefined,undefined,async function*(_req,n) {
+    if(n>0) {yield {type:'step',step:{say:'Use the last mark.',actions:[{op:'highlight',id:'mark21'}]}};return;}
+    yield {type:'step',step:guided('first','Click first.')};
+    if(streamed) {
+      yield {type:'say',say:'Show all.'};
+      for(const action of actions) yield {type:'action',action};
+      yield {type:'step',step:{say:'Show all.',actions}};
+    } else yield {type:'step',step:{say:'Show all.',actions}};
+  },backend);
+  await question(w);await w.click(450,120,flat(90));
+  const sent=w.sent.find(m=>m.kind==='step' && m.step.say==='Show all.');
+  assert.ok(sent && sent.kind==='step' && sent.step.actions.some(a=>'id' in a && a.id==='mark21'));
+  assert.ok(sent && sent.kind==='step' && !sent.step.actions.some(a=>'id' in a && a.id==='overflow'));
+  await w.session.offer(7);
+  assert.ok(Object.hasOwn(requests.at(-1)!.scene!.ids,'mark21'));
+  assert.equal(Object.hasOwn(requests.at(-1)!.scene!.ids,'overflow'),false);
+  await question(w);
+  assert.ok(w.sent.some(m=>m.kind==='step' && m.step.actions.some(a=>a.op==='highlight' && a.id==='mark21')));
+  w.session.dispose();
+});
+
+test('queued steps do not reset the producer turn action budget', async () => {
+  const queued=Array.from({length:10},()=>({say:'Marks.',actions:Array.from({length:24},()=>({op:'highlight',id:'first'}))}));
+  const w=walkRig([[guided('first','Click first.'),...queued]]);
+  await question(w);await w.click(450,120,flat(90));
+  const shown=w.sent.flatMap(m=>m.kind==='step'?m.step.actions:[]).filter(a=>a.op==='highlight' && a.id==='first');
+  assert.equal(shown.length,238,'the first waiting step consumed two of 240 actions');
+  w.session.dispose();
 });

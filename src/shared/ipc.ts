@@ -173,8 +173,8 @@ export type SceneMessage =
    * waiting: a guide step is shown and the app waits for the person's click; checking: the click came and the screen is being looked at.
    */
   | { kind: 'status'; status: 'hush' | 'listening' | 'working' | 'backend' | 'detail' | 'waiting' | 'checking' | 'idle' }
-  /** A short line that fades by itself. */
-  | { kind: 'notice'; text: string; level: 'info' | 'error' | 'warning'; /** A button on the notice that fixes what it says: 'hearing' (Set up hearing) or 'settings' (Open Settings). */ action?: 'hearing' | 'settings' }
+  /** A short line that normally fades by itself; an incomplete-answer warning stays until dismissed or the next turn. */
+  | { kind: 'notice'; text: string; level: 'info' | 'error' | 'warning'; /** Keep an incomplete-answer warning until dismissed or the next turn, even through long narration. */ persistent?: true; /** A button on the notice that fixes what it says: 'hearing' (Set up hearing) or 'settings' (Open Settings). */ action?: 'hearing' | 'settings' }
   /** The app asks whether it may act for the person (main shows a card of its own with a Yes and a No); null takes the question away. */
   | { kind: 'consent'; text: string | null }
   /** A catcher over one of the page's buttons was pressed (a click that came with no mouse move before it): do what the button does. */

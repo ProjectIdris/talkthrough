@@ -25,7 +25,7 @@ While the backend works the overlay shows **With the backend**. It goes when the
 | `reason` | text, optional | Why the fast model gave up (its `escalate`), for an accepted offer. |
 | `question` | text | What was asked, transcribed from speech (it may contain recognition errors). |
 | `screenshot` | `{ mime, width, height, base64 }` | The picture the fast model saw, PNG, base64 without a prefix. If the user circled something with the pen, it has the stroke drawn on it in red. |
-| `thread` | `[{ question, said: [text, ...] }]` | The conversation so far, oldest first: each earlier question and the lines that were spoken for it. |
+| `thread` | `[{ question, said: [text, ...], incomplete?: true }]` | The conversation so far, oldest first: each earlier question and the lines that were spoken for it. `incomplete: true` means the answer was interrupted; retained lines must not be treated as a complete explanation. |
 | `scene` | `{ steps: [...], ids: { id: kind } }` | What is on screen: every step drawn in this thread so far (scene-language steps, oldest first), and the ids now in use with their kinds (`mark`, `pin`, or a 3D object kind), so an answer can change them or avoid reusing them. |
 
 Example (the picture shortened):
@@ -49,7 +49,7 @@ Marks in an answer use the same 0 to 1000 scale across the whole screenshot as e
 
 ## The reply
 
-`200` with one JSON object (at most 4 MB), holding **at least one of**:
+`200` with one JSON object (at most 4 MiB / 4,194,304 bytes), holding **at least one of**:
 
 - `scene`: a scene, `{ "steps": [ { "say": "...", "actions": [...] }, ... ] }`. It is validated by the app exactly like a model's answer ([what the validator does](scene-language.md#what-the-validator-does)): unknown actions are dropped, numbers clamped, counts capped, ids must not collide with ids in use. It continues the scene on screen. An `escalate` field in it is ignored: the backend is where an escalation ends.
 - `message`: a line of text to show as a notice (control characters are removed, at most 300 characters). If there is a `scene` as well, the scene is drawn and the message is not.
@@ -63,10 +63,12 @@ Or an error: `{ "error": "text" }` with any status.
 | `401`, `403` | "The backend did not accept the request." |
 | `429` | "The backend is busy. Try again in a moment." |
 | `5xx`, a connection failure, a redirect | "I couldn't reach the backend." |
-| Not JSON, neither field present, over 4 MB | "The backend's answer was garbled." |
+| Not JSON, neither field present, over 4 MiB | "The backend's answer was garbled." |
 | No answer within `backendTimeoutMs` | "The backend could not answer." |
 
-The reply is one document, not a stream, in this version. A backend that wants to say "working on it" can send a `message` and let the user ask again.
+The byte limit is enforced while reading: a reply that crosses it is refused without waiting for the connection to finish. The answer deadline also covers reading the body. Cancelling stops local waiting and discards later output; it does not confirm that a backend's own work has stopped. This version has no remote cancellation acknowledgement.
+
+The reply is one document, not an incremental scene stream, in this version. A backend that wants to say "working on it" can send a `message` and let the user ask again.
 
 ## A minimal backend
 

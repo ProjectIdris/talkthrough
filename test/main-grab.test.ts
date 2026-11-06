@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { electronRuntime } from './support/electron-runtime.ts';
 
 // Electron's profile switch must take effect before the application reaches readiness.
 function grabChild(electron: string, out: string, args: string[], env: NodeJS.ProcessEnv) {
@@ -18,12 +18,13 @@ function grabChild(electron: string, out: string, args: string[], env: NodeJS.Pr
   const observed = JSON.parse(readFileSync(receipt, 'utf8'));
   assert.equal(observed.preReady, true);
   for (const key of ['userData', 'sessionData', 'storage']) assert.equal(resolve(observed[key]).toLowerCase(), resolve(profile).toLowerCase(), key);
-  return run;
+  return { ...run, workArea: observed.workArea as { width: number; height: number } };
 }
 
 test('grab profile mismatch fails before main or window using two scratch profiles', { timeout: 30_000 }, (t) => {
-  const electron = createRequire(import.meta.url)('electron') as string;
-  if (!existsSync(electron)) return t.skip('electron binary is not installed');
+  const runtime = electronRuntime();
+  if (runtime.reason) return t.skip(runtime.reason);
+  const electron = runtime.executable!;
   const out = mkdtempSync(join(tmpdir(), 'tt-grab-profile-negative-'));
   try {
     const env: NodeJS.ProcessEnv = { ...process.env, TT_GRAB_EXPECTED_PROFILE: join(out, 'expected-b'), TT_GRAB_PROFILE_RECEIPT: join(out, 'receipt.json') };
@@ -38,22 +39,29 @@ test('grab profile mismatch fails before main or window using two scratch profil
 // Runs the real Electron main process offscreen with the stand-in overlay page: checks that a scene
 // goes through the validator, the preload contract and the seek/rendered handshake into PNG files.
 test('a grab draws a scene offscreen and writes a different frame per moment', { timeout: 120_000 }, (t) => {
-  const electron = createRequire(import.meta.url)('electron') as string;
-  if (!existsSync(electron)) return t.skip('electron binary is not installed');
+  const runtime = electronRuntime();
+  if (runtime.reason) return t.skip(runtime.reason);
+  const electron = runtime.executable!;
   const build = spawnSync(process.execPath, ['scripts/build.mjs'], { encoding: 'utf8' });
   assert.equal(build.status, 0, build.stderr);
   const out = mkdtempSync(join(tmpdir(), 'tt-grab-'));
   try {
     const env: NodeJS.ProcessEnv = { ...process.env, APPDATA: out, LOCALAPPDATA: out, TALKTHROUGH_OVERLAY_PAGE: resolve('test/support/stub-overlay/index.html') };
     delete env.ELECTRON_RUN_AS_NODE;
-    const run = grabChild(electron, out, ['--grab', 'samples/scenes/request-flow.json', '--steps', '0:0,1:1', '--out', out, '--size', '640x360', '--scale', '2'], env);
+    const run = grabChild(electron, out, ['--grab', 'samples/scenes/request-flow.json', '--steps', '0:0,1:1', '--out', out, '--size', '480x270', '--scale', '2', '--grab-metadata'], env);
     assert.equal(run.status, 0, run.stdout + run.stderr);
-    const files = ['step0-t0.png', 'step1-t1.png'].map((f) => join(out, f));
-    const hashes = files.map((f) => {
+    // At scale 2 the expected 960x540 PNG remains within the 1024x720 capture observed on hosted Windows.
+    const stems = ['request0-step0-t0', 'request1-step1-t1'];
+    const hashes = stems.map((stem) => {
+      const metadata = JSON.parse(readFileSync(join(out, `${stem}.json`), 'utf8'));
+      assert.deepEqual([metadata.width, metadata.height, metadata.scaleFactor], [480, 270, 2]);
+      const f = join(out, `${stem}.png`);
       const bytes = readFileSync(f);
       assert.equal(bytes.subarray(1, 4).toString(), 'PNG');
-      // The window is 640x360 at a device scale of 2, so the picture is at physical size.
-      assert.deepEqual([bytes.readUInt32BE(16), bytes.readUInt32BE(20)], [1280, 720]);
+      const [width, height] = [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
+      assert.deepEqual([width, height], [metadata.width * metadata.scaleFactor, metadata.height * metadata.scaleFactor]);
+      assert.equal(width * 9, height * 16, 'the PNG keeps the requested 16:9 aspect ratio');
+      assert.ok(width <= 1024 && height <= 720, 'the PNG remains within the hosted capture bounds');
       return createHash('sha1').update(bytes).digest('hex');
     });
     assert.notEqual(hashes[0], hashes[1]);
@@ -62,9 +70,32 @@ test('a grab draws a scene offscreen and writes a different frame per moment', {
   }
 });
 
+test('a grab keeps its requested width when it exceeds the display work area', { timeout: 120_000 }, (t) => {
+  const runtime = electronRuntime();
+  if (runtime.reason) return t.skip(runtime.reason);
+  const build = spawnSync(process.execPath, ['scripts/build.mjs'], { encoding: 'utf8' });
+  assert.equal(build.status, 0, build.stderr);
+  const out = mkdtempSync(join(tmpdir(), 'tt-grab-wide-'));
+  try {
+    const env: NodeJS.ProcessEnv = { ...process.env, APPDATA: out, LOCALAPPDATA: out, TALKTHROUGH_OVERLAY_PAGE: resolve('test/support/stub-overlay/index.html') };
+    delete env.ELECTRON_RUN_AS_NODE;
+    const args = ['--grab', 'samples/scenes/request-flow.json', '--steps', '0:0', '--out', out, '--scale', '2'];
+    const probe = grabChild(runtime.executable!, out, [...args, '--size', '100x100'], env);
+    assert.equal(probe.status, 0, probe.stdout + probe.stderr);
+    assert.ok(Number.isInteger(probe.workArea.width) && probe.workArea.width > 0);
+    // Use the real scaled display size so even a large developer monitor exercises the clamp.
+    const width = probe.workArea.width + 64;
+    const run = grabChild(runtime.executable!, out, [...args, '--size', `${width}x360`], env);
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    const png = readFileSync(join(out, 'step0-t0.png'));
+    assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [width * 2, 720]);
+  } finally { rmSync(out, { recursive: true, force: true }); }
+});
+
 test('layout attempts retain duplicate requests and accept a legacy token-only renderer', { timeout: 120_000 }, (t) => {
-  const electron = createRequire(import.meta.url)('electron') as string;
-  if (!existsSync(electron)) return t.skip('electron binary is not installed');
+  const runtime = electronRuntime();
+  if (runtime.reason) return t.skip(runtime.reason);
+  const electron = runtime.executable!;
   const build = spawnSync(process.execPath, ['scripts/build.mjs'], { encoding: 'utf8' });
   assert.equal(build.status, 0, build.stderr);
   const out = mkdtempSync(join(tmpdir(), 'tt-grab-attempt-'));
@@ -87,8 +118,9 @@ test('layout attempts retain duplicate requests and accept a legacy token-only r
 });
 
 test('real hidden renderer acknowledges the observed seek clock and view', { timeout: 120_000 }, (t) => {
-  const electron = createRequire(import.meta.url)('electron') as string;
-  if (!existsSync(electron)) return t.skip('electron binary is not installed');
+  const runtime = electronRuntime();
+  if (runtime.reason) return t.skip(runtime.reason);
+  const electron = runtime.executable!;
   const build = spawnSync(process.execPath, ['scripts/build.mjs'], { encoding: 'utf8' });
   assert.equal(build.status, 0, build.stderr);
   const out = mkdtempSync(join(tmpdir(), 'tt-grab-real-'));
@@ -115,8 +147,9 @@ test('real hidden renderer acknowledges the observed seek clock and view', { tim
 });
 
 test('unknown token and malformed metadata cannot replace the capture acknowledgement', { timeout: 120_000 }, (t) => {
-  const electron = createRequire(import.meta.url)('electron') as string;
-  if (!existsSync(electron)) return t.skip('electron binary is not installed');
+  const runtime = electronRuntime();
+  if (runtime.reason) return t.skip(runtime.reason);
+  const electron = runtime.executable!;
   const build = spawnSync(process.execPath, ['scripts/build.mjs'], { encoding: 'utf8' });
   assert.equal(build.status, 0, build.stderr);
   const out = mkdtempSync(join(tmpdir(), 'tt-grab-invalid-'));

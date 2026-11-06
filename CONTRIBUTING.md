@@ -12,8 +12,8 @@ A change that would break this will not be merged: no `eval`, `new Function`, `i
 
 Two related promises you should keep:
 
-- **Nothing about the user's screen or questions is stored** unless they ask for it (pinning is the only thing that writes anything, to a folder they can open).
-- **No network traffic except where the user pointed it:** their model route, their speech server, their backend address.
+- **Do not retain the user's screen or questions without their choice.** Pins save an answer and its picture. The optional **Keep a record of each question** setting also saves screenshots, transcripts and model output locally; it is off by default. Explicit development flags can save captures, answers, audio or logs too. See [records and diagnostic privacy](docs/troubleshooting.md#collecting-a-useful-report) before collecting or sharing them.
+- **Keep network requests within the configured routes and explicit downloads:** the model route, speech server, voice server and backend address, plus hearing downloads the user chooses. Do not add silent uploads or new destinations.
 
 ## Running it
 
@@ -26,7 +26,7 @@ npm start          # builds, then starts the app in the tray
 
 Electron downloads its own program the first time it is installed. npm 11 can skip that step on `npm ci`; `npm start` and `npm run dist` notice and run it for you, once (it needs the network). If you ever see "Electron failed to install correctly", run `node node_modules/electron/install.js`.
 
-Setup (a speech recogniser, a model) is in [docs/setup.md](docs/setup.md). You do not need either to work on the overlay: from the tray, *Play a sample scene* draws a hand-written scene with no model and no microphone. Useful options for `npm start -- <options>` are listed in `src/main/args.ts`; for example `--hidden`, `--no-hotkey` and `--max-seconds 10` run the app without taking over your screen, and `--grab <scene.json> --out <folder>` renders a scene to a picture.
+Setup (a speech recogniser, a model) is in [docs/setup.md](docs/setup.md); common failures and safe diagnostic steps are in [docs/troubleshooting.md](docs/troubleshooting.md). You do not need either to work on the overlay: from the tray, *Play a sample scene* draws a hand-written scene with no model and no microphone. Useful options for `npm start -- <options>` are listed in `src/main/args.ts`; for example `--hidden`, `--no-hotkey` and `--max-seconds 10` run the app without taking over your screen, and `--grab <scene.json> --out <folder>` renders a scene to a picture.
 
 The app works on your real screen: be careful with `--visible-to-capture` and with anything that takes screenshots while a private window is open.
 
@@ -38,7 +38,9 @@ npm test                                     # the whole suite
 node --test --experimental-strip-types test/scene-validate.test.ts   # one file, while you work
 ```
 
-Run the one file you are changing while you work and the whole suite once before you open a pull request. Tests use Node's built-in runner, with fakes for the speech server, the model tools and the overlay (`test/support/`), so none of them needs a key, a microphone or a network.
+Run the one file you are changing while you work and the whole suite once before you open a pull request. Tests use Node's built-in runner, with fakes for the speech server, the model tools and the overlay (`test/support/`). They need no provider key or real microphone. Tests do not download Electron: install it first with `node node_modules/electron/install.js` if you want desktop checks. Frame-grab tests report a skip when the executable or a Linux display server is missing. The native window-reader and Windows UI tests run only on Windows; their portable safety tests still run everywhere.
+
+On Linux, for a portable check without downloading desktop binaries, use `npm ci --ignore-scripts`, then run the commands above and `npm run build`. CI runs these checks on Linux and also installs the desktop dependencies for a Windows run. A green portable run does not establish desktop behavior; read its skip count and test Windows input, capture and voice on a real desktop before claiming those work.
 
 Add a test where a failure would be likely, costly, silent or hard to undo (a validator rule, a safety check, something that was broken once) and see it fail before you rely on it. You do not need a test for every line.
 

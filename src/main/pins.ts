@@ -8,7 +8,7 @@ import type { Screenshot } from '../adapters/types.ts';
 export type PinInput = {
   /** The question the pinned answer belongs to. */
   question: string;
-  /** The conversation so far. Only the questions and the lines spoken are written down. */
+  /** The conversation so far. Only the questions, lines spoken and incomplete status are written down. */
   thread: readonly ThreadTurn[];
   /** The scene on screen: every step drawn in this thread, oldest first. */
   steps: readonly unknown[];
@@ -22,7 +22,7 @@ export type PinFile = {
   v: 1;
   pinnedAt: string;
   question: string;
-  thread: Array<{ question: string; said: string[] }>;
+  thread: Array<ReturnType<typeof threadEntry>>;
   scene: { v: 1; steps: readonly unknown[] };
   /** The name of the picture saved beside it, when there is one. */
   screenshot?: string;

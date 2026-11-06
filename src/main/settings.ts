@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { safeBaseUrl } from '../shared/service-url.ts';
 import { DEFAULT_HOTKEY, parseHotkey } from './chord.ts';
 import { cleanSkipList, DEFAULT_SKIP_LIST } from './skip-list.ts';
 import { isLoopbackUrl } from '../adapters/local-model.ts';
@@ -14,7 +15,7 @@ import type { CaptionMode } from '../shared/captions.ts';
  * --settings). Nothing here has a built-in address: a speech server is used only if the user names it.
  */
 export type Settings = {
-  /** Base URL of a local speech recogniser (see the SpeechToText adapter). Unset: no speech input. */
+  /** Base URL of a speech recogniser (https or loopback only; see the SpeechToText adapter). Unset: no custom speech server. */
   speechServerUrl?: string;
   /** Asked of the speech server as limit_ms: how long its main recogniser may take before its quicker one answers. */
   speechLimitMs?: number;
@@ -183,7 +184,10 @@ export function loadSettings(path: string, warn: (message: string) => void = () 
 export function settingsFromRaw(raw: Record<string, unknown>, warn: (message: string) => void = () => undefined): Settings {
   const settings: Settings = { ...DEFAULT_SETTINGS };
   const url = str(raw.speechServerUrl);
-  if (url) settings.speechServerUrl = url;
+  if (url) {
+    if (safeBaseUrl(url)) settings.speechServerUrl = url;
+    else warn('speechServerUrl must be https (or a loopback address); no speech server is used');
+  }
   if (typeof raw.speechLimitMs === 'number' && raw.speechLimitMs >= 200 && raw.speechLimitMs <= 15000) settings.speechLimitMs = Math.round(raw.speechLimitMs);
   if (isRoute(raw.model)) settings.model = raw.model;
   settings.codexModel = str(raw.codexModel) ?? settings.codexModel;
@@ -275,13 +279,5 @@ export function settingsFromRaw(raw: Record<string, unknown>, warn: (message: st
   return settings;
 }
 
-/** A key is only ever sent over https, or to a loopback address (a local server for checks). */
-export function safeBaseUrl(text: string): boolean {
-  try {
-    const url = new URL(text);
-    if (url.protocol === 'https:') return true;
-    return url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '[::1]');
-  } catch {
-    return false;
-  }
-}
+// Kept here for settings callers; adapters use the same policy without depending on main-process code.
+export { safeBaseUrl } from '../shared/service-url.ts';

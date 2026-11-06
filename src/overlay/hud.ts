@@ -32,12 +32,16 @@ export type HudView = {
   notice: { text: string; level: NoticeLevel; alpha: number; action?: NoticeAction } | null;
 };
 
+type Notice = { text: string; level: NoticeLevel; at: number; action?: NoticeAction };
+
 export class HudState {
   private status: Status = 'idle';
   private offerReason: string | null = null;
-  private notice: { text: string; level: NoticeLevel; at: number; action?: NoticeAction } | undefined;
+  private notice: Notice | undefined;
+  /** A retained warning returns after any temporary notice has faded. */
+  private persistentNotice: Notice | undefined;
 
-  private life(n: { level: NoticeLevel; action?: NoticeAction }): number {
+  private life(n: Notice): number {
     return NOTICE_MS[n.level] + (n.action ? ACTION_EXTRA_MS : 0);
   }
 
@@ -54,12 +58,17 @@ export class HudState {
     this.offerReason = null;
   }
 
-  showNotice(text: string, level: NoticeLevel, now: number, action?: NoticeAction): void {
-    this.notice = { text, level, at: now, ...(action ? { action } : {}) };
+  showNotice(text: string, level: NoticeLevel, now: number, action?: NoticeAction, persistent = false): void {
+    const notice = { text, level, at: now, ...(action ? { action } : {}) };
+    if (persistent) {
+      this.persistentNotice = notice;
+      this.notice = undefined;
+    } else this.notice = notice;
   }
 
   dismissNotice(): void {
-    this.notice = undefined;
+    if (this.notice) this.notice = undefined;
+    else this.persistentNotice = undefined;
   }
 
   /** The first step has arrived or the turn is over: the thinking indicator has done its job. */
@@ -71,6 +80,7 @@ export class HudState {
   newTurn(): void {
     this.offerReason = null;
     this.notice = undefined;
+    this.persistentNotice = undefined;
     if (this.status === 'listening') this.status = 'idle';
   }
 
@@ -79,6 +89,7 @@ export class HudState {
     this.status = 'idle';
     this.offerReason = null;
     this.notice = undefined;
+    this.persistentNotice = undefined;
   }
 
   view(now: number): HudView {
@@ -88,6 +99,10 @@ export class HudState {
       const life = this.life(this.notice);
       if (age >= life + NOTICE_FADE_MS) this.notice = undefined;
       else notice = { text: this.notice.text, level: this.notice.level, alpha: age <= life ? 1 : 1 - (age - life) / NOTICE_FADE_MS, ...(this.notice.action ? { action: this.notice.action } : {}) };
+    }
+    if (!notice && this.persistentNotice) {
+      const n = this.persistentNotice;
+      notice = { text: n.text, level: n.level, alpha: 1, ...(n.action ? { action: n.action } : {}) };
     }
     return { status: this.status, offer: this.offerReason, notice };
   }

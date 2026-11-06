@@ -434,7 +434,7 @@ function fitStage(raw: Record<string, unknown>, state: SceneState, path: string,
   return next;
 }
 
-function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes): Action | null {
+function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>): Action | null {
   if (!isObject(raw)) {
     note(notes, 'dropped', path, 'action is not an object');
     return null;
@@ -468,6 +468,10 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     out[name] = p.value;
   }
   if (bindings && !bindParts(bindings, (n) => own(input, n), out, state, path, (kind, at, why) => note(notes, kind, at, why))) return null;
+  if (variant.op === 'add' && typeof out.parent === 'string' && (parentFirstAt.get(out.parent) ?? 0) > ((out.at as number | undefined) ?? 0)) {
+    note(notes, 'dropped', `${path}.parent`, `parent "${out.parent}" starts after this child; schedule the parent no later than the child`);
+    return null;
+  }
   if (variant.op === 'panel' && typeof out.w === 'number' && typeof out.h === 'number') state.stage = { w: out.w, h: out.h };
   const locked = LOCKS[variant.name] !== undefined ? out[LOCKS[variant.name] as string] : undefined;
   if (typeof locked === 'string' && state.follows.has(locked)) {
@@ -748,7 +752,7 @@ export type LiveStepEvents = {
   /** The step has begun: these are its words (cleaned), to be spoken. Always called before any action. */
   open(say: string): void;
   /** An action was accepted, and is to be drawn now. */
-  action(action: Action): void;
+  action(action: Action, derived?: boolean): void;
 };
 
 export type LiveStep = {
@@ -778,6 +782,8 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
   const notes: Notes = [];
   const path = `steps[${index}]`;
   const kept: Action[] = [];
+  // A lower bound on parent birth, not lifetime validation: authored state cannot prove past clear/reparent timing.
+  const parentFirstAt = new Map<string, number>([...state.ids.keys()].map((id) => [id, 0]));
   const early: unknown[] = [];
   let held: Held[] = [];
   // Names declared in this bounded step remain reserved even if their creator fails.
@@ -806,7 +812,7 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
     state.bindUnknown = bind && op !== 'clear';
     state.bindOp = typeof op === 'string' ? op : undefined;
     try {
-      const a = validateAction(raw, state, at, why);
+      const a = validateAction(raw, state, at, why, parentFirstAt);
       return { action: a, why, after: a ? state.after.splice(0) : [] };
     } finally {
       state.bindUnknown = false;
@@ -818,9 +824,11 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
 
   function accept(action: Action, why: Notes, after: Action[] = []): void {
     for (const n of why) note(notes, n.kind, n.path, n.message);
-    for (const a of [action, ...after]) {
+    for (const [i, a] of [action, ...after].entries()) {
+      // Keep all historical births through clears and replacements so an earlier valid child is never dropped.
+      if (a.op === 'add') parentFirstAt.set(a.id, Math.min(parentFirstAt.get(a.id) ?? Infinity, a.at ?? 0));
       kept.push(a);
-      events.action(a);
+      events.action(a, i > 0);
     }
   }
 
@@ -945,7 +953,7 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
   };
 }
 
-export function validateStep(raw: unknown, state: SceneState, index: number = state.turnSteps): StepResult {
+export function validateStep(raw: unknown, state: SceneState, index: number = state.turnSteps, acceptedInput?: (action: Action) => void): StepResult {
   const notes: Notes = [];
   const path = `steps[${index}]`;
   state.turnSteps++;
@@ -970,7 +978,7 @@ export function validateStep(raw: unknown, state: SceneState, index: number = st
   for (const key of ownKeys(raw)) {
     if (key !== 'say' && key !== 'actions') note(notes, 'trimmed', `${path}.${key.slice(0, 40)}`, 'unknown field ignored');
   }
-  const live = beginLiveStep(state, { open: () => undefined, action: () => undefined }, index, true);
+  const live = beginLiveStep(state, { open: () => undefined, action: (action, derived) => { if (!derived) acceptedInput?.(action); } }, index, true);
   live.say(say);
   for (const a of list) live.action(a);
   const done = live.finish();

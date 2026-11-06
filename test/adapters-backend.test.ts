@@ -136,3 +136,9 @@ test('a reply over the size limit is refused', async () => {
     assert.equal((await failure(url)).code, 'bad-output');
   });
 });
+
+
+test('backend history preserves incompleteness without forwarding internal failure details', () => {
+  const body = backendBody({ ...request, thread: [{ question: 'Earlier question', steps: [{ say: 'First part.', actions: [] }], incomplete: true }] });
+  assert.deepEqual(body.thread, [{ question: 'Earlier question', said: ['First part.'], incomplete: true }]);
+});

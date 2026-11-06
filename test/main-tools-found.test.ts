@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { delimiter, join } from 'node:path';
 import { test } from 'node:test';
 import { findTools, onPath } from '../src/main/tools-found.ts';
 
@@ -19,5 +18,18 @@ test('a path named in the settings is looked at as it is', () => {
 });
 
 test('on other systems the name is looked for as it is', () => {
-  assert.equal(onPath('codex', { env: { PATH: ['usrbin', 'optbin'].join(delimiter) }, platform: 'linux', isFile: (p) => p === join('optbin', 'codex') }), true);
+  assert.equal(onPath('codex', { env: { PATH: '/usr/bin:/opt/bin' }, platform: 'linux', isFile: (p) => p === '/opt/bin/codex' }), true);
+});
+
+
+test('Windows paths with spaces and an explicit executable extension use Windows separators on every host', () => {
+  const env = { Path: String.raw`C:\Program Files\Tools;D:\Other Tools`, PATHEXT: '.EXE;.CMD' };
+  const isFile = present(String.raw`C:\Program Files\Tools\codex.exe`);
+  assert.equal(onPath('codex.exe', { env, platform: 'win32', isFile }), true);
+  assert.equal(onPath('codex', { env, platform: 'win32', isFile }), true);
+});
+
+test('an explicit POSIX command path is checked without Windows executable suffixes', () => {
+  assert.equal(onPath('/opt/bin/codex', { env: { PATH: '/other', PATHEXT: '.EXE;.CMD' }, platform: 'linux', isFile: (p) => p === '/opt/bin/codex' }), true);
+  assert.equal(onPath('codex', { env: { PATH: '/opt/bin', PATHEXT: '.EXE;.CMD' }, platform: 'linux', isFile: (p) => p === '/opt/bin/codex.exe' }), false);
 });

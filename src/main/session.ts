@@ -6,7 +6,7 @@ import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
 import { applyClear, beginLiveStep, createDetailState, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
-import type { Issue, LiveStep, SceneState, Step } from '../scene/index.ts';
+import type { Action, Issue, LiveStep, SceneState, Step } from '../scene/index.ts';
 import { FADE_AFTER_MS, PEN_FLUSH_GRACE_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
 import { isRealStroke } from '../shared/pen.ts';
@@ -133,7 +133,7 @@ export type QuestionReport = {
   escalate?: string;
   /** This was a detail pass (a richer version of the scene on screen), not a question. */
   detail?: boolean;
-  /** The answer broke after some steps had been shown (what the page had stays; see answer): what broke it. Not an error. */
+  /** The answer broke after some steps had been shown: what broke it. The scene stays with an incomplete warning; tracked separately from failures with nothing to show. */
   cutShort?: string;
   error?: string;
 };
@@ -219,6 +219,10 @@ export function createSession(deps: SessionDeps) {
   let report: QuestionReport | null = null;
   /** The guide walk in progress, if any, and the controller of the model call making its latest plan. */
   let walking: { guide: Guide; controller: AbortController } | null = null;
+  let guideChecking: SceneState | undefined;
+  // A queued guide step belongs to the answer that produced it, but contributes
+  // to visible history only once the guide actually shows it.
+  const queuedGuideOwners = new WeakMap<Step, { shown: Step[]; inputs: Action[] }>();
   let releasedAt = 0;
   /** The press whose pen strokes still count: the one held now, and for a moment after release. */
   let penFor: Attempt | null = null;
@@ -535,7 +539,8 @@ export function createSession(deps: SessionDeps) {
     }
     // A detail pass knows the ids on screen: it may name one it does not write again (a pin on it, a part under it) and
     // may write any of them again, richer; the page swaps each one in place as it arrives.
-    const checking: SceneState = detail ? createDetailState(state) : state;
+    let checking: SceneState = detail ? createDetailState(state) : walkIn ? structuredClone(state) : state;
+    if (walkIn) guideChecking = checking;
     const turn = detail ? Math.max(1, thread.length) : thread.length + 1;
     const picture = lastAsk?.clean;
     const known = [...state.ids.keys()];
@@ -543,6 +548,7 @@ export function createSession(deps: SessionDeps) {
     deps.log(`question heard (turn ${turn}, ${source.label}${deps.logText ? `): ${JSON.stringify(question)}` : ')'}`);
 
     const shown: Step[] = [];
+    let accepted = 0;
     // A guide walk (an answer with `wait` steps) holds its later steps back: they are given to it, not drawn.
     let walk: Guide | undefined = walkIn;
     let held = false;
@@ -558,20 +564,31 @@ export function createSession(deps: SessionDeps) {
     // page, each action is checked against the scene on arrival and sent at once, and the step is closed when
     // the whole step comes. A step that arrives whole (the backend, a replay) is checked and sent in one go.
     let live: LiveStep | null = null;
+    let liveInputs: Action[] = [];
+    // Only what the live validator has actually emitted to the page belongs in
+    // an interrupted step; unresolved actions must not be recovered on error.
+    let visiblePartial: Step | undefined;
     // The answer as the model wrote it, to score the order it built in.
     const written: Array<{ actions: unknown[] }> = [];
     let writing: unknown[] | null = null;
     const newLive = (): LiveStep => {
       held = walk !== undefined;
+      visiblePartial = undefined;
+      liveInputs = [];
       return beginLiveStep(checking, {
         open: (say) => {
           if (held) return;
+          visiblePartial = { say, actions: [] };
           open();
           r.firstStepMs ??= since();
           send(displayId, { kind: 'step-open', say });
         },
-        action: (action) => {
-          if (!held) send(displayId, { kind: 'action', action });
+        action: (action, derived) => {
+          if (!derived) liveInputs.push(action);
+          if (!held) {
+            visiblePartial?.actions.push(action);
+            send(displayId, { kind: 'action', action });
+          }
         },
       });
     };
@@ -580,9 +597,25 @@ export function createSession(deps: SessionDeps) {
     const startWalk = (): Guide => {
       const g: Guide = createGuide({
         displayId,
+        onShow: (step, shaped) => {
+          const owner = queuedGuideOwners.get(step);
+          if (!owner) return;
+          queuedGuideOwners.delete(step);
+          // Guide-inserted clears occur before this already validated step.
+          const modelActions = new Set(step.actions);
+          const visible = structuredClone(state);
+          for (const action of shaped.actions) if (!modelActions.has(action) && action.op === 'clear') applyClear(visible, action.target);
+          // Replay the validated inputs, not the expanded renderer output:
+          // the validator recreates its derived follow-ons without counting them
+          // a second time against the untrusted-input action cap.
+          startTurn(visible);
+          validateStep({ say: step.say, actions: owner.inputs }, visible);
+          state = visible;
+          owner.shown.push(shaped);
+        },
         send: (message) => {
           // The guide clears the page by id between steps: the scene the answers are checked against forgets those ids too.
-          if (message.kind === 'step') for (const a of message.step.actions) if (a.op === 'clear') applyClear(checking, a.target);
+          if (message.kind === 'step' && guideChecking) for (const a of message.step.actions) if (a.op === 'clear') applyClear(guideChecking, a.target);
           send(displayId, message);
         },
         capture: () => deps.guide!.capture(displayId),
@@ -595,6 +628,7 @@ export function createSession(deps: SessionDeps) {
           if (walking?.guide === g) {
             walking.controller.abort();
             walking = null;
+            guideChecking = undefined;
           }
           // Escape, a long silence or a failure leave a cleared page: the next question starts afresh.
           if (why === 'escape' || why === 'idle' || why === 'failed') {
@@ -611,10 +645,12 @@ export function createSession(deps: SessionDeps) {
       walking = { guide: g, controller };
       return g;
     };
-    const handOver = (step: Step, wasHeld: boolean): void => {
-      if (wasHeld && walk) walk.push(step);
+    const handOver = (step: Step, wasHeld: boolean, inputs: Action[]): void => {
+      if (wasHeld && walk) { queuedGuideOwners.set(step, {shown, inputs}); walk.push(step); }
       else if (!walk && !detail && deps.guide && waitOf(step)) {
         walk = startWalk();
+        checking = structuredClone(state);
+        guideChecking = checking;
         walk.adopt(step); // already on the page: the guide waits for its click
       }
     };
@@ -622,14 +658,16 @@ export function createSession(deps: SessionDeps) {
       if (!live) return;
       const done = live.finish();
       live = null;
+      visiblePartial = undefined;
       if (done.issues.length > 0) {
         deps.log(validatorNotes(done.issues, shown.length + 1));
         deps.record?.issues(shown.length + 1, done.issues);
       }
       if (!held) send(displayId, { kind: 'step-close' });
       if (done.step) {
-        shown.push(done.step);
-        handOver(done.step, held);
+        accepted++;
+        if (!held) shown.push(done.step);
+        handOver(done.step, held, liveInputs);
       }
     };
     try {
@@ -652,7 +690,8 @@ export function createSession(deps: SessionDeps) {
             continue;
           }
           written.push(out.step as { actions: unknown[] });
-          const checked = validateStep(out.step, checking);
+          const inputs: Action[] = [];
+          const checked = validateStep(out.step, checking, undefined, (action) => inputs.push(action));
           if (checked.issues.length > 0) {
             deps.log(validatorNotes(checked.issues, shown.length + 1));
             deps.record?.issues(shown.length + 1, checked.issues);
@@ -660,10 +699,11 @@ export function createSession(deps: SessionDeps) {
           if (!checked.step) continue;
           const wasHeld = walk !== undefined;
           if (!wasHeld) open();
-          shown.push(checked.step);
+          accepted++;
+          if (!wasHeld) shown.push(checked.step);
           r.firstStepMs ??= since();
           if (!wasHeld) send(displayId, { kind: 'step', step: checked.step });
-          handOver(checked.step, wasHeld);
+          handOver(checked.step, wasHeld, inputs);
         } else if (out.type === 'usage') {
           r.tokens = out.usage;
         } else if (out.type === 'escalate') {
@@ -679,10 +719,13 @@ export function createSession(deps: SessionDeps) {
       if (failure) {
         live = null;
         if (!held) send(displayId, { kind: 'step-close' });
+        if (visiblePartial && (visiblePartial.say || visiblePartial.actions.length)) shown.push(visiblePartial);
+        visiblePartial = undefined;
       } else closeLive();
     }
-    if (failure && shown.length > 0) {
-      // Steps have already played: they stay, and the answer ends where it broke, with a line in the log, not a wiped page and an error.
+    const incomplete = Boolean(failure && shown.length > 0);
+    if (incomplete) {
+      // Retain useful steps, but mark the answer incomplete both on screen and in follow-up history.
       const code = failure instanceof ModelError ? failure.code : 'failed';
       r.cutShort = `${source.kind}: ${code}: ${failure instanceof Error ? failure.message : String(failure)}`;
       deps.log(`answer cut short after ${shown.length} step${shown.length === 1 ? '' : 's'} (${r.cutShort}); what was shown stays`);
@@ -703,7 +746,7 @@ export function createSession(deps: SessionDeps) {
     }
     if (escalate) r.escalate = escalate;
     r.endMs = since();
-    if (shown.length === 0 && !escalate) {
+    if (shown.length === 0 && accepted === 0 && !escalate) {
       const said = source.message?.();
       if (said) return notice(displayId, said);
       r.error = `the ${source.kind} gave nothing to show`;
@@ -716,7 +759,11 @@ export function createSession(deps: SessionDeps) {
       open();
       send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) });
     }
-    const kept: ThreadTurn = { question, steps: shown, ...(detail ? { detail: true as const } : {}) };
+    if (incomplete) send(displayId, {
+      kind: 'notice', level: 'warning', persistent: true,
+      text: 'Answer interrupted. What is shown is incomplete. Ask a follow-up to continue, or ask again to retry.',
+    });
+    const kept: ThreadTurn = { question, steps: shown, ...(incomplete ? { incomplete: true as const } : {}), ...(detail ? { detail: true as const } : {}) };
     if (picture) pictures.set(kept, picture);
     if (detail) {
       // The scene on screen is now the richer one: the ids it did not write again are still there and still known.

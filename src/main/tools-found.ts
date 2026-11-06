@@ -2,7 +2,7 @@
 // a shell would), or at the path the settings name. Nothing is run, and no sign-in or key file is opened: the first question says if a tool is not signed in.
 
 import { existsSync, statSync } from 'node:fs';
-import { delimiter, isAbsolute, join } from 'node:path';
+import { posix, win32 } from 'node:path';
 
 export type FindDeps = {
   env?: NodeJS.ProcessEnv;
@@ -23,12 +23,13 @@ const fileExists = (path: string): boolean => {
 export function onPath(command: string, deps: FindDeps = {}): boolean {
   const env = deps.env ?? process.env;
   const win = (deps.platform ?? process.platform) === 'win32';
+  const path = win ? win32 : posix;
   const isFile = deps.isFile ?? fileExists;
   const exts = win ? (env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean) : [''];
   const candidates = (base: string): string[] => (win && /\.[a-z0-9]+$/i.test(base) ? [base] : exts.map((e) => base + e.toLowerCase()).concat(win ? exts.map((e) => base + e) : [base]));
-  if (isAbsolute(command) || /[\\/]/.test(command)) return candidates(command).some(isFile);
-  const dirs = (env.PATH ?? env.Path ?? '').split(delimiter).filter(Boolean);
-  return dirs.some((dir) => candidates(join(dir, command)).some(isFile));
+  if (path.isAbsolute(command) || /[\\/]/.test(command)) return candidates(command).some(isFile);
+  const dirs = (env.PATH ?? env.Path ?? '').split(path.delimiter).filter(Boolean);
+  return dirs.some((dir) => candidates(path.join(dir, command)).some(isFile));
 }
 
 export type ToolPaths = { claudeCommand?: string | undefined; codexCommand?: string | undefined };
