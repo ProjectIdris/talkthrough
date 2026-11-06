@@ -54,6 +54,50 @@ test('the angle carries into the next step, and a step that overran carries what
   near(rotZ(evaluate(planStep(late, steps[1] as Step), 0), 'crank'), 360 * (end + 1.5));
 });
 
+test('a delayed speed ramp finishes before settling and carries its target speed into the next step', () => {
+  const first = planStep(emptyFrame(), step(...engine,
+    { op: 'spin', id: 'crank', rpm: 30, at: 2, dur: 2 },
+    { op: 'spin', id: 'rod', by: 'crank', ratio: -0.5, phase: 90, at: 2 }));
+  near(first.duration, 4);
+  const before = evaluate(first, 3);
+  near(rotZ(before, 'crank'), 45);
+  const end = settle(first);
+  near(rotZ(end, 'crank'), 180);
+  near(rotZ(end, 'rod'), 0);
+  const next = planStep(end, step());
+  near(rotZ(evaluate(next, 1), 'crank'), 360);
+  near(rotZ(evaluate(next, 1), 'rod'), -90);
+  near(rotZ(settle(first, 5), 'crank'), 360);
+  // Seeking after settlement does not consume or change the ramp.
+  assert.deepEqual(evaluate(first, 3), before);
+});
+
+test('the default speed ramp reaches full speed even when nothing else extends the step', () => {
+  const plan = planStep(emptyFrame(), step(crank, { op: 'spin', id: 'crank', rpm: 30 }));
+  near(plan.duration, 0.8);
+  near(rotZ(settle(plan), 'crank'), 72);
+  near(rotZ(withMotion(settle(plan), 1), 'crank'), 252);
+});
+
+test('a stop ramp settles at rest rather than carrying an intermediate speed onward', () => {
+  const base = settle(planStep(emptyFrame(), step(crank, { op: 'spin', id: 'crank', rpm: 60, dur: 0 })));
+  const plan = planStep(base, step({ op: 'spin', id: 'crank', rpm: 0, dur: 2 }));
+  near(plan.duration, 2);
+  const stopped = settle(plan);
+  near(rotZ(stopped, 'crank'), 252 + 360);
+  near(rotZ(withMotion(stopped, 10), 'crank'), 252 + 360);
+});
+
+test('an instant explode still waits for the minimum braking ramp to stop the machine', () => {
+  const base = settle(planStep(emptyFrame(), step(
+    { op: 'add', shape: 'group', id: 'all' }, { ...crank, parent: 'all' },
+    { op: 'spin', id: 'crank', rpm: 60, dur: 0 })));
+  const plan = planStep(base, step({ op: 'explode', id: 'all', to: 1, dur: 0 }));
+  near(plan.duration, 0.3);
+  near(rotZ(settle(plan), 'crank'), 252 + 54);
+  near(rotZ(withMotion(settle(plan), 10), 'crank'), 252 + 54);
+});
+
 test('a spin locked to another turns that many times as far, even while the other speeds up', () => {
   const cam = { op: 'add', shape: 'part', part: 'camshaft', id: 'cam', size: [4, 1, 1], pos: [3, 5, 0] };
   const plan = planStep(emptyFrame(), step(...engine, cam,

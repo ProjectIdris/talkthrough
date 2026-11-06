@@ -111,6 +111,10 @@ When the thing to explain is a process, a sequence of events, a how-to or a tren
 
 All take `parent`? (the id of a group, or of a part or shape, to attach to; they nest up to 6 deep, and a mark, a pin or a text cannot be a parent), `explode`? (see below) and `at`?. `pos` defaults to `[0,0,0]`, `rot` to `[0,0,0]`, `opacity` to 1. A child moves, turns and scales with its parent. To make something grow from its base, put it in a group at the base, offset the child by half its height, and scale the group (see `bar-chart.json`). Arrays are capped at 64 copies each and 400 in a scene.
 
+Schedule a new parent no later than its child: the parent's `at` must be at or before the child's `at` (omitted means 0). A child scheduled before its parent's earliest known creation is dropped with a validation issue. This applies to both complete and streamed scenes, even when streaming arrival times would delay the child. Existing parents and earlier creations remain usable before later replacements or scheduled clears.
+
+This is a conservative start-time check, not full chronological lifetime validation. The validator does not reconstruct every clear, re-add or reparenting interval, so an accepted scene can still name a parent absent at the child's start. During timeline playback, such a child is skipped rather than silently drawn as an unattached root. Schedule children while their intended parent exists, and do not rely on validation to catch clear gaps.
+
 `explode` is `[x,y,z]`, where the part goes when its group is exploded all the way (spread 1), in the units of the group it is in (capped at 100 either way). Without it a part moves outward from the group's origin. The same offset is where the part goes when the person opens the finished model with the Explode control (see the overlay notes); a part with none moves away from the middle of the parts around it instead. Give it where the real assembly comes apart (pins up, a shaft out the back); leave it off when outward is fine. The lean schema (`scene.schema.lean.json`, what the live models are asked for) leaves `explode` out, because every optional field there costs the model an explicit `null` on every part; the validator and the full schema accept it.
 
 ### The mechanism kit
@@ -166,6 +170,8 @@ Parts that keep moving once started, in the x,y plane with the shafts along z (t
 | `flash` | `id` `by` `angle` `span` `cycle`? | `id` is an object (a small sphere for a spark, a larger one for the burn) that is invisible except for `span` degrees from `angle` in each `cycle` (default 720) of the turning of `by`: it comes on quickly and dies away. For a four-stroke engine 0 degrees is the piston at the top starting the intake stroke, 360 the top of the compression, so the spark is at about 350 and the power stroke runs 360 to 540 |
 
 A turning part's own `rot` stays as the scene set it, and the angle is added to it; this is exact when the other two angles are 0. A four-stroke engine: the crankshaft `spin` at 30 rpm, each camshaft `spin` `by` the crankshaft with `ratio` 0.5, an intake camshaft with `rot` `[0,0,135]` and an exhaust one with `rot` `[0,0,-135]` (each valve then opens as its cam's nose comes round to point down at it), a `crank` for each piston, and `flash` for the spark and the burn.
+
+A step waits for its spin speed ramps to finish, including ramps down to 0. It then carries the final angle and requested speed into the next step or idle playback. For example, a spin at 2 with `dur: 2` cannot finish its step before 4 seconds, even when the speech is shorter. The continuous turning itself does not hold the step open.
 
 ### Camera
 

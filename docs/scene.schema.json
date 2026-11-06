@@ -1078,7 +1078,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
         "explode": {
           "type": [
@@ -1207,7 +1207,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
         "explode": {
           "type": [
@@ -1344,7 +1344,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
         "explode": {
           "type": [
@@ -1476,7 +1476,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
         "explode": {
           "type": [
@@ -1611,7 +1611,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
         "explode": {
           "type": [
@@ -1741,7 +1741,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
         "explode": {
           "type": [
@@ -1828,7 +1828,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
         "from": {
           "type": "string",
@@ -2102,7 +2102,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
         "explode": {
           "type": [
@@ -2314,7 +2314,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
         "explode": {
           "type": [
@@ -2392,7 +2392,7 @@
             "string",
             "null"
           ],
-          "description": "id of a group, or of a part or shape, to attach to (it carries this along)"
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
         "explode": {
           "type": [

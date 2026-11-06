@@ -410,6 +410,8 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
         return;
       }
       const parent = 'parent' in a && a.parent !== undefined ? lookup(plan.objs, a.parent, at) : undefined;
+      // Raw scenes can bypass validation. A missing holder must not silently make a child a root.
+      if ('parent' in a && a.parent !== undefined && !parent) return;
       const given = (a as { color?: string }).color;
       const replaced = lookup(plan.objs, a.id, at);
       const fresh: ObjInst = {
@@ -448,7 +450,11 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
       if (!o) return;
       tweenTo(a.op === 'explode' ? o.spread : o.draw, at, dur, [a.to]);
       // Pulled apart, a machine stops: its parts no longer fit together.
-      if (a.op === 'explode' && a.to > 0) for (const sp of plan.spins) stopSpin(sp, at, Math.max(0.3, dur));
+      if (a.op === 'explode' && a.to > 0 && plan.spins.length > 0) {
+        const ramp = Math.max(0.3, dur);
+        for (const sp of plan.spins) stopSpin(sp, at, ramp);
+        end(ramp);
+      }
       end(dur);
       return;
     }
@@ -506,7 +512,10 @@ function applyAction(plan: StepPlan, a: Action, at: number): void {
         if (!by || by.key === o.key) return;
         setLock(sp, at, { byKey: by.key, ratio: a.ratio ?? 1, phase: a.phase ?? 0 }, axis);
       } else {
-        setRate(sp, at, (a.rpm ?? 0) * 6, a.rpm === 0 || a.dur !== undefined ? dur : 0.8, axis);
+        const ramp = a.rpm === 0 || a.dur !== undefined ? dur : 0.8;
+        setRate(sp, at, (a.rpm ?? 0) * 6, ramp, axis);
+        // Settled frames keep only the current rate, so finish the ramp before carrying it onward.
+        end(ramp);
       }
       end(0.2);
       return;
