@@ -260,19 +260,18 @@ test('codex keepThread: a follow-up continues the open thread without the histor
   process.env.FAKE_MODE = 'ok';
   process.env.FAKE_USAGE = 'thread';
   const model = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex], keepThread: true });
-  const ask = async (thread: readonly { question: string; steps: readonly never[] }[]) => {
+  const ask = async (thread: readonly { question: string; steps: readonly any[] }[]) => {
     const out: ModelOutput[] = [];
     for await (const o of model.ask({ ...request, thread })) out.push(o);
     const u = out.find((o) => o.type === 'usage');
-    return u?.type === 'usage' ? { thread: Math.floor(u.usage.input / 1000), turn: u.usage.input % 1000, sawHistory: u.usage.output === 1 } : null;
+    return { where: u?.type === 'usage' ? { thread: Math.floor(u.usage.input / 1000), turn: u.usage.input % 1000, sawHistory: u.usage.output === 1 } : null, steps: out.flatMap(o=>o.type==='step'?[o.step]:[]) };
   };
-  const turn = (q: string) => ({ question: q, steps: [] as never[] });
   try {
-    assert.deepEqual(await ask([]), { thread: 1, turn: 1, sawHistory: false });
-    assert.deepEqual(await ask([turn('a')]), { thread: 1, turn: 2, sawHistory: false }, 'same thread, no history text (the thread holds it)');
-    assert.deepEqual(await ask([turn('a'), turn('b')]), { thread: 1, turn: 3, sawHistory: false });
-    assert.deepEqual(await ask([]), { thread: 2, turn: 1, sawHistory: false }, 'a fresh question starts a new thread');
-    assert.deepEqual(await ask([turn('a'), turn('b'), turn('c')]), { thread: 3, turn: 1, sawHistory: true }, 'a thread that is not the open one is rebuilt from the history text');
+    const first=await ask([]);assert.deepEqual(first.where, { thread: 1, turn: 1, sawHistory: false });
+    const one={question:request.question,steps:first.steps};const second=await ask([one]);assert.deepEqual(second.where, { thread: 1, turn: 2, sawHistory: false }, 'same exact history, no history text');
+    const two={question:request.question,steps:second.steps};assert.deepEqual((await ask([one,two])).where, { thread: 1, turn: 3, sawHistory: false });
+    assert.deepEqual((await ask([])).where, { thread: 2, turn: 1, sawHistory: false }, 'a fresh question starts a new thread');
+    assert.deepEqual((await ask([one,two,{question:'unrelated',steps:[]}])).where, { thread: 3, turn: 1, sawHistory: true }, 'a different history is rebuilt');
   } finally {
     delete process.env.FAKE_USAGE;
     await model.close?.();
@@ -328,9 +327,11 @@ test('codex keepThread: a thread nobody follows up on is let go after its time, 
   process.env.FAKE_MODE = 'ok';
   process.env.FAKE_USAGE = 'thread';
   const model = createCodexModel({ command: process.execPath, prefixArgs: [fakeCodex], keepThread: true, keepThreadMs: 60 });
+  let prior: any[]=[];
   const thread = async (history: boolean) => {
     const out: ModelOutput[] = [];
-    for await (const o of model.ask({ ...request, thread: history ? [{ question: 'a', steps: [] }] : [] })) out.push(o);
+    for await (const o of model.ask({ ...request, thread: history ? prior : [] })) out.push(o);
+    prior=[...(history?prior:[]),{question:request.question,steps:out.flatMap(o=>o.type==='step'?[o.step]:[])}];
     const u = out.find((o) => o.type === 'usage');
     return u?.type === 'usage' ? Math.floor(u.usage.input / 1000) : 0;
   };

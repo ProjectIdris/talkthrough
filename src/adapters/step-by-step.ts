@@ -127,6 +127,7 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
       const raws: string[] = [];
       const usages: Usage[] = [];
       const shown: unknown[] = [];
+      const serialOwner = {};
       let plan: string[] = [];
       let screenshot = req.screenshot;
       let fresh = false;
@@ -159,7 +160,7 @@ export function createStepByStepModel(inner: Model, options: StepByStepOptions =
           const focusNow = [...(fresh ? [] : req.focus ?? []), ...closer];
           const stage: NonNullable<ModelRequest['stage']> = n === 1 ? { part: 'first', plan: true } : { part: 'next', n, shown: [...shown], plan, ...(asking ? { unplanned: true as const } : {}), ...(fresh ? { fresh: true as const } : {}) };
           try {
-            for await (const got of inner.ask({ ...plain, ...(focusNow.length > 0 ? { focus: focusNow } : {}), screenshot, stage, schema: sceneSchemaChain, signal: link.signal, onRaw: (text: string) => void (raw = text) })) {
+            for await (const got of inner.ask({ ...plain, serialOwner, ...(focusNow.length > 0 ? { focus: focusNow } : {}), screenshot, stage, schema: sceneSchemaChain, signal: link.signal, onRaw: (text: string) => void (raw = text) })) {
               // Points the model gave as a grid cell are put in the middle of that cell.
               let out: ModelOutput = got;
               if (cells && got.type === 'action') out = { type: 'action', action: placedFromCell(got.action, cells.grid, cells.card, log) };
