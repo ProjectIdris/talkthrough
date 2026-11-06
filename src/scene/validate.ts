@@ -434,7 +434,10 @@ function fitStage(raw: Record<string, unknown>, state: SceneState, path: string,
   return next;
 }
 
-function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>): Action | null {
+type TimedBirth = { at: number; order: number; ambiguous: boolean };
+type TargetTimes = { births: Map<string, TimedBirth>; clears: Array<{ target: string; at: number; order: number }>; order: number };
+
+function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>, targetTimes: TargetTimes): Action | null {
   if (!isObject(raw)) {
     note(notes, 'dropped', path, 'action is not an object');
     return null;
@@ -468,6 +471,32 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     out[name] = p.value;
   }
   if (bindings && !bindParts(bindings, (n) => own(input, n), out, state, path, (kind, at, why) => note(notes, kind, at, why))) return null;
+  // These directives have no effect unless all of their exact 3D targets are alive.
+  // Only a uniquely known new lifetime may move forward to its accepted birth.
+  const scheduleTargets = (ids: string[]): boolean => {
+    const requested = (out.at as number | undefined) ?? 0;
+    let scheduled = requested;
+    for (const id of ids) {
+      const birth = targetTimes.births.get(id);
+      if (!birth) { note(notes, 'dropped', path, `cannot establish the birth of "${id}"`); return false; }
+      if (birth.at > requested && birth.ambiguous) { note(notes, 'dropped', path, `ambiguous lifetime for "${id}" before its latest birth`); return false; }
+      scheduled = Math.max(scheduled, birth.at);
+    }
+    for (const id of ids) {
+      const birth = targetTimes.births.get(id)!;
+      for (const clear of targetTimes.clears) {
+        let affects = clear.target === 'all' || clear.target === 'panel' || clear.target === id;
+        for (let parent = state.parents.get(id), n = 0; !affects && parent !== undefined && n < LIMITS.maxDepth; n++, parent = state.parents.get(parent)) affects = clear.target === parent;
+        const afterBirth = clear.at > birth.at || (clear.at === birth.at && clear.order > birth.order);
+        if (affects && afterBirth && clear.at <= scheduled) { note(notes, 'dropped', path, `ambiguous or cleared lifetime for "${id}" at the requested time`); return false; }
+      }
+    }
+    if (scheduled > requested) {
+      out.at = scheduled;
+      note(notes, 'trimmed', `${path}.at`, `deferred from ${requested} to ${scheduled} so the target is present`);
+    }
+    return true;
+  };
   if (variant.op === 'add' && typeof out.parent === 'string' && (parentFirstAt.get(out.parent) ?? 0) > ((out.at as number | undefined) ?? 0)) {
     note(notes, 'dropped', `${path}.parent`, `parent "${out.parent}" starts after this child; schedule the parent no later than the child`);
     return null;
@@ -496,6 +525,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     if(typeof id!=='string'||typeof on!=='string'||!state.flexes.has(on)||!state.ids.has(id)||state.flexes.has(id)||SCREEN_KINDS.has(state.ids.get(id))||id===on||isUnder(state,on,id)||typeof u!=='number'||!Number.isFinite(u)||u<0||u>1||typeof v!=='number'||!Number.isFinite(v)||v<0||v>1||typeof angle!=='number'||!Number.isFinite(angle)||angle< -180||angle>180){note(notes,'dropped',path,'invalid articulated feature binding');return null;}
     const other=[...state.flexFeatures].filter(([feature])=>feature!==id);
     if(other.length>=48||other.filter(([,surface])=>surface===on).length>=12){note(notes,'dropped',path,'articulated feature limit reached');return null;}
+    if (!scheduleTargets([id,on])) return null;
     state.flexFeatures.set(id,on);
   }
   if (variant.name === 'flexCycle' || variant.name === 'flexStop') {
@@ -512,6 +542,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     if (!cycle) { note(notes, 'dropped', path, 'invalid articulated cycle'); return null; }
     out.ids = ids; Object.assign(out, cycle);
     }
+    if (!scheduleTargets(ids)) return null;
   }
   if (variant.name === 'addFlexSurface') {
     const flex = parseFlexDefinition(out);
@@ -784,6 +815,7 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
   const kept: Action[] = [];
   // A lower bound on parent birth, not lifetime validation: authored state cannot prove past clear/reparent timing.
   const parentFirstAt = new Map<string, number>([...state.ids.keys()].map((id) => [id, 0]));
+  const targetTimes: TargetTimes = { births: new Map([...state.ids.keys()].map((id) => [id, { at: 0, order: -1, ambiguous: false }])), clears: [], order: 0 };
   const early: unknown[] = [];
   let held: Held[] = [];
   // Names declared in this bounded step remain reserved even if their creator fails.
@@ -812,7 +844,7 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
     state.bindUnknown = bind && op !== 'clear';
     state.bindOp = typeof op === 'string' ? op : undefined;
     try {
-      const a = validateAction(raw, state, at, why, parentFirstAt);
+      const a = validateAction(raw, state, at, why, parentFirstAt, targetTimes);
       return { action: a, why, after: a ? state.after.splice(0) : [] };
     } finally {
       state.bindUnknown = false;
@@ -825,6 +857,12 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
   function accept(action: Action, why: Notes, after: Action[] = []): void {
     for (const n of why) note(notes, n.kind, n.path, n.message);
     for (const [i, a] of [action, ...after].entries()) {
+      const order = targetTimes.order++;
+      if (a.op === 'clear') targetTimes.clears.push({ target: a.target, at: a.at ?? 0, order });
+      if (a.op === 'add') {
+        const prior = targetTimes.births.get(a.id);
+        targetTimes.births.set(a.id, { at: a.at ?? 0, order, ambiguous: prior !== undefined });
+      }
       // Keep all historical births through clears and replacements so an earlier valid child is never dropped.
       if (a.op === 'add') parentFirstAt.set(a.id, Math.min(parentFirstAt.get(a.id) ?? Infinity, a.at ?? 0));
       kept.push(a);
