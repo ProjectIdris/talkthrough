@@ -432,7 +432,7 @@ export function stepsLayout(n: number, area: Px, pad: number, maxRow: number): S
 // ---- Chart ---------------------------------------------------------------------------------------
 
 /** Round tick values covering [lo, hi]: about `want` of them, at 1, 2 or 5 times a power of ten. */
-export function niceTicks(lo: number, hi: number, want = 5): { ticks: number[]; lo: number; hi: number } {
+export function niceTicks(lo: number, hi: number, want = 5): { ticks: number[]; lo: number; hi: number; step: number } {
   if (!(hi > lo)) {
     const c = Number.isFinite(lo) ? lo : 0;
     lo = c - 1;
@@ -446,7 +446,7 @@ export function niceTicks(lo: number, hi: number, want = 5): { ticks: number[]; 
   const ticks: number[] = [];
   const decimals = Math.max(0, 1 - Math.floor(Math.log10(step)));
   for (let k = 0; first + k * step <= hi + step * 1e-9 && ticks.length < 40; k++) ticks.push(Number((first + k * step).toFixed(decimals)) + 0);
-  return { ticks, lo, hi };
+  return { ticks, lo, hi, step };
 }
 
 export type ChartData = { series: Array<{ pts: ReadonlyArray<readonly [number, number]> }>; dots: Array<{ x: number; y: number }>; xrange?: readonly [number, number]; yrange?: readonly [number, number] };
@@ -475,23 +475,25 @@ export type ChartLayout = {
   plot: Px;
   xTicks: Array<{ v: number; px: number }>;
   yTicks: Array<{ v: number; px: number }>;
+  xStep: number;
+  yStep: number;
   x: [number, number];
   y: [number, number];
   toPx: (x: number, y: number) => Pt;
 };
 
 /** The plot rectangle inside an area (room for the axis numbers and labels), the ticks and the map from chart units to pixels. */
-export function chartLayout(data: ChartData, area: Px, room: { left: number; bottom: number; top: number; right: number }): ChartLayout {
+export function chartLayout(data: ChartData, area: Px, room: { left: number; bottom: number; top: number; right: number }, tickWant?: { x?: number; y?: number }): ChartLayout {
   const plot: Px = { x: area.x + room.left, y: area.y + room.top, w: Math.max(10, area.w - room.left - room.right), h: Math.max(10, area.h - room.top - room.bottom) };
   const r = chartRanges(data);
-  const nx = niceTicks(r.x[0], r.x[1], Math.max(2, Math.round(plot.w / 90)));
-  const ny = niceTicks(r.y[0], r.y[1], Math.max(2, Math.round(plot.h / 56)));
+  const nx = niceTicks(r.x[0], r.x[1], tickWant?.x === undefined ? Math.max(2, Math.round(plot.w / 90)) : Math.max(1, Math.floor(tickWant.x)));
+  const ny = niceTicks(r.y[0], r.y[1], tickWant?.y === undefined ? Math.max(2, Math.round(plot.h / 56)) : Math.max(1, Math.floor(tickWant.y)));
   // The axes run to the data's range (not out to the next round number), the ticks sit inside them.
   const x: [number, number] = data.xrange && data.xrange[1] > data.xrange[0] ? [data.xrange[0], data.xrange[1]] : [r.x[0], r.x[1]];
   const y: [number, number] = data.yrange && data.yrange[1] > data.yrange[0] ? [data.yrange[0], data.yrange[1]] : [r.y[0], r.y[1]];
   const toPx = (vx: number, vy: number): Pt => ({ x: plot.x + ((vx - x[0]) / (x[1] - x[0])) * plot.w, y: plot.y + plot.h - ((vy - y[0]) / (y[1] - y[0])) * plot.h });
   return {
-    plot, x, y, toPx,
+    plot, x, y, toPx, xStep: nx.step, yStep: ny.step,
     xTicks: nx.ticks.filter((v) => v >= x[0] && v <= x[1]).map((v) => ({ v, px: toPx(v, y[0]).x })),
     yTicks: ny.ticks.filter((v) => v >= y[0] && v <= y[1]).map((v) => ({ v, px: toPx(x[0], v).y })),
   };
@@ -559,11 +561,42 @@ export function smoothPoints(pts: readonly Pt[], per = 12): Pt[] {
   return out;
 }
 
-/** A number as a short axis label: no trailing zeros, thousands in k, tiny values in plain decimals. */
-export function formatTick(v: number): string {
+function decimalPlacesForStep(step: number): number {
+  const value = Math.abs(step);
+  if (!(value > 0) || !Number.isFinite(value)) return 0;
+  for (let places = 0; places <= 100; places++) {
+    const scaled = value * 10 ** places;
+    if (!Number.isFinite(scaled)) return 0;
+    const nearest = Math.round(scaled);
+    if (Math.abs(scaled - nearest) <= Number.EPSILON * Math.max(1, Math.abs(scaled)) * 4) return places;
+  }
+  return 101;
+}
+
+function trimDecimalZeros(text: string): string {
+  return text.includes('.') ? text.replace(/\.?0+$/, '') : text;
+}
+
+function scientificTick(value: number, step: number): string {
+  const magnitude = Math.abs(value);
+  const interval = Math.abs(step);
+  const significant = Math.max(1, Math.min(17, Math.ceil(Math.log10(magnitude / interval)) + 1));
+  return value.toExponential(significant - 1).replace(/\.?0+e/, 'e').replace('e+', 'e');
+}
+
+/** A compact truthful axis label whose precision follows the distance between ticks. */
+export function formatTick(v: number, step?: number): string {
   if (v === 0) return '0';
-  const a = Math.abs(v);
-  if (a >= 10000) return `${Math.round(v / 100) / 10}k`;
-  if (a >= 100) return String(Math.round(v));
-  return String(Math.round(v * 100) / 100);
+  const unit = Math.abs(v) >= 10000 ? 1000 : 1;
+  const shown = v / unit;
+  const suffix = unit === 1000 ? 'k' : '';
+  const precisionStep = step === undefined
+    ? (unit === 1000 ? 100 / unit : Math.abs(v) >= 100 ? 1 : 0.01)
+    : Math.abs(step / unit);
+  const places = decimalPlacesForStep(precisionStep);
+  const fixed = places <= 100 ? trimDecimalZeros(shown.toFixed(places)) : undefined;
+  const compact = places > 12 ? scientificTick(shown, precisionStep) : undefined;
+  const formatted = compact !== undefined && (fixed === undefined || compact.length < fixed.length) ? compact : fixed ?? scientificTick(shown, precisionStep);
+  const number = Number(formatted) === 0 ? '0' : formatted;
+  return `${number}${suffix}`;
 }
