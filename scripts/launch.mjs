@@ -3,7 +3,9 @@ import { spawn } from 'node:child_process';
 
 export function launchElectron(executable, args, options = {}) {
   const env = { ...(options.env ?? process.env) };
-  delete env.ELECTRON_RUN_AS_NODE;
+  for (const key of Object.keys(env)) {
+    if (key.toUpperCase() === 'ELECTRON_RUN_AS_NODE') delete env[key];
+  }
   const error = options.error ?? console.error;
   const exit = options.exit ?? ((code) => process.exit(code));
   let finished = false;
