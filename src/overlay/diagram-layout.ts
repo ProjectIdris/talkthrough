@@ -483,11 +483,11 @@ export type ChartLayout = {
 };
 
 /** The plot rectangle inside an area (room for the axis numbers and labels), the ticks and the map from chart units to pixels. */
-export function chartLayout(data: ChartData, area: Px, room: { left: number; bottom: number; top: number; right: number }): ChartLayout {
+export function chartLayout(data: ChartData, area: Px, room: { left: number; bottom: number; top: number; right: number }, tickWant?: { x?: number; y?: number }): ChartLayout {
   const plot: Px = { x: area.x + room.left, y: area.y + room.top, w: Math.max(10, area.w - room.left - room.right), h: Math.max(10, area.h - room.top - room.bottom) };
   const r = chartRanges(data);
-  const nx = niceTicks(r.x[0], r.x[1], Math.max(2, Math.round(plot.w / 90)));
-  const ny = niceTicks(r.y[0], r.y[1], Math.max(2, Math.round(plot.h / 56)));
+  const nx = niceTicks(r.x[0], r.x[1], tickWant?.x === undefined ? Math.max(2, Math.round(plot.w / 90)) : Math.max(1, Math.floor(tickWant.x)));
+  const ny = niceTicks(r.y[0], r.y[1], tickWant?.y === undefined ? Math.max(2, Math.round(plot.h / 56)) : Math.max(1, Math.floor(tickWant.y)));
   // The axes run to the data's range (not out to the next round number), the ticks sit inside them.
   const x: [number, number] = data.xrange && data.xrange[1] > data.xrange[0] ? [data.xrange[0], data.xrange[1]] : [r.x[0], r.x[1]];
   const y: [number, number] = data.yrange && data.yrange[1] > data.yrange[0] ? [data.yrange[0], data.yrange[1]] : [r.y[0], r.y[1]];
