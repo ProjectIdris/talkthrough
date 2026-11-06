@@ -702,7 +702,8 @@ test('a stream that breaks in the middle of a step closes it on the page before 
   const r = rig({ model: () => broken });
   await question(r);
   const k = kindsOf(r.sent);
-  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'open:Half.', 'action:a', 'step-close', 'end', 'status', 'notice']);
+  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'open:Half.', 'action:a', 'step-close', 'end', 'notice']);
+  assert.ok(r.sent.some((m) => m.kind === 'notice' && m.level === 'warning' && m.persistent));
 });
 
 test('a step that arrives whole (no pieces) is checked and sent in one go, as before', async () => {
@@ -1346,6 +1347,7 @@ test('a fault of hearing carries the button that sets hearing up, a fault of the
 
 test('follow-ups know that a retained answer was interrupted, including a later unfinished step', async () => {
   const histories: ModelRequest['thread'][] = [];
+  const pins: Array<Parameters<NonNullable<SessionDeps['pin']>>[0]> = [];
   const model: Model = { id: 'partial', async *ask(req) {
     histories.push([...req.thread]);
     if (histories.length === 1) {
@@ -1356,14 +1358,41 @@ test('follow-ups know that a retained answer was interrupted, including a later 
     }
     yield { type: 'step', step: { say: 'The rest.', actions: [] } };
   } };
-  const r = rig({ model: () => model });
+  const r = rig({ model: () => model, pin: (input) => { pins.push(input); return {file:'x.json'}; } });
   await question(r);
   const kinds = r.kinds();
   assert.deepEqual(kinds.slice(kinds.indexOf('begin')), ['begin', 'step', 'step-open', 'action', 'step-close', 'end', 'notice:warning']);
+  r.session.pin(7);
+  assert.deepEqual(pins[0]?.steps, [step('One.'), {say:'Unfinished.',actions:[{op:'box',id:'unfinished',x:1,y:1,w:5,h:5,color:'red'}]}]);
   await question(r);
-  assert.deepEqual(histories[1], [{ question: 'what is this', steps: [step('One.')], incomplete: true }]);
+  assert.deepEqual(histories[1], [{ question: 'what is this', steps: [step('One.'), {say:'Unfinished.', actions:[{op:'box',id:'unfinished',x:1,y:1,w:5,h:5,color:'red'}]}], incomplete: true }]);
   await question(r);
   assert.equal(histories[2]?.[1]?.incomplete, undefined, 'successful follow-ups are not mislabeled');
+});
+
+test('first interrupted streamed step keeps only emitted validated content in history and pin', async () => {
+  const histories: ModelRequest['thread'][] = [];
+  const pins: Array<Parameters<NonNullable<SessionDeps['pin']>>[0]> = [];
+  const model: Model = {id:'partial', async *ask(req) {
+    histories.push([...req.thread]);
+    if (histories.length === 1) {
+      yield {type:'say',say:'Partial.'};
+      yield {type:'action',action:{op:'box',id:'partial',x:1,y:1,w:5,h:5,color:'red'}};
+      yield {type:'action',action:{op:'not-real',id:'bad'}};
+      yield {type:'action',action:{op:'pin',id:'missing-pin',target:'never-created',text:'missing'}};
+      throw new ModelError('unavailable','lost connection');
+    }
+    yield {type:'step',step:{say:'Continue.',actions:[]}};
+  }};
+  const r=rig({model:()=>model,pin:(input)=>{pins.push(input);return {file:'x.json'};}});
+  await question(r);
+  assert.ok(r.sent.some(m=>m.kind==='notice' && m.level==='warning' && m.persistent));
+  r.session.pin(7);
+  const partial={say:'Partial.',actions:[{op:'box',id:'partial',x:1,y:1,w:5,h:5,color:'red'}]};
+  assert.deepEqual(pins[0]?.steps,[partial]);
+  assert.deepEqual(pins[0]?.thread,[{question:'what is this',steps:[partial],incomplete:true}]);
+  await question(r);
+  assert.deepEqual(histories[1],[{question:'what is this',steps:[partial],incomplete:true}]);
 });
 
 test('an interrupted guide warns without clearing its scene or ending its click-wait early', async () => {

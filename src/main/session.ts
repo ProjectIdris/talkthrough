@@ -558,20 +558,28 @@ export function createSession(deps: SessionDeps) {
     // page, each action is checked against the scene on arrival and sent at once, and the step is closed when
     // the whole step comes. A step that arrives whole (the backend, a replay) is checked and sent in one go.
     let live: LiveStep | null = null;
+    // Only what the live validator has actually emitted to the page belongs in
+    // an interrupted step; unresolved actions must not be recovered on error.
+    let visiblePartial: Step | undefined;
     // The answer as the model wrote it, to score the order it built in.
     const written: Array<{ actions: unknown[] }> = [];
     let writing: unknown[] | null = null;
     const newLive = (): LiveStep => {
       held = walk !== undefined;
+      visiblePartial = undefined;
       return beginLiveStep(checking, {
         open: (say) => {
           if (held) return;
+          visiblePartial = { say, actions: [] };
           open();
           r.firstStepMs ??= since();
           send(displayId, { kind: 'step-open', say });
         },
         action: (action) => {
-          if (!held) send(displayId, { kind: 'action', action });
+          if (!held) {
+            visiblePartial?.actions.push(action);
+            send(displayId, { kind: 'action', action });
+          }
         },
       });
     };
@@ -622,6 +630,7 @@ export function createSession(deps: SessionDeps) {
       if (!live) return;
       const done = live.finish();
       live = null;
+      visiblePartial = undefined;
       if (done.issues.length > 0) {
         deps.log(validatorNotes(done.issues, shown.length + 1));
         deps.record?.issues(shown.length + 1, done.issues);
@@ -679,6 +688,8 @@ export function createSession(deps: SessionDeps) {
       if (failure) {
         live = null;
         if (!held) send(displayId, { kind: 'step-close' });
+        if (visiblePartial && (visiblePartial.say || visiblePartial.actions.length)) shown.push(visiblePartial);
+        visiblePartial = undefined;
       } else closeLive();
     }
     const incomplete = Boolean(failure && shown.length > 0);
