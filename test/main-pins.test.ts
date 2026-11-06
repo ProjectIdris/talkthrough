@@ -75,3 +75,17 @@ test('the screenshot choice is remembered in the app\'s own file and starts off'
     done();
   }
 });
+
+test('a pinned partial explanation retains its incomplete status alongside the useful scene', () => {
+  const { dir, done } = scratch();
+  try {
+    const pins = createPins({ dir, now: () => at });
+    const steps = [{ say: 'First part.', actions: [] }];
+    const saved = pins.save({ question: 'Explain this', thread: [{ question: 'Explain this', steps, incomplete: true }], steps });
+    const pin = JSON.parse(readFileSync(join(dir, saved.file), 'utf8'));
+    assert.deepEqual(pin.thread, [{ question: 'Explain this', said: ['First part.'], incomplete: true }]);
+    assert.deepEqual(pin.scene.steps, steps);
+  } finally {
+    done();
+  }
+});

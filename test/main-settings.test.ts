@@ -110,3 +110,27 @@ test('a second Claude model for the steps after step 1 is off unless named, and 
   assert.equal(settingsFrom(JSON.stringify({ claudeLaterModel: 'claude-sonnet-5-5' })).settings.claudeLaterModel, 'claude-sonnet-5-5');
   assert.equal(settingsFrom(JSON.stringify({ claudeModel: 'claude-sonnet-5-5', claudeLaterModel: 'claude-sonnet-5-5' })).settings.claudeLaterModel, undefined);
 });
+
+test('speech audio is sent only to https or loopback addresses configured in settings', () => {
+  for (const url of ['https://speech.example.test', 'http://localhost:8001', 'http://127.0.0.1:8001', 'http://[::1]:8001']) {
+    const { settings, warnings } = settingsFrom(JSON.stringify({ speechServerUrl: url }));
+    assert.equal(settings.speechServerUrl, url);
+    assert.deepEqual(warnings, []);
+  }
+  for (const url of ['http://speech.example.test', 'http://192.168.1.4:8001', 'ftp://localhost', 'not a url']) {
+    const { settings, warnings } = settingsFrom(JSON.stringify({ speechServerUrl: url }));
+    assert.equal(settings.speechServerUrl, undefined, url);
+    assert.ok(warnings.some((warning) => warning.includes('speechServerUrl')), url);
+  }
+});
+
+test('recognises canonical and mapped IPv4 loopback without admitting lookalike hosts', () => {
+  for (const url of ['http://127.0.0.2:8123', 'http://127.255.255.254', 'http://127.1', 'http://0x7f000002', 'http://[::ffff:127.0.0.2]']) {
+    assert.equal(safeBaseUrl(url), true, url);
+    const { settings } = settingsFrom(JSON.stringify({ speechServerUrl: url }));
+    assert.equal(settings.speechServerUrl, url);
+  }
+  for (const url of ['http://126.255.255.255','http://128.0.0.1','http://127.0.0.1.attacker.test','http://localhost.attacker.test','http://[::ffff:126.255.255.255]','http://[::ffff:128.0.0.1]']) {
+    assert.equal(safeBaseUrl(url), false, url);
+  }
+});

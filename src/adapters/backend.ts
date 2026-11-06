@@ -50,9 +50,10 @@ export function cleanBackendText(text: string, max = 300): string {
 }
 
 /** One earlier turn as it is written down for others: the question and the lines that were spoken for it. */
-export function threadEntry(turn: ThreadTurn): { question: string; said: string[] } {
+export function threadEntry(turn: ThreadTurn): { question: string; said: string[]; incomplete?: true } {
   return {
     question: turn.question,
+    ...(turn.incomplete ? { incomplete: true as const } : {}),
     said: turn.steps.map((s) => (s as { say?: unknown }).say).filter((t): t is string => typeof t === 'string').slice(0, MAX_SAID),
   };
 }

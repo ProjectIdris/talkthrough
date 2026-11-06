@@ -1,0 +1,50 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Node 24 / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      # Portable checks do not need native modules or an Electron download.
+      - name: Install for portable checks
+        if: runner.os != 'Windows'
+        run: npm ci --ignore-scripts
+      - name: Install for Windows desktop checks
+        if: runner.os == 'Windows'
+        run: npm ci
+      - name: Ensure Electron is installed
+        if: runner.os == 'Windows'
+        run: node node_modules/electron/install.js
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Run portable tests
+        if: runner.os != 'Windows'
+        run: npm test
+      # Desktop tests open topmost windows: keep separate files from stealing focus.
+      - name: Run Windows tests serially
+        if: runner.os == 'Windows'
+        run: node --test --test-concurrency=1 "test/*.test.ts"

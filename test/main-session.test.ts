@@ -189,18 +189,23 @@ test('a model failure before any step is a notice and nothing else', async () =>
   assert.equal(r.kinds().at(-1), 'notice:error');
 });
 
-test('a failure after steps have played keeps what was drawn and ends the answer there, logged: no error, no wiped page', async () => {
+test('a failure after completed steps keeps the scene and visibly marks the answer incomplete', async () => {
   const model = { id: 'm', ask: async function* () { yield { type: 'step' as const, step: step('One.') }; yield { type: 'step' as const, step: step('Two.') }; throw new ModelError('bad-output', 'scene text has mismatched brackets'); } };
   const lines: string[] = [];
   const reports: Array<{ steps: number; error?: string; cutShort?: string; endMs?: number }> = [];
   const r = rig({ model: () => model, log: (l) => void lines.push(l), onReport: (rep) => void reports.push(rep) });
   await question(r);
   const k = r.kinds();
-  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'step', 'step', 'end'], 'both steps shown, the answer ended, no notice');
+  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'step', 'step', 'end', 'notice:warning'], 'both steps stay; the warning does not clear or interrupt playback');
+  const warning = r.sent.find((m) => m.kind === 'notice');
+  assert.ok(warning?.kind === 'notice');
+  assert.match(warning.text, /interrupted.*incomplete/i);
+  assert.match(warning.text, /follow-up.*continue.*again.*retry/i);
+  assert.equal(warning.persistent, true, 'the warning must outlast the queued narration');
   assert.ok(lines.some((l) => /answer cut short after 2 steps/.test(l) && /mismatched brackets/.test(l)), lines.join(' | '));
   const rep = reports.at(-1)!;
   assert.equal(rep.steps, 2);
-  assert.equal(rep.error, undefined, 'not an error');
+  assert.equal(rep.error, undefined, 'partial output is tracked separately from a failure with nothing to show');
   assert.match(rep.cutShort ?? '', /mismatched brackets/);
   assert.ok(rep.endMs !== undefined, 'it counts as finished, so a follow-up (More detail) can still be asked');
 });
@@ -697,7 +702,8 @@ test('a stream that breaks in the middle of a step closes it on the page before 
   const r = rig({ model: () => broken });
   await question(r);
   const k = kindsOf(r.sent);
-  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'open:Half.', 'action:a', 'step-close', 'end', 'status', 'notice']);
+  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'open:Half.', 'action:a', 'step-close', 'end', 'notice']);
+  assert.ok(r.sent.some((m) => m.kind === 'notice' && m.level === 'warning' && m.persistent));
 });
 
 test('a step that arrives whole (no pieces) is checked and sent in one go, as before', async () => {
@@ -1336,4 +1342,69 @@ test('a fault of hearing carries the button that sets hearing up, a fault of the
   const quiet = rig({}, 100);
   await question(quiet);
   assert.equal(firstNotice(quiet)?.action, undefined, 'a clip too short says so and offers nothing');
+});
+
+
+test('follow-ups know that a retained answer was interrupted, including a later unfinished step', async () => {
+  const histories: ModelRequest['thread'][] = [];
+  const pins: Array<Parameters<NonNullable<SessionDeps['pin']>>[0]> = [];
+  const model: Model = { id: 'partial', async *ask(req) {
+    histories.push([...req.thread]);
+    if (histories.length === 1) {
+      yield { type: 'step', step: step('One.') };
+      yield { type: 'say', say: 'Unfinished.' };
+      yield { type: 'action', action: { op: 'box', id: 'unfinished', x: 1, y: 1, w: 5, h: 5, color: 'red' } };
+      throw new ModelError('unavailable', 'lost connection');
+    }
+    yield { type: 'step', step: { say: 'The rest.', actions: [] } };
+  } };
+  const r = rig({ model: () => model, pin: (input) => { pins.push(input); return {file:'x.json'}; } });
+  await question(r);
+  const kinds = r.kinds();
+  assert.deepEqual(kinds.slice(kinds.indexOf('begin')), ['begin', 'step', 'step-open', 'action', 'step-close', 'end', 'notice:warning']);
+  r.session.pin(7);
+  assert.deepEqual(pins[0]?.steps, [step('One.'), {say:'Unfinished.',actions:[{op:'box',id:'unfinished',x:1,y:1,w:5,h:5,color:'red'}]}]);
+  await question(r);
+  assert.deepEqual(histories[1], [{ question: 'what is this', steps: [step('One.'), {say:'Unfinished.', actions:[{op:'box',id:'unfinished',x:1,y:1,w:5,h:5,color:'red'}]}], incomplete: true }]);
+  await question(r);
+  assert.equal(histories[2]?.[1]?.incomplete, undefined, 'successful follow-ups are not mislabeled');
+});
+
+test('first interrupted streamed step keeps only emitted validated content in history and pin', async () => {
+  const histories: ModelRequest['thread'][] = [];
+  const pins: Array<Parameters<NonNullable<SessionDeps['pin']>>[0]> = [];
+  const model: Model = {id:'partial', async *ask(req) {
+    histories.push([...req.thread]);
+    if (histories.length === 1) {
+      yield {type:'say',say:'Partial.'};
+      yield {type:'action',action:{op:'box',id:'partial',x:1,y:1,w:5,h:5,color:'red'}};
+      yield {type:'action',action:{op:'not-real',id:'bad'}};
+      yield {type:'action',action:{op:'pin',id:'missing-pin',target:'never-created',text:'missing'}};
+      throw new ModelError('unavailable','lost connection');
+    }
+    yield {type:'step',step:{say:'Continue.',actions:[]}};
+  }};
+  const r=rig({model:()=>model,pin:(input)=>{pins.push(input);return {file:'x.json'};}});
+  await question(r);
+  assert.ok(r.sent.some(m=>m.kind==='notice' && m.level==='warning' && m.persistent));
+  r.session.pin(7);
+  const partial={say:'Partial.',actions:[{op:'box',id:'partial',x:1,y:1,w:5,h:5,color:'red'}]};
+  assert.deepEqual(pins[0]?.steps,[partial]);
+  assert.deepEqual(pins[0]?.thread,[{question:'what is this',steps:[partial],incomplete:true}]);
+  await question(r);
+  assert.deepEqual(histories[1],[{question:'what is this',steps:[partial],incomplete:true}]);
+});
+
+test('an interrupted guide warns without clearing its scene or ending its click-wait early', async () => {
+  const w = walkRig([], undefined, undefined, undefined, async function* () {
+    yield { type: 'step', step: guided('file', 'Click File.') };
+    throw new ModelError('unavailable', 'lost connection');
+  });
+  await question(w);
+  assert.ok(w.sent.some((m) => m.kind === 'notice' && m.level === 'warning' && m.persistent));
+  assert.ok(w.kinds().includes('status:waiting'));
+  assert.ok(!w.kinds().includes('end'), 'the guide still owns its waiting step');
+  assert.ok(!w.kinds().includes('status:idle'), 'a warning must not cancel the waiting indicator');
+  await w.click(450, 120, flat(90));
+  assert.ok(w.kinds().includes('end'), 'the completed partial guide still closes normally');
 });
