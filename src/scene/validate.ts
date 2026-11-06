@@ -3,6 +3,7 @@
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
 import { nearestPaletteColor } from './colors.ts';
+import { resolveHullPoints } from './hull-points.ts';
 import { attachTolerance, landOn } from './attach.ts';
 import type { Body } from './attach.ts';
 import { bindParts, bindUnknownId, BINDINGS } from './bind.ts';
@@ -330,7 +331,7 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
     else state.bodies.set(id, { shape: 'group', ...place }); // a cone or a torus is not asked about, but things hang from it
   } else if (name === 'addPart') state.bodies.set(id, { shape: 'box', size: out.size as Vec3, ...place });
   else if (name === 'addBlob') state.bodies.set(id, { shape: 'blob', pts: out.pts as Vec3[], sizes: out.sizes as Vec3[], ...place });
-  else if (name === 'addExtrude' || name === 'addLathe' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
+  else if (name === 'addExtrude' || name === 'addHull' || name === 'addLathe' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addTube' || (name === 'addPath' && shape === 'line')) {
     holdEnds(state, id, out, path, notes);
     return;
@@ -433,6 +434,14 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   if (typeof variant === 'string') {
     note(notes, 'dropped', path, variant);
     return null;
+  }
+  // Strict admission precedes the ordinary, deliberately lenient field parser and any state changes.
+  if (variant.name === 'addHull') {
+    const result = resolveHullPoints(own(raw, 'pts'));
+    if (!result.ok) {
+      note(notes, 'dropped', path, `pts: ${result.message}`);
+      return null;
+    }
   }
   const input = variant.op === 'panel' ? fitStage(raw as Record<string, unknown>, state, path, notes) : raw;
   const out: Record<string, unknown> = { op: variant.op };

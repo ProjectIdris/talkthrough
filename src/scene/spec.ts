@@ -24,6 +24,8 @@ export const LIMITS = {
   /** The reason given with `escalate`. */
   maxEscalate: 160,
   maxPts: 24,
+  /** Maximum number of authored points in a convex hull. */
+  maxHullPoints: 64,
   /** Points of an outline or profile. */
   maxOutline: 40,
   /** Corners of a screen polygon, and points of a traced curve. */
@@ -105,7 +107,7 @@ export type Variant = {
 
 const SCREEN = { min: 0, max: 1000 } as const;
 const SPAN = { min: 1, max: 1000 } as const;
-const WORLD = { min: -100, max: 100 } as const;
+export const WORLD = { min: -100, max: 100 } as const;
 const AT: Field = { k: 'num', min: 0, max: 60, opt: true, doc: 'seconds after the step starts' };
 const DUR: Field = { k: 'num', min: 0, max: 30, opt: true, doc: 'seconds the change takes (default 0.6)' };
 const COLOR: Field = { k: 'color' };
@@ -273,6 +275,15 @@ export const VARIANTS: readonly Variant[] = [
       shape: { k: 'enum', values: ['extrude'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: LIMITS.maxOutline, lo: WORLD.min, hi: WORLD.max },
       depth: { k: 'num', min: 0.01, max: 100 }, color: COLOR_OPT, material: MATERIAL, bevel: BEVEL, edges: EDGES, opacity: OPACITY, at: AT,
+    },
+  },
+  {
+    name: 'addHull', op: 'add', shapes: ['hull'], creates: 'solid',
+    doc: 'A closed convex envelope of 4 to 64 local 3D points. Points are not recentered and must span three dimensions; interior and duplicate points are allowed. No concavities or cavities.',
+    fields: {
+      shape: { k: 'enum', values: ['hull'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      pts: { k: 'pts', min: 4, max: LIMITS.maxHullPoints, lo: WORLD.min, hi: WORLD.max },
+      color: COLOR_OPT, material: MATERIAL, edges: EDGES, opacity: OPACITY, at: AT,
     },
   },
   {
@@ -484,7 +495,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'cut', op: 'cut',
-    doc: 'Cut a 3D object (usually a whole model) open with a plane, so the inside shows: everything beyond the plane is removed and the cut faces are capped. axis is x, y or z (default z, the plane faces the viewer at the front); to is where the plane is along that axis in the object own space (the middle of the object is 0). Move the plane through with another cut; to 100 puts it beyond everything: no cut.',
+    doc: 'Cut a 3D object (usually a whole model) open with a plane, so the inside shows: everything beyond the plane is removed and the cut faces are capped. axis is x, y or z (default z, the plane faces the viewer at the front); to is where the plane is along that axis in the object own space (0 is the local origin, not necessarily the center of a hull point cloud). Move the plane through with another cut; to 100 puts it beyond everything: no cut.',
     fields: { id: { k: 'ref', of: 'object3d' }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, to: { k: 'num', min: -100, max: 100 }, at: AT, dur: DUR },
   },
   {
