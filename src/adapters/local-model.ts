@@ -1,4 +1,7 @@
 import { deflateSync } from 'node:zlib';
+import { createSceneState, validateScene, validateStep } from '../scene/validate.ts';
+import { sceneSchemaLean } from '../scene/schema.ts';
+import { DEFAULT_LOCAL_URL } from '../shared/settings-form.ts';
 import { ModelError } from './model.ts';
 import type { Model, ModelOutput, ModelRequest, Usage } from './model.ts';
 import { createOutputStream, questionText, systemPrompt } from './subscription-shared.ts';
@@ -115,7 +118,8 @@ export function createLocalModel(options: LocalModelOptions): Model {
         let out: ModelOutput[] = [];
         if (typeof choice.delta?.content === 'string' && choice.delta.content) out = stream.push(choice.delta.content);
         if (choice.finish_reason === 'length') throw new ModelError('bad-output', 'the answer was cut short (the model ran out of room)');
-        if (choice.finish_reason) finished = true;
+        if (choice.finish_reason === 'stop') finished = true;
+        else if (choice.finish_reason !== undefined && choice.finish_reason !== null) throw new ModelError('bad-output', 'the local model did not finish a normal answer');
         return out;
       };
 
@@ -228,11 +232,12 @@ export function tinyPng(size = 64): string {
 }
 
 /**
- * The "test connection" button: is the server there, does it list the model, and does it take a picture. Each answer says what to do next. It
- * sends a tiny generated picture and one word of question; nothing of the person's is sent.
+ * The explicit "test connection" button uses the same streamed scene request as a real question, with only a generated picture and a fixed
+ * setup question. Success means the server accepted image input and returned a complete, usable scene, not that it understood the picture
+ * or that capture, hearing, voice, and desktop input work. No personal content, saved key, or raw provider error is returned.
  */
 export async function testLocalModel(options: { baseUrl: string; model: string; fetch?: typeof fetch; listTimeoutMs?: number; askTimeoutMs?: number }): Promise<LocalTest> {
-  const base = trimBase(options.baseUrl);
+  const base = trimBase(options.baseUrl.trim() || DEFAULT_LOCAL_URL);
   const doFetch = options.fetch ?? globalThis.fetch;
   if (!isLoopbackUrl(base)) return { ok: false, message: 'The address must be on this computer, such as http://127.0.0.1:11434/v1.' };
   if (!options.model.trim()) return { ok: false, message: 'Type the name of the model first.' };
@@ -250,25 +255,51 @@ export async function testLocalModel(options: { baseUrl: string; model: string; 
   if (listed && listed.length > 0 && !listed.includes(name) && !listed.includes(`${name}:latest`)) {
     return { ok: false, message: `Reached the server, but it has no model called ${name}. It has: ${listed.slice(0, 6).join(', ')}${listed.length > 6 ? ', …' : ''}.` };
   }
+  const timeoutMs = options.askTimeoutMs ?? 90_000;
+  const timeout = AbortSignal.timeout(timeoutMs);
   try {
-    const response = await doFetch(`${base}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      redirect: 'error',
-      signal: AbortSignal.timeout(options.askTimeoutMs ?? 90_000),
-      body: JSON.stringify({
-        model: name,
-        max_tokens: 8,
-        messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: `data:image/png;base64,${tinyPng()}` } }, { type: 'text', text: 'Reply with the single word ok.' }] }],
-      }),
-    });
-    if (response.ok) return { ok: true, message: `Works: ${name} answered, and it took a picture.` };
-    const detail = await readError(response);
-    if (looksLikePictureError(detail)) return { ok: false, message: `Reached the server, but ${name} does not take pictures. Talkthrough sends a screenshot with every question, so choose a model with vision.` };
-    if (response.status === 404) return { ok: false, message: `Reached the server, but it does not know a model called ${name}.` };
-    return { ok: false, message: `Reached the server, but it answered ${response.status}${detail ? `: ${detail}` : ''}.` };
+    const model = createLocalModel({ baseUrl: base, model: name, timeoutMs, fetch: doFetch });
+    const state = createSceneState();
+    let usable = false;
+    let invalid = false;
+    let raw = '';
+    for await (const output of model.ask({
+      question: 'This is a setup test using a generated picture. Reply with exactly one short scene step saying "Ready", with no drawing actions and no escalation.',
+      screenshot: { mime: 'image/png', base64: tinyPng(), width: 64, height: 64 },
+      thread: [],
+      schema: sceneSchemaLean,
+      signal: timeout,
+      onRaw: (text) => { raw = text; },
+    })) {
+      if (output.type === 'step') {
+        const result = validateStep(output.step, state);
+        usable ||= result.step !== null;
+        invalid ||= result.step === null || result.issues.some((issue) => issue.kind === 'dropped');
+      } else if (output.type === 'escalate') invalid = true;
+    }
+    // The streaming parser deliberately recovers usable steps from imperfect answers. A setup check also needs the whole answer to be valid.
+    // Keep this tiny test well below onRaw's capture limit, so a truncated captured prefix cannot pass as a complete scene.
+    if (raw.length > 16_384) throw new ModelError('bad-output', 'the setup answer was too large');
+    let whole: unknown;
+    try {
+      whole = JSON.parse(raw);
+    } catch {
+      throw new ModelError('bad-output', 'the setup answer was not a complete JSON scene');
+    }
+    const checked = validateScene(whole);
+    invalid ||= !checked.ok || !checked.scene?.steps.length || checked.scene.escalate !== undefined || checked.issues.some((issue) => issue.kind === 'dropped');
+    // A usable first step is not enough: the iterator must finish without a transport or parse failure.
+    if (!usable || invalid) return { ok: false, message: 'Reached the server, but it did not return a usable Talkthrough scene. Check that the model supports structured answers, or try another vision model.' };
+    return { ok: true, message: `Test passed: ${name} accepted the generated picture and returned a valid scene. Screen capture, hearing, voice, and picture understanding were not tested.` };
   } catch (error) {
-    const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
-    return { ok: false, message: timedOut ? `Reached the server, but ${name} took too long to answer. It may still be loading: try again in a moment.` : `Reached the server, but the test question failed.` };
+    if (timeout.aborted) return { ok: false, message: `Reached the server, but ${name} took too long to complete the test. It may still be loading: try again in a moment.` };
+    if (error instanceof ModelError) {
+      if (looksLikePictureError(error.message)) return { ok: false, message: `Reached the server, but ${name} does not take pictures. Talkthrough sends a screenshot with every question, so choose a model with vision.` };
+      if (error.code === 'bad-output') return { ok: false, message: 'Reached the server, but its answer was incomplete or not in Talkthrough scene format. Try again, or choose a model that supports structured answers.' };
+      if (error.code === 'auth') return { ok: false, message: 'The local server refused access. Check its authentication settings; this local connector does not send an API key.' };
+      if (error.code === 'rate-limited') return { ok: false, message: 'The local server is busy or limiting requests. Wait a moment and try the test again.' };
+      if (error.code === 'unavailable') return { ok: false, message: 'The server could not complete the test. Check that the model is loaded and the connection can stay open for a streamed answer.' };
+    }
+    return { ok: false, message: 'Reached the server, but the scene test failed. Check the model and server configuration, then try again.' };
   }
 }

@@ -69,6 +69,7 @@
   <div id="localbox" class="hide">
     <div class="row"><div class="what"><div class="lab">Server address</div><div class="hint">An address on this computer. Ollama is http://127.0.0.1:11434/v1, LM Studio http://127.0.0.1:1234/v1.</div></div><div class="ctl"><input type="text" id="localBaseUrl" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:11434/v1"></div></div>
     <div class="row stack"><div class="hint warn">Every question carries a screenshot, so the model must be a vision model (one that takes pictures). A text-only model cannot answer.</div>
+      <div class="hint">Sends a generated picture and a fixed setup question to this local server, then checks its streamed scene answer. No screen capture, recording, or saved API key is sent.</div>
       <div style="display:flex;gap:10px;align-items:center"><button id="localTest" type="button">Test connection</button><span class="hint" id="localResult" style="margin:0"></span></div></div>
   </div>
 

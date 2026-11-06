@@ -87,7 +87,7 @@ export function createSettingsWindow(options: SettingsWindowOptions) {
   ipcMain.handle(SETTINGS_CHANNEL.speechRemove, async (event) => {
     if (trusted(event)) await options.speech?.remove();
   });
-  // The local model's "test connection": a tiny generated picture and one word of question go to the address on this computer; nothing of the person's.
+  // The explicit local model test sends only a generated picture and a fixed setup question to the address on this computer.
   ipcMain.handle(SETTINGS_CHANNEL.testLocal, async (event, request: unknown) => {
     const r = request as { baseUrl?: unknown; model?: unknown } | null;
     if (!trusted(event) || !r || typeof r.baseUrl !== 'string' || typeof r.model !== 'string') return { ok: false, message: 'The test could not be run.' };
