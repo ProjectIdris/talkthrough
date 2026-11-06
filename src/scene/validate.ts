@@ -3,12 +3,13 @@
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
 import { nearestPaletteColor } from './colors.ts';
-import { attachTolerance, landOn } from './attach.ts';
+import { attachTolerance, landOn, mountPosition } from './attach.ts';
+import { resolvePartGeometry } from './part-geometry.ts';
 import type { Body } from './attach.ts';
 import { bindParts, bindUnknownId, BINDINGS } from './bind.ts';
 import { DIAGRAM_PARTS, ID_PATTERN, LIMITS, PALETTE, RESERVED_IDS, SCREEN_KINDS, VARIANTS } from './spec.ts';
 import type { DiagramKind, Field, ObjectKind, Variant } from './spec.ts';
-import type { Action, AttachEnd, Issue, IssueKind, Scene, Step, Vec3 } from './types.ts';
+import type { Action, AddPart, AttachEnd, Issue, IssueKind, Scene, Step, Vec3 } from './types.ts';
 
 /** What the scene holds so far. Keep one per session and pass it to every turn so follow-ups reach earlier ids. */
 export type SceneState = {
@@ -23,7 +24,7 @@ export type SceneState = {
   joints: Map<string, 'hinge' | 'slide' | 'fixed'>;
   follows: Map<string, string>;
   rides: Map<string, string>;
-  /** Where each 3D solid and group stands and how big it is, as written: what a tube or line that ends on a part is held against (attach.ts). */
+  /** Where each 3D solid and group stands and how big it is, with normalized kit dimensions: what a tube or line that ends on a part is held against (attach.ts). */
   bodies: Map<string, Body>;
   /** Tubes and lines with an end in the air so far: a part that arrives later may be what that end was meant for. */
   loose: Map<string, { action: Record<string, unknown>; step: number }>;
@@ -316,19 +317,39 @@ export function applyClear(state: SceneState, target: string): void {
 type EndSlots = [AttachEnd | null, AttachEnd | null];
 const ZERO: Vec3 = [0, 0, 0];
 
+/** Check declarative socket placement and preview its authored position for surface attachment. Playback resolves the creation-time base transforms. */
+function checkMount(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): Vec3 | null | undefined {
+  if (out.parentAnchor === undefined && out.selfAnchor === undefined) return undefined;
+  const bad = (field: string, message: string): null => { note(notes, 'dropped', `${path}.${field}`, message); return null; };
+  const parent = out.parent as string | undefined;
+  if (parent === undefined) return bad('parent', 'anchor placement requires parent');
+  if (parent === out.id || isUnder(state, parent, out.id as string)) return bad('parent', 'anchor placement would create a parent cycle');
+  const parentAnchors = state.bodies.get(parent)?.anchors ?? { origin: ZERO };
+  const selfAnchors = out.shape === 'part' ? resolvePartGeometry(out as AddPart).anchors : { origin: ZERO };
+  const parentName = (out.parentAnchor as string | undefined) ?? 'origin';
+  const selfName = (out.selfAnchor as string | undefined) ?? 'origin';
+  if (!Object.hasOwn(parentAnchors, parentName)) return bad('parentAnchor', `unknown anchor "${parentName}" on "${parent}"; available: ${Object.keys(parentAnchors).join(', ')}`);
+  if (!Object.hasOwn(selfAnchors, selfName)) return bad('selfAnchor', `unknown anchor "${selfName}" on this part; available: ${Object.keys(selfAnchors).join(', ')}`);
+  const pos = mountPosition(parentAnchors[parentName]!, selfAnchors[selfName]!, (out.rot as Vec3 | undefined) ?? ZERO, (out.pos as Vec3 | undefined) ?? ZERO);
+  // A replacement inherits runtime rotation/scale, which this authored-state preview cannot know.
+  // The planner checks its actual solved position before changing either object.
+  if (!state.ids.has(out.id as string) && pos.some((v) => !Number.isFinite(v) || v < -100 || v > 100)) return bad('pos', 'resolved anchor placement is outside the scene position range [-100,100]; reduce the offset or part sizes');
+  return pos;
+}
+
 /** A 3D solid or group is on record where it stands and how big it is; a tube or line has its ends held to the parts they lie on. */
-function holdBody(state: SceneState, name: string, out: Record<string, unknown>, path: string, notes: Notes): void {
+function holdBody(state: SceneState, name: string, out: Record<string, unknown>, path: string, notes: Notes, mountedPos?: Vec3): void {
   const id = out.id as string;
   state.bodies.delete(id);
   state.loose.delete(id);
-  const place = { pos: (out.pos as Vec3 | undefined) ?? ZERO, rot: (out.rot as Vec3 | undefined) ?? ZERO, parent: out.parent as string | undefined };
+  const place = { pos: mountedPos ?? (out.pos as Vec3 | undefined) ?? ZERO, rot: (out.rot as Vec3 | undefined) ?? ZERO, parent: out.parent as string | undefined };
   const shape = out.shape as string;
   if (name === 'addSolid') {
     const size = out.size as Vec3;
     if (shape === 'box' || shape === 'sphere' || shape === 'cylinder') state.bodies.set(id, { shape, size, ...place });
     else if (shape === 'plane') state.bodies.set(id, { shape: 'box', size: [size[0], size[1], 0], ...place });
     else state.bodies.set(id, { shape: 'group', ...place }); // a cone or a torus is not asked about, but things hang from it
-  } else if (name === 'addPart') state.bodies.set(id, { shape: 'box', size: out.size as Vec3, ...place });
+  } else if (name === 'addPart') state.bodies.set(id, { shape: 'box', ...resolvePartGeometry(out as AddPart), ...place });
   else if (name === 'addBlob') state.bodies.set(id, { shape: 'blob', pts: out.pts as Vec3[], sizes: out.sizes as Vec3[], ...place });
   else if (name === 'addExtrude' || name === 'addLathe' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addTube' || (name === 'addPath' && shape === 'line')) {
@@ -424,7 +445,7 @@ function fitStage(raw: Record<string, unknown>, state: SceneState, path: string,
   return next;
 }
 
-function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>): Action | null {
+function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>, mountedChildrenAt: ReadonlyMap<string, number>): Action | null {
   if (!isObject(raw)) {
     note(notes, 'dropped', path, 'action is not an object');
     return null;
@@ -462,6 +483,12 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', `${path}.parent`, `parent "${out.parent}" starts after this child; schedule the parent no later than the child`);
     return null;
   }
+  if (variant.creates && state.ids.has(out.id as string) && (mountedChildrenAt.get(out.id as string) ?? -Infinity) >= ((out.at as number | undefined) ?? 0)) {
+    note(notes, 'dropped', path, 'define or replace the parent before its mounted children; a later-written replacement cannot precede an accepted mount');
+    return null;
+  }
+  const mountedPos = checkMount(out, state, path, notes);
+  if (mountedPos === null) return null;
   if (variant.op === 'panel' && typeof out.w === 'number' && typeof out.h === 'number') state.stage = { w: out.w, h: out.h };
   const locked = LOCKS[variant.name] !== undefined ? out[LOCKS[variant.name] as string] : undefined;
   if (typeof locked === 'string' && state.follows.has(locked)) {
@@ -563,7 +590,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     else state.parts.delete(id);
     state.parents.set(id, parent);
     state.depth.set(id, parent === undefined ? 1 : (state.depth.get(parent) ?? 0) + 1);
-    holdBody(state, variant.name, out, path, notes);
+    holdBody(state, variant.name, out, path, notes, mountedPos);
   } else if (variant.op === 'clear') {
     applyClear(state, out.target as string);
   }
@@ -726,6 +753,8 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
   const kept: Action[] = [];
   // A lower bound on parent birth, not lifetime validation: authored state cannot prove past clear/reparent timing.
   const parentFirstAt = new Map<string, number>([...state.ids.keys()].map((id) => [id, 0]));
+  // Streaming preserves arrival order. A replacement cannot retroactively redefine a mount already emitted.
+  const mountedChildrenAt = new Map<string, number>();
   const early: unknown[] = [];
   let held: Held[] = [];
   // Names declared in this bounded step remain reserved even if their creator fails.
@@ -754,7 +783,7 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
     state.bindUnknown = bind && op !== 'clear';
     state.bindOp = typeof op === 'string' ? op : undefined;
     try {
-      const a = validateAction(raw, state, at, why, parentFirstAt);
+      const a = validateAction(raw, state, at, why, parentFirstAt, mountedChildrenAt);
       return { action: a, why, after: a ? state.after.splice(0) : [] };
     } finally {
       state.bindUnknown = false;
@@ -769,6 +798,9 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
     for (const [i, a] of [action, ...after].entries()) {
       // Keep all historical births through clears and replacements so an earlier valid child is never dropped.
       if (a.op === 'add') parentFirstAt.set(a.id, Math.min(parentFirstAt.get(a.id) ?? Infinity, a.at ?? 0));
+      if (a.op === 'add' && (a.shape === 'part' || a.shape === 'group') && a.parent !== undefined && (a.parentAnchor !== undefined || (a.shape === 'part' && a.selfAnchor !== undefined))) {
+        mountedChildrenAt.set(a.parent, Math.max(mountedChildrenAt.get(a.parent) ?? 0, a.at ?? 0));
+      }
       kept.push(a);
       events.action(a, i > 0);
     }

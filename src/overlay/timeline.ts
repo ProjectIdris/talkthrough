@@ -6,6 +6,8 @@
 // previous step settled in (evaluate at Infinity), so ids, positions and the camera carry over,
 // including across follow-up questions.
 
+import { mountPosition } from '../scene/attach.ts';
+import { resolvePartGeometry } from '../scene/part-geometry.ts';
 import { PALETTE_RGB } from '../scene/colors.ts';
 import { advanceMotion, crankPinKey, crankPinSize, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
 import type { CamDef, CoupleDef, CrankDef, FlashDef, JointDef, LoopDef, Motion, Pose, SpinPlan } from './motion.ts';
@@ -426,10 +428,25 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       if ('parent' in a && a.parent !== undefined && !parent) return;
       const given = (a as { color?: string }).color;
       const replaced = lookup(plan.objs, a.id, at);
+      let mountedPos: Vec3 | undefined;
+      if (hasMount(a)) {
+        if (!parent) return;
+        const parentAnchors = parent.def.shape === 'part' ? resolvePartGeometry(parent.def).anchors : { origin: [0, 0, 0] as Vec3 };
+        const selfAnchors = a.shape === 'part' ? resolvePartGeometry(a).anchors : { origin: [0, 0, 0] as Vec3 };
+        const parentName = a.parentAnchor ?? 'origin';
+        const selfName = a.shape === 'part' ? a.selfAnchor ?? 'origin' : 'origin';
+        // A differently scheduled replacement can change the available sockets after validation.
+        // Never silently fall back to the origin or leave an invalid mounted replacement half-applied.
+        if (!Object.hasOwn(parentAnchors, parentName) || !Object.hasOwn(selfAnchors, selfName)) return;
+        const rot = a.rot ?? (replaced ? valueAt(replaced.rot, at) as Vec3 : [0, 0, 0]);
+        const scale = replaced ? valueAt(replaced.scale, at) as Vec3 : [1, 1, 1] as Vec3;
+        mountedPos = mountPosition(parentAnchors[parentName]!, selfAnchors[selfName]!, rot, a.pos ?? [0, 0, 0], scale);
+        if (mountedPos.some((v) => !Number.isFinite(v) || v < -100 || v > 100)) return;
+      }
       const fresh: ObjInst = {
         key: plan.nextKey++, id: a.id, parentKey: parent ? parent.key : replaced ? replaced.parentKey : null, def: a,
         bornAt: at, diedAt: undefined,
-        pos: track('pos' in a && a.pos ? a.pos : [0, 0, 0]),
+        pos: track(mountedPos ?? ('pos' in a && a.pos ? a.pos : [0, 0, 0])),
         rot: track('rot' in a && a.rot ? a.rot : [0, 0, 0]),
         scale: track([1, 1, 1]),
         color: track(given !== undefined ? parseColor(given) : defaultColor(a)),
@@ -637,6 +654,11 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
   }
 }
 
+/** Mount instructions stay data until chronological planning, where parent geometry and inherited base transforms are known. */
+function hasMount(def: AddAction): def is Extract<AddAction, { shape: 'part' | 'group' }> {
+  return (def.shape === 'part' || def.shape === 'group') && (def.parentAnchor !== undefined || (def.shape === 'part' && def.selfAnchor !== undefined));
+}
+
 /** Seconds an object that is added again under the id of one already there takes to swap in, the old one fading as the new comes up. */
 export const REPLACE_SECONDS = 0.6;
 
@@ -652,7 +674,7 @@ function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number)
   fresh.spread = track(valueAt(old.spread, at));
   // It starts where the old one had got to (moved, turned, scaled), unless the new one says where it goes.
   const given = fresh.def as { pos?: Vec3; rot?: Vec3 };
-  if (!given.pos) fresh.pos = track(valueAt(old.pos, at));
+  if (!given.pos && !hasMount(fresh.def)) fresh.pos = track(valueAt(old.pos, at));
   if (!given.rot) fresh.rot = track(valueAt(old.rot, at));
   fresh.scale = track(valueAt(old.scale, at));
   if (old.cut && !fresh.cut) fresh.cut = { axis: old.cut.axis, at: track(valueAt(old.cut.at, at)) };
