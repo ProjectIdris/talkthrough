@@ -26,6 +26,40 @@ const scene = JSON.stringify({
 
 const sse = (type: string, extra: object = {}) => `event: ${type}\ndata: ${JSON.stringify({ type, ...extra })}\n\n`;
 
+function byteStream(text: string): ReadableStream<Uint8Array> {
+  const bytes = new TextEncoder().encode(text);
+  return new ReadableStream({start(c) { for (const b of bytes) c.enqueue(Uint8Array.of(b)); c.close(); }});
+}
+
+test('CR-only event lines stream complete Unicode output across byte boundaries', async () => {
+  const value=scene.replace('First.','Caf\u00e9 \u{1f30d}.');
+  const events=(': comment\r\r'+sse('response.output_text.delta',{delta:value}).replaceAll('\n','\r')+sse('response.completed').replaceAll('\n','\r'));
+  const out=await collect(createOpenAIModel({apiKey:()=>KEY,fetch:async()=>new Response(byteStream(events))}));
+  assert.equal(out.filter(o=>o.type==='step').length,2);
+  assert.ok(out.some(o=>o.type==='step' && (o.step as {say?:string}).say==='Caf\u00e9 \u{1f30d}.'));
+});
+
+test('mixed CR, LF and split CRLF lines preserve multiline event data', async () => {
+  const encoded=JSON.stringify(scene);
+  const events=`: comment\r\ndata: {"type":"response.output_text.delta",\rdata: "delta":${encoded}}\n\rdata: {"type":"response.completed"}\r\n\r\n`;
+  const out=await collect(createOpenAIModel({apiKey:()=>KEY,fetch:async()=>new Response(byteStream(events))}));
+  assert.equal(out.filter(o=>o.type==='step').length,2);
+});
+
+test('an unterminated CR-only completion event is not silently accepted', async () => {
+  const events=sse('response.output_text.delta',{delta:scene}).replaceAll('\n','\r')+'data: {"type":"response.completed"}\r';
+  const err=await failure(createOpenAIModel({apiKey:()=>KEY,fetch:async()=>new Response(byteStream(events))}));
+  assert.equal(err.code,'unavailable');
+});
+
+for (const [type, code] of [['response.refusal.done','refused'],['response.incomplete','bad-output'],['response.failed','failed']] as const) {
+  test(`CR-only ${type} remains an error even if a completion follows`, async () => {
+    const events=(sse('response.output_text.delta',{delta:scene})+sse(type)+sse('response.completed')).replaceAll('\n','\r');
+    const err=await failure(createOpenAIModel({apiKey:()=>KEY,fetch:async()=>new Response(byteStream(events))}));
+    assert.equal(err.code,code);
+  });
+}
+
 type Seen = { headers: IncomingMessage['headers']; body: Record<string, unknown> | null; url: string | undefined };
 
 /** A stand-in for the API: records what it was sent and answers as the test says. */
