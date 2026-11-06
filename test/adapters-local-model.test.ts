@@ -69,12 +69,12 @@ test('the generated test picture is a real PNG', () => {
 });
 
 test('test connection says what is wrong in words: no server, no such model, no pictures; and what is right', async () => {
-  const good = await startFakeLocal({ models: ['gemma-vision'] });
+  const good = await startFakeLocal({ models: ['gemma-vision'], reply: scene });
   try {
     const ok = await testLocalModel({ baseUrl: good.baseUrl, model: 'gemma-vision' });
     assert.equal(ok.ok, true);
-    assert.match(ok.message, /took a picture/);
-    const sentPicture = good.sent.find((s) => s.url === '/v1/chat/completions')!.body?.messages[0].content[0].type;
+    assert.match(ok.message, /accepted.*generated picture.*valid scene/);
+    const sentPicture = good.sent.find((s) => s.url === '/v1/chat/completions')!.body?.messages[1].content[0].type;
     assert.equal(sentPicture, 'image_url');
     const missing = await testLocalModel({ baseUrl: good.baseUrl, model: 'nope' });
     assert.equal(missing.ok, false);
@@ -93,4 +93,177 @@ test('test connection says what is wrong in words: no server, no such model, no 
   assert.match((await testLocalModel({ baseUrl: 'http://127.0.0.1:1/v1', model: 'x', listTimeoutMs: 800 })).message, /Could not reach a server/);
   assert.match((await testLocalModel({ baseUrl: 'https://api.openai.com/v1', model: 'x' })).message, /on this computer/);
   assert.match((await testLocalModel({ baseUrl: 'http://127.0.0.1:1/v1', model: ' ' })).message, /name of the model/);
+});
+
+
+test('test connection needs a usable scene, not merely an HTTP success', async () => {
+  for (const reply of ['', 'ok', '<html>Welcome</html>', '{"steps":[]}', '{"steps":[{"say":42,"actions":[]}]}', '{"steps":[{"say":"","actions":[]}]}', '{"steps":[{"say":"Ready","actions":[{"op":"run","code":"anything"}]}]}']) {
+    const server = await startFakeLocal({ reply });
+    try {
+      const result = await testLocalModel({ baseUrl: server.baseUrl, model: 'vision-model' });
+      assert.equal(result.ok, false, `must not pass ${JSON.stringify(reply)}`);
+      assert.match(result.message, /scene|answer format/);
+    } finally {
+      await server.close();
+    }
+  }
+});
+
+test('test connection uses the real streamed image and scene request, with the real JSON fallback', async () => {
+  const server = await startFakeLocal({
+    models: null,
+    reply: '{"steps":[{"say":"Ready.","actions":[]}],"escalate":null}',
+    fail: (_call, body) => body?.response_format?.type === 'json_schema' ? { status: 400, message: 'json_schema is not supported' } : undefined,
+  });
+  try {
+    const result = await testLocalModel({ baseUrl: server.baseUrl, model: 'vision-model' });
+    assert.equal(result.ok, true, result.message);
+    const calls = server.sent.filter((s) => s.url === '/v1/chat/completions');
+    assert.equal(calls.length, 2, 'the production schema fallback ran');
+    assert.equal(calls[0]?.body?.response_format.type, 'json_schema');
+    assert.equal(calls[1]?.body?.response_format.type, 'json_object');
+    for (const call of calls) {
+      assert.equal(call.body?.stream, true);
+      assert.equal(call.headers.authorization, undefined);
+      assert.equal(call.body?.messages.length, 2, 'only the fixed prompt and test question, no history');
+      const content = call.body?.messages[1].content;
+      assert.equal(content.length, 2);
+      const png = Buffer.from(content[0].image_url.url.split(',')[1], 'base64');
+      assert.equal(png.readUInt32BE(16), 64, 'the generated image, never a screenshot');
+      assert.match(content[1].text, /test|setup/i);
+      assert.equal(call.body?.tools, undefined);
+    }
+  } finally {
+    await server.close();
+  }
+});
+
+test('test connection fails when a stream stops after yielding a valid step', async () => {
+  const server = await startFakeLocal({ reply: scene, unfinished: true });
+  try {
+    const result = await testLocalModel({ baseUrl: server.baseUrl, model: 'vision-model' });
+    assert.equal(result.ok, false);
+    assert.match(result.message, /complete|connection|stream/);
+  } finally {
+    await server.close();
+  }
+});
+
+test('test connection does not expose raw provider errors', async () => {
+  for (const status of [401, 403, 429, 500]) {
+    const server = await startFakeLocal({ fail: () => ({ status, message: 'private-token-from-server' }) });
+    try {
+      const result = await testLocalModel({ baseUrl: server.baseUrl, model: 'vision-model' });
+      assert.equal(result.ok, false);
+      assert.doesNotMatch(result.message, /private-token-from-server/);
+      assert.match(result.message, status === 401 || status === 403 ? /access|authentication/ : status === 429 ? /busy|limit/ : /server|connection/);
+    } finally {
+      await server.close();
+    }
+  }
+});
+
+
+test('test connection rejects an HTTP 200 landing page or an empty HTTP body', async () => {
+  for (const responseBody of ['<html>Welcome to the server</html>', '']) {
+    const server = await startFakeLocal({ responseBody });
+    try {
+      assert.equal((await testLocalModel({ baseUrl: server.baseUrl, model: 'vision-model' })).ok, false);
+    } finally {
+      await server.close();
+    }
+  }
+});
+
+test('test connection stops waiting for a server that never completes its answer', async () => {
+  const server = await startFakeLocal({ stall: true });
+  try {
+    const result = await testLocalModel({ baseUrl: server.baseUrl, model: 'vision-model', askTimeoutMs: 30 });
+    assert.equal(result.ok, false);
+    assert.match(result.message, /took too long/);
+  } finally {
+    await server.close();
+  }
+});
+
+test('test connection refuses to redirect its generated image to a different destination', async () => {
+  const other = await startFakeLocal({ reply: scene });
+  const server = await startFakeLocal({ redirect: `${other.baseUrl}/chat/completions` });
+  try {
+    assert.equal((await testLocalModel({ baseUrl: server.baseUrl, model: 'vision-model' })).ok, false);
+    assert.equal(other.sent.length, 0, 'the redirect destination received nothing');
+  } finally {
+    await server.close();
+    await other.close();
+  }
+});
+
+test('test connection rejects a hosted destination before making any request', async () => {
+  let requests = 0;
+  const result = await testLocalModel({ baseUrl: 'https://provider.example/v1', model: 'm', fetch: async () => { requests++; throw new Error('must not run'); } });
+  assert.equal(result.ok, false);
+  assert.equal(requests, 0);
+});
+
+for (const [label, reply] of [
+  ['a primitive mixed with a valid step', '{"steps":[{"say":"Ready","actions":[]},42],"escalate":null}'],
+  ['an unsupported scene version', '{"v":2,"steps":[{"say":"Ready","actions":[]}],"escalate":null}'],
+  ['a partial JSON document after a valid step', '{"steps":[{"say":"Ready","actions":[]}],"escalate":'],
+  ['invalid root JSON after a valid step', '{"steps":[{"say":"Ready","actions":[]}],"extra":unquoted}'],
+  ['an invalid escalation field', '{"steps":[{"say":"Ready","actions":[]}],"escalate":42}'],
+  ['an oversized response whose captured prefix could look valid', '{"steps":[{"say":"Ready","actions":[]}],"escalate":null}' + ' '.repeat(200_000) + 'invalid'],
+]) {
+  test(`test connection rejects ${label}`, async () => {
+    const server = await startFakeLocal({ reply });
+    try {
+      const result = await testLocalModel({ baseUrl: server.baseUrl, model: 'vision-model' });
+      assert.equal(result.ok, false);
+      assert.match(result.message, /scene|answer format/);
+    } finally {
+      await server.close();
+    }
+  });
+}
+
+
+test('test connection fails on a streamed provider error after a usable step without exposing it', async () => {
+  const server = await startFakeLocal({ reply: scene, eventError: 'private-server-error' });
+  try {
+    const result = await testLocalModel({ baseUrl: server.baseUrl, model: 'vision-model' });
+    assert.equal(result.ok, false);
+    assert.doesNotMatch(result.message, /private-server-error/);
+  } finally {
+    await server.close();
+  }
+});
+
+test('test connection fails when the provider reports a token limit after a usable step', async () => {
+  const server = await startFakeLocal({ reply: scene, finishReason: 'length' });
+  try {
+    const result = await testLocalModel({ baseUrl: server.baseUrl, model: 'vision-model' });
+    assert.equal(result.ok, false);
+    assert.match(result.message, /incomplete|scene/);
+  } finally {
+    await server.close();
+  }
+});
+
+test('test connection uses the configured default when the local address field is empty', async () => {
+  const server = await startFakeLocal({ reply: scene });
+  const urls: string[] = [];
+  try {
+    const result = await testLocalModel({
+      baseUrl: ' ', model: 'vision-model',
+      fetch: async (url, init) => {
+        const target = String(url);
+        urls.push(target);
+        assert.match(target, /^http:\/\/127\.0\.0\.1:11434\/v1\//);
+        return fetch(`${server.baseUrl}${new URL(target).pathname.slice('/v1'.length)}`, init);
+      },
+    });
+    assert.equal(result.ok, true, result.message);
+    assert.deepEqual(urls, ['http://127.0.0.1:11434/v1/models', 'http://127.0.0.1:11434/v1/chat/completions']);
+  } finally {
+    await server.close();
+  }
 });
