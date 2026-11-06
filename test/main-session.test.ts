@@ -767,7 +767,7 @@ const guided = (id: string, say: string, withWait = true) => ({
 });
 
 /** A session whose screen is `screen` (set it to change what a look at the display shows) and whose clicks the test makes. */
-function walkRig(plans: unknown[][], navigation?: GuideNavigation, heard?: string[], modelSaw?: Frame, chain?: (req: ModelRequest, asked: number) => AsyncGenerator<ModelOutput>) {
+function walkRig(plans: unknown[][], navigation?: GuideNavigation, heard?: string[], modelSaw?: Frame, chain?: (req: ModelRequest, asked: number) => AsyncGenerator<ModelOutput>, backend?: Backend, pin?: SessionDeps['pin']) {
   let said = 0;
   let screen = flat(235);
   let listener: GuideListener | undefined;
@@ -775,6 +775,8 @@ function walkRig(plans: unknown[][], navigation?: GuideNavigation, heard?: strin
   let asks = 0;
   const requests: ModelRequest[] = [];
   const r = rig({
+    ...(backend ? { backend } : {}),
+    ...(pin ? { pin } : {}),
     // The session asks for its model more than once a question: the plan is picked when a question is asked of it.
     ...(heard ? { speech: { id: 'fake', transcribe: async () => ({ text: heard[said++] ?? '' }) } } : {}),
     model: () => ({ ...createScriptedModel([]), ask: (req: ModelRequest) => { requests.push(req); return chain ? chain(req, asks++) : createScriptedModel(plans[asks++] ?? []).ask(req); } }),
@@ -1407,4 +1409,100 @@ test('an interrupted guide warns without clearing its scene or ending its click-
   assert.ok(!w.kinds().includes('status:idle'), 'a warning must not cancel the waiting indicator');
   await w.click(450, 120, flat(90));
   assert.ok(w.kinds().includes('end'), 'the completed partial guide still closes normally');
+});
+test('review probe: interrupted held guide actions must not appear as visible scene ids', async () => {
+ let requested: BackendRequest | undefined;
+ const model: Model={id:'fake',async *ask(){yield {type:'step',step:guided('file','Click File.')};yield {type:'say',say:'Next.'};yield {type:'action',action:{op:'box',id:'ghost',x:1,y:1,w:5,h:5,color:'red'}};throw new ModelError('unavailable','lost');}};
+ const r=rig({model:()=>model,guide:{capture:async()=>flat(235),listen:()=>()=>{}},backend:{id:'fake',ask:async req=>{requested=req;return {message:'ok'}}}});
+ await question(r);assert.equal(r.sent.some(m=>m.kind==='action' && (m.action as {id?:string}).id==='ghost'),false,'held action was not sent');
+ await r.session.offer(7);assert.ok(requested);assert.equal(Object.hasOwn(requested!.scene!.ids,'ghost'),false,'unshown held action must not be reported as visible');r.session.dispose();
+});
+
+test('review probe: held failed action must not reserve an unseen id for a follow-up', async () => {
+ const w=walkRig([],undefined,undefined,undefined,async function* (_req,n) {
+  if(n===0){yield {type:'step',step:guided('file','Click File.')};yield {type:'say',say:'Next.'};yield {type:'action',action:{op:'box',id:'ghost',x:1,y:1,w:5,h:5,color:'red'}};throw new ModelError('unavailable','lost');}
+  yield {type:'step',step:{say:'Now show it.',actions:[{op:'box',id:'ghost',x:1,y:1,w:5,h:5,color:'red'}]}};
+ });
+ await question(w);assert.equal(w.sent.some(m=>m.kind==='action' && (m.action as {id?:string}).id==='ghost'),false);
+ await w.click(450,120,flat(90));await question(w);
+ assert.equal(w.requests.length,2,'follow-up reached model');
+ assert.ok(w.sent.some(m=>m.kind==='step' && m.step.actions.some(a=>'id' in a && a.id==='ghost')),'follow-up should be able to add an id never shown');w.session.dispose();
+});
+
+test('guide queued completed step owns its ids only after it is shown', async () => {
+  const requests: BackendRequest[]=[];
+  const pins: Array<Parameters<NonNullable<SessionDeps['pin']>>[0]> = [];
+  const backend: Backend={id:'fake',ask:async req=>{requests.push(req);return {message:'ok'};}};
+  const w=walkRig([[guided('first','Click first.'), guided('second','Click second.'), guided('third','Done.',false)]],undefined,undefined,undefined,undefined,backend,(input)=>{pins.push(input);return {file:'x'};});
+  await question(w);
+  assert.equal(w.sent.some(m=>m.kind==='step' && m.step.actions.some(a=>'id' in a && a.id==='second')),false);
+  await w.session.offer(7);
+  assert.equal(Object.hasOwn(requests.at(-1)!.scene!.ids,'second'),false);
+  assert.equal(JSON.stringify(requests.at(-1)!.scene!.steps).includes('second'),false);
+  w.session.pin(7);
+  assert.equal(JSON.stringify(pins.at(-1)!.steps).includes('second'),false);
+  await w.click(450,120,flat(90));
+  await w.session.offer(7);
+  assert.equal(Object.hasOwn(requests.at(-1)!.scene!.ids,'second'),true);
+  assert.equal(Object.hasOwn(requests.at(-1)!.scene!.ids,'third'),false);
+  assert.equal(JSON.stringify(requests.at(-1)!.scene!.steps).includes('second'),true);
+  w.session.pin(7);
+  assert.equal(JSON.stringify(pins.at(-1)!.steps).includes('second'),true);
+  assert.ok(pins.at(-1)!.steps.some((s) => (s as {actions?: Array<{op?:string;target?:string}>}).actions?.some(a => a.op==='clear' && a.target==='first')), 'the pinned visible sequence includes the guide clear');
+  w.escape();
+});
+
+test('a failed held replan step cannot reserve an unseen id', async () => {
+  const requests: BackendRequest[]=[];
+  const backend: Backend={id:'fake',ask:async req=>{requests.push(req);return {message:'ok'};}};
+  const w=walkRig([],undefined,undefined,undefined,async function*(_req,n) {
+    if(n===0) { yield {type:'step',step:guided('first','First.')}; return; }
+    yield {type:'step',step:guided('next','Next.')};
+    yield {type:'say',say:'Not shown.'};
+    yield {type:'action',action:{op:'box',id:'ghost-replan',x:1,y:1,w:5,h:5,color:'red'}};
+    throw new ModelError('unavailable','lost');
+  },backend);
+  await question(w);
+  await w.click(800,800,flat(90));
+  await w.session.offer(7);
+  assert.equal(Object.hasOwn(requests.at(-1)!.scene!.ids,'ghost-replan'),false);
+  assert.ok(w.sent.some(m=>m.kind==='step' && m.step.actions.some(a=>'id' in a && a.id==='next')));
+  w.escape();
+});
+
+for (const streamed of [false,true]) test(`validator-emitted follow-on actions preserve displayed queued ids (${streamed?'streamed':'whole'})`, async () => {
+  const requests: BackendRequest[]=[];
+  const backend: Backend={id:'fake',ask:async req=>{requests.push(req);return {message:'ok'};}};
+  const actions: unknown[]=[{op:'add',shape:'tube',id:'wire',pts:[[2,2,0],[0,2,0],[0,0.17,0]],radius:.07},
+    {op:'add',shape:'box',id:'sw',size:[1,.3,.5],pos:[0,0,0],at:1},
+    ...Array.from({length:22},(_,i)=>({op:'box',id:`mark${i}`,x:20+i,y:40,w:10,h:10,color:'red'})),
+    {op:'box',id:'overflow',x:5,y:5,w:5,h:5,color:'red'}];
+  const w=walkRig([],undefined,undefined,undefined,async function*(_req,n) {
+    if(n>0) {yield {type:'step',step:{say:'Use the last mark.',actions:[{op:'highlight',id:'mark21'}]}};return;}
+    yield {type:'step',step:guided('first','Click first.')};
+    if(streamed) {
+      yield {type:'say',say:'Show all.'};
+      for(const action of actions) yield {type:'action',action};
+      yield {type:'step',step:{say:'Show all.',actions}};
+    } else yield {type:'step',step:{say:'Show all.',actions}};
+  },backend);
+  await question(w);await w.click(450,120,flat(90));
+  const sent=w.sent.find(m=>m.kind==='step' && m.step.say==='Show all.');
+  assert.ok(sent && sent.kind==='step' && sent.step.actions.some(a=>'id' in a && a.id==='mark21'));
+  assert.ok(sent && sent.kind==='step' && !sent.step.actions.some(a=>'id' in a && a.id==='overflow'));
+  await w.session.offer(7);
+  assert.ok(Object.hasOwn(requests.at(-1)!.scene!.ids,'mark21'));
+  assert.equal(Object.hasOwn(requests.at(-1)!.scene!.ids,'overflow'),false);
+  await question(w);
+  assert.ok(w.sent.some(m=>m.kind==='step' && m.step.actions.some(a=>a.op==='highlight' && a.id==='mark21')));
+  w.session.dispose();
+});
+
+test('queued steps do not reset the producer turn action budget', async () => {
+  const queued=Array.from({length:10},()=>({say:'Marks.',actions:Array.from({length:24},()=>({op:'highlight',id:'first'}))}));
+  const w=walkRig([[guided('first','Click first.'),...queued]]);
+  await question(w);await w.click(450,120,flat(90));
+  const shown=w.sent.flatMap(m=>m.kind==='step'?m.step.actions:[]).filter(a=>a.op==='highlight' && a.id==='first');
+  assert.equal(shown.length,238,'the first waiting step consumed two of 240 actions');
+  w.session.dispose();
 });
