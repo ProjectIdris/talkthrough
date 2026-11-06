@@ -71,6 +71,52 @@ export function backendBody(req: BackendRequest): Record<string, unknown> {
   };
 }
 
+/** One body read, with an abort listener removed after this read (not one retained promise per chunk). */
+function readNext(reader: ReadableStreamDefaultReader<Uint8Array>, signal: AbortSignal): Promise<ReadableStreamReadResult<Uint8Array>> {
+  return new Promise((resolve, reject) => {
+    const abort = (): void => { signal.removeEventListener('abort', abort); reject(signal.reason); };
+    if (signal.aborted) return abort();
+    signal.addEventListener('abort', abort, { once: true });
+    reader.read().then(
+      (chunk) => { signal.removeEventListener('abort', abort); resolve(chunk); },
+      (error: unknown) => { signal.removeEventListener('abort', abort); reject(error); },
+    );
+  });
+}
+
+/** Count bytes before retaining them; a peer need not finish an over-limit reply before it is refused. */
+async function readReply(response: Response, signal: AbortSignal): Promise<string> {
+  if (!response.body) { signal.throwIfAborted(); return ''; }
+  const reader = response.body.getReader();
+  let finished = false;
+  try {
+    signal.throwIfAborted();
+    // A bounded growing buffer avoids retaining an unbounded number of tiny chunk objects.
+    let bytes = new Uint8Array(64 * 1024);
+    let length = 0;
+    for (;;) {
+      const chunk = await readNext(reader, signal);
+      signal.throwIfAborted();
+      if (chunk.done) { finished = true; break; }
+      const needed = length + chunk.value.byteLength;
+      if (needed > MAX_REPLY_BYTES) throw new ModelError('bad-output', 'the backend sent too much');
+      if (needed > bytes.length) {
+        const grown = new Uint8Array(Math.min(MAX_REPLY_BYTES, Math.max(needed, bytes.length * 2)));
+        grown.set(bytes.subarray(0, length));
+        bytes = grown;
+      }
+      bytes.set(chunk.value, length);
+      length = needed;
+    }
+    return new TextDecoder().decode(bytes.subarray(0, length));
+  } finally {
+    // Cancellation is local stream cleanup, not confirmation that a remote worker stopped.
+    // A supplied stream's cancellation callback may never settle: do not wait on it.
+    if (!finished) void reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+}
+
 /**
  * A generic HTTP backend: posts the question, the screenshot, the thread and the scene on screen as
  * JSON and expects a scene (or a message) back. Nothing about what answers is assumed. There is no
@@ -103,12 +149,11 @@ export function createHttpBackend(options: HttpBackendOptions): Backend {
 
       let text: string;
       try {
-        const bytes = new Uint8Array(await response.arrayBuffer());
-        if (bytes.length > MAX_REPLY_BYTES) throw new ModelError('bad-output', 'the backend sent too much');
-        text = new TextDecoder().decode(bytes);
+        text = await readReply(response, signal);
       } catch (error) {
-        if (error instanceof ModelError) throw error;
         if (req.signal?.aborted) throw new ModelError('aborted', 'request aborted', { cause: error });
+        if (timeout.aborted) throw new ModelError('failed', `no answer within ${Math.round(timeoutMs / 1000)} s`);
+        if (error instanceof ModelError) throw error;
         throw new ModelError('unavailable', 'the connection to the backend was lost');
       }
 
