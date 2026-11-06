@@ -222,3 +222,39 @@ for (const streamed of [false, true]) {
     assert.deepEqual(await cardRect(true), await cardRect(false), 'an undrawn panel must not reserve page space');
   });
 }
+
+for (const streamed of [false, true]) {
+  test(`degraded 2D follow-up updates use captions (${streamed ? 'stream' : 'whole'})`, async () => {
+    for (const action of [{op:'highlight',id:'box',dur:1}, {op:'style',id:'box',color:'red'}, {op:'tick',id:'step'}]) {
+      const h = boot('null'); h.display({captions:'text'});
+      h.scene({kind:'begin',turn:1,question:'First'});
+      h.scene({kind:'step',step:{say:'Here it is.',actions:[...marks,{op:'diagram',id:'steps',kind:'steps',x:400,y:100,w:400,h:400},{op:'node',id:'step',of:'steps',text:'One'}]}});
+      h.scene({kind:'end'}); await h.flush(250);
+      h.scene({kind:'begin',turn:2,question:'Next'});
+      if (streamed) { h.scene({kind:'step-open',say:'This changes.'}); h.scene({kind:'action',action}); h.scene({kind:'step-close'}); }
+      else h.scene({kind:'step',step:{say:'This changes.',actions:[action]}});
+      h.scene({kind:'end'}); await h.flush(250);
+      assert.equal(h.el('answer').style.display,'none',action.op);
+      assert.equal(h.el('caption').style.display,'block',action.op);
+    }
+  });
+}
+
+test('degraded 3D and unknown updates stay words-only', async () => {
+  for (const action of [{op:'highlight',id:'cube',dur:1}, {op:'style',id:'cube',color:'red'}, {op:'highlight',id:'unknown'}]) {
+    const h=boot('null'); h.display({captions:'text'}); h.scene({kind:'begin',turn:1});
+    h.scene({kind:'step',step:{say:'A model.',actions:model}}); h.scene({kind:'end'}); await h.flush(250);
+    h.scene({kind:'begin',turn:2}); h.scene({kind:'step',step:{say:'Only words.',actions:[action]}}); h.scene({kind:'end'}); await h.flush(250);
+    assert.equal(h.el('answer').style.display,'block',action.op+':'+action.id);
+    assert.equal(h.el('caption').style.display,'none');
+  }
+});
+
+test('degraded mixed scenes classify clear and group updates by the visible target', async () => {
+  for (const [action, drawing] of [[{op:'clear',target:'box'},true], [{op:'clear',target:'marks'},true], [{op:'clear',target:'panel'},false], [{op:'highlight',id:'holder'},false]] as const) {
+    const h=boot('null'); h.display({captions:'text'}); h.scene({kind:'begin',turn:1});
+    h.scene({kind:'step',step:{say:'Scene.',actions:[...marks,{op:'add',shape:'group',id:'holder'}]}}); h.scene({kind:'end'}); await h.flush(250);
+    h.scene({kind:'begin',turn:2}); h.scene({kind:'step',step:{say:'Update.',actions:[action]}}); h.scene({kind:'end'}); await h.flush(250);
+    assert.equal(h.el('answer').style.display,drawing?'none':'block', JSON.stringify(action));
+  }
+});
