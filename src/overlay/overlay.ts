@@ -181,6 +181,19 @@ function displayedFrame(frame: Frame): Frame {
 /** With no 3D, model-only steps are words-only answers rather than captions for an invisible model. */
 function drawsAction(action: Action): boolean {
   if (renderer) return true;
+  if (action.op === 'style' || action.op === 'highlight' || action.op === 'tick' || action.op === 'clear') {
+    const frame = lastSourceFrame;
+    if (!frame) return false;
+    const id = action.op === 'clear' ? action.target : action.id;
+    const flat = (target: string) => frame.marks.some((m) => m.id === target && m.mark.op !== 'pin') ||
+      frame.diagrams.some((d) => d.id === target || d.items.some((item) => item.id === target));
+    if (action.op === 'clear' && (id === 'all' || id === 'marks')) return frame.marks.some((m) => m.mark.op !== 'pin') || frame.diagrams.length > 0;
+    if (action.op === 'clear' && id === 'panel') return false;
+    // The timeline resolves object IDs before marks and diagrams.
+    if (action.op !== 'tick' && frame.objects.some((o) => o.id === id)) return false;
+    if (action.op === 'tick') return frame.diagrams.some((d) => d.def.kind === 'steps' && d.items.some((item) => item.id === id && item.def.op === 'node'));
+    return flat(id);
+  }
   return ['box', 'circle', 'underline', 'arrow', 'poly', 'point', 'trace', 'label', 'card', 'image', 'diagram', 'node', 'edge', 'series', 'dot'].includes(action.op);
 }
 
@@ -294,6 +307,7 @@ let controlRect: ScreenRect | undefined;
 /** The stage's size in pixels this frame: tags are drawn smaller beside a small stage. */
 let stageSize: { w: number; h: number } | undefined;
 let lastDisplayedFrame: Frame | undefined;
+let lastSourceFrame: Frame | undefined;
 
 function draw(frame: Frame, seekView = false): Frame {
   frame = displayedFrame(frame);
@@ -960,6 +974,7 @@ function loop(): void {
     frame = player.update();
   }
   if (k < 1) frame = fadeFrame(frame, k);
+  lastSourceFrame = frame;
   showHud(frame);
   frame = displayedFrame(frame);
   showAnswer();
@@ -1329,7 +1344,7 @@ function beginTurn(turn: number, detail = false): void {
   detailState = 'none';
   guiding = false;
   // The first turn of a question starts clean; later turns continue it, keeping objects and ids.
-  if (turn <= 1) { player.clear(); lastDisplayedFrame = undefined; placer()?.release('all'); }
+  if (turn <= 1) { player.clear(); lastDisplayedFrame = undefined; lastSourceFrame = undefined; placer()?.release('all'); }
   milestones.mark = false;
   milestones.word = false;
 }
