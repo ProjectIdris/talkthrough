@@ -27,6 +27,8 @@ export type ThreadTurn = {
 };
 
 export type ModelRequest = {
+  /** Internal identity for one strictly sequential step-by-step answer; never persisted or sent to a provider. */
+  serialOwner?: object;
   question: string;
   screenshot: Screenshot;
   /** Earlier turns of the same thread, oldest first. Empty for a fresh question. */

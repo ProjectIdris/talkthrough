@@ -85,8 +85,17 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
   let starting: Promise<ChildProcessWithoutNullStreams> | null = null;
   let nextId = 1;
   /** The open thread a follow-up may continue (only with keepThread), and how many turns it holds. */
-  let kept: { threadId: string; turns: number; proc: ChildProcessWithoutNullStreams } | null = null;
+  let kept: { threadId: string; history: string; proc: ChildProcessWithoutNullStreams } | null = null;
   let keptTimer: NodeJS.Timeout | undefined;
+  type SerialEntry = { owner: object; proc: ChildProcessWithoutNullStreams; threadId: string; shown: string; history: string; question: string; signal?: AbortSignal; abort: () => void; timer: NodeJS.Timeout };
+  const serialKept = new Map<object, SerialEntry>();
+  const serialActive = new Set<object>();
+  let serialEpoch = 0;
+  const dropSerial = (entry: SerialEntry, unsubscribe = true) => {
+    if (serialKept.get(entry.owner) !== entry) return;
+    serialKept.delete(entry.owner); clearTimeout(entry.timer); entry.signal?.removeEventListener('abort', entry.abort);
+    if (unsubscribe) void request(entry.proc, 'thread/unsubscribe', { threadId: entry.threadId }).catch(() => undefined);
+  };
   const letGo = () => {
     clearTimeout(keptTimer);
     const old = kept;
@@ -414,7 +423,9 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
     },
 
     async close() {
+      serialEpoch++;
       dropSpare(null);
+      for (const entry of serialKept.values()) dropSerial(entry);
       clearTimeout(keptTimer);
       kept = null;
       const proc = child;
@@ -428,6 +439,10 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
 
     async *ask(req: ModelRequest): AsyncGenerator<ModelOutput> {
       if (req.signal?.aborted) throw new ModelError('aborted', 'request aborted');
+      const owner = options.keepThread && req.serialOwner && req.stage && req.stage.part !== 'rest' ? req.serialOwner : undefined;
+      const serialExclusive = owner !== undefined && !serialActive.has(owner);
+      const callEpoch = serialEpoch;
+      if (serialExclusive) serialActive.add(owner);
       const t0 = performance.now();
       // Every wait below, the process start and both requests included, ends at once on an abort or when
       // the time is up, so a process that is alive but silent can never hang a question.
@@ -459,33 +474,47 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
 
       let threadId = '';
       let finishedWell = false;
+      let retained = false;
       try {
         const proc = await within(ensure());
         live = proc;
         const tReady = performance.now();
-        const reuse = options.keepThread === true && req.thread.length > 0 && kept !== null && kept.proc === proc && kept.turns === req.thread.length ? kept : null;
-        clearTimeout(keptTimer);
-        const old = kept;
-        kept = null; // it is put back only when this question ends well
-        if (old && !reuse) void request(old.proc, 'thread/unsubscribe', { threadId: old.threadId }).catch(() => undefined);
+        const serialOld = serialExclusive && owner ? serialKept.get(owner) : undefined;
+        let serialReuse: SerialEntry | undefined;
+        if (serialOld) {
+          let match = false;
+          try { match = serialOld.proc === proc && req.stage?.part === 'next' && req.stage.shown.length === req.stage.n - 1 && serialOld.shown === JSON.stringify(req.stage.shown) && serialOld.history === JSON.stringify(req.thread) && serialOld.question === req.question; } catch { /* fall back to a fresh thread */ }
+          if (match) { serialReuse = serialOld; dropSerial(serialOld, false); } else dropSerial(serialOld);
+        }
+        let reuse: typeof kept = null;
+        if (!owner && !req.stage && options.keepThread && kept?.proc === proc) {
+          try { if (kept.history === JSON.stringify(req.thread)) reuse = kept; } catch { /* resend full history */ }
+        }
+        if (!owner) {
+          clearTimeout(keptTimer);
+          const old = kept;
+          kept = null;
+          if (old && !reuse) void request(old.proc, 'thread/unsubscribe', { threadId: old.threadId }).catch(() => undefined);
+        }
         // A thread primed while the person was speaking, if it is ready in time and made for this schema.
         let primed: Primed | null = null;
-        if (!reuse && spare) {
-          const sp = spare;
-          const got = sp.schemaKey === JSON.stringify(req.schema)
-            ? await within(Promise.race([sp.ready, new Promise<null>((resolve) => setTimeout(resolve, 1500, null).unref())]))
-            : null;
+        if (!owner && !reuse && !serialReuse && spare) {
+          // Claim before awaiting: two overlapping questions must never acquire the same spare thread.
+          const sp = spare; spare = null; clearTimeout(spareTimer);
+          const release = () => { void sp.ready.then(p => { if (p) void request(p.proc, 'thread/unsubscribe', { threadId: p.threadId }).catch(() => undefined); }); };
+          let got: Primed | null;
+          try {
+            got = sp.schemaKey === JSON.stringify(req.schema)
+              ? await within(Promise.race([sp.ready, new Promise<null>((resolve) => setTimeout(resolve, 1500, null).unref())]))
+              : null;
+          } catch (error) { release(); throw error; }
           if (got && got.proc === proc) {
-            primed = got;
-            spare = null;
-            clearTimeout(spareTimer);
-            primeCounts.used++;
-            primeLine('used');
+            primed = got; primeCounts.used++; primeLine('used');
           } else {
-            dropSpare('late');
+            primeCounts.late++; primeLine('late'); release();
           }
         }
-        const started = reuse ? { thread: { id: reuse.threadId } } as Json : primed ? { thread: { id: primed.threadId } } as Json : await within(request(proc, 'thread/start', threadParams())).catch((error: unknown) => {
+        const started = serialReuse ? { thread: { id: serialReuse.threadId } } as Json : reuse ? { thread: { id: reuse.threadId } } as Json : primed ? { thread: { id: primed.threadId } } as Json : await within(request(proc, 'thread/start', threadParams())).catch((error: unknown) => {
           throw error instanceof ModelError ? error : errorFrom(error instanceof Error ? error.message : String(error));
         });
         const tThread = performance.now();
@@ -506,7 +535,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
             { type: 'image', url: `data:${req.screenshot.mime};base64,${req.screenshot.base64}` },
             ...(req.focus ?? []).map((f) => ({ type: 'image', url: `data:${f.crop.mime};base64,${f.crop.base64}` })),
             // a continued thread already holds the earlier turns
-            { type: 'text', text: questionText(reuse ? { ...req, thread: [] } : req) },
+            { type: 'text', text: questionText(reuse || serialReuse ? { ...req, thread: [] } : req, { shownAlreadyHeld: !!serialReuse }) },
           ],
           outputSchema: req.schema,
           effort,
@@ -519,17 +548,27 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
         if (t && typeof t.id === 'string') mine.turnId = t.id;
         const tTurn = performance.now();
         if (req.signal?.aborted) onAbort();
-        yield* mine.queue;
+        const serialSteps: unknown[] = [];
+        for await (const item of mine.queue) { if (item.type === 'step') serialSteps.push(item.step); yield item; }
         finishedWell = true;
-        if (finishedWell && options.keepThread) {
-          kept = { threadId, turns: req.thread.length + 1, proc };
-          clearTimeout(keptTimer);
-          keptTimer = setTimeout(letGo, options.keepThreadMs ?? 20_000);
-          keptTimer.unref();
+        if (serialExclusive && owner && callEpoch === serialEpoch && child === proc && !req.signal?.aborted && serialSteps.length === 1 && req.stage) {
+          try {
+            const shown = JSON.stringify([...(req.stage.part === 'next' ? req.stage.shown : []), serialSteps[0]]), history = JSON.stringify(req.thread);
+            const abort = () => { const entry = serialKept.get(owner); if (entry) dropSerial(entry); };
+            const timer = setTimeout(abort, options.keepThreadMs ?? 20_000); timer.unref();
+            const entry: SerialEntry = { owner, proc, threadId, shown, history, question: req.question, signal: req.signal, abort, timer };
+            serialKept.set(owner, entry); req.signal?.addEventListener('abort', abort, { once: true }); retained = true;
+          } catch { /* keep full context on the next call */ }
+        } else if (!owner && !req.stage && finishedWell && options.keepThread && serialSteps.length > 0 && callEpoch === serialEpoch && child === proc && !req.signal?.aborted) {
+          try {
+            kept = { threadId, history: JSON.stringify([...req.thread, { question: req.question, steps: serialSteps }]), proc };
+            clearTimeout(keptTimer); keptTimer = setTimeout(letGo, options.keepThreadMs ?? 20_000); keptTimer.unref(); retained = true;
+          } catch { /* resend full history on the next call */ }
         }
         const ms = (x: number, y: number) => Math.round(y - x);
         log(`codex timings: process ${ms(t0, tReady)} ms, thread ${ms(tReady, tThread)} ms, turn accepted ${ms(tThread, tTurn)} ms, first text ${mine.firstDeltaAt === undefined ? '-' : ms(tTurn, mine.firstDeltaAt)} ms after that, all ${ms(tTurn, performance.now())} ms`);
       } finally {
+        if (serialExclusive && owner) serialActive.delete(owner);
         clearTimeout(timer);
         req.signal?.removeEventListener('abort', onAbort);
         if (threadId) turns.delete(threadId);
@@ -537,7 +576,7 @@ export function createCodexModel(options: CodexModelOptions = {}): Model & { rea
           turn.done = true;
           if (live) stopTurn(live, turn);
         }
-        if (live && threadId && !(finishedWell && options.keepThread)) void request(live, 'thread/unsubscribe', { threadId }).catch(() => undefined);
+        if (live && threadId && !retained) void request(live, 'thread/unsubscribe', { threadId }).catch(() => undefined);
       }
     },
   };

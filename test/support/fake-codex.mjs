@@ -15,6 +15,7 @@ const answer = JSON.stringify({
   escalate: process.env.FAKE_ESCALATE ?? null,
 });
 let threads = 0;
+let serialTurns = 0;
 const turnsOn = {};
 const servers = (process.env.FAKE_MCP ?? '').split(',').filter(Boolean);
 const switchedOff = (name) => process.env.FAKE_MCP_STUBBORN !== '1' && process.argv.some((a) => a === `mcp_servers.${name}.enabled=false`);
@@ -33,7 +34,9 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   if (m.method === 'turn/interrupt' || m.method === 'thread/unsubscribe') return send({ id: m.id, result: {} });
   if (m.method === 'turn/start' && mode === 'silent-turn') return;
   if (m.method === 'turn/start') {
+    if (process.env.FAKE_LOG) appendFileSync(process.env.FAKE_LOG, JSON.stringify({ method: m.method, params: m.params }) + '\n');
     const threadId = m.params.threadId;
+    const output = mode === 'serial' ? JSON.stringify({steps:[{say:++serialTurns === 1 ? 'First.' : 'Second.',actions:[]}],plan:serialTurns === 1 ? ['Next'] : null,done:serialTurns !== 1,escalate:null}) : answer;
     turnsOn[threadId] = (turnsOn[threadId] ?? 0) + 1;
     const sawHistory = JSON.stringify(m.params.input).includes('Earlier in this conversation');
     const turn = { id: `turn-${threadId}-${turnsOn[threadId]}` };
@@ -51,14 +54,14 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     let i = 0;
     const chunk = 17;
     const timer = setInterval(() => {
-      if (i >= answer.length) {
+      if (i >= output.length) {
         clearInterval(timer);
         if (process.env.FAKE_USAGE === 'thread') send({ method: 'thread/tokenUsage/updated', params: { threadId, turnId: turn.id, tokenUsage: { last: { inputTokens: Number(threadId.slice(1)) * 1000 + turnsOn[threadId], cachedInputTokens: 0, outputTokens: sawHistory ? 1 : 0, reasoningOutputTokens: 0, totalTokens: 0 }, total: {} } } });
         else if (process.env.FAKE_USAGE) send({ method: 'thread/tokenUsage/updated', params: { threadId, turnId: turn.id, tokenUsage: { last: { inputTokens: 16000, cachedInputTokens: 15000, outputTokens: 90, reasoningOutputTokens: 10, totalTokens: 16090 }, total: {} } } });
         send({ method: 'turn/completed', params: { threadId, turn: { ...turn, status: 'completed' } } });
         return;
       }
-      send({ method: 'item/agentMessage/delta', params: { threadId, turnId: turn.id, itemId: 'm1', delta: answer.slice(i, i + chunk) } });
+      send({ method: 'item/agentMessage/delta', params: { threadId, turnId: turn.id, itemId: 'm1', delta: output.slice(i, i + chunk) } });
       i += chunk;
     }, 5);
   }

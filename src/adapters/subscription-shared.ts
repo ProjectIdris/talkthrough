@@ -207,7 +207,7 @@ export const SHORT_OPENER = 'Open the sentence with a short first sentence, abou
 
 
 /** The text that goes with the screenshot: the question, and the earlier turns if this is a follow-up. */
-export function questionText(request: ModelRequest): string {
+export function questionText(request: ModelRequest, options: { shownAlreadyHeld?: boolean } = {}): string {
   const parts: string[] = [];
   const turns = request.thread.slice(-HISTORY_TURNS);
   if (turns.length > 0) {
@@ -225,7 +225,7 @@ export function questionText(request: ModelRequest): string {
   if (picture) parts.push(pictureText(picture.box, picture.crop, picture.card, picture.grid));
   parts.push(`The user's question, transcribed from speech (it may contain recognition errors): ${JSON.stringify(request.question)}`);
   if (request.detail) parts.push(detailText(request.detail.steps));
-  if (request.stage) parts.push(stageText(request.stage));
+  if (request.stage) parts.push(stageText(request.stage, options.shownAlreadyHeld === true));
   return parts.join('\n\n');
 }
 
@@ -236,20 +236,21 @@ function endsOnClick(step: unknown): boolean {
 }
 
 /** What each half of a two-call answer is told. The walk's checklist is drawn in step 2 (the guide's rule puts it in step 1 for a whole answer). */
-export function stageText(stage: NonNullable<ModelRequest['stage']>): string {
+export function stageText(stage: NonNullable<ModelRequest['stage']>, shownAlreadyHeld = false): string {
   if (stage.part === 'next') {
+    const shown = shownAlreadyHeld ? 'The earlier steps of this answer are already present in this conversation.' : `${stage.n === 2 ? 'Step 1 of this answer is' : `Steps 1 to ${stage.n - 1} of this answer are`} already drawn and spoken: ${JSON.stringify(stage.shown)}`;
     const walk = stage.shown.some(endsOnClick);
     const length = walk
       ? `This is a how-do-I walk: one move a step, each in one short sentence and with its own mark and wait. ${stage.n === 2 ? 'Step 2 draws the checklist (a steps diagram, as the walk rule describes) and then the second move with its mark and wait;' : 'The checklist is already drawn: write the next move with its mark and wait;'} the last step has no mark or wait and says they are done.`
       : `Its sentence is about 30 words at most, because it is spoken while the next step is written. ${SHORT_OPENER}`;
     if (stage.unplanned) {
       return [
-        `${stage.n === 2 ? 'Step 1 of this answer is' : `Steps 1 to ${stage.n - 1} of this answer are`} already drawn and spoken: ${JSON.stringify(stage.shown)}`,
+        shown,
         `The first call gave no plan. If the answer is already whole, write no step ("steps": []) and set "done" to true. Otherwise write step ${stage.n} only, and nothing after it (the later steps are written separately): carry on from what was said and drawn, do not say it again (its ids stay valid). ${length} ${REST_MARKS} ${REST_GROUNDING} Set "plan" to the titles, a few words each, of the steps after it (at most 3; null when it is the last), set "done" to true when it is the last and to false when it is not, and set "escalate" to null.`,
       ].join('\n\n');
     }
     return [
-      `${stage.n === 2 ? 'Step 1 of this answer is' : `Steps 1 to ${stage.n - 1} of this answer are`} already drawn and spoken: ${JSON.stringify(stage.shown)}`,
+      shown,
       ...(stage.fresh ? ['The picture is the screen as it is now, after the person followed the last step: take every position from it, not from where the earlier steps pointed.'] : []),
       `The plan for the rest, one title a step: ${JSON.stringify(stage.plan)}.`,
       `Write step ${stage.n} only (${JSON.stringify(stage.plan[0] ?? '')}), and nothing after it: the later steps are written separately. Carry on from what was said and drawn: do not say it again (its ids stay valid). ${length} ${REST_MARKS} ${REST_GROUNDING} Set "plan" to null, set "done" to true when the plan has no step after this one and to false when it has, and set "escalate" to null.`,
