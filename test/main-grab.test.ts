@@ -50,7 +50,7 @@ test('a grab draws a scene offscreen and writes a different frame per moment', {
     delete env.ELECTRON_RUN_AS_NODE;
     const run = grabChild(electron, out, ['--grab', 'samples/scenes/request-flow.json', '--steps', '0:0,1:1', '--out', out, '--size', '480x270', '--scale', '2', '--grab-metadata'], env);
     assert.equal(run.status, 0, run.stdout + run.stderr);
-    // The observed Windows CI surface is 512x360 logical pixels at this device scale.
+    // At scale 2 the expected 960x540 PNG remains within the 1024x720 capture observed on hosted Windows.
     const stems = ['request0-step0-t0', 'request1-step1-t1'];
     const hashes = stems.map((stem) => {
       const metadata = JSON.parse(readFileSync(join(out, `${stem}.json`), 'utf8'));
