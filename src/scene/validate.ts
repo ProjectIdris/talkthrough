@@ -317,14 +317,26 @@ export function applyClear(state: SceneState, target: string): void {
 type EndSlots = [AttachEnd | null, AttachEnd | null];
 const ZERO: Vec3 = [0, 0, 0];
 
+/** Accepted definitions in this step, including the body carried in from the previous step. */
+type BodyVersions = ReadonlyMap<string, readonly { at: number; body: Body | undefined }[]>;
+
+function bodyAt(versions: BodyVersions, id: string, at: number): Body | undefined {
+  let found: { at: number; body: Body | undefined } | undefined;
+  for (const version of versions.get(id) ?? []) {
+    // Source order breaks ties, just as the chronological planner does.
+    if (version.at <= at && (!found || version.at >= found.at)) found = version;
+  }
+  return found?.body;
+}
+
 /** Check declarative socket placement and preview its authored position for surface attachment. Playback resolves the creation-time base transforms. */
-function checkMount(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): Vec3 | null | undefined {
+function checkMount(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes, bodies: BodyVersions): Vec3 | null | undefined {
   if (out.parentAnchor === undefined && out.selfAnchor === undefined) return undefined;
   const bad = (field: string, message: string): null => { note(notes, 'dropped', `${path}.${field}`, message); return null; };
   const parent = out.parent as string | undefined;
   if (parent === undefined) return bad('parent', 'anchor placement requires parent');
   if (parent === out.id || isUnder(state, parent, out.id as string)) return bad('parent', 'anchor placement would create a parent cycle');
-  const parentAnchors = state.bodies.get(parent)?.anchors ?? { origin: ZERO };
+  const parentAnchors = bodyAt(bodies, parent, (out.at as number | undefined) ?? 0)?.anchors ?? { origin: ZERO };
   const selfAnchors = out.shape === 'part' ? resolvePartGeometry(out as AddPart).anchors : { origin: ZERO };
   const parentName = (out.parentAnchor as string | undefined) ?? 'origin';
   const selfName = (out.selfAnchor as string | undefined) ?? 'origin';
@@ -445,7 +457,7 @@ function fitStage(raw: Record<string, unknown>, state: SceneState, path: string,
   return next;
 }
 
-function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>, mountedChildrenAt: ReadonlyMap<string, number>): Action | null {
+function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>, mountedChildrenAt: ReadonlyMap<string, number>, bodies: BodyVersions): Action | null {
   if (!isObject(raw)) {
     note(notes, 'dropped', path, 'action is not an object');
     return null;
@@ -487,7 +499,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', path, 'define or replace the parent before its mounted children; a later-written replacement cannot precede an accepted mount');
     return null;
   }
-  const mountedPos = checkMount(out, state, path, notes);
+  const mountedPos = checkMount(out, state, path, notes, bodies);
   if (mountedPos === null) return null;
   if (variant.op === 'panel' && typeof out.w === 'number' && typeof out.h === 'number') state.stage = { w: out.w, h: out.h };
   const locked = LOCKS[variant.name] !== undefined ? out[LOCKS[variant.name] as string] : undefined;
@@ -755,6 +767,10 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
   const parentFirstAt = new Map<string, number>([...state.ids.keys()].map((id) => [id, 0]));
   // Streaming preserves arrival order. A replacement cannot retroactively redefine a mount already emitted.
   const mountedChildrenAt = new Map<string, number>();
+  // A future source-first replacement must not erase sockets that still exist at an earlier mount.
+  const bodies = new Map<string, { at: number; body: Body | undefined }[]>(
+    [...state.ids.keys()].map((id) => [id, [{ at: -Infinity, body: state.bodies.get(id) }]]),
+  );
   const early: unknown[] = [];
   let held: Held[] = [];
   // Names declared in this bounded step remain reserved even if their creator fails.
@@ -783,7 +799,7 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
     state.bindUnknown = bind && op !== 'clear';
     state.bindOp = typeof op === 'string' ? op : undefined;
     try {
-      const a = validateAction(raw, state, at, why, parentFirstAt, mountedChildrenAt);
+      const a = validateAction(raw, state, at, why, parentFirstAt, mountedChildrenAt, bodies);
       return { action: a, why, after: a ? state.after.splice(0) : [] };
     } finally {
       state.bindUnknown = false;
@@ -797,7 +813,12 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
     for (const n of why) note(notes, n.kind, n.path, n.message);
     for (const [i, a] of [action, ...after].entries()) {
       // Keep all historical births through clears and replacements so an earlier valid child is never dropped.
-      if (a.op === 'add') parentFirstAt.set(a.id, Math.min(parentFirstAt.get(a.id) ?? Infinity, a.at ?? 0));
+      if (a.op === 'add') {
+        parentFirstAt.set(a.id, Math.min(parentFirstAt.get(a.id) ?? Infinity, a.at ?? 0));
+        const versions = bodies.get(a.id) ?? [];
+        versions.push({ at: a.at ?? 0, body: state.bodies.get(a.id) });
+        bodies.set(a.id, versions);
+      }
       if (a.op === 'add' && (a.shape === 'part' || a.shape === 'group') && a.parent !== undefined && (a.parentAnchor !== undefined || (a.shape === 'part' && a.selfAnchor !== undefined))) {
         mountedChildrenAt.set(a.parent, Math.max(mountedChildrenAt.get(a.parent) ?? 0, a.at ?? 0));
       }

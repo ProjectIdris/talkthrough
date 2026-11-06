@@ -278,7 +278,72 @@ export function strokeSeconds(mark: Mark): number | undefined {
 // ---- Planning -------------------------------------------------------------------------------
 
 /** Builds the plan of a step from the Frame the previous step settled in. */
-export function planStep(base: Frame, step: Step): StepPlan {
+export function planStep(base: Frame, step: Step, authoredActions?: readonly Action[]): StepPlan {
+  // Streaming delays presentation, not the one-time socket calculation or its object lifetime.
+  const retimed = authoredActions && step.actions.some((a, i) => (a.at ?? 0) !== (authoredActions[i]?.at ?? 0))
+    && authoredActions.some((a) => a.op === 'add' && hasMount(a));
+  if (!retimed || !authoredActions) return buildStep(base, step);
+  const targets = new Map<Action, ObjInst>();
+  const plan = buildStep(base, { say: step.say, actions: [...authoredActions] }, undefined, targets);
+  return buildStep(base, step, { actions: authoredActions, plan, targets });
+}
+
+type AuthoredStep = { actions: readonly Action[]; plan: StepPlan; targets: ReadonlyMap<Action, ObjInst> };
+type PlanEvent = { a: Action; i: number; at: number; after: Set<PlanEvent>; target?: ObjInst | null };
+const isPoseAction = (a: Action): a is Extract<Action, { op: 'move' | 'turn' | 'scale' | 'along' }> =>
+  a.op === 'move' || a.op === 'turn' || a.op === 'scale' || a.op === 'along';
+
+/** Preserve authored lifetime/order only for base-pose actions on ids mounted in this step. */
+function presentationEvents(step: Step, authored?: AuthoredStep): { events: PlanEvent[]; births: Map<PlanEvent, ObjInst> } {
+  const times = diagramTimes(step.actions);
+  const events: PlanEvent[] = step.actions.map((a, i) => ({ a, i, at: times.get(i) ?? Math.max(0, a.at ?? 0), after: new Set() }));
+  const births = new Map<PlanEvent, ObjInst>();
+  if (authored) {
+    const eventForBirth = new Map<ObjInst, PlanEvent>();
+    for (const event of events) {
+      const source = authored.actions[event.i];
+      if (source?.op !== 'add') continue;
+      const born = authored.plan.objs.find((o) => o.bornAt !== NEVER && o.def === source && o.id === source.id);
+      if (born) { births.set(event, born); eventForBirth.set(born, event); }
+    }
+    const mountedIds = new Set(authored.actions.flatMap((a) => a.op === 'add' && hasMount(a) ? [a.id] : []));
+    const poses = events.filter((e) => isPoseAction(e.a) && mountedIds.has(e.a.id));
+    poses.sort((p, q) => (authored.actions[p.i]?.at ?? 0) - (authored.actions[q.i]?.at ?? 0) || p.i - q.i);
+    const previous = new Map<ObjInst, PlanEvent>();
+    for (const event of poses) {
+      const target = authored.targets.get(authored.actions[event.i]!);
+      event.target = target ?? null; // An invalid logical target must never bind to a newer live object.
+      if (!target) continue;
+      for (const dependency of [eventForBirth.get(target), previous.get(target)]) {
+        if (!dependency) continue;
+        event.at = Math.max(event.at, dependency.at);
+        event.after.add(dependency);
+      }
+      previous.set(target, event);
+    }
+  }
+  events.sort((p, q) => p.at - q.at || p.i - q.i);
+  // Stable topological order within a time tie: a deferred motion follows its birth and
+  // earlier authored motions, without reordering unrelated same-time creates or clears.
+  const ordered: PlanEvent[] = [];
+  for (let start = 0; start < events.length;) {
+    let end = start + 1;
+    while (end < events.length && events[end]!.at === events[start]!.at) end++;
+    const pending = events.slice(start, end);
+    const waiting = new Set(pending);
+    while (pending.length > 0) {
+      const ready = pending.findIndex((e) => ![...e.after].some((p) => waiting.has(p)));
+      if (ready < 0) throw new Error('cyclic presentation dependencies'); // Edges follow authored birth/order only.
+      const next = pending.splice(ready, 1)[0]!;
+      ordered.push(next);
+      waiting.delete(next);
+    }
+    start = end;
+  }
+  return { events: ordered, births };
+}
+
+function buildStep(base: Frame, step: Step, authored?: AuthoredStep, targets?: Map<Action, ObjInst>): StepPlan {
   const plan: StepPlan = {
     marks: [], diagrams: base.diagrams.length > 0 ? diagramPlanFrom(base.diagrams) : emptyDiagramPlan(), objs: [], panels: [],
     az: track([base.camera.az]), el: track([base.camera.el]), zoom: track([base.camera.zoom]),
@@ -306,9 +371,13 @@ export function planStep(base: Frame, step: Step): StepPlan {
     plan.panels.push({ bornAt: NEVER, diedAt: undefined, rect: track([r.x, r.y, r.w, r.h]), frame: base.panel.frame });
   }
 
-  const times = diagramTimes(step.actions);
-  const events = step.actions.map((a, i) => ({ a, i, at: times.get(i) ?? Math.max(0, a.at ?? 0) }));
-  events.sort((p, q) => p.at - q.at || p.i - q.i);
+  const { events, births } = presentationEvents(step, authored);
+  const displayed = new Map<ObjInst, ObjInst>();
+  for (const o of authored?.plan.objs ?? []) {
+    if (o.bornAt !== NEVER) continue;
+    const live = plan.objs.find((p) => p.key === o.key);
+    if (live) displayed.set(o, live);
+  }
   // A later speed/lock command replaces the remaining portion of that spin's
   // ramp. Keep ramp time separate from all other action durations until the
   // complete chronological sequence is known.
@@ -320,7 +389,22 @@ export function planStep(base: Frame, step: Step): StepPlan {
     if (previous !== undefined) finishedRamps = Math.max(finishedRamps, Math.min(previous, at));
     activeRamps.set(spin, at + length);
   };
-  for (const { a, at } of events) applyAction(plan, a, at, ramp);
+  for (const event of events) {
+    const { a, at, i } = event;
+    let mount: MountPose | null | undefined;
+    const source = authored?.actions[i];
+    const born = births.get(event);
+    if (source?.op === 'add' && hasMount(source)) {
+      // Birth tracks exclude later independent motion. null preserves a logical failure.
+      mount = born ? { pos: born.pos.init as Vec3, rot: born.rot.init as Vec3, scale: born.scale.init as Vec3 } : null;
+    }
+    const poseTarget = event.target === undefined ? undefined : event.target === null ? null : displayed.get(event.target) ?? null;
+    applyAction(plan, a, at, ramp, { mount, poseTarget, targets });
+    if (born && a.op === 'add') {
+      const live = plan.objs.find((o) => o.def === a && o.id === a.id);
+      if (live) displayed.set(born, live);
+    }
+  }
   plan.duration = Math.max(plan.duration, finishedRamps, ...activeRamps.values());
   return plan;
 }
@@ -371,7 +455,11 @@ function descendants(plan: StepPlan, rootKey: number, at: number): ObjInst[] {
 
 const v3 = (v: Vec3 | undefined, d: Vec3): Vec3 => (v ? [v[0], v[1], v[2]] : [d[0], d[1], d[2]]);
 
-function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: SpinPlan, at: number, length: number) => void): void {
+type MountPose = { pos: Vec3; rot: Vec3; scale: Vec3 };
+type ActionContext = { mount?: MountPose | null; poseTarget?: ObjInst | null; targets?: Map<Action, ObjInst> };
+
+function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: SpinPlan, at: number, length: number) => void, context: ActionContext = {}): void {
+  const authoredMount = context.mount;
   const dur = 'dur' in a && a.dur !== undefined ? a.dur : DEFAULT_DUR;
   const end = (len: number) => { plan.duration = Math.max(plan.duration, at + len); };
   switch (a.op) {
@@ -430,18 +518,21 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       const replaced = lookup(plan.objs, a.id, at);
       let mountedPos: Vec3 | undefined;
       if (hasMount(a)) {
-        if (!parent) return;
-        const parentAnchors = parent.def.shape === 'part' ? resolvePartGeometry(parent.def).anchors : { origin: [0, 0, 0] as Vec3 };
-        const selfAnchors = a.shape === 'part' ? resolvePartGeometry(a).anchors : { origin: [0, 0, 0] as Vec3 };
-        const parentName = a.parentAnchor ?? 'origin';
-        const selfName = a.shape === 'part' ? a.selfAnchor ?? 'origin' : 'origin';
-        // A differently scheduled replacement can change the available sockets after validation.
-        // Never silently fall back to the origin or leave an invalid mounted replacement half-applied.
-        if (!Object.hasOwn(parentAnchors, parentName) || !Object.hasOwn(selfAnchors, selfName)) return;
-        const rot = a.rot ?? (replaced ? valueAt(replaced.rot, at) as Vec3 : [0, 0, 0]);
-        const scale = replaced ? valueAt(replaced.scale, at) as Vec3 : [1, 1, 1] as Vec3;
-        mountedPos = mountPosition(parentAnchors[parentName]!, selfAnchors[selfName]!, rot, a.pos ?? [0, 0, 0], scale);
-        if (mountedPos.some((v) => !Number.isFinite(v) || v < -100 || v > 100)) return;
+        if (!parent || authoredMount === null) return;
+        if (authoredMount) mountedPos = authoredMount.pos;
+        else {
+          const parentAnchors = parent.def.shape === 'part' ? resolvePartGeometry(parent.def).anchors : { origin: [0, 0, 0] as Vec3 };
+          const selfAnchors = a.shape === 'part' ? resolvePartGeometry(a).anchors : { origin: [0, 0, 0] as Vec3 };
+          const parentName = a.parentAnchor ?? 'origin';
+          const selfName = a.shape === 'part' ? a.selfAnchor ?? 'origin' : 'origin';
+          // A differently scheduled replacement can change the available sockets after validation.
+          // Never silently fall back to the origin or leave an invalid mounted replacement half-applied.
+          if (!Object.hasOwn(parentAnchors, parentName) || !Object.hasOwn(selfAnchors, selfName)) return;
+          const rot = a.rot ?? (replaced ? valueAt(replaced.rot, at) as Vec3 : [0, 0, 0]);
+          const scale = replaced ? valueAt(replaced.scale, at) as Vec3 : [1, 1, 1] as Vec3;
+          mountedPos = mountPosition(parentAnchors[parentName]!, selfAnchors[selfName]!, rot, a.pos ?? [0, 0, 0], scale);
+          if (mountedPos.some((v) => !Number.isFinite(v) || v < -100 || v > 100)) return;
+        }
       }
       const fresh: ObjInst = {
         key: plan.nextKey++, id: a.id, parentKey: parent ? parent.key : replaced ? replaced.parentKey : null, def: a,
@@ -455,19 +546,26 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       };
       if (replaced) replaceObject(plan, replaced, fresh, at);
       else plan.objs.push(fresh);
+      if (authoredMount) {
+        // Replacement inheritance above is presentation-timed; mounts keep their logical base pose.
+        fresh.rot = track(authoredMount.rot);
+        fresh.scale = track(authoredMount.scale);
+      }
       end(replaced ? REPLACE_SECONDS : APPEAR_SECONDS);
       return;
     }
     case 'move': case 'turn': case 'scale': {
-      const o = lookup(plan.objs, a.id, at);
-      if (!o) return;
+      const o = context.poseTarget === undefined ? lookup(plan.objs, a.id, at) : context.poseTarget;
+      if (!o || !aliveAt(o, at)) return;
+      context.targets?.set(a, o);
       tweenTo(a.op === 'move' ? o.pos : a.op === 'turn' ? o.rot : o.scale, at, dur, a.to);
       end(dur);
       return;
     }
     case 'along': {
-      const o = lookup(plan.objs, a.id, at);
-      if (!o) return;
+      const o = context.poseTarget === undefined ? lookup(plan.objs, a.id, at) : context.poseTarget;
+      if (!o || !aliveAt(o, at)) return;
+      context.targets?.set(a, o);
       const from = valueAt(o.pos, at);
       const to = a.pts[a.pts.length - 1] as Vec3;
       o.pos.segs.push({ start: at, dur, from, to: [...to], curve: [from, ...a.pts.map((p) => [...p])] });
