@@ -116,3 +116,13 @@ test('the speech health check does not follow redirects to an unconfigured serve
   });
   assert.equal(destinationRequests, 0);
 });
+
+test('a synthetic speech server bound to 127.0.0.2 receives the configured local request', async () => {
+  const server = createServer((_req, res) => { _req.resume(); _req.on('end', () => reply(res, 200, {text:'local result'})); });
+  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.2', resolve); });
+  try {
+    const address = server.address(); assert.ok(address && typeof address === 'object');
+    const recogniser = createLocalSpeechServerRecogniser({url:`http://127.0.0.2:${address.port}`});
+    assert.equal((await recogniser.transcribe({samples:new Float32Array([.1]),sampleRate:16000})).text,'local result');
+  } finally { await new Promise<void>((resolve, reject) => server.close(e => e ? reject(e) : resolve())); }
+});
