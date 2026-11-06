@@ -424,7 +424,7 @@ function fitStage(raw: Record<string, unknown>, state: SceneState, path: string,
   return next;
 }
 
-function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes): Action | null {
+function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>): Action | null {
   if (!isObject(raw)) {
     note(notes, 'dropped', path, 'action is not an object');
     return null;
@@ -458,6 +458,10 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     out[name] = p.value;
   }
   if (bindings && !bindParts(bindings, (n) => own(input, n), out, state, path, (kind, at, why) => note(notes, kind, at, why))) return null;
+  if (variant.op === 'add' && typeof out.parent === 'string' && (parentFirstAt.get(out.parent) ?? 0) > ((out.at as number | undefined) ?? 0)) {
+    note(notes, 'dropped', `${path}.parent`, `parent "${out.parent}" starts after this child; schedule the parent no later than the child`);
+    return null;
+  }
   if (variant.op === 'panel' && typeof out.w === 'number' && typeof out.h === 'number') state.stage = { w: out.w, h: out.h };
   const locked = LOCKS[variant.name] !== undefined ? out[LOCKS[variant.name] as string] : undefined;
   if (typeof locked === 'string' && state.follows.has(locked)) {
@@ -720,6 +724,8 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
   const notes: Notes = [];
   const path = `steps[${index}]`;
   const kept: Action[] = [];
+  // A lower bound on parent birth, not lifetime validation: authored state cannot prove past clear/reparent timing.
+  const parentFirstAt = new Map<string, number>([...state.ids.keys()].map((id) => [id, 0]));
   const early: unknown[] = [];
   let held: Held[] = [];
   // Names declared in this bounded step remain reserved even if their creator fails.
@@ -748,7 +754,7 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
     state.bindUnknown = bind && op !== 'clear';
     state.bindOp = typeof op === 'string' ? op : undefined;
     try {
-      const a = validateAction(raw, state, at, why);
+      const a = validateAction(raw, state, at, why, parentFirstAt);
       return { action: a, why, after: a ? state.after.splice(0) : [] };
     } finally {
       state.bindUnknown = false;
@@ -761,6 +767,8 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
   function accept(action: Action, why: Notes, after: Action[] = []): void {
     for (const n of why) note(notes, n.kind, n.path, n.message);
     for (const a of [action, ...after]) {
+      // Keep all historical births through clears and replacements so an earlier valid child is never dropped.
+      if (a.op === 'add') parentFirstAt.set(a.id, Math.min(parentFirstAt.get(a.id) ?? Infinity, a.at ?? 0));
       kept.push(a);
       events.action(a);
     }

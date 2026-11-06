@@ -48,14 +48,20 @@ test('a grab draws a scene offscreen and writes a different frame per moment', {
   try {
     const env: NodeJS.ProcessEnv = { ...process.env, APPDATA: out, LOCALAPPDATA: out, TALKTHROUGH_OVERLAY_PAGE: resolve('test/support/stub-overlay/index.html') };
     delete env.ELECTRON_RUN_AS_NODE;
-    const run = grabChild(electron, out, ['--grab', 'samples/scenes/request-flow.json', '--steps', '0:0,1:1', '--out', out, '--size', '640x360', '--scale', '2'], env);
+    const run = grabChild(electron, out, ['--grab', 'samples/scenes/request-flow.json', '--steps', '0:0,1:1', '--out', out, '--size', '480x270', '--scale', '2', '--grab-metadata'], env);
     assert.equal(run.status, 0, run.stdout + run.stderr);
-    const files = ['step0-t0.png', 'step1-t1.png'].map((f) => join(out, f));
-    const hashes = files.map((f) => {
+    // At scale 2 the expected 960x540 PNG remains within the 1024x720 capture observed on hosted Windows.
+    const stems = ['request0-step0-t0', 'request1-step1-t1'];
+    const hashes = stems.map((stem) => {
+      const metadata = JSON.parse(readFileSync(join(out, `${stem}.json`), 'utf8'));
+      assert.deepEqual([metadata.width, metadata.height, metadata.scaleFactor], [480, 270, 2]);
+      const f = join(out, `${stem}.png`);
       const bytes = readFileSync(f);
       assert.equal(bytes.subarray(1, 4).toString(), 'PNG');
-      // The window is 640x360 at a device scale of 2, so the picture is at physical size.
-      assert.deepEqual([bytes.readUInt32BE(16), bytes.readUInt32BE(20)], [1280, 720]);
+      const [width, height] = [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
+      assert.deepEqual([width, height], [metadata.width * metadata.scaleFactor, metadata.height * metadata.scaleFactor]);
+      assert.equal(width * 9, height * 16, 'the PNG keeps the requested 16:9 aspect ratio');
+      assert.ok(width <= 1024 && height <= 720, 'the PNG remains within the hosted capture bounds');
       return createHash('sha1').update(bytes).digest('hex');
     });
     assert.notEqual(hashes[0], hashes[1]);
