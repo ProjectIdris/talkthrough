@@ -99,6 +99,32 @@ test('the speech length stretches or squeezes the step so the actions run over t
   assert.deepEqual(ids(player.update()), ['late']);
 });
 
+test('short speech cannot end a step before its spin reaches the requested speed', () => {
+  const { clock, advance } = fakeClock();
+  const v = manualVoice();
+  const player = new Player({ voice: v.voice, clock });
+  player.play(scene(
+    { say: 'Start.', actions: [
+      { op: 'add', shape: 'box', id: 'wheel', size: [1, 1, 1] },
+      { op: 'spin', id: 'wheel', rpm: 30, dur: 2 },
+    ] },
+    { say: 'Next.', actions: [] },
+  ));
+  v.spoken[0]?.listener.start?.({ estimatedMs: 800 });
+  v.spoken[0]?.listener.end?.({ reason: 'finished' });
+  advance(1000);
+  let frame = player.update();
+  assert.equal(v.spoken.length, 1, 'the ramp, not the short speech, determines when the step ends');
+  assert.equal(frame.objects[0]?.pose?.rot?.[2], 45);
+  advance(1000);
+  frame = player.update();
+  assert.equal(v.spoken.length, 2);
+  assert.equal(frame.objects[0]?.pose?.rot?.[2], 180);
+  v.spoken[1]?.listener.start?.({ estimatedMs: 800 });
+  advance(1000);
+  assert.equal(player.update().objects[0]?.pose?.rot?.[2], 360);
+});
+
 test('a voice that never answers does not stall the picture', () => {
   const { clock, advance } = fakeClock();
   const v = manualVoice();
