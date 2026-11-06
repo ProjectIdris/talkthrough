@@ -3,7 +3,7 @@
 // It is for the person who asked for it, on their own computer: nothing here is sent anywhere, and nothing is kept past the newest
 // `keep` folders. Writing it must never get in the way of a question: every failure is swallowed (and said once in the log).
 
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** How many question folders are kept; older ones are deleted when a new one begins. */
@@ -152,10 +152,19 @@ export function createQuestionRecord(options: Options): QuestionRecord {
         let name = base;
         for (let i = 2; existsSync(join(options.dir, name)); i++) name = `${base}-${i}`;
         const dir = join(options.dir, name);
-        mkdirSync(dir);
+        // Until metadata succeeds, stay outside the dated retention inventory. Even a complete
+        // write followed by an error and failed cleanup must not look like an admitted question.
+        const pending = mkdtempSync(join(options.dir, '.pending-question-'));
+        try {
+          writeFileSync(join(pending, 'report.json'), `${JSON.stringify({ startedAt: at.toISOString(), kind, recordOrder }, null, 2)}\n`);
+          renameSync(pending, dir);
+        } catch (error) {
+          // Only this newly created staging folder is ours to discard. A cleanup failure leaves
+          // it ignored by retention, with no subsequent payloads; preserve the original error.
+          try { rmSync(pending, { recursive: true, force: true }); } catch { /* best effort */ }
+          throw error;
+        }
         current = { dir, startedAt: at, recordOrder, kind, calls: 0, steps: [], report: {}, voice: [], errors: [] };
-        writeReport();
-        // Keep the assigned order even if writing this report failed; never mistake the active folder for an old one.
         pruneFolders(options.dir, [...folders, { name, order: recordOrder }], keep);
       });
     },
