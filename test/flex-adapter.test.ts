@@ -1,4 +1,4 @@
-﻿import {test} from 'node:test';import assert from 'node:assert/strict';
+import {test} from 'node:test';import assert from 'node:assert/strict';
 import {systemPrompt,questionText} from '../src/adapters/subscription-shared.ts';import {sceneSchemaLean} from '../src/scene/schema.ts';
 test('actual shared adapter prompt and lean schema expose bounded articulated authoring',()=>{
  const system=systemPrompt();assert.match(system,/root.parentPoint/);assert.match(system,/cyclic keyframes/);assert.match(system,/one-edge/);assert.match(system,/explain.*mechanism/i);assert.match(JSON.stringify(sceneSchemaLean),/flexSurface/);
@@ -9,6 +9,14 @@ test('shared guide and full schema describe endpoint and whole-root requirements
  const {sceneSchema}=await import('../src/scene/schema.ts');const prompt=systemPrompt(),full=JSON.stringify(sceneSchema);
  assert.match(prompt,/first u is exactly 0.*last u is exactly 1/i);assert.match(prompt,/seven root-edge samples.*unique outward intersection within maxGap/i);
  assert.match(full,/first u exactly 0, last u exactly 1/i);assert.match(full,/root-edge sample.*unique outward intersection within maxGap/i);
+});
+test('shared guidance links relevant joint motion and recognizable moving features to explanation',()=>{
+ const prompt=systemPrompt();
+ assert.match(prompt,/physical joints or segments.*distinct.*motion/i);
+ assert.match(prompt,/endpoint.*not.*physical joint/i);
+ assert.match(prompt,/recogniz.*(?:silhouette|proportions|defining features)/i);
+ assert.match(prompt,/(?:narrat|explain).*moving (?:part|subfeature).*simplif/i);
+ assert.match(prompt,/Choose words alone.*whichever explains best/i);
 });
 
 
@@ -33,6 +41,6 @@ test('actual staged provider requests teach an inboard joint with moving distal 
  const reply=JSON.stringify({steps:[{say:'A flap bends.',actions:[]}],escalate:null}),server=await startFakeLocal({reply});
  try{const model=createStageModel(createLocalModel({baseUrl:server.baseUrl,model:'first'}),createLocalModel({baseUrl:server.baseUrl,model:'later'}));const base={question:'How does a flexible flap work?',screenshot:{mime:'image/png' as const,base64:'AAAA',width:4,height:4},thread:[],schema:sceneSchemaLean};
   for(const stage of [undefined,{part:'first',plan:true},{part:'next',n:2,shown:[{say:'It bends.',actions:[]}],plan:['Show hinge']},{part:'next',n:2,shown:[{say:'It bends.',actions:[]}],plan:[],unplanned:true},{part:'rest',first:{say:'It bends.',actions:[]}}] as const)for await(const _ of model.ask({...base,...(stage ? {stage} : {})} as never))void _;
-  const calls=server.sent.filter(s=>s.url==='/v1/chat/completions');assert.equal(calls.length,5);for(const call of calls){const sent=call.body!.messages[0].content as string;assert.ok(sent.includes(JSON.stringify(sceneFlexGuideExample)));assert.match(sent,/rigid wings and plates/i);assert.match(sent,/distributed bending, twisting or profile change/i);assert.match(sent,/supported opaque parent/i);assert.match(sent,/each distinct phase or mechanism/i);assert.match(sent,/align the spoken explanation with the motion/i);assert.match(sent,/inboard.*tip|tip.*inboard/i);assert.match(JSON.stringify(call.body!.response_format),/flexCycle/);}
+  const calls=server.sent.filter(s=>s.url==='/v1/chat/completions');assert.equal(calls.length,5);for(const call of calls){const sent=call.body!.messages[0].content as string;assert.ok(sent.includes(JSON.stringify(sceneFlexGuideExample)));assert.match(sent,/rigid wings and plates/i);assert.match(sent,/distributed bending, twisting or profile change/i);assert.match(sent,/supported opaque parent/i);assert.match(sent,/each distinct phase or mechanism/i);assert.match(sent,/align the spoken explanation with the motion/i);assert.match(sent,/inboard.*tip|tip.*inboard/i);assert.match(sent,/physical joints or segments.*distinct.*motion/i);assert.match(sent,/recogniz.*(?:silhouette|proportions|defining features)/i);assert.match(sent,/(?:narrat|explain).*moving (?:part|subfeature).*simplif/i);assert.match(JSON.stringify(call.body!.response_format),/flexCycle/);}
  }finally{await server.close();}
 });
