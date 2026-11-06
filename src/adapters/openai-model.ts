@@ -39,6 +39,35 @@ export function redactKeys(text: string, key?: string): string {
   return out.replace(/sk-[A-Za-z0-9_\-*.]{6,}/g, '[key]');
 }
 
+/** Read SSE lines across chunks: CR, LF and CRLF each terminate one line. */
+function eventLines() {
+  let line = '';
+  let afterCR = false;
+  let data: string[] = [];
+  return (chunk: string): string[] => {
+    const events: string[] = [];
+    let start = 0;
+    for (let i = 0; i < chunk.length; i++) {
+      const c = chunk[i];
+      if (afterCR) {
+        afterCR = false;
+        if (c === '\n') { start = i + 1; continue; }
+      }
+      if (c !== '\r' && c !== '\n') continue;
+      line += chunk.slice(start, i);
+      if (!line) {
+        if (data.length) events.push(data.join('\n'));
+        data = [];
+      } else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
+      line = '';
+      start = i + 1;
+      afterCR = c === '\r';
+    }
+    line += chunk.slice(start);
+    return events;
+  };
+}
+
 export function createOpenAIModel(options: OpenAIModelOptions): Model {
   const modelName = options.model ?? 'gpt-6-luna';
   const effort = options.effort ?? 'low';
@@ -99,7 +128,7 @@ export function createOpenAIModel(options: OpenAIModelOptions): Model {
       let usage: Usage | undefined;
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let pending = '';
+      const events = eventLines();
 
       /** One server-sent event: returns the outputs it completed; throws on an error event. */
       const handle = (data: string): ModelOutput[] => {
@@ -144,12 +173,7 @@ export function createOpenAIModel(options: OpenAIModelOptions): Model {
             throw new ModelError('unavailable', 'the connection to the API was lost');
           }
           if (chunk.done) break;
-          pending += decoder.decode(chunk.value, { stream: true });
-          let separator: RegExpExecArray | null;
-          while ((separator = /\r?\n\r?\n/.exec(pending)) !== null) {
-            const block = pending.slice(0, separator.index);
-            pending = pending.slice(separator.index + separator[0].length);
-            const data = block.split(/\r?\n/).filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trimStart()).join('\n');
+          for (const data of events(decoder.decode(chunk.value, { stream: true }))) {
             if (!data) continue;
             let outputs: ModelOutput[];
             try {
