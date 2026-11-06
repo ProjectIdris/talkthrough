@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Action, Step } from '../src/scene/index.ts';
+import { validateScene } from '../src/scene/index.ts';
 import { DIAGRAM_APPEAR_SECONDS, TICK_SECONDS, diagramTimes } from '../src/overlay/diagram-plan.ts';
-import { bezierPoints, chartLayout, chartRanges, flowGrowth, flowLayers, flowLayout, flowReadable, niceTicks, stepsLayout, timelineFractions, timelineLayout } from '../src/overlay/diagram-layout.ts';
+import { bezierPoints, chartLayout, chartRanges, flowGrowth, flowLayers, flowLayout, flowReadable, formatTick, niceTicks, stepsLayout, timelineFractions, timelineLayout } from '../src/overlay/diagram-layout.ts';
 import type { Px } from '../src/overlay/diagram-layout.ts';
 import { DiagramPainter } from '../src/overlay/diagram-draw.ts';
 import { fadeFrame } from '../src/overlay/fade.ts';
@@ -110,6 +111,114 @@ test('a chart: round tick values, ranges from the data or as given, and a map fr
   assert.deepEqual(lay.toPx(0, 0), { x: 140, y: 320 });
   assert.deepEqual(lay.toPx(10, 10), { x: 480, y: 58 });
   assert.deepEqual(lay.xTicks.map((t) => t.v), [0, 5, 10], 'about one tick to every 90 pixels');
+});
+
+test('tick labels preserve familiar scales, signs and large values while rounding floating step noise', () => {
+  assert.deepEqual([0, 2, 4, 6, 8, 10].map((v) => formatTick(v, 2)), ['0', '2', '4', '6', '8', '10']);
+  assert.deepEqual([0, 0.2, 0.4, 0.6, 0.8, 1].map((v) => formatTick(v, 0.2)), ['0', '0.2', '0.4', '0.6', '0.8', '1']);
+  assert.deepEqual([-1, -0.5, 0, 0.5, 1].map((v) => formatTick(v, 0.5)), ['-1', '-0.5', '0', '0.5', '1']);
+  assert.equal(formatTick(-0, 0.2), '0', 'negative zero is written once as zero');
+  assert.equal(formatTick(-1e-16, 0.1), '0', 'rounding noise near zero does not leave a minus sign');
+  assert.equal(formatTick(0.6, 0.2), '0.6', 'a decimal tick is rounded without exposing binary float noise');
+  assert.equal(formatTick(10_050, 50), '10.05k', 'large values keep enough precision for their actual step');
+  assert.equal(formatTick(-15_000, 1_000), '-15k', 'large negative values retain their sign');
+  assert.equal(formatTick(1e-12, 1e-13), '1e-12', 'very small labels use compact exponent form when it is shorter');
+});
+
+test('chart ticks stay distinct and numeric through the painter at tiny and offset scales', () => {
+  const render = (range: readonly [number, number], w: number, h: number) => {
+    const chart = { op: 'diagram', id: 'scale', kind: 'chart', x: 80, y: 80, w, h, xrange: range, yrange: range };
+    const series = { op: 'series', id: 'samples', of: 'scale', pts: [[range[0], range[0]], [range[1], range[1]]] };
+    const validated = validateScene({ steps: [{ say: 'Scale', actions: [chart, series] }] });
+    assert.equal(validated.ok, true, `${JSON.stringify(range)} is within the accepted chart domain: ${JSON.stringify(validated.issues)}`);
+    assert.deepEqual(validated.issues, [], 'the test data is accepted without clamping or repair');
+    assert.deepEqual(validated.scene?.steps[0]?.actions[0], chart, 'the validator preserves the requested axis values');
+    assert.deepEqual(validated.scene?.steps[0]?.actions[1], series, 'the validator preserves the chart samples');
+
+    const frame = settle(planStep(emptyFrame(), validated.scene!.steps[0]!));
+    const drawn: Array<{ text: string; x: number; y: number; width: number; height: number }> = [];
+    type Segment = { from: { x: number; y: number }; to: { x: number; y: number } };
+    const strokes: Segment[][] = [];
+    let path: Segment[] = [];
+    let last: { x: number; y: number } | undefined;
+    const state: Record<string, unknown> = { font: '10px x' };
+    const ctx = new Proxy(state, {
+      get(t, k: string) {
+        if (k === 'createLinearGradient') return () => ({ addColorStop: () => {} });
+        if (k === 'measureText') return (text: string) => ({ width: text.length * 7 });
+        if (k === 'beginPath') return () => { path = []; last = undefined; };
+        if (k === 'moveTo') return (x: number, y: number) => { last = { x, y }; };
+        if (k === 'lineTo') return (x: number, y: number) => {
+          const next = { x, y };
+          if (last) path.push({ from: last, to: next });
+          last = next;
+        };
+        if (k === 'stroke') return () => strokes.push(path);
+        if (k === 'fillText') return (text: string, x: number, y: number) => {
+          const fontPx = Number(/([\d.]+)px/.exec(String(t.font))?.[1] ?? 10);
+          drawn.push({ text, x, y, width: text.length * 7, height: fontPx * 1.2 });
+        };
+        if (k in t) return t[k];
+        return () => undefined;
+      },
+      set(t, k: string, v) { t[k] = v; return true; },
+    }) as unknown as CanvasRenderingContext2D;
+    new DiagramPainter().draw(ctx, frame.diagrams, { width: 1000, height: 800, dpr: 1 }, 0);
+
+    // The painter emits y ticks first, then x ticks. The latter share one baseline;
+    // no title, series labels, or axis captions are present in this fixture.
+    const rows = new Map<number, typeof drawn>();
+    for (const label of drawn) rows.set(label.y, [...(rows.get(label.y) ?? []), label]);
+    const xTicks = [...rows.values()].sort((a, b) => b.length - a.length)[0] ?? [];
+    const yTicks = drawn.filter((label) => !xTicks.includes(label));
+    const numberValue = (text: string) => text.endsWith('k') ? Number(text.slice(0, -1)) * 1000 : Number(text);
+    const grid = strokes.find((segments) => segments.length >= 4 && segments.some(({ from, to }) => from.x === to.x) && segments.some(({ from, to }) => from.y === to.y)) ?? [];
+    const axis = strokes.find((segments) => segments.length === 2 && segments.some(({ from, to }) => from.x === to.x) && segments.some(({ from, to }) => from.y === to.y));
+    assert.ok(axis, 'the painter drew the chart axes');
+    const verticalAxis = axis!.find(({ from, to }) => from.x === to.x)!;
+    const horizontalAxis = axis!.find(({ from, to }) => from.y === to.y)!;
+    const plotLeft = verticalAxis.from.x;
+    const plotTop = Math.min(verticalAxis.from.y, verticalAxis.to.y);
+    const plotBottom = Math.max(verticalAxis.from.y, verticalAxis.to.y);
+    const plotRight = Math.max(horizontalAxis.from.x, horizontalAxis.to.x);
+    const verticalGrid = grid.filter(({ from, to }) => from.x === to.x).map(({ from }) => from.x);
+    const horizontalGrid = grid.filter(({ from, to }) => from.y === to.y).map(({ from }) => from.y);
+    for (const [axis, labels] of [['x', xTicks], ['y', yTicks]] as const) {
+      assert.ok(labels.length >= 2, `${axis} axis has multiple drawn tick labels`);
+      assert.equal(new Set(labels.map(({ text }) => text)).size, labels.length, `${axis} ticks remain distinguishable: ${labels.map(({ text }) => text).join(', ')}`);
+      const values = labels.map(({ text }) => numberValue(text));
+      assert.ok(values.every((value) => Number.isFinite(value) && value >= range[0] && value <= range[1]), `${axis} labels still report values in ${range[0]}..${range[1]}: ${values.join(', ')}`);
+      const ordered = [...values].sort((a, b) => a - b);
+      for (let i = 1; i < ordered.length; i++) assert.ok(ordered[i]! > ordered[i - 1]!, `${axis} values remain ordered and distinct`);
+    }
+    for (const label of xTicks) {
+      const center = label.x + label.width / 2;
+      const gridX = verticalGrid.reduce((best, current) => Math.abs(current - center) < Math.abs(best - center) ? current : best, verticalGrid[0]!);
+      assert.ok(Math.abs(gridX - center) < 1e-6, `x label ${label.text} is centered at its drawn tick`);
+      const expected = range[0] + ((gridX - plotLeft) / (plotRight - plotLeft)) * (range[1] - range[0]);
+      assert.ok(Math.abs(numberValue(label.text) - expected) <= Math.max(1e-12, Math.abs(range[1] - range[0]) * 1e-8), `x label ${label.text} matches its plotted data value ${expected}`);
+    }
+    for (const label of yTicks) {
+      const gridY = horizontalGrid.reduce((best, current) => Math.abs(current - label.y) < Math.abs(best - label.y) ? current : best, horizontalGrid[0]!);
+      assert.ok(Math.abs(gridY - label.y) < 1e-6, `y label ${label.text} aligns with its drawn tick`);
+      const expected = range[1] - ((gridY - plotTop) / (plotBottom - plotTop)) * (range[1] - range[0]);
+      assert.ok(Math.abs(numberValue(label.text) - expected) <= Math.max(1e-12, Math.abs(range[1] - range[0]) * 1e-8), `y label ${label.text} matches its plotted data value ${expected}`);
+    }
+    const card = { x: 80, y: 64, w, h: h * 0.8 };
+    assert.ok(drawn.every(({ x, width }) => x >= card.x && x + width <= card.x + card.w), `tick labels fit the ${w}x${h} chart card`);
+    const horizontal = [...xTicks].sort((a, b) => a.x - b.x);
+    for (let i = 1; i < horizontal.length; i++) assert.ok(horizontal[i - 1]!.x + horizontal[i - 1]!.width <= horizontal[i]!.x + 0.5, `x tick labels do not overlap: ${horizontal[i - 1]!.text}, ${horizontal[i]!.text}`);
+    const vertical = [...yTicks].sort((a, b) => a.y - b.y);
+    for (let i = 1; i < vertical.length; i++) assert.ok(vertical[i]!.y - vertical[i - 1]!.y >= (vertical[i]!.height + vertical[i - 1]!.height) / 2 - 0.5, `y tick labels do not overlap: ${vertical[i - 1]!.text}, ${vertical[i]!.text}`);
+    return { xTicks: xTicks.map(({ text }) => text), yTicks: yTicks.map(({ text }) => text) };
+  };
+
+  for (const size of [{ w: 420, h: 350 }, { w: 520, h: 425 }]) {
+    for (const range of [[0, 0.001], [100.1, 100.4], [-1, 1], [10_000, 10_500]] as const) {
+      const ticks = render(range, size.w, size.h);
+      assert.ok(ticks.xTicks.length >= 2 && ticks.yTicks.length >= 2);
+    }
+  }
 });
 
 test('supply and demand curves keep their values and equilibrium fixed as pieces arrive at two sizes', () => {
