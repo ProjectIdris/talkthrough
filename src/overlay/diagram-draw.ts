@@ -721,22 +721,37 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
   const dots = d.items.filter((i): i is DiagramItemFrame & { def: DotAction } => i.def.op === 'dot');
   const tickPx = env.px * 0.78;
   ctx.font = fontAt(theme.font, tickPx);
-  const probe = chartLayout(
-    { series: series.map((s) => ({ pts: s.def.pts as Array<[number, number]> })), dots: dots.map((p) => ({ x: p.def.x, y: p.def.y })), ...(d.def.xrange ? { xrange: d.def.xrange } : {}), ...(d.def.yrange ? { yrange: d.def.yrange } : {}) },
-    area, { left: 40, bottom: 30, top: 8, right: 20 },
-  );
+  const data = { series: series.map((s) => ({ pts: s.def.pts as Array<[number, number]> })), dots: dots.map((p) => ({ x: p.def.x, y: p.def.y })), ...(d.def.xrange ? { xrange: d.def.xrange } : {}), ...(d.def.yrange ? { yrange: d.def.yrange } : {}) };
+  const probe = chartLayout(data, area, { left: 40, bottom: 30, top: 8, right: 20 });
   const yLabelW = Math.max(0, ...probe.yTicks.map((t) => ctx.measureText(formatTick(t.v, probe.yStep)).width));
   const labelRoom = Math.max(0, ...series.map((s) => (s.def.label ? Math.min(area.w * 0.28, ctx.measureText(s.def.label).width + 10) : 0)));
-  const room = {
+  const baseRoom = {
     left: pad * 0.6 + yLabelW + (d.def.ylabel ? tickPx * 1.5 : 0) + 8,
     bottom: tickPx * 2 + (d.def.xlabel ? tickPx * 1.6 : 0) + 6,
     top: 10,
     right: Math.max(18, labelRoom),
   };
-  const lay = chartLayout(
-    { series: series.map((s) => ({ pts: s.def.pts as Array<[number, number]> })), dots: dots.map((p) => ({ x: p.def.x, y: p.def.y })), ...(d.def.xrange ? { xrange: d.def.xrange } : {}), ...(d.def.yrange ? { yrange: d.def.yrange } : {}) },
-    area, room,
-  );
+  let room = { ...baseRoom };
+  let xWant = Math.max(2, Math.round(Math.max(10, area.w - room.left - room.right) / 90));
+  let lay = chartLayout(data, area, room, { x: xWant });
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const yLabelWidth = Math.max(0, ...lay.yTicks.map((t) => ctx.measureText(formatTick(t.v, lay.yStep)).width));
+    const xLabels = lay.xTicks.map((t) => ({ px: t.px, width: ctx.measureText(formatTick(t.v, lay.xStep)).width })).sort((a, b) => a.px - b.px);
+    const edgeRoom = Math.max(0, ...xLabels.map(({ width }) => width / 2 + 6));
+    const nextRoom = {
+      ...room,
+      left: Math.max(baseRoom.left, pad * 0.6 + yLabelWidth + (d.def.ylabel ? tickPx * 1.5 : 0) + 8, edgeRoom),
+      right: Math.max(baseRoom.right, edgeRoom),
+    };
+    const overlaps = xLabels.some((label, i) => i > 0 && label.px - xLabels[i - 1]!.px < (label.width + xLabels[i - 1]!.width) / 2 + 4);
+    const desiredWant = Math.max(1, Math.round(Math.max(10, area.w - nextRoom.left - nextRoom.right) / 90));
+    const nextWant = overlaps ? Math.max(1, Math.min(xWant, desiredWant, xWant - 1)) : Math.min(xWant, desiredWant);
+    const changed = nextWant !== xWant || nextRoom.left > room.left + 0.01 || nextRoom.right > room.right + 0.01;
+    if (!changed) break;
+    room = nextRoom;
+    xWant = nextWant;
+    lay = chartLayout(data, area, room, { x: xWant });
+  }
   const { plot } = lay;
   const chartLabelObstacles: Px[] = [];
   ctx.save();

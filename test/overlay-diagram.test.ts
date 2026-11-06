@@ -196,13 +196,13 @@ test('chart ticks stay distinct and numeric through the painter at tiny and offs
       const gridX = verticalGrid.reduce((best, current) => Math.abs(current - center) < Math.abs(best - center) ? current : best, verticalGrid[0]!);
       assert.ok(Math.abs(gridX - center) < 1e-6, `x label ${label.text} is centered at its drawn tick`);
       const expected = range[0] + ((gridX - plotLeft) / (plotRight - plotLeft)) * (range[1] - range[0]);
-      assert.ok(Math.abs(numberValue(label.text) - expected) <= Math.max(1e-12, Math.abs(range[1] - range[0]) * 1e-8), `x label ${label.text} matches its plotted data value ${expected}`);
+      assert.ok(Math.abs(numberValue(label.text) - expected) <= Math.max(1e-12, Math.abs(expected) * Number.EPSILON * 8, Math.abs(range[1] - range[0]) * 1e-8), `x label ${label.text} matches its plotted data value ${expected}`);
     }
     for (const label of yTicks) {
       const gridY = horizontalGrid.reduce((best, current) => Math.abs(current - label.y) < Math.abs(best - label.y) ? current : best, horizontalGrid[0]!);
       assert.ok(Math.abs(gridY - label.y) < 1e-6, `y label ${label.text} aligns with its drawn tick`);
       const expected = range[1] - ((gridY - plotTop) / (plotBottom - plotTop)) * (range[1] - range[0]);
-      assert.ok(Math.abs(numberValue(label.text) - expected) <= Math.max(1e-12, Math.abs(range[1] - range[0]) * 1e-8), `y label ${label.text} matches its plotted data value ${expected}`);
+      assert.ok(Math.abs(numberValue(label.text) - expected) <= Math.max(1e-12, Math.abs(expected) * Number.EPSILON * 8, Math.abs(range[1] - range[0]) * 1e-8), `y label ${label.text} matches its plotted data value ${expected}`);
     }
     const card = { x: 80, y: 64, w, h: h * 0.8 };
     assert.ok(drawn.every(({ x, width }) => x >= card.x && x + width <= card.x + card.w), `tick labels fit the ${w}x${h} chart card`);
@@ -214,7 +214,7 @@ test('chart ticks stay distinct and numeric through the painter at tiny and offs
   };
 
   for (const size of [{ w: 420, h: 350 }, { w: 520, h: 425 }]) {
-    for (const range of [[0, 0.001], [100.1, 100.4], [-1, 1], [10_000, 10_500]] as const) {
+    for (const range of [[0, 0.001], [100.1, 100.4], [-1, 1], [10_000, 10_500], [10_000, 10_000.0001]] as const) {
       const ticks = render(range, size.w, size.h);
       assert.ok(ticks.xTicks.length >= 2 && ticks.yTicks.length >= 2);
     }
