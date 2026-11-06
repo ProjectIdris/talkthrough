@@ -4,7 +4,7 @@
 
 import type { DiagramFrame, DiagramItemFrame } from './diagram-plan.ts';
 import { bezierPoints, chartDotLabelPlacements, chartLayout, flowGrowth, flowLayout, flowReadable, formatTick, smoothPoints, stepsLayout, timelineLayout, routeEdge } from './diagram-layout.ts';
-import type { ChartDotLabel, FlowBox, Pt, Px } from './diagram-layout.ts';
+import type { ChartDotLabel, FlowBox, FlowLayout, Pt, Px } from './diagram-layout.ts';
 import type { View } from './marks.ts';
 import { softShadow } from './style.ts';
 import { THEME, fontAt } from './theme.ts';
@@ -88,6 +88,8 @@ export class DiagramPainter {
   /** The card a flow was grown to, for the layout it was worked out for (what it holds, its place and the screen): worked out once, not every frame. */
   private grown = new Map<string, { layout: string; card: Px }>();
   private grownLive = new Set<string>();
+  private flowRouting = new Map<number, { topology: string; slots: Map<string, string>; revision: number }>();
+  private flowLive = new Set<number>();
   /** Where a flow card that has to grow goes: the page finds a free place for its new size (pixels in, pixels out; undefined: stay as it was). */
   private readonly options: { regrow?: (id: string, want: Px) => Px | undefined; onBounds?: (id: string, bounds: Px) => void };
   constructor(options: { regrow?: (id: string, want: Px) => Px | undefined; onBounds?: (id: string, bounds: Px) => void } = {}) {
@@ -95,6 +97,28 @@ export class DiagramPainter {
   }
   private last: number | undefined;
   moving = false;
+
+  /** Reset node easing when an edge change actually moves an existing node to a different graph slot. */
+  flowRevision(key: number, edges: readonly { from: string; to: string }[], layout: FlowLayout, area: Px): number {
+    this.flowLive.add(key);
+    const topology = JSON.stringify(edges.map((e) => JSON.stringify([e.from, e.to])).sort());
+    const ranks = new Map<string, number>(), slots = new Map<string, string>();
+    for (const [id, box] of layout.nodes) {
+      const group = `${box.layer}:${box.row ?? ''}:${box.rev ? 1 : 0}`;
+      const rank = ranks.get(group) ?? 0;
+      ranks.set(group, rank + 1);
+      // Normalized geometry catches a topology-driven change in spacing even
+      // when each node remains in the same layer; ordinary resize still eases
+      // because a revision also requires a change in edge topology.
+      const norm = [box.x - area.x, box.y - area.y, box.w, box.h].map((n, i) => Math.round(10000 * n / Math.max(1, i % 2 ? area.h : area.w)));
+      slots.set(id, `${group}:${rank}:${norm.join(':')}`);
+    }
+    const before = this.flowRouting.get(key);
+    const changedSlot = before && [...slots].some(([id, slot]) => before.slots.has(id) && before.slots.get(id) !== slot);
+    const revision = (before?.revision ?? 0) + (before && before.topology !== topology && changedSlot ? 1 : 0);
+    this.flowRouting.set(key, { topology, slots, revision });
+    return revision;
+  }
 
   /** A rectangle that eases toward `target` (the first time it is just there). `key` names it; it is forgotten when not asked for. */
   ease(key: string, target: Px, dt: number, seen: Set<string>): Px {
@@ -122,6 +146,7 @@ export class DiagramPainter {
     this.last = now;
     this.moving = false;
     this.grownLive.clear();
+    this.flowLive.clear();
     const seen = new Set<string>();
     for (const d of diagrams) {
       const alpha = Math.max(0, Math.min(1, d.opacity * d.fade));
@@ -136,6 +161,7 @@ export class DiagramPainter {
     }
     for (const key of [...this.cur.keys()]) if (!seen.has(key)) this.cur.delete(key);
     for (const key of [...this.grown.keys()]) if (!this.grownLive.has(key)) this.grown.delete(key);
+    for (const key of [...this.flowRouting.keys()]) if (!this.flowLive.has(key)) this.flowRouting.delete(key);
     return this.moving;
   }
 
@@ -365,7 +391,8 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
   // Routing changes sides when the flow turns or wraps. Do not interpolate boxes from the old
   // arrangement under those new arrows: their labels would run through the moving nodes.
   // A new routing key places the nodes together; ordinary movement in one arrangement still eases.
-  const routing = `${lay.dir}:${lay.rows}:${lay.rows > 1 ? Math.ceil(lay.layers / lay.rows) : 0}`;
+  const revision = painter.flowRevision(d.key, inputs.edges, lay, area);
+  const routing = `${lay.dir}:${lay.rows}:${lay.rows > 1 ? Math.ceil(lay.layers / lay.rows) : 0}:${revision}`;
   const boxes = new Map<string, FlowBox>();
   for (const n of nodes) {
     const t = lay.nodes.get(n.id);

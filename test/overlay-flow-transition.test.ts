@@ -86,3 +86,69 @@ test('adding a node that changes the wrapped row width does not mix old and new 
     for (let i = 0; i < g.nodes.length; i++) for (let j = i + 1; j < g.nodes.length; j++) assert.ok(!overlaps(g.nodes[i]!, g.nodes[j]!), `nodes ${i}/${j} overlap at frame ${frame}`);
   }
 });
+
+test('replacing edges that change layers keeps the first transition frame coherent', () => {
+  const base=settle(planStep(emptyFrame(),{say:'',actions:[
+    {op:'diagram',id:'d',kind:'flow',x:100,y:100,w:600,h:550},
+    ...Array.from({length:5},(_,i)=>({op:'node',id:`n${i}`,of:'d',text:`Item ${i}`})),
+    ...[[0,1],[0,2],[2,3],[3,4]].map(([a,b],i)=>({op:'edge',id:`e${i}`,from:`n${a}`,to:`n${b}`,text:`Link ${i}`})),
+  ]} as Scene['steps'][number]));
+  const next=settle(planStep(base,{say:'',actions:[{op:'clear',target:'e0'},{op:'clear',target:'e1'},
+    {op:'edge',id:'e0',from:'n0',to:'n2',text:'Link 0'}, {op:'edge',id:'e1',from:'n1',to:'n2',text:'Link 1'}]} as Scene['steps'][number]));
+  const g=canvasGeometry(),p=new DiagramPainter(),view={width:960,height:640,dpr:1};
+  p.draw(g.ctx,base.diagrams,view,0);
+  for(let i=1;i<=45;i++) {
+    g.clear(); p.draw(g.ctx,next.diagrams,view,i*1000/30);
+    for(const label of g.labels) for(const node of g.nodes) assert.ok(!overlaps(label,node),`label overlaps node at frame ${i}`);
+  }
+});
+
+function flowWithEdges(pairs: number[][]) {
+  return settle(planStep(emptyFrame(),{say:'',actions:[
+    {op:'diagram',id:'d',kind:'flow',x:100,y:100,w:600,h:550},
+    ...Array.from({length:5},(_,i)=>({op:'node',id:`n${i}`,of:'d',text:`Item ${i}`})),
+    ...pairs.map(([a,b],i)=>({op:'edge',id:`e${i}`,from:`n${a}`,to:`n${b}`,text:`Link ${i}`})),
+  ]} as Scene['steps'][number]));
+}
+
+test('edge addition, removal and reversal do not retain stale routing cache', () => {
+  const a=flowWithEdges([[0,1],[0,2],[2,3],[3,4]]);
+  const b=flowWithEdges([[0,1],[0,2],[1,2],[2,3],[3,4]]);
+  const g=canvasGeometry(),p=new DiagramPainter(),view={width:960,height:640,dpr:1};
+  p.draw(g.ctx,a.diagrams,view,0);
+  let revision=(p as unknown as {flowRouting:Map<number,{revision:number}>}).flowRouting.get(a.diagrams[0]!.key)!.revision;
+  for(let i=1;i<=20;i++) {
+    g.clear();p.draw(g.ctx,(i%2?b:a).diagrams,view,i*1000/30);
+    assert.equal(g.nodes.length,5);
+    assert.equal(g.labels.length,i%2?5:4,'edge labels remain present through the reversal');
+    const next=(p as unknown as {flowRouting:Map<number,{revision:number}>}).flowRouting.get(a.diagrams[0]!.key)!.revision;
+    assert.equal(next,revision+1,'each graph slot change gets a fresh routing revision');
+    revision=next;
+  }
+  p.draw(g.ctx,[],view,1000);
+  assert.equal((p as unknown as {cur:Map<string,unknown>}).cur.size,0);
+  assert.equal((p as unknown as {flowRouting:Map<number,unknown>}).flowRouting.size,0);
+});
+
+test('one flow topology change does not reset another diagram', () => {
+  const a=flowWithEdges([[0,1],[0,2],[2,3],[3,4]]),b=flowWithEdges([[0,2],[1,2],[2,3],[3,4]]);
+  const second=structuredClone(a.diagrams[0]!); second.key=999;
+  const g=canvasGeometry(),p=new DiagramPainter(),view={width:960,height:640,dpr:1};
+  p.draw(g.ctx,[a.diagrams[0]!,second],view,0);
+  const before=[...(p as unknown as {cur:Map<string,unknown>}).cur.keys()].filter(k=>k.startsWith('999:')).sort();
+  p.draw(g.ctx,[b.diagrams[0]!,second],view,33);
+  const after=[...(p as unknown as {cur:Map<string,unknown>}).cur.keys()].filter(k=>k.startsWith('999:')).sort();
+  assert.deepEqual(after,before);
+});
+
+test('reordered unchanged edges and a resized card retain ordinary easing', () => {
+  const pairs=[[0,1],[0,2],[2,3],[3,4]];
+  const a=flowWithEdges(pairs), b=flowWithEdges([...pairs].reverse());
+  const g=canvasGeometry(),p=new DiagramPainter();
+  p.draw(g.ctx,a.diagrams,{width:960,height:640,dpr:1},0);
+  const before=[...(p as unknown as {cur:Map<string,unknown>}).cur.keys()];
+  p.draw(g.ctx,b.diagrams,{width:1100,height:640,dpr:1},33);
+  const after=[...(p as unknown as {cur:Map<string,unknown>}).cur.keys()];
+  assert.deepEqual(after.sort(),before.sort(),'edge ordering alone does not reset node identities');
+  assert.equal(p.moving,true,'ordinary resize/card movement continues to ease');
+});
