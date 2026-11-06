@@ -362,10 +362,14 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
   const edges = d.items.filter((i): i is DiagramItemFrame & { def: EdgeAction } => i.def.op === 'edge');
   const inputs = flowInputs(ctx, d, env.px);
   const lay = flowLayout(inputs.ids, inputs.edges, area, { ...inputs.options, pad });
+  // Routing changes sides when the flow turns or wraps. Do not interpolate boxes from the old
+  // arrangement under those new arrows: their labels would run through the moving nodes.
+  // A new routing key places the nodes together; ordinary movement in one arrangement still eases.
+  const routing = `${lay.dir}:${lay.rows}:${lay.rows > 1 ? Math.ceil(lay.layers / lay.rows) : 0}`;
   const boxes = new Map<string, FlowBox>();
   for (const n of nodes) {
     const t = lay.nodes.get(n.id);
-    if (t) boxes.set(n.id, { ...painter.ease(`${d.key}:${n.key}`, t, env.dt, seen), layer: t.layer, ...(t.row !== undefined ? { row: t.row, ...(t.rev ? { rev: true } : {}) } : {}) });
+    if (t) boxes.set(n.id, { ...painter.ease(`${d.key}:${n.key}:${routing}`, t, env.dt, seen), layer: t.layer, ...(t.row !== undefined ? { row: t.row, ...(t.rev ? { rev: true } : {}) } : {}) });
   }
   // Edges first, so a node sits over the end of its own arrows.
   const runs = new Map<string, Run>();
