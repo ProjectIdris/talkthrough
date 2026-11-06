@@ -40,6 +40,9 @@ export async function runGrab(grab: NonNullable<Options['grab']>, backdrop: stri
     // of 1. The scale comes from the force-device-scale-factor switch (set in main before ready).
     webPreferences: { preload: env.preload, contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
   });
+  // Electron centers new windows within the display work area, clamping oversized dimensions.
+  // Restore the requested viewport after construction, before the page can lay out or paint.
+  window.setContentSize(grab.width, grab.height);
   const display: DisplayInfo = {
     id: 0,
     bounds: { x: 0, y: 0, width: grab.width, height: grab.height },
