@@ -694,7 +694,7 @@ export type LiveStepEvents = {
   /** The step has begun: these are its words (cleaned), to be spoken. Always called before any action. */
   open(say: string): void;
   /** An action was accepted, and is to be drawn now. */
-  action(action: Action): void;
+  action(action: Action, derived?: boolean): void;
 };
 
 export type LiveStep = {
@@ -766,11 +766,11 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
 
   function accept(action: Action, why: Notes, after: Action[] = []): void {
     for (const n of why) note(notes, n.kind, n.path, n.message);
-    for (const a of [action, ...after]) {
+    for (const [i, a] of [action, ...after].entries()) {
       // Keep all historical births through clears and replacements so an earlier valid child is never dropped.
       if (a.op === 'add') parentFirstAt.set(a.id, Math.min(parentFirstAt.get(a.id) ?? Infinity, a.at ?? 0));
       kept.push(a);
-      events.action(a);
+      events.action(a, i > 0);
     }
   }
 
@@ -895,7 +895,7 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
   };
 }
 
-export function validateStep(raw: unknown, state: SceneState, index: number = state.turnSteps): StepResult {
+export function validateStep(raw: unknown, state: SceneState, index: number = state.turnSteps, acceptedInput?: (action: Action) => void): StepResult {
   const notes: Notes = [];
   const path = `steps[${index}]`;
   state.turnSteps++;
@@ -920,7 +920,7 @@ export function validateStep(raw: unknown, state: SceneState, index: number = st
   for (const key of ownKeys(raw)) {
     if (key !== 'say' && key !== 'actions') note(notes, 'trimmed', `${path}.${key.slice(0, 40)}`, 'unknown field ignored');
   }
-  const live = beginLiveStep(state, { open: () => undefined, action: () => undefined }, index, true);
+  const live = beginLiveStep(state, { open: () => undefined, action: (action, derived) => { if (!derived) acceptedInput?.(action); } }, index, true);
   live.say(say);
   for (const a of list) live.action(a);
   const done = live.finish();

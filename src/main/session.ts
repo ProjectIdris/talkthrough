@@ -6,7 +6,7 @@ import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
 import { applyClear, beginLiveStep, createDetailState, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
-import type { Issue, LiveStep, SceneState, Step } from '../scene/index.ts';
+import type { Action, Issue, LiveStep, SceneState, Step } from '../scene/index.ts';
 import { FADE_AFTER_MS, PEN_FLUSH_GRACE_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
 import { isRealStroke } from '../shared/pen.ts';
@@ -222,7 +222,7 @@ export function createSession(deps: SessionDeps) {
   let guideChecking: SceneState | undefined;
   // A queued guide step belongs to the answer that produced it, but contributes
   // to visible history only once the guide actually shows it.
-  const queuedGuideOwners = new WeakMap<Step, Step[]>();
+  const queuedGuideOwners = new WeakMap<Step, { shown: Step[]; inputs: Action[] }>();
   let releasedAt = 0;
   /** The press whose pen strokes still count: the one held now, and for a moment after release. */
   let penFor: Attempt | null = null;
@@ -564,6 +564,7 @@ export function createSession(deps: SessionDeps) {
     // page, each action is checked against the scene on arrival and sent at once, and the step is closed when
     // the whole step comes. A step that arrives whole (the backend, a replay) is checked and sent in one go.
     let live: LiveStep | null = null;
+    let liveInputs: Action[] = [];
     // Only what the live validator has actually emitted to the page belongs in
     // an interrupted step; unresolved actions must not be recovered on error.
     let visiblePartial: Step | undefined;
@@ -573,6 +574,7 @@ export function createSession(deps: SessionDeps) {
     const newLive = (): LiveStep => {
       held = walk !== undefined;
       visiblePartial = undefined;
+      liveInputs = [];
       return beginLiveStep(checking, {
         open: (say) => {
           if (held) return;
@@ -581,7 +583,8 @@ export function createSession(deps: SessionDeps) {
           r.firstStepMs ??= since();
           send(displayId, { kind: 'step-open', say });
         },
-        action: (action) => {
+        action: (action, derived) => {
+          if (!derived) liveInputs.push(action);
           if (!held) {
             visiblePartial?.actions.push(action);
             send(displayId, { kind: 'action', action });
@@ -602,12 +605,13 @@ export function createSession(deps: SessionDeps) {
           const modelActions = new Set(step.actions);
           const visible = structuredClone(state);
           for (const action of shaped.actions) if (!modelActions.has(action) && action.op === 'clear') applyClear(visible, action.target);
-          // Replay only validated actions against the actually visible state;
-          // the producer's independent checking state retains original caps.
+          // Replay the validated inputs, not the expanded renderer output:
+          // the validator recreates its derived follow-ons without counting them
+          // a second time against the untrusted-input action cap.
           startTurn(visible);
-          validateStep(step, visible);
+          validateStep({ say: step.say, actions: owner.inputs }, visible);
           state = visible;
-          owner.push(shaped);
+          owner.shown.push(shaped);
         },
         send: (message) => {
           // The guide clears the page by id between steps: the scene the answers are checked against forgets those ids too.
@@ -641,8 +645,8 @@ export function createSession(deps: SessionDeps) {
       walking = { guide: g, controller };
       return g;
     };
-    const handOver = (step: Step, wasHeld: boolean): void => {
-      if (wasHeld && walk) { queuedGuideOwners.set(step, shown); walk.push(step); }
+    const handOver = (step: Step, wasHeld: boolean, inputs: Action[]): void => {
+      if (wasHeld && walk) { queuedGuideOwners.set(step, {shown, inputs}); walk.push(step); }
       else if (!walk && !detail && deps.guide && waitOf(step)) {
         walk = startWalk();
         checking = structuredClone(state);
@@ -663,7 +667,7 @@ export function createSession(deps: SessionDeps) {
       if (done.step) {
         accepted++;
         if (!held) shown.push(done.step);
-        handOver(done.step, held);
+        handOver(done.step, held, liveInputs);
       }
     };
     try {
@@ -686,7 +690,8 @@ export function createSession(deps: SessionDeps) {
             continue;
           }
           written.push(out.step as { actions: unknown[] });
-          const checked = validateStep(out.step, checking);
+          const inputs: Action[] = [];
+          const checked = validateStep(out.step, checking, undefined, (action) => inputs.push(action));
           if (checked.issues.length > 0) {
             deps.log(validatorNotes(checked.issues, shown.length + 1));
             deps.record?.issues(shown.length + 1, checked.issues);
@@ -698,7 +703,7 @@ export function createSession(deps: SessionDeps) {
           if (!wasHeld) shown.push(checked.step);
           r.firstStepMs ??= since();
           if (!wasHeld) send(displayId, { kind: 'step', step: checked.step });
-          handOver(checked.step, wasHeld);
+          handOver(checked.step, wasHeld, inputs);
         } else if (out.type === 'usage') {
           r.tokens = out.usage;
         } else if (out.type === 'escalate') {

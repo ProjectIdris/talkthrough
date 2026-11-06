@@ -1469,3 +1469,40 @@ test('a failed held replan step cannot reserve an unseen id', async () => {
   assert.ok(w.sent.some(m=>m.kind==='step' && m.step.actions.some(a=>'id' in a && a.id==='next')));
   w.escape();
 });
+
+for (const streamed of [false,true]) test(`validator-emitted follow-on actions preserve displayed queued ids (${streamed?'streamed':'whole'})`, async () => {
+  const requests: BackendRequest[]=[];
+  const backend: Backend={id:'fake',ask:async req=>{requests.push(req);return {message:'ok'};}};
+  const actions: unknown[]=[{op:'add',shape:'tube',id:'wire',pts:[[2,2,0],[0,2,0],[0,0.17,0]],radius:.07},
+    {op:'add',shape:'box',id:'sw',size:[1,.3,.5],pos:[0,0,0],at:1},
+    ...Array.from({length:22},(_,i)=>({op:'box',id:`mark${i}`,x:20+i,y:40,w:10,h:10,color:'red'})),
+    {op:'box',id:'overflow',x:5,y:5,w:5,h:5,color:'red'}];
+  const w=walkRig([],undefined,undefined,undefined,async function*(_req,n) {
+    if(n>0) {yield {type:'step',step:{say:'Use the last mark.',actions:[{op:'highlight',id:'mark21'}]}};return;}
+    yield {type:'step',step:guided('first','Click first.')};
+    if(streamed) {
+      yield {type:'say',say:'Show all.'};
+      for(const action of actions) yield {type:'action',action};
+      yield {type:'step',step:{say:'Show all.',actions}};
+    } else yield {type:'step',step:{say:'Show all.',actions}};
+  },backend);
+  await question(w);await w.click(450,120,flat(90));
+  const sent=w.sent.find(m=>m.kind==='step' && m.step.say==='Show all.');
+  assert.ok(sent && sent.kind==='step' && sent.step.actions.some(a=>'id' in a && a.id==='mark21'));
+  assert.ok(sent && sent.kind==='step' && !sent.step.actions.some(a=>'id' in a && a.id==='overflow'));
+  await w.session.offer(7);
+  assert.ok(Object.hasOwn(requests.at(-1)!.scene!.ids,'mark21'));
+  assert.equal(Object.hasOwn(requests.at(-1)!.scene!.ids,'overflow'),false);
+  await question(w);
+  assert.ok(w.sent.some(m=>m.kind==='step' && m.step.actions.some(a=>a.op==='highlight' && a.id==='mark21')));
+  w.session.dispose();
+});
+
+test('queued steps do not reset the producer turn action budget', async () => {
+  const queued=Array.from({length:10},()=>({say:'Marks.',actions:Array.from({length:24},()=>({op:'highlight',id:'first'}))}));
+  const w=walkRig([[guided('first','Click first.'),...queued]]);
+  await question(w);await w.click(450,120,flat(90));
+  const shown=w.sent.flatMap(m=>m.kind==='step'?m.step.actions:[]).filter(a=>a.op==='highlight' && a.id==='first');
+  assert.equal(shown.length,238,'the first waiting step consumed two of 240 actions');
+  w.session.dispose();
+});
