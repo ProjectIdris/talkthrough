@@ -1495,7 +1495,7 @@ function applyScene(message: SceneMessage): void {
         fader.arm(performance.now());
       }
       pen.fade(labelClock());
-      hud.showNotice(message.text, message.level, performance.now(), message.action);
+      hud.showNotice(message.text, message.level, performance.now(), message.action, message.persistent);
       break;
     case 'clear':
       clearEverything();

@@ -145,11 +145,11 @@ export function createOpenAIModel(options: OpenAIModelOptions): Model {
           }
           if (chunk.done) break;
           pending += decoder.decode(chunk.value, { stream: true });
-          let at: number;
-          while ((at = pending.indexOf('\n\n')) >= 0) {
-            const block = pending.slice(0, at);
-            pending = pending.slice(at + 2);
-            const data = block.split('\n').filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trimStart()).join('\n');
+          let separator: RegExpExecArray | null;
+          while ((separator = /\r?\n\r?\n/.exec(pending)) !== null) {
+            const block = pending.slice(0, separator.index);
+            pending = pending.slice(separator.index + separator[0].length);
+            const data = block.split(/\r?\n/).filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trimStart()).join('\n');
             if (!data) continue;
             let outputs: ModelOutput[];
             try {

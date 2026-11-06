@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { electronRuntime } from './support/electron-runtime.ts';
 
 // Electron's profile switch must take effect before the application reaches readiness.
 function grabChild(electron: string, out: string, args: string[], env: NodeJS.ProcessEnv) {
@@ -22,8 +22,9 @@ function grabChild(electron: string, out: string, args: string[], env: NodeJS.Pr
 }
 
 test('grab profile mismatch fails before main or window using two scratch profiles', { timeout: 30_000 }, (t) => {
-  const electron = createRequire(import.meta.url)('electron') as string;
-  if (!existsSync(electron)) return t.skip('electron binary is not installed');
+  const runtime = electronRuntime();
+  if (runtime.reason) return t.skip(runtime.reason);
+  const electron = runtime.executable!;
   const out = mkdtempSync(join(tmpdir(), 'tt-grab-profile-negative-'));
   try {
     const env: NodeJS.ProcessEnv = { ...process.env, TT_GRAB_EXPECTED_PROFILE: join(out, 'expected-b'), TT_GRAB_PROFILE_RECEIPT: join(out, 'receipt.json') };
@@ -38,8 +39,9 @@ test('grab profile mismatch fails before main or window using two scratch profil
 // Runs the real Electron main process offscreen with the stand-in overlay page: checks that a scene
 // goes through the validator, the preload contract and the seek/rendered handshake into PNG files.
 test('a grab draws a scene offscreen and writes a different frame per moment', { timeout: 120_000 }, (t) => {
-  const electron = createRequire(import.meta.url)('electron') as string;
-  if (!existsSync(electron)) return t.skip('electron binary is not installed');
+  const runtime = electronRuntime();
+  if (runtime.reason) return t.skip(runtime.reason);
+  const electron = runtime.executable!;
   const build = spawnSync(process.execPath, ['scripts/build.mjs'], { encoding: 'utf8' });
   assert.equal(build.status, 0, build.stderr);
   const out = mkdtempSync(join(tmpdir(), 'tt-grab-'));
@@ -63,8 +65,9 @@ test('a grab draws a scene offscreen and writes a different frame per moment', {
 });
 
 test('layout attempts retain duplicate requests and accept a legacy token-only renderer', { timeout: 120_000 }, (t) => {
-  const electron = createRequire(import.meta.url)('electron') as string;
-  if (!existsSync(electron)) return t.skip('electron binary is not installed');
+  const runtime = electronRuntime();
+  if (runtime.reason) return t.skip(runtime.reason);
+  const electron = runtime.executable!;
   const build = spawnSync(process.execPath, ['scripts/build.mjs'], { encoding: 'utf8' });
   assert.equal(build.status, 0, build.stderr);
   const out = mkdtempSync(join(tmpdir(), 'tt-grab-attempt-'));
@@ -87,8 +90,9 @@ test('layout attempts retain duplicate requests and accept a legacy token-only r
 });
 
 test('real hidden renderer acknowledges the observed seek clock and view', { timeout: 120_000 }, (t) => {
-  const electron = createRequire(import.meta.url)('electron') as string;
-  if (!existsSync(electron)) return t.skip('electron binary is not installed');
+  const runtime = electronRuntime();
+  if (runtime.reason) return t.skip(runtime.reason);
+  const electron = runtime.executable!;
   const build = spawnSync(process.execPath, ['scripts/build.mjs'], { encoding: 'utf8' });
   assert.equal(build.status, 0, build.stderr);
   const out = mkdtempSync(join(tmpdir(), 'tt-grab-real-'));
@@ -115,8 +119,9 @@ test('real hidden renderer acknowledges the observed seek clock and view', { tim
 });
 
 test('unknown token and malformed metadata cannot replace the capture acknowledgement', { timeout: 120_000 }, (t) => {
-  const electron = createRequire(import.meta.url)('electron') as string;
-  if (!existsSync(electron)) return t.skip('electron binary is not installed');
+  const runtime = electronRuntime();
+  if (runtime.reason) return t.skip(runtime.reason);
+  const electron = runtime.executable!;
   const build = spawnSync(process.execPath, ['scripts/build.mjs'], { encoding: 'utf8' });
   assert.equal(build.status, 0, build.stderr);
   const out = mkdtempSync(join(tmpdir(), 'tt-grab-invalid-'));

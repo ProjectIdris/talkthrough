@@ -110,3 +110,16 @@ test('a second Claude model for the steps after step 1 is off unless named, and 
   assert.equal(settingsFrom(JSON.stringify({ claudeLaterModel: 'claude-sonnet-5-5' })).settings.claudeLaterModel, 'claude-sonnet-5-5');
   assert.equal(settingsFrom(JSON.stringify({ claudeModel: 'claude-sonnet-5-5', claudeLaterModel: 'claude-sonnet-5-5' })).settings.claudeLaterModel, undefined);
 });
+
+test('speech audio is sent only to https or loopback addresses configured in settings', () => {
+  for (const url of ['https://speech.example.test', 'http://localhost:8001', 'http://127.0.0.1:8001', 'http://[::1]:8001']) {
+    const { settings, warnings } = settingsFrom(JSON.stringify({ speechServerUrl: url }));
+    assert.equal(settings.speechServerUrl, url);
+    assert.deepEqual(warnings, []);
+  }
+  for (const url of ['http://speech.example.test', 'http://192.168.1.4:8001', 'ftp://localhost', 'not a url']) {
+    const { settings, warnings } = settingsFrom(JSON.stringify({ speechServerUrl: url }));
+    assert.equal(settings.speechServerUrl, undefined, url);
+    assert.ok(warnings.some((warning) => warning.includes('speechServerUrl')), url);
+  }
+});

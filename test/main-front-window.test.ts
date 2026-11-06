@@ -19,7 +19,7 @@ test('the reader asks a worker thread for the window in front and gets its name,
   }
 });
 
-test('the real reader (the one the app ships) loads in its thread and reads a window', async () => {
+test('the real reader (the one the app ships) loads in its thread and reads a window', { skip: process.platform !== 'win32' ? 'the native window reader currently targets Windows' : false }, async () => {
   const reader = createFrontWindowReader({ file: resolve('src/main/front-window-worker.ts') });
   try {
     const w = await Promise.race([reader.read(), new Promise<never>((_, no) => setTimeout(() => no(new Error('no answer in 20 s')), 20000))]);

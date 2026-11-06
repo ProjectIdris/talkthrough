@@ -133,7 +133,7 @@ export type QuestionReport = {
   escalate?: string;
   /** This was a detail pass (a richer version of the scene on screen), not a question. */
   detail?: boolean;
-  /** The answer broke after some steps had been shown (what the page had stays; see answer): what broke it. Not an error. */
+  /** The answer broke after some steps had been shown: what broke it. The scene stays with an incomplete warning; tracked separately from failures with nothing to show. */
   cutShort?: string;
   error?: string;
 };
@@ -681,8 +681,9 @@ export function createSession(deps: SessionDeps) {
         if (!held) send(displayId, { kind: 'step-close' });
       } else closeLive();
     }
-    if (failure && shown.length > 0) {
-      // Steps have already played: they stay, and the answer ends where it broke, with a line in the log, not a wiped page and an error.
+    const incomplete = Boolean(failure && shown.length > 0);
+    if (incomplete) {
+      // Retain useful steps, but mark the answer incomplete both on screen and in follow-up history.
       const code = failure instanceof ModelError ? failure.code : 'failed';
       r.cutShort = `${source.kind}: ${code}: ${failure instanceof Error ? failure.message : String(failure)}`;
       deps.log(`answer cut short after ${shown.length} step${shown.length === 1 ? '' : 's'} (${r.cutShort}); what was shown stays`);
@@ -716,7 +717,11 @@ export function createSession(deps: SessionDeps) {
       open();
       send(displayId, { kind: 'end', ...(escalate ? { escalate } : {}) });
     }
-    const kept: ThreadTurn = { question, steps: shown, ...(detail ? { detail: true as const } : {}) };
+    if (incomplete) send(displayId, {
+      kind: 'notice', level: 'warning', persistent: true,
+      text: 'Answer interrupted. What is shown is incomplete. Ask a follow-up to continue, or ask again to retry.',
+    });
+    const kept: ThreadTurn = { question, steps: shown, ...(incomplete ? { incomplete: true as const } : {}), ...(detail ? { detail: true as const } : {}) };
     if (picture) pictures.set(kept, picture);
     if (detail) {
       // The scene on screen is now the richer one: the ids it did not write again are still there and still known.

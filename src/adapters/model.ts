@@ -17,11 +17,13 @@ export type FocusCrop = {
   open?: boolean;
 };
 
-/** One finished turn of the visual thread, so a follow-up can reach what is already on screen. */
+/** One retained turn of the visual thread, so a follow-up can reach what is already on screen. */
 export type ThreadTurn = {
   question: string;
   /** The validated steps that were shown for that question. */
   steps: readonly Step[];
+  /** The answer was interrupted after useful steps; these steps are not a complete explanation. */
+  incomplete?: true;
   /** A detail pass: a richer version of the scene as it stood, replacing what the turns before it drew (the ids it writes again are swapped in place). */
   detail?: true;
 };

@@ -1,3 +1,4 @@
+import { safeBaseUrl } from '../shared/service-url.ts';
 import { SpeechToTextError } from './speech-to-text.ts';
 import type { SpeechClip, SpeechToText, Transcript } from './speech-to-text.ts';
 
@@ -11,7 +12,7 @@ import type { SpeechClip, SpeechToText, Transcript } from './speech-to-text.ts';
  *   GET {url}/health -> 200 when ready (optional; used by warm())
  *   POST {url}/warm (no body) -> 202 at once, the server getting ready in the background (optional; used by wake(): any answer, or none, is fine)
  *
- * The URL always comes from the caller (the user's local settings); nothing is assumed about it.
+ * The URL comes from the caller (the user's local settings) and must be HTTPS or loopback HTTP. Redirects are refused.
  */
 export type LocalSpeechServerOptions = {
   /** Base URL of the server, e.g. what the user typed in settings. Required. */
@@ -46,6 +47,7 @@ export function toRate16k(clip: SpeechClip): Float32Array {
 
 export function createLocalSpeechServerRecogniser(options: LocalSpeechServerOptions): SpeechToText {
   if (!options.url) throw new Error('a local speech server needs a url from the settings');
+  if (!safeBaseUrl(options.url)) throw new Error('a speech server url must be https (or a loopback address)');
   const base = options.url.replace(/\/+$/, '');
   const doFetch = options.fetch ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? 15000;
@@ -62,7 +64,7 @@ export function createLocalSpeechServerRecogniser(options: LocalSpeechServerOpti
     id: 'local-speech-server',
     async warm() {
       try {
-        const response = await doFetch(`${base}/health`, { signal: signalFor() });
+        const response = await doFetch(`${base}/health`, { redirect: 'error', signal: signalFor() });
         if (!response.ok) throw new SpeechToTextError('unavailable', `speech server answered ${response.status}`);
       } catch (error) {
         if (error instanceof SpeechToTextError) throw error;
@@ -90,6 +92,8 @@ export function createLocalSpeechServerRecogniser(options: LocalSpeechServerOpti
           method: 'POST',
           headers: { 'Content-Type': 'application/octet-stream' },
           body: new Blob([new Uint8Array(samples.buffer as ArrayBuffer, samples.byteOffset, samples.byteLength)]),
+          // Recorded audio must never be forwarded to an unconfigured destination.
+          redirect: 'error',
           signal: signalFor(call.signal),
         });
       } catch (error) {

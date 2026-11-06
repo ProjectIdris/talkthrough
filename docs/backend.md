@@ -25,7 +25,7 @@ While the backend works the overlay shows **With the backend**. It goes when the
 | `reason` | text, optional | Why the fast model gave up (its `escalate`), for an accepted offer. |
 | `question` | text | What was asked, transcribed from speech (it may contain recognition errors). |
 | `screenshot` | `{ mime, width, height, base64 }` | The picture the fast model saw, PNG, base64 without a prefix. If the user circled something with the pen, it has the stroke drawn on it in red. |
-| `thread` | `[{ question, said: [text, ...] }]` | The conversation so far, oldest first: each earlier question and the lines that were spoken for it. |
+| `thread` | `[{ question, said: [text, ...], incomplete?: true }]` | The conversation so far, oldest first: each earlier question and the lines that were spoken for it. `incomplete: true` means the answer was interrupted; retained lines must not be treated as a complete explanation. |
 | `scene` | `{ steps: [...], ids: { id: kind } }` | What is on screen: every step drawn in this thread so far (scene-language steps, oldest first), and the ids now in use with their kinds (`mark`, `pin`, or a 3D object kind), so an answer can change them or avoid reusing them. |
 
 Example (the picture shortened):

@@ -189,18 +189,23 @@ test('a model failure before any step is a notice and nothing else', async () =>
   assert.equal(r.kinds().at(-1), 'notice:error');
 });
 
-test('a failure after steps have played keeps what was drawn and ends the answer there, logged: no error, no wiped page', async () => {
+test('a failure after completed steps keeps the scene and visibly marks the answer incomplete', async () => {
   const model = { id: 'm', ask: async function* () { yield { type: 'step' as const, step: step('One.') }; yield { type: 'step' as const, step: step('Two.') }; throw new ModelError('bad-output', 'scene text has mismatched brackets'); } };
   const lines: string[] = [];
   const reports: Array<{ steps: number; error?: string; cutShort?: string; endMs?: number }> = [];
   const r = rig({ model: () => model, log: (l) => void lines.push(l), onReport: (rep) => void reports.push(rep) });
   await question(r);
   const k = r.kinds();
-  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'step', 'step', 'end'], 'both steps shown, the answer ended, no notice');
+  assert.deepEqual(k.slice(k.indexOf('begin')), ['begin', 'step', 'step', 'end', 'notice:warning'], 'both steps stay; the warning does not clear or interrupt playback');
+  const warning = r.sent.find((m) => m.kind === 'notice');
+  assert.ok(warning?.kind === 'notice');
+  assert.match(warning.text, /interrupted.*incomplete/i);
+  assert.match(warning.text, /follow-up.*continue.*again.*retry/i);
+  assert.equal(warning.persistent, true, 'the warning must outlast the queued narration');
   assert.ok(lines.some((l) => /answer cut short after 2 steps/.test(l) && /mismatched brackets/.test(l)), lines.join(' | '));
   const rep = reports.at(-1)!;
   assert.equal(rep.steps, 2);
-  assert.equal(rep.error, undefined, 'not an error');
+  assert.equal(rep.error, undefined, 'partial output is tracked separately from a failure with nothing to show');
   assert.match(rep.cutShort ?? '', /mismatched brackets/);
   assert.ok(rep.endMs !== undefined, 'it counts as finished, so a follow-up (More detail) can still be asked');
 });
@@ -1336,4 +1341,41 @@ test('a fault of hearing carries the button that sets hearing up, a fault of the
   const quiet = rig({}, 100);
   await question(quiet);
   assert.equal(firstNotice(quiet)?.action, undefined, 'a clip too short says so and offers nothing');
+});
+
+
+test('follow-ups know that a retained answer was interrupted, including a later unfinished step', async () => {
+  const histories: ModelRequest['thread'][] = [];
+  const model: Model = { id: 'partial', async *ask(req) {
+    histories.push([...req.thread]);
+    if (histories.length === 1) {
+      yield { type: 'step', step: step('One.') };
+      yield { type: 'say', say: 'Unfinished.' };
+      yield { type: 'action', action: { op: 'box', id: 'unfinished', x: 1, y: 1, w: 5, h: 5, color: 'red' } };
+      throw new ModelError('unavailable', 'lost connection');
+    }
+    yield { type: 'step', step: { say: 'The rest.', actions: [] } };
+  } };
+  const r = rig({ model: () => model });
+  await question(r);
+  const kinds = r.kinds();
+  assert.deepEqual(kinds.slice(kinds.indexOf('begin')), ['begin', 'step', 'step-open', 'action', 'step-close', 'end', 'notice:warning']);
+  await question(r);
+  assert.deepEqual(histories[1], [{ question: 'what is this', steps: [step('One.')], incomplete: true }]);
+  await question(r);
+  assert.equal(histories[2]?.[1]?.incomplete, undefined, 'successful follow-ups are not mislabeled');
+});
+
+test('an interrupted guide warns without clearing its scene or ending its click-wait early', async () => {
+  const w = walkRig([], undefined, undefined, undefined, async function* () {
+    yield { type: 'step', step: guided('file', 'Click File.') };
+    throw new ModelError('unavailable', 'lost connection');
+  });
+  await question(w);
+  assert.ok(w.sent.some((m) => m.kind === 'notice' && m.level === 'warning' && m.persistent));
+  assert.ok(w.kinds().includes('status:waiting'));
+  assert.ok(!w.kinds().includes('end'), 'the guide still owns its waiting step');
+  assert.ok(!w.kinds().includes('status:idle'), 'a warning must not cancel the waiting indicator');
+  await w.click(450, 120, flat(90));
+  assert.ok(w.kinds().includes('end'), 'the completed partial guide still closes normally');
 });
