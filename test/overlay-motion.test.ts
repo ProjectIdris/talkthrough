@@ -133,6 +133,30 @@ test('locking or exploding supersedes an earlier ramp without losing real brakin
   near(rotZ(withMotion(settle(exploded),5),'crank'),rotZ(settle(exploded),'crank')!);
 });
 
+test('a replacement preserves the spin reservation for a later stop or lock', () => {
+  const other={op:'add',shape:'box',id:'other',size:[1,1,1]};
+  const initial=[crank,other,{op:'spin',id:'crank',rpm:60,dur:10},
+    {...crank,at:1}];
+  near(planStep(emptyFrame(),step(...initial,{op:'spin',id:'crank',rpm:0,dur:0,at:2})).duration,2.2);
+  near(planStep(emptyFrame(),step(...initial,{op:'spin',id:'crank',by:'other',at:2})).duration,2.2);
+  near(planStep(emptyFrame(),step(...initial,{op:'spin',id:'other',rpm:30,dur:5},
+    {op:'spin',id:'crank',rpm:0,dur:0,at:2})).duration,5);
+});
+
+test('a replaced parent does not disturb its child spin reservation', () => {
+  const parent={op:'add',shape:'group',id:'holder'};
+  const child={...crank,parent:'holder'};
+  const plan=planStep(emptyFrame(),step(parent,child,{op:'spin',id:'crank',rpm:60,dur:10},
+    {...parent,at:1},{op:'spin',id:'crank',rpm:0,dur:0,at:2}));
+  near(plan.duration,2.2);
+});
+
+test('clearing a spinning object preserves the existing ramp duration policy', () => {
+  const plan=planStep(emptyFrame(),step(crank,{op:'spin',id:'crank',rpm:60,dur:10},
+    {op:'clear',target:'crank',at:1}));
+  near(plan.duration,10);
+});
+
 test('a spin locked to another turns that many times as far, even while the other speeds up', () => {
   const cam = { op: 'add', shape: 'part', part: 'camshaft', id: 'cam', size: [4, 1, 1], pos: [3, 5, 0] };
   const plan = planStep(emptyFrame(), step(...engine, cam,
