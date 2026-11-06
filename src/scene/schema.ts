@@ -15,6 +15,7 @@ function describe(f: Field): string | undefined {
   if (f.k === 'vec3') parts.push(`[x,y,z], each ${f.min} to ${f.max}`);
   if (f.k === 'vec2') parts.push(`[x,y], each ${f.min} to ${f.max}`);
   if (f.k === 'pts2') parts.push(`${f.min} to ${f.max} points [x,y], each ${f.lo} to ${f.hi}`);
+  if (f.k === 'rings2') parts.push(`up to ${f.max} rings, 3 to ${f.points} points [x,y] each, each coordinate ${f.lo} to ${f.hi}`);
   if (f.k === 'strs') parts.push(`up to ${f.max} texts of up to ${f.len} characters`);
   if (f.k === 'pts') parts.push(`${f.min} to ${f.max} points [x,y,z]`);
   if (f.k === 'str') parts.push(`up to ${f.max} characters`);
@@ -35,6 +36,7 @@ function fieldSchema(f: Field, descriptions: boolean): Schema {
     case 'bool': s = { type: nullable('boolean') }; break;
     case 'vec2': s = { type: nullable('array'), items: { type: 'number' } }; break;
     case 'pts2': s = { type: nullable('array'), items: { type: 'array', items: { type: 'number' } } }; break;
+    case 'rings2': s = { type: nullable('array'), items: { type: 'array', items: { type: 'array', items: { type: 'number' } } } }; break;
     case 'strs': s = { type: nullable('array'), items: { type: 'string' } }; break;
     case 'vec3': s = { type: nullable('array'), items: { type: 'number' } }; break;
     case 'pts': s = { type: nullable('array'), items: { type: 'array', items: { type: 'number' } } }; break;

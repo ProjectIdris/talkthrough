@@ -1249,6 +1249,22 @@
           },
           "description": "3 to 40 points [x,y], each -100 to 100"
         },
+        "holes": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "description": "up to 8 through-openings in outline local XY; 3 to 24 points each, 128 points total including outline; no crossing, touching or nesting; either winding and a single closing point are allowed; up to 8 rings, 3 to 24 points [x,y] each, each coordinate -100 to 100"
+        },
         "depth": {
           "type": "number",
           "description": "0.01 to 100"
@@ -1312,6 +1328,7 @@
         "pos",
         "rot",
         "outline",
+        "holes",
         "depth",
         "color",
         "material",
@@ -1321,7 +1338,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets."
+      "description": "A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets. holes are disjoint rings strictly inside the outline, cut through the full depth; flat edges only, no bevel."
     },
     "addLathe": {
       "type": "object",

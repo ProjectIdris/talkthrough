@@ -1098,6 +1098,21 @@
             }
           }
         },
+        "holes": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        },
         "depth": {
           "type": "number"
         },
@@ -1153,6 +1168,7 @@
         "pos",
         "rot",
         "outline",
+        "holes",
         "depth",
         "color",
         "material",

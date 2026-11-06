@@ -43,7 +43,7 @@ Objects stay on screen until cleared. A follow-up question continues the same sc
 
 No screen size is measured along both axes at once: every screen size is a width (`w`) or height (`h`) in its own axis units, so a shape that looks round on a 16:9 screenshot needs `w` smaller than `h` (about 9/16 of it). Text height (`size`) is in y units. A renderer maps each axis separately.
 
-Out-of-range numbers are clamped by the validator, never rejected.
+Out-of-range numbers are generally clamped by the validator. For extrusions with nonempty `holes`, out-of-range outline or hole coordinates instead reject the whole action, so clamping cannot change the profile's topology.
 
 ## Ids
 
@@ -97,7 +97,7 @@ When the thing to explain is a process, a sequence of events, a how-to or a tren
 | shape | fields | |
 |---|---|---|
 | `box` `sphere` `cylinder` `cone` `torus` `plane` | `size` `pos`? `rot`? `color`? `material`? `bevel`? `edges`? `opacity`? | `size` is the bounding box `[x,y,z]`. A cylinder and a cone stand on `y` (diameter `x`, height `y`, cone apex up). A torus lies flat: outer diameter `x`, tube thickness `y`. A plane faces `+z` and ignores `z`. A sphere is an ellipsoid fitted to the box. A box is slightly rounded by default; `bevel` sets the rounding in units (0 for sharp) |
-| `extrude` | `outline` `depth` `bevel`? `pos`? `rot`? `color`? `material`? | a flat outline `[[x,y],...]` (3 to 40 points, counter-clockwise, in the x,y plane) pushed out `depth` along `z` and centred on it: wings, fins, plates |
+| `extrude` | `outline` `holes`? `depth` `bevel`? `pos`? `rot`? `color`? `material`? | a flat outline `[[x,y],...]` (3 to 40 points in the x,y plane) pushed out `depth` along `z` and centred on it: wings, fins, plates. `holes` is a list of closed outlines for actual through-openings; see below |
 | `lathe` | `profile` `sides`? `pos`? `rot`? `color`? `material`? | a profile `[[radius,y],...]` spun round the `y` axis: bodies, nozzles, rings, bottles. `sides` (3 to 64, default 48) makes it faceted |
 | `blob` | `pts` `sizes` `soft`? `pos`? `rot`? `color`? `material`? `opacity`? | a soft organic form blended from 1 to 12 ellipsoid lumps: `pts` are the lump centres and `sizes` their boxes `[x,y,z]` (one for each point; a short list repeats its last). Lumps that overlap melt into one smooth skin with necks between them, so a heart chamber, an animal's body or head, a leaf, a fruit is one blob. `soft` (0.05 to 1, default 0.5) is how far they blend: low is nearly a hard union, 1 joins lumps a little apart. A lone lump is exactly its ellipsoid. For several forms (the chambers of an organ) write one blob each. No edge lines; cut tiers use a coarser skin |
 | `tube` | `pts` `radius` `flat`? `swell`? `draw`? `color`? `material`? | a smooth tube through 2 to 24 points: cables, pipes, vessels. `flat` (0.05 to 1) squashes it to a ribbon whose wide side faces across the path. `draw` below 1 starts it part drawn. `swell` `[[along 0 to 1, factor],...]` (2 to 8 points, smooth between them) changes the radius along the tube: a vessel that tapers, a stem that thickens toward the ground, a tail. A tube thick for its length (radius at least 4 per cent of its length: a stem, a vessel, a limb, a pipe) counts as part of the model when the camera frames it; a thin cable does not |
@@ -110,6 +110,19 @@ When the thing to explain is a process, a sequence of events, a how-to or a tren
 | `group` | `pos`? `rot`? | an empty node |
 
 All take `parent`? (the id of a group, or of a part or shape, to attach to; they nest up to 6 deep, and a mark, a pin or a text cannot be a parent), `explode`? (see below) and `at`?. `pos` defaults to `[0,0,0]`, `rot` to `[0,0,0]`, `opacity` to 1. A child moves, turns and scales with its parent. To make something grow from its base, put it in a group at the base, offset the child by half its height, and scale the group (see `bar-chart.json`). Arrays are capped at 64 copies each and 400 in a scene.
+
+An extrusion can have **through-openings**: `holes` is a list of polygon rings in the same local x,y coordinates as `outline`. Each opening passes through the full depth, so it remains open from either side and when the object is turned. This is one mesh with inner walls, useful for plates, brackets, frames and gaskets; it is not a painted dark patch or a collection of bars. See `samples/scenes/perforated-plate.json` for a plate and a slider passing through its central opening.
+
+- Give at most 8 holes, with 3 to 24 input points each, and at most 128 input points across the outer outline and all holes. The outer limit is still 40. A repeated closing point is optional and counts towards these limits. Either winding is accepted with holes.
+- Every ring must be simple and have nonzero area. Holes must be strictly inside the outer outline, separate from each other and not nested. Crossing or touching boundaries, repeated interior points and zero-length edges are rejected. Keep a clear gap between edges rather than relying on near-coincident coordinates. Profiles that collapse or cross at the renderer’s Float32 precision are also rejected.
+- With holes, malformed coordinates, coordinates outside the allowed world range and excessive point counts reject the whole action. Rings are not truncated or clamped into a different shape, and an invalid opening is never silently filled in.
+- Perforated extrusions have sharp edges: omitted `bevel` means 0, and a positive `bevel` is reduced to 0 with a validation issue. There are no blind pockets, nested islands or general solid-subtraction operations. Omitted, null or empty `holes` preserves the existing solid-extrusion behavior, including bevels.
+
+For example, this makes a 4 by 2 plate, 0.4 deep, with a 1 by 1 square opening:
+
+```json
+{"op":"add","shape":"extrude","id":"plate","outline":[[-2,-1],[2,-1],[2,1],[-2,1]],"holes":[[[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]]],"depth":0.4,"bevel":0,"material":"metal"}
+```
 
 Schedule a new parent no later than its child: the parent's `at` must be at or before the child's `at` (omitted means 0). A child scheduled before its parent's earliest known creation is dropped with a validation issue. This applies to both complete and streamed scenes, even when streaming arrival times would delay the child. Existing parents and earlier creations remain usable before later replacements or scheduled clears.
 
