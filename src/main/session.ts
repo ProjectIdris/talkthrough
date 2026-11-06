@@ -219,6 +219,10 @@ export function createSession(deps: SessionDeps) {
   let report: QuestionReport | null = null;
   /** The guide walk in progress, if any, and the controller of the model call making its latest plan. */
   let walking: { guide: Guide; controller: AbortController } | null = null;
+  let guideChecking: SceneState | undefined;
+  // A queued guide step belongs to the answer that produced it, but contributes
+  // to visible history only once the guide actually shows it.
+  const queuedGuideOwners = new WeakMap<Step, Step[]>();
   let releasedAt = 0;
   /** The press whose pen strokes still count: the one held now, and for a moment after release. */
   let penFor: Attempt | null = null;
@@ -535,7 +539,8 @@ export function createSession(deps: SessionDeps) {
     }
     // A detail pass knows the ids on screen: it may name one it does not write again (a pin on it, a part under it) and
     // may write any of them again, richer; the page swaps each one in place as it arrives.
-    const checking: SceneState = detail ? createDetailState(state) : state;
+    let checking: SceneState = detail ? createDetailState(state) : walkIn ? structuredClone(state) : state;
+    if (walkIn) guideChecking = checking;
     const turn = detail ? Math.max(1, thread.length) : thread.length + 1;
     const picture = lastAsk?.clean;
     const known = [...state.ids.keys()];
@@ -543,6 +548,7 @@ export function createSession(deps: SessionDeps) {
     deps.log(`question heard (turn ${turn}, ${source.label}${deps.logText ? `): ${JSON.stringify(question)}` : ')'}`);
 
     const shown: Step[] = [];
+    let accepted = 0;
     // A guide walk (an answer with `wait` steps) holds its later steps back: they are given to it, not drawn.
     let walk: Guide | undefined = walkIn;
     let held = false;
@@ -588,9 +594,24 @@ export function createSession(deps: SessionDeps) {
     const startWalk = (): Guide => {
       const g: Guide = createGuide({
         displayId,
+        onShow: (step, shaped) => {
+          const owner = queuedGuideOwners.get(step);
+          if (!owner) return;
+          queuedGuideOwners.delete(step);
+          // Guide-inserted clears occur before this already validated step.
+          const modelActions = new Set(step.actions);
+          const visible = structuredClone(state);
+          for (const action of shaped.actions) if (!modelActions.has(action) && action.op === 'clear') applyClear(visible, action.target);
+          // Replay only validated actions against the actually visible state;
+          // the producer's independent checking state retains original caps.
+          startTurn(visible);
+          validateStep(step, visible);
+          state = visible;
+          owner.push(shaped);
+        },
         send: (message) => {
           // The guide clears the page by id between steps: the scene the answers are checked against forgets those ids too.
-          if (message.kind === 'step') for (const a of message.step.actions) if (a.op === 'clear') applyClear(checking, a.target);
+          if (message.kind === 'step' && guideChecking) for (const a of message.step.actions) if (a.op === 'clear') applyClear(guideChecking, a.target);
           send(displayId, message);
         },
         capture: () => deps.guide!.capture(displayId),
@@ -603,6 +624,7 @@ export function createSession(deps: SessionDeps) {
           if (walking?.guide === g) {
             walking.controller.abort();
             walking = null;
+            guideChecking = undefined;
           }
           // Escape, a long silence or a failure leave a cleared page: the next question starts afresh.
           if (why === 'escape' || why === 'idle' || why === 'failed') {
@@ -620,9 +642,11 @@ export function createSession(deps: SessionDeps) {
       return g;
     };
     const handOver = (step: Step, wasHeld: boolean): void => {
-      if (wasHeld && walk) walk.push(step);
+      if (wasHeld && walk) { queuedGuideOwners.set(step, shown); walk.push(step); }
       else if (!walk && !detail && deps.guide && waitOf(step)) {
         walk = startWalk();
+        checking = structuredClone(state);
+        guideChecking = checking;
         walk.adopt(step); // already on the page: the guide waits for its click
       }
     };
@@ -637,7 +661,8 @@ export function createSession(deps: SessionDeps) {
       }
       if (!held) send(displayId, { kind: 'step-close' });
       if (done.step) {
-        shown.push(done.step);
+        accepted++;
+        if (!held) shown.push(done.step);
         handOver(done.step, held);
       }
     };
@@ -669,7 +694,8 @@ export function createSession(deps: SessionDeps) {
           if (!checked.step) continue;
           const wasHeld = walk !== undefined;
           if (!wasHeld) open();
-          shown.push(checked.step);
+          accepted++;
+          if (!wasHeld) shown.push(checked.step);
           r.firstStepMs ??= since();
           if (!wasHeld) send(displayId, { kind: 'step', step: checked.step });
           handOver(checked.step, wasHeld);
@@ -715,7 +741,7 @@ export function createSession(deps: SessionDeps) {
     }
     if (escalate) r.escalate = escalate;
     r.endMs = since();
-    if (shown.length === 0 && !escalate) {
+    if (shown.length === 0 && accepted === 0 && !escalate) {
       const said = source.message?.();
       if (said) return notice(displayId, said);
       r.error = `the ${source.kind} gave nothing to show`;

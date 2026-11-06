@@ -70,6 +70,8 @@ export type GuideDeps = {
   /** How many steps of this answer are already on the page before the guide's first (so its first gets a clear page too). */
   prior?: number;
   send(message: SceneMessage): void;
+  /** The checked queued step is about to be shown, with its guide-added clears and ticks. */
+  onShow?(step: Step, shaped: Step): void;
   /** A fresh screenshot of the display (and its grid). May throw. */
   capture(): Promise<Frame>;
   /** Starts listening for clicks and Escape; returns how to stop. Called when the first waiting step is shown. */
@@ -356,6 +358,7 @@ export function createGuide(deps: GuideDeps) {
       // Each guide step starts from a clear page (the checklist stays); the first one keeps whatever the answer already drew.
       const out: Step = shape(step, shown.length === 0);
       shown.push(step);
+      deps.onShow?.(step, out);
       deps.send({ kind: 'step', step: out });
       const wait = waitOf(step);
       const go = goOf(step);
