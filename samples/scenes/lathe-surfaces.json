@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "These three forms use the same general-purpose lathe: a short profile rotated around its vertical axis. Soft shoulders share smooth lighting, while deliberate steps stay sharp.",
+      "actions": [
+        { "op": "panel", "x": 80, "y": 150, "w": 840, "h": 700 },
+        { "op": "orbit", "az": 28, "el": 22, "dur": 0 },
+        { "op": "add", "shape": "lathe", "id": "vessel", "pos": [-2.7, 0, 0], "profile": [[0, -1.3], [0.55, -1.3], [0.72, -1.15], [0.9, -0.7], [0.96, 0], [0.83, 0.5], [0.55, 0.9], [0.45, 1.2], [0.45, 1.35], [0.32, 1.35], [0.32, 1.17], [0.43, 0.87], [0.7, 0.47], [0.82, 0], [0.76, -0.65], [0.6, -1], [0, -1]], "color": "#47a7a8", "material": "plastic", "edges": false },
+        { "op": "add", "shape": "lathe", "id": "nozzle", "profile": [[0, -1.2], [0.85, -1.2], [0.85, -0.9], [0.6, -0.9], [0.6, -0.5], [0.8, -0.5], [0.8, -0.25], [0.6, -0.25], [0.6, 0.2], [0.3, 0.9], [0.3, 1.2], [0.18, 1.2], [0.18, 0.85], [0.45, 0.15], [0.45, -1], [0, -1]], "color": "#d6a45d", "material": "metal", "edges": false },
+        { "op": "add", "shape": "lathe", "id": "collar", "pos": [2.7, 0, 0], "profile": [[0.55, -0.5], [0.9, -0.5], [1, -0.4], [1, 0.4], [0.9, 0.5], [0.55, 0.5], [0.55, -0.5]], "color": "#7d8dc7", "material": "plastic", "sides": 8, "edges": true },
+        { "op": "pin", "id": "vessel-label", "on": "vessel", "text": "Smooth hollow vessel" },
+        { "op": "pin", "id": "nozzle-label", "on": "nozzle", "text": "Sharp stepped nozzle" },
+        { "op": "pin", "id": "collar-label", "on": "collar", "text": "Eight-sided collar" }
+      ]
+    },
+    {
+      "say": "The inside walls are part of each profile. Turning the view exposes the openings and shows how round and faceted surfaces keep their different character.",
+      "actions": [ { "op": "orbit", "az": -32, "el": 46, "dur": 2 } ]
+    }
+  ]
+}

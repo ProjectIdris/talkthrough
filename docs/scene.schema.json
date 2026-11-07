@@ -1281,6 +1281,39 @@
           },
           "description": "3 to 40 points [x,y], each -100 to 100"
         },
+        "taper": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.05 to 20"
+        },
+        "shift": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y], each -100 to 100"
+        },
+        "holes": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "description": "up to 8 through-openings in outline local XY; 3 to 24 points each, 128 points total including outline; no crossing, touching or nesting; either winding and a single closing point are allowed; up to 8 rings, 3 to 24 points [x,y] each, each coordinate -100 to 100"
+        },
         "depth": {
           "type": "number",
           "description": "0.01 to 100"
@@ -1372,6 +1405,9 @@
         "pos",
         "rot",
         "outline",
+        "taper",
+        "shift",
+        "holes",
         "depth",
         "color",
         "material",
@@ -1385,7 +1421,163 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets."
+      "description": "A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets. Ordinary extrusions support disjoint through-hole rings strictly inside the outline, with flat edges only. Optional taper or shift makes a sharp closed transition: the negative-z end is the outline, the positive-z end is outline*taper+shift, scaling about the local origin. Defaults in this mode: taper 1, shift [0,0]. taper 0.05..20; both end coordinates -100..100; depth 0.01..100. Requires a simple polygon, 3..40 points, either winding. Invalid or Float32-unsafe geometry rejects, not repairs. Bevel must be omitted/null/0; through-holes are not supported in this mode."
+    },
+    "addHull": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "hull"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "4 to 64 points [x,y,z]"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "dark edge lines (default true)"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "explode",
+        "pos",
+        "rot",
+        "pts",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A closed convex envelope of 4 to 64 local 3D points. Points are not recentered and must span three dimensions; interior and duplicate points are allowed. No concavities or cavities."
     },
     "addLathe": {
       "type": "object",
@@ -1449,6 +1641,13 @@
             }
           },
           "description": "2 to 40 points [x,y], each -100 to 100"
+        },
+        "sweep": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 359"
         },
         "sides": {
           "type": [
@@ -1537,6 +1736,7 @@
         "pos",
         "rot",
         "profile",
+        "sweep",
         "sides",
         "color",
         "material",
@@ -1549,7 +1749,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides (default 48) makes it faceted."
+      "description": "A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides makes it faceted (default quality tiers: 20/36/64). Optional sweep 1..359 degrees makes a closed sector from +z towards +x about +y; rotate to choose its start. Sector profile: simple closed polygon, 3..40 points (one repeated closing point allowed), radius 0..100, y -100..100. Invalid, touching, intersecting or Float32-unsafe profiles and invalid sweeps are rejected, not repaired. Either winding; exact redundant collinear boundary points are removed. sides is segments per full revolution (sector segments scale proportionally, at most 90 degrees each)."
     },
     "addBlob": {
       "type": "object",
@@ -1785,6 +1985,13 @@
           },
           "description": "2 to 8 points [x,y], each 0 to 10"
         },
+        "closed": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Join into a smooth loop with no caps; needs three distinct points. The radius at the join uses the start of swell."
+        },
         "color": {
           "type": [
             "string",
@@ -1866,6 +2073,7 @@
         "radius",
         "flat",
         "swell",
+        "closed",
         "color",
         "material",
         "roughness",
@@ -1877,7 +2085,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A smooth tube through the points: cables, pipes, vessels, stems, limbs. flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail."
+      "description": "A smooth tube through the points: cables, pipes, vessels, stems, limbs. closed true joins it into a continuous loop (three distinct points minimum, no caps or endpoint attachment). flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail."
     },
     "addPath": {
       "type": "object",
@@ -2296,6 +2504,20 @@
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "named local point on parent (requires parent); defaults to origin when selfAnchor is used. pos becomes an offset in the parent frame; rot stays explicit. Resolved at creation with current geometry and inherited base transforms, not a motion constraint; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "named point on this part to place at parentAnchor, default origin; requires parent. Unknown anchors drop the action with available names; up to 24 characters"
+        },
         "explode": {
           "type": [
             "array",
@@ -2407,6 +2629,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "explode",
         "pos",
         "rot",
@@ -2419,7 +2643,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Each has good proportions and named anchors for pins."
+      "description": "A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Each has good proportions; mechanism anchors and the origin of every part can be used by pins, connectors and parentAnchor/selfAnchor placement."
     },
     "addArray": {
       "type": "object",
@@ -2586,6 +2810,13 @@
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "named local point on parent (requires parent); defaults to origin when selfAnchor is used. pos becomes an offset in the parent frame; rot stays explicit. Resolved at creation with current geometry and inherited base transforms, not a motion constraint; up to 24 characters"
+        },
         "explode": {
           "type": [
             "array",
@@ -2629,6 +2860,7 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
         "explode",
         "pos",
         "rot",
@@ -3578,6 +3810,16 @@
             null
           ]
         },
+        "normal": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "nonzero local cut direction; do not combine with axis; [x,y,z], each -100 to 100"
+        },
         "to": {
           "type": "number",
           "description": "-100 to 100"
@@ -3601,12 +3843,13 @@
         "op",
         "id",
         "axis",
+        "normal",
         "to",
         "at",
         "dur"
       ],
       "additionalProperties": false,
-      "description": "Cut a 3D object (usually a whole model) open with a plane, so the inside shows: everything beyond the plane is removed and the cut faces are capped. axis is x, y or z (default z, the plane faces the viewer at the front); to is where the plane is along that axis in the object own space (the middle of the object is 0). Move the plane through with another cut; to 100 puts it beyond everything: no cut."
+      "description": "Cut a 3D object and its children open. Choose axis x/y/z or normal [x,y,z], never both. normal is a nonzero local direction with finite components from -100 to 100; magnitude is ignored. to is signed distance along that unit direction from the local origin (not necessarily the center of a hull point cloud); the positive side is removed. Omit direction to keep the active cut direction (initially +z). Direction changes at the action start; only to animates. Closed opaque pieces are capped; open surfaces are not. to 100 removes the cut."
     },
     "orbit": {
       "type": "object",
@@ -3905,6 +4148,9 @@
         },
         {
           "$ref": "#/$defs/addExtrude"
+        },
+        {
+          "$ref": "#/$defs/addHull"
         },
         {
           "$ref": "#/$defs/addLathe"

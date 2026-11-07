@@ -1,3 +1,4 @@
+import { variantDefinitions } from './support/json-schema.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -99,7 +100,7 @@ test('finish numbers use ordinary bounds and nullable fields without consuming i
 
 test('strict full and lean schemas expose nullable finish only on material-bearing actions', () => {
   for (const schema of [sceneSchema, sceneSchemaLean]) {
-    const defs = (schema as { $defs: Record<string, { properties?: Record<string, unknown>; required?: string[] }> }).$defs;
+    const defs = variantDefinitions(schema);
     for (const name of ['addSolid','addExtrude','addLathe','addBlob','addTube','addConnector']) {
       for (const field of fields) {
         assert.deepEqual((defs[name]!.properties![field] as { type: unknown })?.type, ['number','null'], `${name}.${field}`);

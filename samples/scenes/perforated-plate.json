@@ -1,0 +1,208 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "A through-opening removes material all the way through a plate.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 120,
+          "y": 120,
+          "w": 760,
+          "h": 740
+        },
+        {
+          "op": "add",
+          "shape": "extrude",
+          "id": "plate",
+          "outline": [
+            [
+              -3,
+              -1.5
+            ],
+            [
+              3,
+              -1.5
+            ],
+            [
+              3,
+              1.5
+            ],
+            [
+              -3,
+              1.5
+            ]
+          ],
+          "holes": [
+            [
+              [
+                -0.9,
+                -0.65
+              ],
+              [
+                0.9,
+                -0.65
+              ],
+              [
+                0.9,
+                0.65
+              ],
+              [
+                -0.9,
+                0.65
+              ]
+            ],
+            [
+              [
+                -1.78,
+                0.0
+              ],
+              [
+                -1.87373,
+                0.22627
+              ],
+              [
+                -2.1,
+                0.32
+              ],
+              [
+                -2.32627,
+                0.22627
+              ],
+              [
+                -2.42,
+                0.0
+              ],
+              [
+                -2.32627,
+                -0.22627
+              ],
+              [
+                -2.1,
+                -0.32
+              ],
+              [
+                -1.87373,
+                -0.22627
+              ]
+            ],
+            [
+              [
+                2.42,
+                0.0
+              ],
+              [
+                2.32627,
+                0.22627
+              ],
+              [
+                2.1,
+                0.32
+              ],
+              [
+                1.87373,
+                0.22627
+              ],
+              [
+                1.78,
+                0.0
+              ],
+              [
+                1.87373,
+                -0.22627
+              ],
+              [
+                2.1,
+                -0.32
+              ],
+              [
+                2.32627,
+                -0.22627
+              ]
+            ]
+          ],
+          "depth": 0.4,
+          "bevel": 0,
+          "color": "#6e8fb8",
+          "material": "metal"
+        }
+      ]
+    },
+    {
+      "say": "The rectangular slot and the two mounting holes have their own inner walls. Turn the plate to see its thickness.",
+      "actions": [
+        {
+          "op": "orbit",
+          "az": -27,
+          "el": 18,
+          "dur": 2
+        },
+        {
+          "op": "pin",
+          "id": "plate-label",
+          "on": "plate",
+          "point": [
+            -2.65,
+            1,
+            0.2
+          ],
+          "text": "One perforated plate",
+          "at": 0.3
+        },
+        {
+          "op": "pin",
+          "id": "slot-label",
+          "on": "plate",
+          "point": [
+            0.9,
+            0.65,
+            0.2
+          ],
+          "text": "Through-slot",
+          "at": 1.2
+        }
+      ]
+    },
+    {
+      "say": "This smaller slider can pass through the central slot. It starts behind the plate and travels out through the front.",
+      "actions": [
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "slider",
+          "size": [
+            1.1,
+            0.7,
+            1.2
+          ],
+          "pos": [
+            0,
+            0,
+            -1.7
+          ],
+          "color": "#efb54b",
+          "material": "plastic",
+          "bevel": 0.04
+        },
+        {
+          "op": "move",
+          "id": "slider",
+          "to": [
+            0,
+            0,
+            1.5
+          ],
+          "at": 1,
+          "dur": 3
+        },
+        {
+          "op": "orbit",
+          "az": 28,
+          "el": 12,
+          "at": 4.2,
+          "dur": 2
+        }
+      ]
+    }
+  ]
+}
