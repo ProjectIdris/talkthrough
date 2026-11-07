@@ -45,3 +45,26 @@ The report keeps model first-token/first-output fields and the three-second targ
 On an authorised working model route, measure the real request before any request-specific catalogue work, tag the request/turn, and correlate raw model output, first accepted drawable action and actual new render evidence. Keep provider/model/cache state and 2D versus 3D cases separate. Measure repeat cold/warm runs and useful-scene quality with the same prompts and settings. Respect the existing data-only adapter contract and diagnostic privacy defaults. This harness is not that integration and does not enable a blocked model route.
 
 The app's existing release-based `firstPieceMs` and `firstMarkMs` remain unchanged. The former can precede any drawing; the latter currently tests frame state and can include retained content or objects that fail to draw. They should not be silently re-labelled as this pixel-confirmed endpoint.
+
+## Substantial 3D candidate mode
+
+```sh
+node scripts/prototypes/benchmark-first-visual.ts --fixture 3d --entries 21 --out ./first-3d-result
+node --test test/first-useful-3d.test.ts test/first-useful-3d-native.test.ts
+```
+
+The default `--fixture 2d` is unchanged. The new mode uses the same isolated real overlay, parser, validator, IPC and monotonic request clock. It streams a fixed panel, camera and two hand-written public gear parts in magenta and green. The step's closing bytes are withheld until a qualifying paint arrives. Retrieval is timed but does not choose these parts. No Vork source or new dependency is used.
+
+Unlike the 12-pixel first-stroke endpoint, the 3D gate requires **both** colours to occupy at least 600 pixels each, span at least 30 pixels on each axis and fill at least 15% of their bounding rectangles in the fixed fixture region. Pixels must be sufficiently opaque and distinctly coloured. Narration/invalid-action control and cleared baseline must have no matching pixels. A one-part frame, a tiny mark, thin stroke or ordinary blue UI cannot satisfy this gate.
+
+`pipeline.firstSubstantial3dPaintReceiptMs` records delivery of the first qualifying offscreen image. This is a **candidate for visual review**, not a proof of recognizable or correct gear geometry. The test does not count teeth, verify meshing, determine whether the mechanism explains a question, or assess complete-scene quality. The selected pixel thresholds have unit tests but have not been calibrated against human judgments. The first image can show an incomplete build-in animation. `usefulness.accepted`, `usefulness.firstUsefulOutputMs`, model timings and the live three-second verdict stay null. Do not relabel the candidate time as useful live output.
+
+3D uses Electron's default graphics configuration, retaining sandbox and context isolation. It checks the real overlay's WebGL2 canvas after readiness. No unsafe SwiftShader opt-in, GPU blocklist override, sandbox disable or renderer-security change is attempted. The renderer name, when available, is reported rather than assuming hardware acceleration; a naturally available software WebGL backend is not hardware performance.
+
+If the real overlay cannot initialize WebGL2, the CLI prints/saves a structured `status: "unavailable"` result and exits **2**, not 0. Catalogue and pipeline are null: no request measurement took place. No new PNG is written. 3D mode refuses a nonempty output directory before launching, preserving earlier evidence and preventing an old image from being mistaken for the new result. Unexpected runtime, validation, control or paint-timeout failures remain exit 1. Native success remains conditional on actual pixels and a valid incomplete streamed step, never a canvas/context check alone.
+
+### Verification boundary
+
+On the available Linux x64 cloud computer with Electron 45.2.2 / Chromium 156.0.8078.80, the actual default-security attempt reported WebGL2 unavailable (`webgl: disabled_off`, `opengl: disabled_off`). It exited 2 with null timings and no PNG. **The successful native 3D measurement path has not been visually accepted on this computer.** The real native 2D regression still passes. Portable fixture/parser/oracle tests and the unavailable-path integration test passing do not establish successful 3D rendering.
+
+Run the same command on an authorized WebGL2-capable computer and inspect the saved fixture image before accepting native 3D results. Paired authorized live-model requests, timing from the actual request boundary, cold/warm repetitions and human usefulness judgments remain separate work. This experiment neither calls nor enables a model route.
