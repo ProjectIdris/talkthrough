@@ -4,7 +4,7 @@
     "steps": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/1s"
+        "$ref": "#/$defs/1t"
       }
     },
     "escalate": {
@@ -188,6 +188,83 @@
         },
         "shape": {
           "enum": [
+            "stream"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "along": {
+          "type": "string"
+        },
+        "mark": {
+          "enum": [
+            "dot",
+            "dash",
+            "arrow",
+            null
+          ]
+        },
+        "count": {
+          "$ref": "#/$defs/0"
+        },
+        "size": {
+          "$ref": "#/$defs/0"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "toColor": {
+          "$ref": "#/$defs/1"
+        },
+        "shiftAt": {
+          "$ref": "#/$defs/0"
+        },
+        "period": {
+          "$ref": "#/$defs/0"
+        },
+        "by": {
+          "$ref": "#/$defs/1"
+        },
+        "ratio": {
+          "$ref": "#/$defs/0"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "along",
+        "mark",
+        "count",
+        "size",
+        "color",
+        "toColor",
+        "shiftAt",
+        "period",
+        "by",
+        "ratio",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "11": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
             "part"
           ]
         },
@@ -284,7 +361,7 @@
       ],
       "additionalProperties": false
     },
-    "11": {
+    "12": {
       "type": "object",
       "properties": {
         "op": {
@@ -328,7 +405,7 @@
       ],
       "additionalProperties": false
     },
-    "12": {
+    "13": {
       "type": "object",
       "properties": {
         "op": {
@@ -376,7 +453,7 @@
       ],
       "additionalProperties": false
     },
-    "13": {
+    "14": {
       "type": "object",
       "properties": {
         "op": {
@@ -420,7 +497,7 @@
       ],
       "additionalProperties": false
     },
-    "14": {
+    "15": {
       "type": "object",
       "properties": {
         "op": {
@@ -466,7 +543,7 @@
       ],
       "additionalProperties": false
     },
-    "15": {
+    "16": {
       "type": "object",
       "properties": {
         "op": {
@@ -496,7 +573,7 @@
       ],
       "additionalProperties": false
     },
-    "16": {
+    "17": {
       "type": "object",
       "properties": {
         "op": {
@@ -526,7 +603,7 @@
       ],
       "additionalProperties": false
     },
-    "17": {
+    "18": {
       "type": "object",
       "properties": {
         "op": {
@@ -556,7 +633,7 @@
       ],
       "additionalProperties": false
     },
-    "18": {
+    "19": {
       "type": "object",
       "properties": {
         "op": {
@@ -569,36 +646,6 @@
         },
         "to": {
           "$ref": "#/$defs/6"
-        },
-        "at": {
-          "$ref": "#/$defs/0"
-        },
-        "dur": {
-          "$ref": "#/$defs/0"
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "to",
-        "at",
-        "dur"
-      ],
-      "additionalProperties": false
-    },
-    "19": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "explode"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "to": {
-          "type": "number"
         },
         "at": {
           "$ref": "#/$defs/0"
@@ -1793,6 +1840,90 @@
         },
         "shape": {
           "enum": [
+            "loft"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/2"
+        },
+        "rot": {
+          "$ref": "#/$defs/2"
+        },
+        "outline": {
+          "$ref": "#/$defs/3"
+        },
+        "endOutline": {
+          "$ref": "#/$defs/3"
+        },
+        "depth": {
+          "type": "number"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "material": {
+          "$ref": "#/$defs/5"
+        },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
+        "edges": {
+          "$ref": "#/$defs/4"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "outline",
+        "endOutline",
+        "depth",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "w": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
             "blob"
           ]
         },
@@ -1863,7 +1994,7 @@
       ],
       "additionalProperties": false
     },
-    "w": {
+    "x": {
       "type": "object",
       "properties": {
         "op": {
@@ -1956,7 +2087,7 @@
       ],
       "additionalProperties": false
     },
-    "x": {
+    "y": {
       "type": "object",
       "properties": {
         "op": {
@@ -2005,7 +2136,7 @@
       ],
       "additionalProperties": false
     },
-    "y": {
+    "z": {
       "type": "object",
       "properties": {
         "op": {
@@ -2110,84 +2241,37 @@
       ],
       "additionalProperties": false
     },
-    "z": {
+    "1a": {
       "type": "object",
       "properties": {
         "op": {
           "enum": [
-            "add"
-          ]
-        },
-        "shape": {
-          "enum": [
-            "stream"
+            "explode"
           ]
         },
         "id": {
           "type": "string"
         },
-        "along": {
-          "type": "string"
-        },
-        "mark": {
-          "enum": [
-            "dot",
-            "dash",
-            "arrow",
-            null
-          ]
-        },
-        "count": {
-          "$ref": "#/$defs/0"
-        },
-        "size": {
-          "$ref": "#/$defs/0"
-        },
-        "color": {
-          "$ref": "#/$defs/1"
-        },
-        "toColor": {
-          "$ref": "#/$defs/1"
-        },
-        "shiftAt": {
-          "$ref": "#/$defs/0"
-        },
-        "period": {
-          "$ref": "#/$defs/0"
-        },
-        "by": {
-          "$ref": "#/$defs/1"
-        },
-        "ratio": {
-          "$ref": "#/$defs/0"
-        },
-        "opacity": {
-          "$ref": "#/$defs/0"
+        "to": {
+          "type": "number"
         },
         "at": {
+          "$ref": "#/$defs/0"
+        },
+        "dur": {
           "$ref": "#/$defs/0"
         }
       },
       "required": [
         "op",
-        "shape",
         "id",
-        "along",
-        "mark",
-        "count",
-        "size",
-        "color",
-        "toColor",
-        "shiftAt",
-        "period",
-        "by",
-        "ratio",
-        "opacity",
-        "at"
+        "to",
+        "at",
+        "dur"
       ],
       "additionalProperties": false
     },
-    "1a": {
+    "1b": {
       "type": "object",
       "properties": {
         "op": {
@@ -2217,7 +2301,7 @@
       ],
       "additionalProperties": false
     },
-    "1b": {
+    "1c": {
       "type": "object",
       "properties": {
         "op": {
@@ -2251,7 +2335,7 @@
       ],
       "additionalProperties": false
     },
-    "1c": {
+    "1d": {
       "type": "object",
       "properties": {
         "op": {
@@ -2281,7 +2365,7 @@
       ],
       "additionalProperties": false
     },
-    "1d": {
+    "1e": {
       "type": "object",
       "properties": {
         "op": {
@@ -2332,7 +2416,7 @@
       ],
       "additionalProperties": false
     },
-    "1e": {
+    "1f": {
       "type": "object",
       "properties": {
         "op": {
@@ -2370,7 +2454,7 @@
       ],
       "additionalProperties": false
     },
-    "1f": {
+    "1g": {
       "type": "object",
       "properties": {
         "op": {
@@ -2412,7 +2496,7 @@
       ],
       "additionalProperties": false
     },
-    "1g": {
+    "1h": {
       "type": "object",
       "properties": {
         "op": {
@@ -2450,7 +2534,7 @@
       ],
       "additionalProperties": false
     },
-    "1h": {
+    "1i": {
       "type": "object",
       "properties": {
         "op": {
@@ -2511,7 +2595,7 @@
       ],
       "additionalProperties": false
     },
-    "1i": {
+    "1j": {
       "type": "object",
       "properties": {
         "op": {
@@ -2570,7 +2654,7 @@
       ],
       "additionalProperties": false
     },
-    "1j": {
+    "1k": {
       "type": "object",
       "properties": {
         "op": {
@@ -2612,7 +2696,7 @@
       ],
       "additionalProperties": false
     },
-    "1k": {
+    "1l": {
       "type": "object",
       "properties": {
         "op": {
@@ -2655,7 +2739,7 @@
       ],
       "additionalProperties": false
     },
-    "1l": {
+    "1m": {
       "type": "object",
       "properties": {
         "op": {
@@ -2685,7 +2769,7 @@
       ],
       "additionalProperties": false
     },
-    "1m": {
+    "1n": {
       "type": "object",
       "properties": {
         "op": {
@@ -2711,7 +2795,7 @@
       ],
       "additionalProperties": false
     },
-    "1n": {
+    "1o": {
       "type": "object",
       "properties": {
         "op": {
@@ -2737,7 +2821,7 @@
       ],
       "additionalProperties": false
     },
-    "1o": {
+    "1p": {
       "type": "object",
       "properties": {
         "op": {
@@ -2773,7 +2857,7 @@
       ],
       "additionalProperties": false
     },
-    "1p": {
+    "1q": {
       "type": "object",
       "properties": {
         "op": {
@@ -2813,7 +2897,7 @@
       ],
       "additionalProperties": false
     },
-    "1q": {
+    "1r": {
       "type": "object",
       "properties": {
         "op": {
@@ -2835,7 +2919,7 @@
       ],
       "additionalProperties": false
     },
-    "1r": {
+    "1s": {
       "anyOf": [
         {
           "$ref": "#/$defs/8"
@@ -3001,10 +3085,13 @@
         },
         {
           "$ref": "#/$defs/1q"
+        },
+        {
+          "$ref": "#/$defs/1r"
         }
       ]
     },
-    "1s": {
+    "1t": {
       "type": "object",
       "properties": {
         "say": {
@@ -3013,7 +3100,7 @@
         "actions": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/1r"
+            "$ref": "#/$defs/1s"
           }
         }
       },

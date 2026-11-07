@@ -87,6 +87,10 @@ export type AddPatch = {
 export type AddSweep = {
   op: 'add'; shape: 'sweep'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; pts: Vec3[]; up?: Vec3;
 } & Surface & At;
+/** Independently shaped convex end sections, joined by matching vertex indices. */
+export type AddLoft = {
+  op: 'add'; shape: 'loft'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; endOutline: Vec2[]; depth: number;
+} & Surface & At;
 export type AddBlob = {
   op: 'add'; shape: 'blob'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[]; sizes: Vec3[]; soft?: number;
 } & Surface & At;
@@ -129,7 +133,7 @@ export type AddStream = {
 /** A stream on an edge of a flat diagram: what the timeline makes of an AddStream whose `along` is an edge. Never written by the model. */
 export type StreamPiece = { op: 'stream'; id: string; along: string; mark?: StreamMark; count?: number; color?: Color; toColor?: Color; shiftAt?: number; period?: number; opacity?: number } & At;
 
-export type AddAction = AddSolid | AddExtrude | AddHull | AddLathe | AddSweep | AddPatch | AddBlob | AddTube | AddPath | AddConnector | AddStream | AddPart | AddArray | AddText | AddGroup;
+export type AddAction = AddSolid | AddExtrude | AddHull | AddLathe | AddLoft | AddSweep | AddPatch | AddBlob | AddTube | AddPath | AddConnector | AddStream | AddPart | AddArray | AddText | AddGroup;
 
 // Tweens and changes on existing ids.
 export type MoveAction = { op: 'move'; id: string; to: Vec3 } & Timing;

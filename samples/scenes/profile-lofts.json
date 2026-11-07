@@ -1,0 +1,22 @@
+{
+  "steps": [
+    {
+      "say": "Each solid changes shape from one end to the other. Matching corners define the transition, while flat caps and continuous walls make the whole piece readable.",
+      "actions": [
+        {"op":"panel","x":70,"y":80,"w":860,"h":820},
+        {"op":"add","shape":"loft","id":"transition","outline":[[-1,-1],[1,-1],[1,1],[-1,1]],"endOutline":[[-0.5,-0.8],[1.5,-0.4],[0.8,1.4],[-0.8,0.6]],"depth":3,"pos":[-3.2,0,0],"material":"metal","color":"blue"},
+        {"op":"add","shape":"loft","id":"fin","outline":[[-1,-0.7],[1,-0.7],[0,1]],"endOutline":[[-0.6,-0.4],[1.4,-0.2],[0.4,0.7]],"depth":3.4,"pos":[0,0,0],"material":"plastic","color":"orange"},
+        {"op":"add","shape":"loft","id":"body","outline":[[-0.7,-1],[0.7,-1],[1,-0.7],[1,0.7],[0.7,1],[-0.7,1],[-1,0.7],[-1,-0.7]],"endOutline":[[-0.65,-0.75],[0.55,-0.75],[0.9,-0.35],[0.9,0.4],[0.45,0.8],[-0.5,0.8],[-0.8,0.45],[-0.8,-0.4]],"depth":3.2,"pos":[3.2,0,0],"material":"plastic","color":"green"},
+        {"op":"orbit","az":32,"el":22,"dur":0}
+      ]
+    },
+    {
+      "say": "The opposite view shows the independently shaped end sections. These are solid transitions, not hollow ducts.",
+      "actions": [{"op":"orbit","az":155,"el":18,"dur":1.2}]
+    },
+    {
+      "say": "A section exposes the inside of the first piece. The same ordinary cut action works on a loft.",
+      "actions": [{"op":"orbit","az":40,"el":18,"dur":1.2},{"op":"cut","id":"transition","axis":"x","to":0.25,"dur":1.2}]
+    }
+  ]
+}
