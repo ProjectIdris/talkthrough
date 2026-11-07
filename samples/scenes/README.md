@@ -27,3 +27,5 @@ Hand-written scenes in the scene language (`docs/scene-language.md`) for playing
 The follow-up must be validated with the same `SceneState` as the first scene; on its own its tweens refer to ids that do not exist and are dropped.
 
 The timings (`at`, `dur`) assume a speaking pace of about 2.5 words a second; a renderer playing without a voice can use that to time each step.
+
+- `connector-sockets.json`: five existing port variants with physical recessed sockets, inset tongues and contacts, shown from front and reverse views. Simplified explanatory geometry, not connector CAD.
