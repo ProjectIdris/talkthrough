@@ -14,15 +14,15 @@ node scripts/prototypes/benchmark-catalogue.ts
 node --input-type=module -e "import { createCatalogue } from './scripts/prototypes/catalogue-retrieval.ts'; import { partCards } from './scripts/prototypes/catalogue-parts.ts'; console.log(JSON.stringify(createCatalogue(partCards).search('usb-c'), null, 2));"
 ```
 
-The prototype API is `createCatalogue(partCards).search(query, options)`. Construct the index once, then reuse it. Search returns `{ cards, truncated, fallback }`; each card includes its stable catalogue ID, description, search aliases, parameter descriptions and an ordinary scene action example. Ranking uses unique lowercase ASCII words with ID weight 8, alias weight 4 and description weight 1, summed for matching words. Ties sort by catalogue ID, independently of input order. This is simple lexical matching, not semantic retrieval or evidence that a component fits a particular engineering task.
+The prototype API is `createCatalogue(partCards).search(query, options)`. Construct the index once, then reuse it. Search returns `{ cards, truncated, fallback }`; each card includes its stable catalogue ID, description, search aliases, parameter descriptions and an ordinary scene action example. The original independent-word ranking is superseded by [bounded lexical selection](catalogue-selection.md): positive IDs/alias phrases, curated content-word evidence, explicit topic discovery and limited exclusion/sense hints. Descriptive prose no longer admits unrelated cards. This is still lexical matching, not semantic retrieval or evidence that a component fits a particular engineering task. The complete candidate response remains bounded, and partial/no-match requests retain ordinary-primitive fallback.
 
 ## Finite budgets
 
 - At most 10,000 indexed entries, each at most 2,048 UTF-8 bytes of serialized JSON, with unique catalogue IDs. Cards must be plain JSON data: finite numbers, strings, booleans, null, dense arrays and plain objects. A traversal also caps structure at 1,024 values and 16 nested levels. Non-JSON containers, accessors and function values are refused before serialization. This is a guard for maintained data, not a sandbox for arbitrary JavaScript objects or Proxies.
-- Query: at most 512 JavaScript string code units and 32 distinct ASCII word tokens. Over-limit input is rejected, not silently cut down.
+- Query: at most 512 JavaScript string code units and 32 distinct normalized Unicode word tokens. Over-limit input is rejected, not silently cut down.
 - A search returns at most four cards and **4,096 UTF-8 bytes for the complete minified JSON response**, including the fallback text. A caller can request smaller bounds: one through four cards and 512 through 4,096 bytes.
 - Cards are never cut mid-field. A matching card that does not fit is skipped; smaller lower-ranked cards can fill the remaining space. `truncated` means matching cards were omitted by either budget. A full-card omission can yield zero cards despite a match.
-- Empty, unsupported-language-only and unmatched queries return no cards and the same ordinary-primitive fallback. Query text is not copied into the response. This does not make questions with overlapping malicious words impossible to match: matching is not instruction following.
+- Empty and unmatched queries return no cards and the same ordinary-primitive fallback. Query text is not copied into the response. This does not make questions with overlapping malicious words impossible to match: matching is not instruction following.
 - Source cards and returned cards are independently cloned so caller mutation cannot change subsequent ranking or results.
 
 The index has bounded input size, but not constant lookup cost: a broad term can match all entries, and ranking sorts all matches. The benchmark measures that cost rather than assuming it is negligible. Initialization is separate from warm lookup.
@@ -63,4 +63,6 @@ A growing reusable library is promising only if its components are worth choosin
 
 ## Follow-up relevance evidence
 
-The [offline relevance check](catalogue-relevance.md) now scores the unchanged retriever on 36 independently AI-authored challenge requests. It exposes false positives, paraphrase misses and multilingual gaps; it does not establish representative quality or live readiness. Its CLI retains every labelled result and separates relevance from local CPU timing. Production routing remains deferred.
+The original [offline relevance check](catalogue-relevance.md) scored the baseline retriever on 36 independently AI-authored challenge requests. It exposes false positives, paraphrase misses and multilingual gaps; it does not establish representative quality or live readiness. Its CLI retains every labelled result and separates relevance from local CPU timing. Production routing remains deferred.
+
+The [selection successor](catalogue-selection.md) records the rejected stricter attempt, fresh independent validation, remaining misses/wrong suggestions and higher indexing/lookup cost. Historical timing above is not a measurement of the successor. Production routing remains deferred.

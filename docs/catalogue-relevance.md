@@ -1,12 +1,12 @@
 # Component discovery relevance check
 
-This is an **offline smoke evaluation**, not a production retrieval feature. It evaluates PR27's unchanged 21-card lexical catalogue on 36 original questions with explicit relevance labels. The app, model tools, providers, prompt/schema, validator and renderer remain unchanged. It adds no component geometry or assembly feature.
+This is an **offline smoke evaluation**, not a production retrieval feature. The initial run evaluated PR27's baseline 21-card lexical catalogue on 36 original questions with explicit relevance labels. The app, model tools, providers, prompt/schema, validator and renderer remain unchanged. It adds no component geometry or assembly feature.
 
 ## Why evaluate before connecting it
 
-Fast lookup does not establish useful selection. The current retriever matches independent ASCII words without understanding intent, negation, polysemy or other languages. Ordinary words in a full question can match descriptions even when no existing part is suitable. The fallback sentence is always present, but unrelated cards alongside it are **not** a successful abstention.
+Fast lookup does not establish useful selection. The original retriever matched independent ASCII words without understanding intent, negation, polysemy or other languages. Ordinary words in a full question can match descriptions even when no existing part is suitable. The fallback sentence is always present, but unrelated cards alongside it are **not** a successful abstention.
 
-The first run found a relevant card in 22 of 28 positive cases. It also returned four unrelated cards for **all eight cases requiring the ordinary-primitive path**. Do not enable automatic selection or assume that the first card is appropriate on the strength of the timing benchmark. The current results support keeping discovery offline while improving and independently validating its selection policy.
+The first run found a relevant card in 22 of 28 positive cases. It also returned four unrelated cards for **all eight cases requiring the ordinary-primitive path**. Do not enable automatic selection or assume that the first card is appropriate on the strength of the timing benchmark. Those results supported keeping discovery offline while improving and independently validating its selection policy. The [selection successor](catalogue-selection.md) now records the current algorithm, fresh validation, trade-offs and unresolved failures; numbers below remain the original baseline.
 
 ## Run it
 
@@ -17,7 +17,7 @@ node --test test/component-catalogue.test.ts test/catalogue-relevance.test.ts
 node scripts/prototypes/evaluate-catalogue.ts
 ```
 
-The CLI prints JSON to stdout with every request, label rationale, expected/returned/missing/unexpected ID, metric, exception and response size. It also emits aggregate, category and language slices, hashes of the exact corpus bytes, serialized cards, retriever and evaluator, plus local CPU timing. It reads only the committed original fixture; it does not collect screens, recordings, questions or model output. Redirect stdout to a local file if desired. Exit success means the evaluation ran, **not** that retrieval meets a production quality threshold. No quality threshold has been established.
+The CLI prints JSON to stdout with every request, label rationale, expected/returned/missing/unexpected ID, metric, exception and response size. It also emits aggregate, category and language slices, hashes of the exact corpus bytes, serialized cards, retriever and evaluator, plus local CPU timing. It reads only the selected committed original fixture (`--corpus regression`, `challenge-v2` or `validation-v3`); it does not collect screens, recordings, questions or model output. Redirect stdout to a local file if desired. Exit success means the evaluation ran, **not** that retrieval meets a production quality threshold. No quality threshold has been established.
 
 ## Corpus and label limits
 
@@ -25,7 +25,7 @@ The CLI prints JSON to stdout with every request, label rationale, expected/retu
 
 A separate author read the public part descriptions and scene spec/guide, but did not read the retrieval implementation, tests or results and did not execute retrieval. Labels mean a family is directly useful for an explicitly depicted object, not just mentioned, excluded or geometrically similar. Multiple instances and variants count once per family. Contextual engine endpoints, for example, are not relevant when the request asks to isolate only their connecting link. The labels do not mean that a component fully satisfies the requested appearance, dimensions or motion.
 
-These are **AI-authored challenge labels**, not human judgments, real user traffic, representative coverage or statistically reliable population estimates. The corpus deliberately includes difficult failures. There is only one request in each non-English language; no language-wide conclusion follows. It was not used to change the retriever or aliases. Once first scored, it is public regression material and must not be called a future held-out set. Fix genuine label errors with an explained revision, not to improve a score; collect a fresh independent set before evaluating tuned retrieval.
+These are **AI-authored challenge labels**, not human judgments, real user traffic, representative coverage or statistically reliable population estimates. The corpus deliberately includes difficult failures. There is only one request in each non-English language; no language-wide conclusion follows. It was not used to tune the original baseline. It was subsequently used as development/regression evidence for the selection successor, which required fresh independent corpora. Once first scored, it is public regression material and must not be called a future held-out set. Fix genuine label errors with an explained revision, not to improve a score; collect a fresh independent set before evaluating tuned retrieval.
 
 ## Metrics
 

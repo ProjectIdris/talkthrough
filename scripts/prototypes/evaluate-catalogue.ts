@@ -8,7 +8,14 @@ import type { RelevanceCase } from './catalogue-evaluation.ts';
 import { partCards } from './catalogue-parts.ts';
 import { CATALOGUE_LIMITS, createCatalogue } from './catalogue-retrieval.ts';
 
-const corpus = readFileSync(new URL('./catalogue-requests.json', import.meta.url));
+const corpora = { regression: 'catalogue-requests.json', 'challenge-v2': 'catalogue-heldout-v2.json', 'validation-v3': 'catalogue-validation-v3.json' };
+const args = process.argv.slice(2);
+if (args.length !== 0 && (args.length !== 2 || args[0] !== '--corpus' || !Object.hasOwn(corpora, args[1]!))) {
+  throw new Error('Usage: node scripts/prototypes/evaluate-catalogue.ts [--corpus regression|challenge-v2|validation-v3]');
+}
+const corpusName = (args[1] ?? 'regression') as keyof typeof corpora;
+const corpusFile = corpora[corpusName];
+const corpus = readFileSync(new URL(`./${corpusFile}`, import.meta.url));
 const cases = JSON.parse(corpus.toString('utf8')) as RelevanceCase[];
 const hash = (bytes: string | Buffer) => createHash('sha256').update(bytes).digest('hex');
 const start = performance.now();
@@ -30,11 +37,11 @@ times.sort((a, b) => a - b);
 console.log(JSON.stringify({
   scope: {
     description: 'Offline relevance smoke evaluation of 21 existing parts, with independent AI-authored labels. Not user traffic, human judgments, representative accuracy or rendered quality.',
-    tuning: 'Corpus was authored without seeing retrieval or its results. The retriever and cards remain unchanged. Once scored this corpus is public regression material, not a future held-out test.',
+    tuning: 'All corpora were independently AI-authored without seeing retrieval or its results. The original and v2 corpora became development evidence; v3 was first scored after the successor retriever/cards were frozen. All are now public regression material, not future held-out tests.',
     liveModelMeasured: false, physicalDisplayMeasured: false, threeSecondTargetVerdict: null,
   },
   provenance: {
-    corpus: 'scripts/prototypes/catalogue-requests.json', corpusSha256: hash(corpus),
+    corpus: `scripts/prototypes/${corpusFile}`, corpusSha256: hash(corpus),
     cardsSha256: hash(JSON.stringify(partCards)),
     retrieverSha256: hash(readFileSync(new URL('./catalogue-retrieval.ts', import.meta.url))),
     evaluatorSha256: hash(readFileSync(new URL('./catalogue-evaluation.ts', import.meta.url))),

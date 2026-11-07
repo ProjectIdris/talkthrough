@@ -6,9 +6,9 @@ import { createCatalogue } from '../scripts/prototypes/catalogue-retrieval.ts';
 import type { ComponentCard } from '../scripts/prototypes/catalogue-retrieval.ts';
 
 const cards: ComponentCard[] = [
-  { id: 'cog', summary: 'copper', tags: [], parameters: {}, example: {} },
-  { id: 'wheel', summary: 'copper silver', tags: [], parameters: {}, example: {} },
-  { id: 'spring', summary: 'silver', tags: [], parameters: {}, example: {} },
+  { id: 'cog', summary: 'copper', tags: ['copper'], parameters: {}, example: {} },
+  { id: 'wheel', summary: 'copper silver', tags: ['copper', 'silver'], parameters: {}, example: {} },
+  { id: 'spring', summary: 'silver', tags: ['silver'], parameters: {}, example: {} },
 ];
 const known = cards.map(c => c.id);
 const index = createCatalogue(cards);
@@ -138,4 +138,20 @@ test('offline CLI provides reproducible provenance, quality and separately label
   assert.match(result.provenance.cardsSha256, /^[0-9a-f]{64}$/);
   assert.match(result.provenance.retrieverSha256, /^[0-9a-f]{64}$/);
   assert.equal(result.quality.results.length, 36);
+});
+
+test('offline CLI selects the frozen validation corpus and rejects unknown options', () => {
+  const run = spawnSync(process.execPath, ['scripts/prototypes/evaluate-catalogue.ts', '--corpus', 'validation-v3'], {
+    cwd: new URL('..', import.meta.url), encoding: 'utf8', timeout: 30_000,
+  });
+  assert.equal(run.status, 0, run.stderr);
+  const result = JSON.parse(run.stdout);
+  assert.equal(result.quality.summary.cases, 48);
+  assert.equal(result.quality.summary.searchErrors, 0);
+  assert.equal(result.provenance.corpusSha256, 'b48923ba997ed496782a1ce9ccb800261685e9c347c78e5b0aa0485422a2c702');
+  assert.equal(result.scope.liveModelMeasured, false);
+  const bad = spawnSync(process.execPath, ['scripts/prototypes/evaluate-catalogue.ts', '--corpus', 'not-a-corpus'], {
+    cwd: new URL('..', import.meta.url), encoding: 'utf8', timeout: 30_000,
+  });
+  assert.notEqual(bad.status, 0);
 });
