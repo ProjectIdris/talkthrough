@@ -26,8 +26,13 @@ export function defaultBevel(size: Vec3): number {
 
 /** A box with rounded edges (a plain box when the rounding is nothing). */
 export function boxGeometry(size: Vec3, bevel: number, detail: Detail): BufferGeometry {
-  const r = Math.min(bevel, Math.min(size[0], size[1], size[2]) / 2 - 1e-4);
-  if (!(r > 0.002)) return new BoxGeometry(size[0], size[1], size[2]);
+  const shortest = Math.min(size[0], size[1], size[2]);
+  // Keep rounding and the small flat seam proportional to the shape. Fixed unit cutoffs
+  // made compact models (and thin panels enlarged by a parent) unexpectedly sharp.
+  const r = Math.min(bevel, shortest * 0.4999);
+  // Positions are Float32: a tiny radius on a wide, thin box can otherwise collapse
+  // rounded triangles or reverse their winding. Base this precision floor on the long side.
+  if (!(r > Math.max(...size) * 1e-6)) return new BoxGeometry(size[0], size[1], size[2]);
   return new RoundedBoxGeometry(size[0], size[1], size[2], detail.bevel, r);
 }
 

@@ -107,6 +107,12 @@ type Node = {
 
 type AddMesh = (geo: BufferGeometry, surface: string | undefined, edges: boolean) => Mesh;
 
+/** A rounded box has a continuous surface, not authored creases. Position hashing on
+ * tiny rounded meshes can invent dark seams, so do not derive crease lines for them. */
+function creaseGeometry(geo: BufferGeometry): BufferGeometry {
+  return geo.type === 'RoundedBoxGeometry' ? new BufferGeometry().setFromPoints([]) : new EdgesGeometry(geo, 28);
+}
+
 /** True when `a` is `b` or sits above it: adding `a` under `b` would make a loop, which hangs every walk of the scene. */
 function isAncestor(a: Object3D, b: Object3D): boolean {
   for (let o: Object3D | null = b; o; o = o.parent) if (o === a) return true;
@@ -261,12 +267,12 @@ export class PanelScene {
     else if (key) {
       // EdgesGeometry.parameters retains the input mesh geometry. Copy the derived
       // buffers so a surviving outline never retains a removed part's geometry.
-      const generated = new EdgesGeometry(geo, 28);
+      const generated = creaseGeometry(geo);
       outline = new BufferGeometry().copy(generated);
       generated.dispose();
       this.sharedEdges.set(key, { geometry: outline, refs: 1 });
       this.edgeKeys.set(outline, key);
-    } else outline = new EdgesGeometry(geo, 28);
+    } else outline = creaseGeometry(geo);
     const lines = new LineSegments(outline, mat);
     mesh.add(lines);
     node.geometries.push(lines.geometry);
