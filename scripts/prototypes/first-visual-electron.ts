@@ -8,6 +8,8 @@ import { performance } from 'node:perf_hooks';
 import { createCatalogue } from './catalogue-retrieval.ts';
 import type { ComponentCard } from './catalogue-retrieval.ts';
 import { countMarkerPixels, createVisualProbe, MARKER } from './first-visual-probe.ts';
+import { USEFUL_3D_ACTIONS, inspectUseful3dPixels } from './first-useful-3d.ts';
+import type { Useful3dEvidence } from './first-useful-3d.ts';
 import { CHANNEL } from '../../src/shared/ipc.ts';
 import type { SceneMessage } from '../../src/shared/ipc.ts';
 
@@ -15,8 +17,13 @@ const root = resolve(process.env.TT_PROBE_ROOT!);
 const work = resolve(process.env.TT_PROBE_WORK!);
 const assets = join(work, 'assets');
 const boot = performance.now();
+const is3d = process.env.TT_PROBE_FIXTURE === '3d';
+const model = { called: false, firstTokenMs: null, firstOutputMs: null };
+const target = { milliseconds: 3000, met: null, reason: 'No live model, microphone, transcription, network or physical display measurement.' };
+const usefulness = { accepted: null, firstUsefulOutputMs: null, reason: 'Two-colour pixel coverage is a fixture gate, not semantic usefulness. Human review is still required.' };
+const runtime = { electron: process.versions.electron, chrome: process.versions.chrome, node: process.version, platform: process.platform, arch: process.arch };
 require(join(root, 'test/support/electron-profile-guard.cjs'))(process.env.TT_TEST_PROFILE, () => {});
-app.disableHardwareAcceleration();
+if (!is3d) app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
 app.on('window-all-closed', () => app.quit());
 const watchdog = setTimeout(() => { console.error('first-visual probe timed out'); app.exit(1); }, 20_000);
@@ -55,20 +62,28 @@ async function run(): Promise<void> {
   let firstPaintMs: number | null = null;
   let markerPixels = 0;
   let firstImage: NativeImage | undefined;
+  let firstEvidence: Useful3dEvidence | undefined;
+  const countPixels = (image: NativeImage): number => {
+    const { width, height } = image.getSize();
+    if (!is3d) return countMarkerPixels(image.toBitmap(), width, height);
+    const evidence = inspectUseful3dPixels(image.toBitmap(), width, height);
+    return evidence.magenta.pixels + evidence.green.pixels;
+  };
   let resolvePaint: (() => void) | undefined;
   win.webContents.on('paint', (_event, _dirty, image) => {
     const receivedAt = performance.now();
     lastImage = image;
     observedPaints++;
     if (controlPhase) {
-      const { width, height } = image.getSize();
       negativeControlPaints++;
-      negativeControlMaxMarkerPixels = Math.max(negativeControlMaxMarkerPixels, countMarkerPixels(image.toBitmap(), width, height));
+      negativeControlMaxMarkerPixels = Math.max(negativeControlMaxMarkerPixels, countPixels(image));
     }
     if (!checking || firstPaintMs !== null) return;
     const { width, height } = image.getSize();
-    const count = countMarkerPixels(image.toBitmap(), width, height);
-    if (count < 12) return;
+    const evidence = is3d ? inspectUseful3dPixels(image.toBitmap(), width, height) : undefined;
+    const count = evidence ? evidence.magenta.pixels + evidence.green.pixels : countMarkerPixels(image.toBitmap(), width, height);
+    if (is3d ? !evidence?.qualifies : count < 12) return;
+    firstEvidence = evidence;
     firstPaintMs = receivedAt - requestStart;
     markerPixels = count;
     firstImage = image;
@@ -77,6 +92,26 @@ async function run(): Promise<void> {
   const ready = new Promise<void>(done => ipcMain.on(CHANNEL.ready, event => { if (event.sender === win.webContents) done(); }));
   await win.loadFile(join(assets, 'index.html'));
   await ready;
+  const graphics = is3d ? await win.webContents.executeJavaScript(`(() => {
+    const canvas = document.getElementById('gl');
+    if (!(canvas instanceof HTMLCanvasElement) || canvas.style.display === 'none') return { webgl2: false, rendererName: null };
+    const gl = canvas.getContext('webgl2');
+    if (!gl || gl.isContextLost()) return { webgl2: false, rendererName: null };
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    return { webgl2: true, rendererName: String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER)) };
+  })()`) as { webgl2: boolean; rendererName: string | null } : undefined;
+  if (graphics && !graphics.webgl2) {
+    writeFileSync(join(work, 'result.json'), JSON.stringify({
+      mode: 'offline-hand-written-3d-fixture', status: 'unavailable',
+      reason: 'The real overlay could not initialize a WebGL2 renderer under the default security settings. No 3D pixel or timing result exists.',
+      model, target, usefulness, runtime,
+      renderer: { ...graphics, mode: 'offscreen-default-gpu', startupAndCapabilityCheckMs: performance.now() - boot, gpuFeatureStatus: app.getGPUFeatureStatus(), blockedRequests },
+      catalogue: null, pipeline: null,
+      limits: ['No security or software-rendering override was attempted.', 'Unavailable is not a latency pass or successful native visual acceptance.'],
+    }, null, 2));
+    win.destroy();
+    return;
+  }
   const send = (message: SceneMessage) => win.webContents.send(CHANNEL.scene, message);
   win.webContents.send(CHANNEL.display, { id: 1, bounds: { x: 0, y: 0, width: 640, height: 480 }, scaleFactor: 1, silent: true });
 
@@ -93,8 +128,7 @@ async function run(): Promise<void> {
   win.webContents.invalidate();
   for (let i = 0; i < 100 && observedPaints === beforeClear; i++) await sleep(10);
   if (!lastImage || observedPaints === beforeClear) throw new Error('no baseline paint');
-  const baseline = lastImage.getSize();
-  if (countMarkerPixels(lastImage.toBitmap(), baseline.width, baseline.height) !== 0) throw new Error('baseline contains marker pixels');
+  if (countPixels(lastImage) !== 0) throw new Error('baseline contains marker pixels');
   const startupMs = performance.now() - boot;
   const baselinePaints = observedPaints;
 
@@ -113,7 +147,8 @@ async function run(): Promise<void> {
   const probe = createVisualProbe(send, elapsed);
   const painted = new Promise<void>(done => { resolvePaint = done; });
   checking = true;
-  const prefix = '{"steps":[{"say":"","actions":[' + JSON.stringify(MARKER);
+  const actions = is3d ? USEFUL_3D_ACTIONS : [MARKER];
+  const prefix = '{"steps":[{"say":"","actions":[' + actions.map(action => JSON.stringify(action)).join(',');
   const fixtureStartMs = elapsed();
   for (let at = 0; at < prefix.length; at += 11) probe.push(prefix.slice(at, at + 11));
   const fixtureFeedEndMs = elapsed();
@@ -122,7 +157,7 @@ async function run(): Promise<void> {
     await Promise.race([painted, new Promise<never>((_done, fail) => { timeout = setTimeout(() => fail(new Error('no qualifying marker paint within 5 seconds')), 5_000); })]);
   } finally { clearTimeout(timeout); }
   const beforeClose = probe.snapshot();
-  if (beforeClose.completeSteps !== 0 || beforeClose.acceptedActions !== 1) throw new Error('expected a streamed action before step completion');
+  if (beforeClose.completeSteps !== 0 || beforeClose.acceptedActions !== actions.length) throw new Error('expected a streamed action before step completion');
   // Deliberately withheld fixture bytes, not a simulated model delay.
   probe.push(']}]}');
   const pipeline = probe.end();
@@ -130,15 +165,16 @@ async function run(): Promise<void> {
   if (!firstImage) throw new Error('missing pixel evidence');
   writeFileSync(join(work, 'first-paint.png'), firstImage.toPNG());
   writeFileSync(join(work, 'result.json'), JSON.stringify({
-    mode: 'offline-hand-written-2d-fixture',
-    model: { called: false, firstTokenMs: null, firstOutputMs: null },
-    target: { milliseconds: 3000, met: null, reason: 'No live model, microphone, transcription, network or physical display measurement.' },
-    runtime: { electron: process.versions.electron, chrome: process.versions.chrome, node: process.version, platform: process.platform, arch: process.arch },
-    renderer: { width: 640, height: 480, frameRateCap: 60, mode: 'offscreen-software', startupAndControlMs: startupMs, baselinePaints, negativeControlPaints, negativeControlMaxMarkerPixels, markerPixels, baselineMarkerPixels: 0, streamedBeforeStepClose: true, blockedRequests },
+    mode: is3d ? 'offline-hand-written-3d-fixture' : 'offline-hand-written-2d-fixture',
+    ...(is3d ? { status: 'measured', usefulness } : {}),
+    model,
+    target,
+    runtime,
+    renderer: { width: 640, height: 480, frameRateCap: 60, mode: is3d ? 'offscreen-default-gpu' : 'offscreen-software', ...(is3d ? { ...graphics, evidence: firstEvidence } : {}), startupAndControlMs: startupMs, baselinePaints, negativeControlPaints, negativeControlMaxMarkerPixels, markerPixels, baselineMarkerPixels: 0, streamedBeforeStepClose: true, blockedRequests },
     catalogue: { entries: Array.isArray(cards) ? cards.length : 0, fileBytes: catalogueBytes.length, responseBytes: Buffer.byteLength(encoded), returnedCards: response.cards.length,
       fileReadMs, decodeAndParseMs: parseEndMs - fileReadMs, indexMs: indexEndMs - parseEndMs, lookupAndEncodeMs: lookupEndMs - indexEndMs, readyAfterRequestMs: lookupEndMs },
-    pipeline: { ...pipeline, fixtureStartMs, fixtureFeedEndMs, firstQualifyingPaintReceiptMs: firstPaintMs },
-    limits: ['Synthetic catalogue entries repeat 21 built-in descriptions; they do not add components.', 'Fresh Electron process and index, but file and OS caches are not flushed.', 'Catalogue retrieval is measured, but does not influence the fixed marker or any model prompt.', 'The observed endpoint is offscreen paint delivery with at least 12 qualifying marker pixels, not monitor presentation or a useful 3D model.', 'Electron/renderer startup and the negative control occur before the request clock.', 'Pixel detection and offscreen readback add instrumentation cost; do not treat this as production latency.'],
+    pipeline: { ...pipeline, fixtureStartMs, fixtureFeedEndMs, firstQualifyingPaintReceiptMs: firstPaintMs, ...(is3d ? { firstSubstantial3dPaintReceiptMs: firstPaintMs } : {}) },
+    limits: ['Synthetic catalogue entries repeat 21 built-in descriptions; they do not add components.', 'Fresh Electron process and index, but file and OS caches are not flushed.', 'Catalogue retrieval is measured, but does not influence the fixed marker or any model prompt.', is3d ? 'The endpoint is offscreen paint delivery with both fixture colours having >=600 pixels, >=30px extent on each axis and >=15% bounding-box occupancy. It does not establish gear correctness or semantic usefulness.' : 'The observed endpoint is offscreen paint delivery with at least 12 qualifying marker pixels, not monitor presentation or a useful 3D model.', 'Electron/renderer startup and the negative control occur before the request clock.', 'Pixel detection and offscreen readback add instrumentation cost; do not treat this as production latency.'],
   }, null, 2));
   win.destroy();
 }
