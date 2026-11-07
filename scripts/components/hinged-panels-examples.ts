@@ -25,6 +25,7 @@ export function hingeExamples(): Record<string, Scene> {
   examples['hinged-panels-inspect'] = { steps: [
     { say: 'The leaves turn around the pin, while alternating hollow knuckles hold them together.', actions: first },
     { say: 'Withdraw the pin. Its end caps travel with it, revealing the real bore through the knuckles.', actions: [
+      { op: 'zoom', to: 0.7, dur: 1 },
       { op: 'move', id: inspected.ids.pin, to: [1.2, 3, 0], dur: 1 },
       { op: 'pin', id: 'inspect_label', on: inspected.ids.knuckles[4]!, point: [0, 0.42, 0], text: 'Open bore', off: [90, -50] },
     ] },

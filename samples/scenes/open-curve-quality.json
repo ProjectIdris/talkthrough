@@ -1,0 +1,25 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "The same tube can bend into a cable, taper into a vessel, or flatten into a ribbon. Close control points guide the ends without making the curve double back.",
+      "actions": [
+        { "op": "panel", "x": 120, "y": 100, "w": 760, "h": 740 },
+        { "op": "add", "shape": "group", "id": "forms" },
+        { "op": "add", "shape": "tube", "id": "cable", "parent": "forms", "pts": [[-4, -2, 0], [-4, -1.94, 0], [-3.8, 1.1, 0.2], [-2.8, 1.9, 0.2], [-2.74, 1.9, 0.2]], "radius": 0.2, "color": "blue", "material": "rubber" },
+        { "op": "add", "shape": "tube", "id": "vessel", "parent": "forms", "pts": [[-0.3, -2, 0], [-0.3, -1.92, 0], [0.7, -0.2, 0.4], [-0.3, 1.7, 0], [-0.3, 1.78, 0]], "radius": 0.35, "swell": [[0, 0.7], [0.5, 1.3], [1, 0.5]], "color": "red", "material": "tissue" },
+        { "op": "add", "shape": "tube", "id": "ribbon", "parent": "forms", "pts": [[2.6, -2, 0], [2.6, -1.93, 0], [3.4, -0.1, 0.5], [2.6, 1.8, 0], [2.6, 1.87, 0]], "radius": 0.32, "flat": 0.15, "color": "orange", "material": "plastic" },
+        { "op": "orbit", "az": 12, "el": 8, "dur": 0 }
+      ]
+    },
+    {
+      "say": "Reveal and flow use the same corrected path. The pieces still stay separate and can be addressed by name.",
+      "actions": [
+        { "op": "reveal", "id": "cable", "to": 0, "dur": 0 },
+        { "op": "reveal", "id": "cable", "to": 1, "at": 0.5, "dur": 3 },
+        { "op": "add", "shape": "stream", "id": "flow", "along": "vessel", "count": 4, "period": 4, "color": "yellow" },
+        { "op": "orbit", "az": -35, "el": 15, "at": 1, "dur": 3 }
+      ]
+    }
+  ]
+}

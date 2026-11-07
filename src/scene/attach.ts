@@ -8,6 +8,8 @@ export type Body = {
   shape: 'box' | 'sphere' | 'cylinder' | 'blob' | 'group';
   /** Box and cylinder: the extents; sphere: the diameters. A group has none. */
   size?: Vec3;
+  /** Local points from the shared ready-made part contract. */
+  anchors?: Record<string, Vec3>;
   /** Blob: the lumps' centres and their sizes (diameters). */
   pts?: Vec3[];
   sizes?: Vec3[];
@@ -37,6 +39,13 @@ const apply = (m: Affine, p: Vec3): Vec3 => [
   m.r[3]! * p[0] + m.r[4]! * p[1] + m.r[5]! * p[2] + m.t[1],
   m.r[6]! * p[0] + m.r[7]! * p[1] + m.r[8]! * p[2] + m.t[2],
 ];
+/** Initial socket placement: rotation is explicit, and the offset is in the parent's frame. No runtime constraint is created. */
+export function mountPosition(parentAnchor: Vec3, selfAnchor: Vec3, rot: Vec3, offset: Vec3, scale: Vec3 = [1, 1, 1]): Vec3 {
+  const scaled: Vec3 = [selfAnchor[0] * scale[0], selfAnchor[1] * scale[1], selfAnchor[2] * scale[2]];
+  const point = apply({ r: rotation(rot), t: [0, 0, 0] }, scaled);
+  return [parentAnchor[0] + offset[0] - point[0], parentAnchor[1] + offset[1] - point[1], parentAnchor[2] + offset[2] - point[2]];
+}
+
 /** The way back from a rotation and a shift (no scale: the language has none on objects). */
 const applyInverse = (m: Affine, p: Vec3): Vec3 => {
   const q: Vec3 = [p[0] - m.t[0], p[1] - m.t[1], p[2] - m.t[2]];

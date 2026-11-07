@@ -238,10 +238,16 @@ export function updateStreams(nodes: ReadonlyMap<number, FlowNode>, frame: Frame
     const size = Math.max(def.size ?? 0, defaultSize(holder));
     const to = def.toColor !== undefined ? parseColor(def.toColor) : undefined;
     const places = markerPlaces(o.phase ?? 0, stream.markers.length);
+    const closed = holder.shape === 'tube' && (holder.def as AddTube).closed === true;
+    // Release the endpoint fade over the last tenth of the reveal, rather than
+    // popping a bead to full size on the frame where the loop finishes closing.
+    const closing = closed ? Math.max(0, Math.min(1, (holder.draw - 0.9) / 0.1)) : 0;
+    const joined = closing * closing * (3 - 2 * closing);
     stream.markers.forEach((m, i) => {
       const u = places[i] as number;
       arcPoint(sampled, u * holder.draw, tmp);
-      const grow = markerSize(u) * size;
+      const fade = markerSize(u);
+      const grow = (fade + (1 - fade) * joined) * size;
       m.visible = grow > 0.002;
       m.position.copy(tmp.p);
       if (stream.kind === 'dot') m.scale.setScalar(grow);

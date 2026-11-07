@@ -879,6 +879,11 @@
       "say": "Withdraw the pin. Its end caps travel with it, revealing the real bore through the knuckles.",
       "actions": [
         {
+          "op": "zoom",
+          "to": 0.7,
+          "dur": 1
+        },
+        {
           "op": "move",
           "id": "inspect_pin",
           "to": [
