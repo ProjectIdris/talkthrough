@@ -17,6 +17,7 @@ import type { AddAction, Vec3 } from '../scene/types.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
+import { closedTubeGeometry } from './closed-tube.ts';
 import { TIERS, applySurface, makeSurface } from './materials.ts';
 import type { Surface, Tier } from './materials.ts';
 import { buildPart } from './parts.ts';
@@ -328,11 +329,12 @@ export class PanelScene {
   }
 
   private buildPath(node: Node, o: ObjectFrame, addMesh: AddMesh): void {
-    const def = o.def as { shape: string; pts: Vec3[]; radius?: number; flat?: number; swell?: Array<[number, number]>; material?: string };
+    const def = o.def as { shape: string; pts: Vec3[]; radius?: number; flat?: number; swell?: Array<[number, number]>; closed?: boolean; material?: string };
     const tube = def.shape === 'tube';
-    const sampled = samplePath(def.pts, tube, this.detail.tube);
     const radius = tube ? def.radius ?? PATH_RADIUS : PATH_RADIUS;
-    const geo = tubeGeometry(sampled, radius, tube ? def.flat ?? 1 : 1, this.detail.radial, tube ? def.swell : undefined);
+    const loop = tube && def.closed ? closedTubeGeometry(def.pts, radius, def.flat ?? 1, this.detail.radial, this.detail.tube, def.swell) : undefined;
+    const sampled = loop?.sampled ?? samplePath(def.pts, tube, this.detail.tube);
+    const geo = loop?.geo ?? tubeGeometry(sampled, radius, tube ? def.flat ?? 1 : 1, this.detail.radial, tube ? def.swell : undefined);
     const mesh = addMesh(geo, tube ? def.material : 'plastic', false);
     const group = new Group();
     group.add(mesh);

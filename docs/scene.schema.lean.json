@@ -1438,6 +1438,12 @@
             }
           }
         },
+        "closed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "color": {
           "type": [
             "string",
@@ -1485,6 +1491,7 @@
         "radius",
         "flat",
         "swell",
+        "closed",
         "color",
         "material",
         "draw",

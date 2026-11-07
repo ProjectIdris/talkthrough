@@ -80,7 +80,7 @@ export type AddBlob = {
 /** An end of a tube or line that lies on a 3D part: the part and the point on it (in the part's own space), which the end keeps wherever the part goes. Set by the validator, never written. */
 export type AttachEnd = { to: string; at: Vec3 };
 export type AddTube = {
-  op: 'add'; shape: 'tube'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; radius: number; flat?: number; swell?: Vec2[]; draw?: number;
+  op: 'add'; shape: 'tube'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; radius: number; flat?: number; swell?: Vec2[]; closed?: boolean; draw?: number;
   attach?: [AttachEnd | null, AttachEnd | null];
 } & Surface & At;
 export type AddPath = {

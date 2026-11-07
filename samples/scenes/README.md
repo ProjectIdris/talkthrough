@@ -13,6 +13,7 @@ Hand-written scenes in the scene language (`docs/scene-language.md`) for playing
 | `plant.json` | any page with a free corner | a seedling: a bulb and a stem that thins toward the top (tube with swell), two leaves as flat blobs |
 | `wind-turbine.json` | an energy page with the figure on the right (370,100 to 930,880) and text on the left | a wind turbine built up, its nacelle lid opening to show the shaft, gearbox, generator and cable, then the nacelle yawing; camera focus and zoom, a see-through rotor and a note card |
 | `diagram-flow.json` | any page with a free right-hand side | a flat flow diagram of opening a web page: four nodes and their arrows drawn on in time with the words, then an arrow back |
+| `closed-loops.json` | a page with a wide clear centre | one general tube makes an irregular rigid frame, a variable-width circuit with continuous flow, and a thin band, all without an end seam |
 | `diagram-timeline.json` | a page with free space along the bottom | a timeline of four dated events in autumn 1066, spaced to scale |
 | `diagram-steps.json` | any page with a free right-hand side | numbered steps, one ticked off in the second step |
 | `diagram-chart.json` | any page with a free right-hand side | a chart with a demand curve, a supply curve and a labelled dot where they meet |

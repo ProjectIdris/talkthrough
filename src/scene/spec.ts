@@ -296,12 +296,13 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addTube', op: 'add', shapes: ['tube'], creates: 'path',
-    doc: 'A smooth tube through the points: cables, pipes, vessels, stems, limbs. flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail.',
+    doc: 'A smooth tube through the points: cables, pipes, vessels, stems, limbs. closed true joins it into a continuous loop (three distinct points minimum, no caps or endpoint attachment). flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail.',
     fields: {
       shape: { k: 'enum', values: ['tube'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE,
       pts: { k: 'pts', min: 2, max: LIMITS.maxPts, lo: WORLD.min, hi: WORLD.max },
       radius: { k: 'num', min: 0.01, max: 20 }, flat: { k: 'num', min: 0.05, max: 1, opt: true },
       swell: { k: 'pts2', min: 2, max: LIMITS.maxSwell, lo: 0, hi: 10, opt: true },
+      closed: { k: 'bool', opt: true, doc: 'Join into a smooth loop with no caps; needs three distinct points. The radius at the join uses the start of swell.' },
       color: COLOR_OPT, material: MATERIAL, draw: DRAW, opacity: OPACITY, at: AT,
     },
   },
