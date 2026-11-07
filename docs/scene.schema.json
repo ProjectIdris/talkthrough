@@ -2104,6 +2104,20 @@
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "named local point on parent (requires parent); defaults to origin when selfAnchor is used. pos becomes an offset in the parent frame; rot stays explicit. Resolved at creation with current geometry and inherited base transforms, not a motion constraint; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "named point on this part to place at parentAnchor, default origin; requires parent. Unknown anchors drop the action with available names; up to 24 characters"
+        },
         "explode": {
           "type": [
             "array",
@@ -2215,6 +2229,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "explode",
         "pos",
         "rot",
@@ -2227,7 +2243,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Each has good proportions and named anchors for pins."
+      "description": "A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Each has good proportions; mechanism anchors and the origin of every part can be used by pins, connectors and parentAnchor/selfAnchor placement."
     },
     "addArray": {
       "type": "object",
@@ -2394,6 +2410,13 @@
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "named local point on parent (requires parent); defaults to origin when selfAnchor is used. pos becomes an offset in the parent frame; rot stays explicit. Resolved at creation with current geometry and inherited base transforms, not a motion constraint; up to 24 characters"
+        },
         "explode": {
           "type": [
             "array",
@@ -2437,6 +2460,7 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
         "explode",
         "pos",
         "rot",

@@ -1,0 +1,25 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "These sockets have metal shells around recessed openings. The plastic tongues and gold contacts sit inside them, behind the front lip.",
+      "actions": [
+        { "op": "panel", "x": 50, "y": 100, "w": 900, "h": 800, "frame": true },
+        { "op": "add", "shape": "part", "id": "usb", "part": "port", "variant": "usb", "size": [3.6, 1.8, 1.8], "pos": [-4.4, 2, 0], "color": "#b9c5d8" },
+        { "op": "add", "shape": "part", "id": "usb3", "part": "port", "variant": "usb3", "size": [3.6, 1.8, 1.8], "pos": [0, 2, 0], "color": "#b9c5d8" },
+        { "op": "add", "shape": "part", "id": "ethernet", "part": "port", "variant": "ethernet", "size": [3.3, 2.7, 2.4], "pos": [4.4, 2, 0], "color": "#b9c5d8" },
+        { "op": "add", "shape": "part", "id": "hdmi", "part": "port", "variant": "hdmi", "size": [4.2, 1.6, 1.8], "pos": [-2.6, -1.7, 0], "color": "#b9c5d8" },
+        { "op": "add", "shape": "part", "id": "usbc", "part": "port", "variant": "usbc", "size": [3.6, 1.4, 1.8], "pos": [2.6, -1.7, 0], "color": "#b9c5d8" },
+        { "op": "orbit", "az": 15, "el": 12, "dur": 0 }
+      ]
+    },
+    {
+      "say": "The HDMI socket has tapered lower corners. USB-C has rounded ends and contacts on both sides of its central tongue. USB 3 uses a blue tongue and a second row of contacts.",
+      "actions": [{ "op": "orbit", "az": -20, "el": 18, "dur": 3 }]
+    },
+    {
+      "say": "The dark backs close these cavities. These are simplified explanatory pieces, not dimensioned connector designs or wiring diagrams.",
+      "actions": [{ "op": "orbit", "az": 155, "el": 15, "dur": 3 }]
+    }
+  ]
+}

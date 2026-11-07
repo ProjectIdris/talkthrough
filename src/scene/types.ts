@@ -92,14 +92,14 @@ export type PartKind =
   | 'cylinder-block' | 'piston' | 'connecting-rod' | 'crankshaft' | 'valve' | 'camshaft' | 'spark-plug' | 'gear' | 'spring' | 'bearing' | 'pipe' | 'elbow' | 'housing';
 export type PartVariant = 'black' | 'metal' | 'usb' | 'usb3' | 'ethernet' | 'hdmi' | 'usbc' | 'gold' | 'cutaway' | 'finned';
 export type AddPart = {
-  op: 'add'; shape: 'part'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; part: PartKind; variant?: PartVariant;
+  op: 'add'; shape: 'part'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; part: PartKind; variant?: PartVariant;
   size: Vec3; n?: number; color?: Color; opacity?: number;
 } & At;
 export type AddArray = { op: 'add'; shape: 'array'; id: string; of: string; count: number; step?: Vec3; turn?: Vec3 } & At;
 export type AddText = {
   op: 'add'; shape: 'text'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; text: string; height: number; color: Color;
 } & At;
-export type AddGroup = { op: 'add'; shape: 'group'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3 } & At;
+export type AddGroup = { op: 'add'; shape: 'group'; id: string; parent?: string; parentAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3 } & At;
 
 export type Side = 'left' | 'right' | 'top' | 'bottom' | 'front' | 'back';
 /** A rope, belt, wire, chain or pipe between two objects, drawn as a tube that follows them as they move. */

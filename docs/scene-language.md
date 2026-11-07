@@ -43,7 +43,7 @@ Objects stay on screen until cleared. A follow-up question continues the same sc
 
 No screen size is measured along both axes at once: every screen size is a width (`w`) or height (`h`) in its own axis units, so a shape that looks round on a 16:9 screenshot needs `w` smaller than `h` (about 9/16 of it). Text height (`size`) is in y units. A renderer maps each axis separately.
 
-Out-of-range numbers are clamped by the validator, never rejected.
+Out-of-range authored numbers are clamped by the validator. A position calculated from named anchors is instead rejected if it would exceed the position range, so clamping cannot silently pull the attachment points apart.
 
 ## Ids
 
@@ -104,10 +104,14 @@ When the thing to explain is a process, a sequence of events, a how-to or a tren
 | `line` `arrow` | `pts` `color`? `draw`? `opacity`? | a thin line through the points; an arrow ends in a head at the last point |
 | `connector` | `from` `to` `kind`? `fromSide`? `toSide`? `fromAnchor`? `toAnchor`? `sag`? `radius`? `color`? `material`? `draw`? `opacity`? | a physical rope, belt, wire, chain or pipe between two parts of one 3D model, with its ends on them, drawn as a tube that follows them as they move; it never links panels, cards, marks or diagram nodes (flat diagram arrows are `edge`), and is not drawn until both ends are there (worked out afresh on every frame from where the two are, so it needs no pose of its own). `kind` `straight` (default) is taut, the line between its ends: a rope from a wheel's rim to a weight shortens as the weight rises. `slack` hangs in a sag (`sag`, 0 to 1, a fraction of its length, default 0.2) below the line between the ends: a wire, a tube. `wrapped` is a flat belt round two wheels (a cylinder, a sphere or a wheel, gear or bearing part) whose axes run the same way; it stands off the rims and is `radius` thick. `fromSide` and `toSide` (`left` `right` `top` `bottom` `front` `back`, as seen from the front) pick where an end meets its object: on a round object that is the rim in that direction, on any other the middle of that face of its box; left out, its middle. `fromAnchor` and `toAnchor` name a point of a ready-made part instead. A connector to itself is refused. `radius` is its thickness (default 0.05). It is a path: a `stream` can run along it |
 | `stream` | `along` `mark`? `count`? `size`? `color`? `toColor`? `shiftAt`? `period`? `by`? `ratio`? `opacity`? | markers (`mark` `dot` default, `dash` or `arrow`; `count` 1 to 40, default 6) that run along a `tube`, `line`, `arrow` or `connector`, or along an arrow (`edge`) of a flow diagram: blood through vessels, current in a wire, water in a pipe, cars on a road, data between computers, money in an economy. They go on running by themselves, from step to step. `period` is the seconds a marker takes for the whole way (default 4; negative runs it backwards); or give `by`, a spinning part, with `ratio` laps for each turn of it. `color` changes to `toColor` along the way (`shiftAt`, 0 to 1, is where, default the middle; blood blue to red through the lungs). `size` (3D only) is never less than a bead a little wider than the pipe, since a marker inside an opaque pipe could not be seen. It hangs from its path and goes with it; markers shrink away at the ends. A stream is not part of the model for the camera |
-| `part` | `part` `size` `variant`? `n`? `pos`? `rot`? `color`? | a ready-made part fitted to the box `size`: `chip` (variant `black` or `metal`), `header` (`n` pins per row, two rows), `port` (variant `usb`, `usb3`, `ethernet`, `hdmi`, `usbc`; its opening faces `+z`), `lens` (axis `z`), `screen`, `button`, `fan` (`n` blades, axis `y`), `wheel` (`n` spokes, axis `z`) |
+| `part` | `part` `size` `variant`? `n`? `pos`? `rot`? `color`? `parentAnchor`? `selfAnchor`? | a ready-made part fitted to the box `size`: `chip` (variant `black` or `metal`), `header` (`n` pins per row, two rows), `port` (variant `usb`, `usb3`, `ethernet`, `hdmi`, `usbc`; its opening faces `+z`), `lens` (axis `z`), `screen`, `button`, `fan` (`n` blades, axis `y`), `wheel` (`n` spokes, axis `z`). Anchor placement is described below |
 | `array` | `of` `count` `step`? `turn`? | `count` copies in all of the object `of` (with everything attached to it); the original is the first. Each copy is moved `step` and turned `turn` more than the last, about the origin of the group the original sits in: a row of pins, blades round a hub. The original joins the new group `id` |
 | `text` | `text` `height` `pos`? `color` | text in the 3D scene, always facing the camera |
-| `group` | `pos`? `rot`? | an empty node |
+| `group` | `pos`? `rot`? `parentAnchor`? | an empty node; `parentAnchor` can mount a custom subassembly by this group's origin |
+
+The `wheel` part has a rubber tyre with rounded shoulders, a metal annular rim, tapered spokes and a hub capped on both faces. The gaps between spokes pass through the model. `n` is the number of spokes (default 5); `color` tints the rim, spokes and main hub while the tyre and small hub caps retain their material colors. As before, its diameter comes from `size[0]`, its axis is z and its origin is the centre; `size[1]` does not stretch the round wheel. Its depth is at most `size[2]`, limited to 0.4 times the diameter to keep a wheel-like proportion. This is schematic geometry, not a dimensioned mechanical part.
+
+Ports are simplified recessed sockets, opening toward `+z`: a shaped metal shell, dark back, inset plastic tongue and individual gold contacts. USB-C has rounded ends; HDMI has tapered lower corners; Ethernet has a lower latch recess. `size` remains the centred outer box, and `color` tints the shell while insulator and contact colours stay fixed. These are explanatory models, not dimensioned connector CAD. See `samples/scenes/connector-sockets.json`.
 
 All take `parent`? (the id of a group, or of a part or shape, to attach to; they nest up to 6 deep, and a mark, a pin or a text cannot be a parent), `explode`? (see below) and `at`?. `pos` defaults to `[0,0,0]`, `rot` to `[0,0,0]`, `opacity` to 1. A child moves, turns and scales with its parent. To make something grow from its base, put it in a group at the base, offset the child by half its height, and scale the group (see `bar-chart.json`). Arrays are capped at 64 copies each and 400 in a scene.
 
@@ -136,6 +140,33 @@ Mechanism parts are ready-made `part`s for engines, gearboxes and pumps. Each is
 | `pipe` | `[diameter, length, diameter]`, flanged ends | `top`, `bottom` |
 | `elbow` | `[x, y, z]`: a 90 degree bend whose pipe diameter is z; one end opens downwards at the bottom right, the other to the left at the top | `a`, `b` |
 | `housing` | `[x, y, z]`; variant `cutaway` leaves the front open to show the inside; bolts at the corners | `front`, `back` |
+
+### Assembling at named anchors
+
+On `add part`, `parentAnchor` names a point on `parent` and `selfAnchor` names a point on the new part. On `add group`, `parentAnchor` places the group's origin at that point on its parent. Both require `parent`. If either anchor field is present, an omitted anchor name means `origin`; if neither is present, ordinary `pos` placement is unchanged. Every ready-made part, group and other parent-capable shape has `origin: [0,0,0]`. Mechanism parts also have the names in the table above. Generic shapes have no face sockets: put them inside a mounted group to assemble custom geometry.
+
+```json
+[
+  { "op": "add", "shape": "part", "id": "riser", "part": "pipe", "size": [1, 4, 1] },
+  { "op": "add", "shape": "part", "id": "extension", "part": "pipe", "size": [1, 2, 1], "parent": "riser", "parentAnchor": "top", "selfAnchor": "bottom" }
+]
+```
+
+These actions put the extension's bottom at the riser's top. The timeline resolves the extension's local position to `[0,3,0]` when it creates the object. Validated and stored actions retain the anchor names and the authored offset, so a replay can use the parent definition and inherited transforms that actually exist at that time.
+
+- `rot` sets the orientation in degrees with the renderer's Euler XYZ convention. A new object's rotation defaults to zero; a detail replacement retains the old base rotation when `rot` is omitted, and retains its scale. Anchors are points, not directions: selecting them does not turn a part or align mating faces.
+- With anchor placement, `pos` is an optional offset **in the parent's local frame**, default `[0,0,0]`. The solved position is `parentAnchor + pos - EulerXYZ(rot) × (scale × selfAnchor)`, using the child's base rotation and scale at creation. The scale product is component by component; a new object starts at scale `[1,1,1]`. A nonzero offset intentionally separates the selected points by that amount.
+- Anchor coordinates use the same normalized construction dimensions as the renderer. For example, a pipe written with its length on x still has its length along y, and `top` is halfway along that normalized length. These dimensions are not exact mesh bounds; flanges, bolts and other details may extend beyond them.
+- Write the parent before its mounted children and schedule it no later, following the ordinary parenting rule above. Write parent replacements before the children that mount to them, too. A parent replacement written later in the same step is rejected if it is scheduled at or before an already-accepted mounted child. This prevents live streaming from applying it after the child while saved replay would apply it before. Mount birth means the authored `at` time (default 0), with accepted source order breaking ties. Validation and playback use the parent's definition alive at that time, not the latest definition written in the stream; an existing parent can receive a mount before a later scheduled replacement, even when that replacement was written first. Streaming can delay when a mount appears, but it preserves the authored birth's resolved local position and inherited base rotation/scale rather than fitting it to a newer parent. This does not add full lifetime validation across clears and re-adds.
+- The validator checks the parent and anchor names against accepted body versions at authored mount birth and rejects invalid anchors or an out-of-range new-object preview position with feedback. Replacement bounds are deferred to playback because inherited transforms may differ from the preview. Unknown-anchor feedback lists the available names; it does not fall back to the middle as a pin does. Playback also checks the chronological parent and solved placement: it skips a mount if the parent is absent at authored birth, that definition lacks the requested socket, or the resolved local position is outside `[-100,100]`. A delayed live mount stays skipped if its authored birth was invalid; later geometry cannot silently make it valid. The parent must also exist when it is displayed. A skipped replacement leaves the prior object and its children untouched.
+
+For ids mounted in the current step, `move`, `turn`, `scale` and `along` keep the object lifetime and order selected by authored time. A motion belonging to the mounted replacement waits until that replacement is displayed, then animates for its authored duration. A motion belonging to the previous lifetime cannot continue changing the replacement after its inherited birth pose. Other streaming actions retain their existing presentation timing.
+
+A step still being streamed is replanned as instructions arrive. A later-written turn or scale scheduled before an existing mounted replacement can revise its authored birth pose, including a pose already displayed. Write birth-defining transforms before the mount to avoid that provisional visual revision.
+
+This is base-pose placement, not a live joint or a physics constraint. Ordinary parent translation, rotation and scale carry the whole assembly together. A child's own spin, loop, joint-driven pose or other effects are applied afterward and can separate its sockets. A replacement inherits ongoing motion, so this separation can already exist when it is created. For rigid attachment, leave the mounted object's own pose unchanged and animate its parent. Replacing a parent's geometry does not re-fit existing children to its new sockets. There is no collision, seal, fluid-flow or mechanical-fit check.
+
+[`anchor-assembly.json`](../samples/scenes/anchor-assembly.json) builds a schematic pump with an intake, riser, rotated elbow and outlet, mounts a group containing a custom extruded gauge plate, then moves, turns and scales the parent assembly.
 
 ### Changing objects
 
@@ -258,12 +289,13 @@ The validator enforces these; the numbers are in `LIMITS` in `spec.ts`.
 - A scene that is not an object with a `steps` list, or has another `v`, is refused (`ok: false`).
 - An action with an unknown `op` or shape, a missing or wrongly typed field, a bad colour, an unknown or wrong-kind id, or a duplicate id is dropped; the rest of its step stays.
 - A number outside its range is clamped. A value that is not a finite number drops the action.
+- Named-anchor placement is checked using the known construction geometry. Validated actions retain their anchor names and authored `pos` offset; playback resolves the actual placement when the object is created. Unknown anchors or an out-of-range new-object preview position drop the action rather than silently changing the attachment.
 - Fields the language does not define are removed. `null` means the same as leaving an optional field out (strict structured-output modes require that).
 - Text loses control, zero-width and direction-override characters and line breaks, and is cut to its limit (at the end of a whole word when that keeps most of the text, so a step never ends in half a word). Markup is not interpreted or removed: `<b>` is just the characters `<b>`.
 - Steps, actions and objects past the limits are dropped.
 - A step with nothing to say and nothing left to show is dropped.
 
-A valid scene comes back deep-equal to what went in.
+A valid scene without normalization or path-end repair comes back deep-equal to what went in. This includes named-anchor authoring: validation preserves the socket names and offsets, and validating that result again leaves it unchanged.
 
 `SceneState` (`createSceneState()`) holds the ids so far. Keep one per session, pass it to every turn, and call `startTurn(state)` when a new question starts (`validateScene` does so itself) so the per-answer caps count from zero. A caller that streams with `validateStep` and forgets `startTurn` has every step after the 24th across questions dropped, with an issue that says so.
 
