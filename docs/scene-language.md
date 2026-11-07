@@ -88,7 +88,7 @@ When the thing to explain is a process, a sequence of events, a how-to or a tren
 
 ### Surfaces
 
-`material` is one of `plastic` (default), `metal`, `rubber`, `pcb`, `glass`, `glow`, `paper`, `tissue` (living tissue: soft, a little wet). They are physically based surfaces lit by a room environment; `color` tints them, and an object with no colour takes the natural colour of its surface (a `pcb` is green, `rubber` near black). Solids and tubes have dark edge lines unless `edges` is false.
+`material` is one of `plastic` (default), `metal`, `rubber`, `pcb`, `glass`, `glow`, `paper`, `tissue` (living tissue: soft, a little wet). They are physically based surfaces lit by a room environment; `color` tints them, and an object with no colour takes the natural colour of its surface (a `pcb` is green, `rubber` near black). Where a solid has creases or open boundaries, dark edge lines emphasize them unless `edges` is false. Smooth spheres/ellipsoids, rounded cylinders and full tori have no crease lines, even when `edges` is true: their tessellation is not an authored feature. This does not add silhouette outlines or change cut faces. See `samples/scenes/continuous-surfaces.json` for default/edges-off pairs at compact and stretched proportions.
 
 Each object that accepts `material` also accepts four optional finish numbers, independently overriding that material's recipe:
 

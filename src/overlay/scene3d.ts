@@ -292,7 +292,11 @@ export class PanelScene {
       default: {
         const geo = this.solidGeometry(def);
         if (def.shape === 'blob') shadeByHeight(geo);
-        node.obj = addMesh(geo, material, def.shape !== 'blob' && ('edges' in def ? def.edges !== false : true));
+        // These primitives have continuous surfaces, not authored creases. Facet-angle
+        // extraction invents dark seams on thin ellipsoids, rounded rims and stretched
+        // rings; position buckets can add more on compact meshes enlarged by a parent.
+        const continuous = def.shape === 'blob' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'torus';
+        node.obj = addMesh(geo, material, !continuous && ('edges' in def ? def.edges !== false : true));
       }
     }
     if (node.obj instanceof Sprite) node.baseScale = node.obj.scale.clone();

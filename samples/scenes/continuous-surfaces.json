@@ -1,0 +1,397 @@
+{
+  "steps": [
+    {
+      "say": "The left controls have edge lines explicitly off. The matching right surfaces use default edges. Thin ellipsoids, compact rounded cylinders enlarged by parents, and stretched rings should have the same smooth surface lighting without dark tessellation seams. The sharp box retains its real creases.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 70,
+          "y": 60,
+          "w": 860,
+          "h": 860
+        },
+        {
+          "op": "orbit",
+          "az": 12,
+          "el": 15,
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "referenceEllipsoid",
+          "size": [
+            3,
+            0.1,
+            2
+          ],
+          "pos": [
+            -2.2,
+            3,
+            0
+          ],
+          "rot": [
+            28,
+            0,
+            0
+          ],
+          "color": "#4787bc",
+          "material": "plastic",
+          "roughness": 0.45,
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "referenceCompact",
+          "pos": [
+            -2.2,
+            0,
+            0
+          ]
+        },
+        {
+          "op": "scale",
+          "id": "referenceCompact",
+          "to": [
+            10,
+            10,
+            10
+          ],
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "shape": "cylinder",
+          "id": "referenceCylinder",
+          "size": [
+            0.01,
+            0.02,
+            0.03
+          ],
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "parent": "referenceCompact",
+          "rot": [
+            0,
+            0,
+            90
+          ],
+          "color": "#b9804e",
+          "material": "metal",
+          "roughness": 0.42,
+          "edges": false
+        },
+        {
+          "op": "scale",
+          "id": "referenceCylinder",
+          "to": [
+            10,
+            10,
+            10
+          ],
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "shape": "torus",
+          "id": "referenceRing",
+          "size": [
+            3,
+            0.4,
+            0.6
+          ],
+          "pos": [
+            -2.2,
+            -3,
+            0
+          ],
+          "rot": [
+            65,
+            0,
+            0
+          ],
+          "color": "#3c9d87",
+          "material": "plastic",
+          "roughness": 0.5,
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "text",
+          "id": "referenceLabel",
+          "pos": [
+            -2.2,
+            4.3,
+            0
+          ],
+          "text": "Edges off reference",
+          "height": 0.27,
+          "color": "#334155"
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "defaultEllipsoid",
+          "size": [
+            3,
+            0.1,
+            2
+          ],
+          "pos": [
+            2.2,
+            3,
+            0
+          ],
+          "rot": [
+            28,
+            0,
+            0
+          ],
+          "color": "#4787bc",
+          "material": "plastic",
+          "roughness": 0.45
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "defaultCompact",
+          "pos": [
+            2.2,
+            0,
+            0
+          ]
+        },
+        {
+          "op": "scale",
+          "id": "defaultCompact",
+          "to": [
+            10,
+            10,
+            10
+          ],
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "shape": "cylinder",
+          "id": "defaultCylinder",
+          "size": [
+            0.01,
+            0.02,
+            0.03
+          ],
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "parent": "defaultCompact",
+          "rot": [
+            0,
+            0,
+            90
+          ],
+          "color": "#b9804e",
+          "material": "metal",
+          "roughness": 0.42
+        },
+        {
+          "op": "scale",
+          "id": "defaultCylinder",
+          "to": [
+            10,
+            10,
+            10
+          ],
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "shape": "torus",
+          "id": "defaultRing",
+          "size": [
+            3,
+            0.4,
+            0.6
+          ],
+          "pos": [
+            2.2,
+            -3,
+            0
+          ],
+          "rot": [
+            65,
+            0,
+            0
+          ],
+          "color": "#3c9d87",
+          "material": "plastic",
+          "roughness": 0.5
+        },
+        {
+          "op": "add",
+          "shape": "text",
+          "id": "defaultLabel",
+          "pos": [
+            2.2,
+            4.3,
+            0
+          ],
+          "text": "Default edges",
+          "height": 0.27,
+          "color": "#334155"
+        },
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "sharpControl",
+          "pos": [
+            0,
+            -4.5,
+            0
+          ],
+          "size": [
+            1.2,
+            0.6,
+            0.6
+          ],
+          "bevel": 0,
+          "rot": [
+            15,
+            20,
+            0
+          ],
+          "color": "#718096"
+        },
+        {
+          "op": "add",
+          "shape": "text",
+          "id": "controlLabel",
+          "pos": [
+            0,
+            -5.1,
+            0
+          ],
+          "text": "Sharp edges stay",
+          "height": 0.23,
+          "color": "#334155"
+        }
+      ]
+    },
+    {
+      "say": "The reverse view checks the whole surface rather than hiding a front seam. Mesh silhouettes and lighting stay unchanged.",
+      "actions": [
+        {
+          "op": "orbit",
+          "az": 155,
+          "el": -12,
+          "dur": 0
+        }
+      ]
+    },
+    {
+      "say": "Matching cuts keep their section caps. Removing false surface creases does not remove or restyle the cut faces.",
+      "actions": [
+        {
+          "op": "orbit",
+          "az": 18,
+          "el": 18,
+          "dur": 0
+        },
+        {
+          "op": "cut",
+          "id": "referenceEllipsoid",
+          "axis": "z",
+          "to": 0,
+          "dur": 0
+        },
+        {
+          "op": "cut",
+          "id": "referenceCylinder",
+          "axis": "z",
+          "to": 0,
+          "dur": 0
+        },
+        {
+          "op": "cut",
+          "id": "referenceRing",
+          "axis": "z",
+          "to": 0,
+          "dur": 0
+        },
+        {
+          "op": "cut",
+          "id": "defaultEllipsoid",
+          "axis": "z",
+          "to": 0,
+          "dur": 0
+        },
+        {
+          "op": "cut",
+          "id": "defaultCylinder",
+          "axis": "z",
+          "to": 0,
+          "dur": 0
+        },
+        {
+          "op": "cut",
+          "id": "defaultRing",
+          "axis": "z",
+          "to": 0,
+          "dur": 0
+        }
+      ]
+    },
+    {
+      "say": "The original surfaces return with the same sharp-edge control.",
+      "actions": [
+        {
+          "op": "cut",
+          "id": "referenceEllipsoid",
+          "to": 100,
+          "dur": 0
+        },
+        {
+          "op": "cut",
+          "id": "referenceCylinder",
+          "to": 100,
+          "dur": 0
+        },
+        {
+          "op": "cut",
+          "id": "referenceRing",
+          "to": 100,
+          "dur": 0
+        },
+        {
+          "op": "cut",
+          "id": "defaultEllipsoid",
+          "to": 100,
+          "dur": 0
+        },
+        {
+          "op": "cut",
+          "id": "defaultCylinder",
+          "to": 100,
+          "dur": 0
+        },
+        {
+          "op": "cut",
+          "id": "defaultRing",
+          "to": 100,
+          "dur": 0
+        },
+        {
+          "op": "orbit",
+          "az": 12,
+          "el": 15,
+          "dur": 0
+        }
+      ]
+    }
+  ]
+}
