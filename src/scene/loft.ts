@@ -2,7 +2,7 @@
 import type { Vec2, Vec3 } from './types.ts';
 
 export const LOFT_STRIPS = { low: 4, mid: 8, high: 12 } as const;
-export type LoftMesh = { positions: Float32Array; normals: Float32Array; indices: number[]; edges: Float32Array };
+export type LoftMesh = { positions: Float32Array; normals: Float32Array; indices: number[]; edges: Float32Array; sectionSize: number; wallRings: number };
 const own = (value: object, key: string): unknown => {
   const d = Object.getOwnPropertyDescriptor(value, key);
   return d && 'value' in d ? d.value : undefined;
@@ -153,5 +153,5 @@ export function prepareLoft(outline: unknown, endOutline: unknown, depth: unknow
     if (!(length > 0)) return;
     for (const at of [a, b, c]) if (!((nx * n[at]! + ny * n[at + 1]! + nz * n[at + 2]!) / length > 1e-6)) return;
   }
-  return { positions: p, normals: n, indices, edges: new Float32Array(edges) };
+  return { positions: p, normals: n, indices, edges: new Float32Array(edges), sectionSize: start.length, wallRings: strips + 1 };
 }

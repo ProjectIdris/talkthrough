@@ -1943,6 +1943,9 @@
         "up": {
           "$ref": "#/$defs/2"
         },
+        "smooth": {
+          "$ref": "#/$defs/4"
+        },
         "color": {
           "$ref": "#/$defs/1"
         },
@@ -1981,6 +1984,7 @@
         "outline",
         "pts",
         "up",
+        "smooth",
         "color",
         "material",
         "roughness",
@@ -2024,6 +2028,9 @@
         "endOutline": {
           "$ref": "#/$defs/3"
         },
+        "smooth": {
+          "$ref": "#/$defs/4"
+        },
         "depth": {
           "type": "number"
         },
@@ -2064,6 +2071,7 @@
         "rot",
         "outline",
         "endOutline",
+        "smooth",
         "depth",
         "color",
         "material",

@@ -12,13 +12,13 @@ A `loft` joins two independently shaped convex outlines into one closed solid. I
 - Each ring has 3–24 corners, with exactly the same count. Corner 0 joins corner 0, and so on. Both rings must have the same winding; reversing both is fine. Points are not rematched or recentered.
 - Both rings and every section between them must be strictly convex. Coordinates are finite and within -100–100. Do not repeat the first point at the end or add straight/repeated corners. A change of winding, collapsed intermediate section or unsafe Float32 mesh rejects the whole add before it can replace an existing object.
 - Use ordinary `parent`, `pos`, `rot`, `explode`, `material`, `color`, `opacity`, `edges` and `at`. Arrays and existing motion, cutaway, replacement and replay work normally. Children use the loft's parent transform, but the loft itself is not a new automatic tube-attachment target.
-- Faces have sharp polygon corners and flat caps. Side shading follows the ruled surface between matching edges. There is no bevel, hollow interior, concave section, arbitrary mesh input or animated profile change. For a constant profile use `extrude`; for a round body use `lathe`.
+- Faces have sharp polygon corners and flat caps by default. Optional `smooth: true` blends shallow wall joins and removes their longitudinal outlines, retaining sharp corners and flat caps; see [smooth profile surfaces](smooth-profiles.md). Side shading follows the ruled surface between matching edges. There is no bevel, hollow interior, concave section, arbitrary mesh input or animated profile change. For a constant profile use `extrude`; for a round body use `lathe`.
 
 A strongly rotated second ring can narrow or cross the middle even if both ends look valid. Keep correspondence straightforward. Nearly collinear, very thin or compact translated profiles can reject conservatively. Put small profiles near their local origin and use `pos` for placement.
 
 ## Bounds and mesh meaning
 
-Low/mid/high quality use 4/8/12 longitudinal strips, respectively. Maximum high-quality output is 672 vertices and 620 triangles per object, plus 72 outline segments. Construction and admission checks run when an object is created, not on every animation sync. Low quality retains its ordinary no-outline behavior.
+Low/mid/high quality use 4/8/12 longitudinal strips, respectively. Maximum high-quality solid output is 672 vertices and 620 triangles per object. Default outlines have at most 72 segments. With `smooth: true`, changing creases can split longitudinal lines into partial runs, bounded conservatively by 336 outline segments at high quality (144 low, 240 mid, before the ordinary low-tier no-outline policy). Construction and admission checks run when an object is created, not on every animation sync. Low quality retains its ordinary no-outline behavior.
 
 The intended side is a bilinear ruled patch. Triangles approximate its curvature between strip rows, while analytic normals avoid shading seams along diagonals. The emitted triangle mesh is therefore an approximation, not exact CAD. Higher quality adds strips. Only end perimeters and corresponding corner joins receive lines.
 
