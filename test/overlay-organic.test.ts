@@ -1,3 +1,4 @@
+import { variantDefinitions } from './support/json-schema.ts';
 import test from 'node:test';
 import { Vector3 } from 'three';
 import assert from 'node:assert/strict';
@@ -90,7 +91,7 @@ test('the language takes blobs and swell: lenient sizes, capped lumps, an option
   assert.ok(tube.ok, JSON.stringify(tube.issues));
   assert.equal(tube.scene!.steps[0]!.actions.length, 2, 'a tube without swell is still a tube');
   for (const schema of [sceneSchemaLean]) {
-    const defs = (schema as { $defs: Record<string, { properties: Record<string, unknown> }> }).$defs;
+    const defs = variantDefinitions(schema);
     assert.ok(defs.addBlob && 'sizes' in defs.addBlob.properties && 'soft' in defs.addBlob.properties, 'the blob is in the schema');
     assert.ok('swell' in defs.addTube!.properties, 'and the swell');
   }

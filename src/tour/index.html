@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+<title>Explore Talkthrough</title>
+<link rel="stylesheet" href="../shared/glass.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #101827; color: #edf3ff; font-family: system-ui, sans-serif; overflow: hidden; }
+  header { height: 116px; padding: 24px 28px 18px; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+  h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -.025em; }
+  header p { margin: 0; color: #b4c3d9; font-size: 13px; }
+  .badge { margin-top: 5px; padding: 6px 10px; color: #a7edd1; background: #183b36; border: 1px solid #2d5a4e; border-radius: 99px; font-size: 12px; white-space: nowrap; }
+  aside { position: absolute; top: 116px; bottom: 20px; left: 20px; width: 252px; overflow-y: auto; padding-right: 2px; }
+  .eyebrow { margin: 0 0 10px; font-size: 11px; font-weight: 650; letter-spacing: .12em; color: #93a9c8; text-transform: uppercase; }
+  #examples { display: grid; gap: 6px; }
+  .example { width: 100%; text-align: left; white-space: normal; border: 1px solid #2c3c53; background: #162238; border-radius: 12px; padding: 8px 12px; }
+  .example strong { display: block; color: #e7efff; font-size: 13px; margin-bottom: 3px; }
+  .example span { display: block; color: #a9bbd5; font-size: 11.5px; line-height: 1.35; font-weight: 400; }
+  .example[aria-pressed=true] { border-color: #7cbcff; background: #203a56; box-shadow: inset 3px 0 #7cbcff; }
+  button:focus-visible { outline: 2px solid #b5d9ff; outline-offset: 2px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .reading { margin-top: 16px; border-top: 1px solid #2c3c53; padding-top: 13px; }
+  #say { margin: 0; font-size: 13px; line-height: 1.65; color: #d2def0; }
+  .navigation { display: flex; gap: 8px; margin-top: 16px; }
+  .navigation button { flex: 1; padding: 8px 10px; }
+  #restart { margin-top: 9px; width: 100%; padding: 7px 10px; font-size: 12px; }
+  #status { min-height: 34px; margin: 10px 0 0; color: #9db2ce; font-size: 12px; line-height: 1.5; }
+  #status.error { color: #ffb9ac; }
+  .preview-placeholder { position: absolute; left: 292px; right: 20px; top: 116px; bottom: 20px; border: 1px solid #2c3c53; border-radius: 12px; display: grid; place-items: center; color: #9db2ce; background: #142033; padding: 32px; text-align: center; }
+</style>
+</head>
+<body>
+<header><div><h1>See an explanation take shape.</h1><p>Explore built-in examples at your own pace. No account, microphone or screen capture.</p></div><span class="badge">Offline preview</span></header>
+<aside aria-label="Example navigation">
+  <p class="eyebrow">Choose an example</p><nav id="examples" aria-label="Examples"></nav>
+  <section class="reading" aria-label="Explanation">
+    <p id="step" class="eyebrow">Loading examples</p><p id="say"></p>
+    <div class="navigation"><button id="back" type="button" disabled>Back</button><button id="next" class="primary" type="button" disabled>Next step</button></div>
+    <button id="restart" type="button" disabled>Restart example</button>
+    <p id="status" role="status" aria-live="polite"></p>
+  </section>
+</aside>
+<div class="preview-placeholder" aria-hidden="true">Your visual explanation appears here.</div>
+<script src="./tour.js"></script>
+</body>
+</html>

@@ -20,6 +20,8 @@ export type SettingsWindowOptions = {
   page: string;
   /** The first-run page (a window of its own, asked for by `openFirstRun`). */
   firstRunPage?: string;
+  /** Browse bundled explanations without configuring a model. */
+  onVisualTour?(): void;
   keys: ReturnType<typeof createKeyStore>;
   settings: SettingsService;
   /** How a question is heard, and the download of better hearing (asked for by the page, after a yes). */
@@ -112,6 +114,9 @@ export function createSettingsWindow(options: SettingsWindowOptions) {
   ipcMain.handle(SETTINGS_CHANNEL.micTest, async (event): Promise<MicTestResult> => {
     if (!trusted(event) || !options.micTest) return { ok: false, message: 'The microphone test is not available.' };
     return options.micTest().catch(() => ({ ok: false as const, message: 'The microphone could not be used.' }));
+  });
+  ipcMain.on(SETTINGS_CHANNEL.visualTour, (event) => {
+    if (trusted(event)) options.onVisualTour?.();
   });
   ipcMain.on(SETTINGS_CHANNEL.firstRunDone, (event, restart: unknown) => {
     if (!trusted(event) || !firstRun) return;

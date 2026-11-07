@@ -17,6 +17,7 @@ const api: TalkthroughSettingsApi = {
   onSpeechProgress: (listener) => void ipcRenderer.on(SETTINGS_CHANNEL.speechProgress, (_event, progress) => listener(progress)),
   testLocal: (baseUrl, model) => ipcRenderer.invoke(SETTINGS_CHANNEL.testLocal, { baseUrl, model }),
   devices: () => ipcRenderer.invoke(SETTINGS_CHANNEL.devices),
+  openVisualTour: () => ipcRenderer.send(SETTINGS_CHANNEL.visualTour),
   firstRun: () => ipcRenderer.invoke(SETTINGS_CHANNEL.firstRun),
   micTest: () => ipcRenderer.invoke(SETTINGS_CHANNEL.micTest),
   tools: () => ipcRenderer.invoke(SETTINGS_CHANNEL.tools),

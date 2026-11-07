@@ -1,0 +1,174 @@
+{
+  "steps": [
+    {
+      "say": "These loops share one tool.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 100,
+          "y": 180,
+          "w": 800,
+          "h": 600
+        }
+      ]
+    },
+    {
+      "say": "Change the path, thickness and surface. The same tube makes a rigid frame, a variable-width circuit and a thin band.",
+      "actions": [
+        {
+          "op": "add",
+          "shape": "tube",
+          "id": "frame",
+          "closed": true,
+          "pts": [
+            [
+              -4.7,
+              -1,
+              0
+            ],
+            [
+              -4.7,
+              1,
+              0
+            ],
+            [
+              -3.5,
+              1.6,
+              0
+            ],
+            [
+              -2.3,
+              1,
+              0
+            ],
+            [
+              -2.3,
+              -1,
+              0
+            ],
+            [
+              -3.5,
+              -1.4,
+              0
+            ]
+          ],
+          "radius": 0.22,
+          "material": "metal",
+          "color": "#85b5dd"
+        },
+        {
+          "op": "add",
+          "shape": "tube",
+          "id": "circuit",
+          "closed": true,
+          "pts": [
+            [
+              -1.25,
+              0,
+              0
+            ],
+            [
+              -0.7,
+              1.45,
+              0.25
+            ],
+            [
+              0.7,
+              1.45,
+              -0.25
+            ],
+            [
+              1.25,
+              0,
+              0
+            ],
+            [
+              0.5,
+              -1.2,
+              0.45
+            ],
+            [
+              -0.5,
+              -1.2,
+              -0.45
+            ]
+          ],
+          "radius": 0.28,
+          "swell": [
+            [
+              0,
+              1
+            ],
+            [
+              0.3,
+              1.45
+            ],
+            [
+              0.7,
+              0.65
+            ]
+          ],
+          "material": "plastic",
+          "color": "#d88b67"
+        },
+        {
+          "op": "add",
+          "shape": "tube",
+          "id": "band",
+          "closed": true,
+          "pts": [
+            [
+              2.4,
+              0,
+              0
+            ],
+            [
+              2.9,
+              1.5,
+              0.2
+            ],
+            [
+              4.2,
+              1.2,
+              -0.25
+            ],
+            [
+              4.8,
+              -0.5,
+              0.4
+            ],
+            [
+              3.5,
+              -1.3,
+              -0.3
+            ]
+          ],
+          "radius": 0.3,
+          "flat": 0.2,
+          "material": "plastic",
+          "color": "#7db898"
+        }
+      ]
+    },
+    {
+      "say": "A stream travels continuously around the circuit.",
+      "actions": [
+        {
+          "op": "add",
+          "shape": "stream",
+          "id": "flow",
+          "along": "circuit",
+          "count": 5,
+          "period": 6,
+          "color": "#f9e7ba"
+        },
+        {
+          "op": "orbit",
+          "az": 14,
+          "el": 8,
+          "dur": 1
+        }
+      ]
+    }
+  ]
+}

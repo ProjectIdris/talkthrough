@@ -1,0 +1,131 @@
+{
+  "steps": [
+    {
+      "say": "A section can face any direction without turning the object. These three forms are sliced by different local planes.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 80,
+          "y": 150,
+          "w": 840,
+          "h": 650
+        },
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "block",
+          "size": [
+            2.6,
+            3,
+            2.4
+          ],
+          "pos": [
+            -3.8,
+            0,
+            0
+          ],
+          "color": "teal",
+          "bevel": 0.12
+        },
+        {
+          "op": "add",
+          "shape": "cylinder",
+          "id": "round",
+          "size": [
+            2.6,
+            3.4,
+            2.6
+          ],
+          "color": "orange"
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "oval",
+          "size": [
+            2.6,
+            3.4,
+            2.6
+          ],
+          "pos": [
+            3.8,
+            0,
+            0
+          ],
+          "color": "purple"
+        },
+        {
+          "op": "cut",
+          "id": "block",
+          "normal": [
+            1,
+            0.6,
+            1
+          ],
+          "to": 0.2,
+          "at": 1,
+          "dur": 2
+        },
+        {
+          "op": "cut",
+          "id": "round",
+          "normal": [
+            0,
+            1,
+            0.6
+          ],
+          "to": 0.25,
+          "at": 1,
+          "dur": 2
+        },
+        {
+          "op": "cut",
+          "id": "oval",
+          "normal": [
+            -1,
+            0.4,
+            1
+          ],
+          "to": 0.2,
+          "at": 1,
+          "dur": 2
+        },
+        {
+          "op": "orbit",
+          "az": 15,
+          "el": 20,
+          "dur": 0
+        }
+      ]
+    },
+    {
+      "say": "Moving each plane deeper keeps its direction. The parts stay in place while the cross-sections change.",
+      "actions": [
+        {
+          "op": "cut",
+          "id": "block",
+          "to": -0.4,
+          "dur": 2
+        },
+        {
+          "op": "cut",
+          "id": "round",
+          "to": -0.4,
+          "dur": 2
+        },
+        {
+          "op": "cut",
+          "id": "oval",
+          "to": -0.4,
+          "dur": 2
+        },
+        {
+          "op": "orbit",
+          "az": -20,
+          "el": 25,
+          "dur": 2
+        }
+      ]
+    }
+  ]
+}

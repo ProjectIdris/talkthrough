@@ -1,0 +1,33 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "These three shapes use the same closed rotational modelling operation. Removing part of the revolution makes the thickness and interior visible.",
+      "actions": [
+        { "op": "panel", "x": 80, "y": 100, "w": 840, "h": 750 },
+        { "op": "orbit", "az": 20, "el": 18, "dur": 0 },
+        { "op": "add", "shape": "lathe", "id": "vessel", "profile": [[0,-1.6],[1.3,-1.6],[1.5,-1.1],[1.45,0.8],[1,1.3],[0.9,1.6],[0.65,1.6],[0.75,1.25],[1.1,0.6],[1.15,-1.1],[0,-1.1]], "sweep": 250, "pos": [-4.2,0,0], "rot": [0,55,0], "material": "plastic", "color": "teal", "edges": false },
+        { "op": "add", "shape": "lathe", "id": "bracket", "profile": [[1.05,-0.75],[1.8,-0.75],[1.8,-0.45],[1.35,-0.45],[1.35,0.45],[1.8,0.45],[1.8,0.75],[1.05,0.75]], "sweep": 110, "pos": [0,0,0], "rot": [0,-55,0], "material": "metal", "color": "orange" },
+        { "op": "add", "shape": "lathe", "id": "housing", "profile": [[0.6,-1.1],[1.1,-1.1],[1.5,1.1],[1,1.1]], "sweep": 270, "pos": [4.2,0,0], "rot": [0,45,0], "material": "plastic", "color": "purple" },
+        { "op": "add", "shape": "text", "id": "vessel-title", "pos": [-4.2,-2.4,0], "text": "Thick vessel", "height": 0.4, "color": "teal" },
+        { "op": "add", "shape": "text", "id": "bracket-title", "pos": [0,-2.4,0], "text": "Curved bracket", "height": 0.4, "color": "orange" },
+        { "op": "add", "shape": "text", "id": "housing-title", "pos": [4.2,-2.4,0], "text": "Tapered housing", "height": 0.4, "color": "purple" }
+      ]
+    },
+    {
+      "say": "The ends are real closed surfaces. Looking from the other side keeps their thickness, inner walls and curved outlines.",
+      "actions": [
+        { "op": "orbit", "az": -25, "el": 30, "dur": 1 },
+        { "op": "turn", "id": "vessel", "to": [0,105,0], "dur": 1 },
+        { "op": "turn", "id": "bracket", "to": [0,-15,0], "dur": 1 }
+      ]
+    },
+    {
+      "say": "An ordinary cut can reveal another section of the closed housing, without changing how it was built.",
+      "actions": [
+        { "op": "cut", "id": "housing", "axis": "y", "to": 0, "dur": 1 },
+        { "op": "orbit", "az": 15, "el": 38, "dur": 1 }
+      ]
+    }
+  ]
+}

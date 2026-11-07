@@ -1,0 +1,32 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "Each lower form is authored small and enlarged as a group. Its rounded edges should match the corresponding full-size form above: a housing, a thin plate and a deeply rounded block.",
+      "actions": [
+        { "op": "panel", "x": 90, "y": 80, "w": 820, "h": 780 },
+        { "op": "orbit", "az": 22, "el": 14, "dur": 0 },
+        { "op": "add", "shape": "box", "id": "housing-full", "size": [1, 1, 1], "bevel": 0.1, "pos": [-2, 1.3, 0], "color": "blue" },
+        { "op": "add", "shape": "box", "id": "plate-full", "size": [1.6, 1.1, 0.1], "bevel": 0.01, "pos": [0, 1.3, 0], "color": "teal" },
+        { "op": "add", "shape": "box", "id": "round-full", "size": [1, 1.8, 1], "bevel": 20, "pos": [2, 1.3, 0], "color": "orange" },
+        { "op": "add", "shape": "group", "id": "housing-small-group", "pos": [-2, -1.3, 0] },
+        { "op": "add", "shape": "box", "id": "housing-small", "parent": "housing-small-group", "size": [0.01, 0.01, 0.01], "color": "blue" },
+        { "op": "scale", "id": "housing-small-group", "to": [100, 100, 100], "dur": 0 },
+        { "op": "add", "shape": "group", "id": "plate-small-group", "pos": [0, -1.3, 0] },
+        { "op": "add", "shape": "box", "id": "plate-small", "parent": "plate-small-group", "size": [0.16, 0.11, 0.01], "color": "teal" },
+        { "op": "scale", "id": "plate-small-group", "to": [10, 10, 10], "dur": 0 },
+        { "op": "add", "shape": "group", "id": "round-small-group", "pos": [2, -1.3, 0] },
+        { "op": "add", "shape": "box", "id": "round-small", "parent": "round-small-group", "size": [0.01, 0.018, 0.01], "bevel": 20, "color": "orange" },
+        { "op": "scale", "id": "round-small-group", "to": [100, 100, 100], "dur": 0 }
+      ]
+    },
+    {
+      "say": "The same model can be turned and cut using the existing controls. The rounding is geometry, not a painted effect.",
+      "actions": [
+        { "op": "orbit", "az": -28, "el": 24, "dur": 1 },
+        { "op": "cut", "id": "housing-full", "axis": "z", "to": 0, "dur": 1 },
+        { "op": "cut", "id": "housing-small", "axis": "z", "to": 0, "dur": 1 }
+      ]
+    }
+  ]
+}

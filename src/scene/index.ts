@@ -8,3 +8,5 @@ export { orderScore } from './order.ts';
 export type { OrderScore } from './order.ts';
 export { sceneSchema, sceneSchemaChain, sceneSchemaLean } from './schema.ts';
 export { sceneGuide, sceneGuideExample } from './guide.ts';
+export { resolvePartGeometry } from './part-geometry.ts';
+export type { PartGeometry } from './part-geometry.ts';

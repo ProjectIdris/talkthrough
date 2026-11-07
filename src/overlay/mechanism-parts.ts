@@ -12,7 +12,7 @@ import { mergeGeometries, toCreasedNormals } from 'three/examples/jsm/utils/Buff
 import type { AddPart, Vec3 } from '../scene/types.ts';
 import { boxGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
-import { crankThrow, normalSize, pistonPinDrop, rodEnds } from './mechanism-geometry.ts';
+import { crankThrow, pistonPinDrop, resolvePartGeometry, rodEnds } from '../scene/part-geometry.ts';
 import { SECTION } from './materials.ts';
 import { Builder, cyl } from './parts-base.ts';
 import type { Rgb } from './timeline.ts';
@@ -131,9 +131,6 @@ function cylinderBlock(b: Builder, def: AddPart, d: Detail): void {
       for (const side of [-1, 1]) b.add(boxGeometry([sx * 0.16, sy * 0.028, sz * 0.96], 0.01, d), 'cast', { tint: true, pos: [side * (sx / 2 + sx * 0.06), y, 0] });
     }
   }
-  b.anchors['bore-top'] = [0, sy / 2, 0];
-  b.anchors['bore-bottom'] = [0, -sy / 2, 0];
-  b.anchors['front'] = [0, 0, sz / 2];
 }
 
 // ---- Piston: a crown, three rings and a wrist pin -------------------------------------------------------
@@ -153,8 +150,6 @@ function piston(b: Builder, def: AddPart, d: Detail): void {
   for (const y of centres) b.add(cyl(r * 1.006, r * 1.006, groove * 0.72, d.curve), 'metal', { color: DARK_STEEL, pos: [0, y, 0] });
   b.add(cyl(r * 0.62, r * 0.62, sy * 0.012, d.curve), 'metal', { color: BRIGHT, pos: [0, sy / 2 + 0.002, 0] });
   b.add(alongZ(cyl(r * 0.2, r * 0.2, def.size[2] * 0.96, 18)), 'metal', { color: STEEL, pos: [0, -pistonPinDrop(def.size), 0] });
-  b.anchors['crown'] = [0, sy / 2, 0];
-  b.anchors['pin'] = [0, -pistonPinDrop(def.size), 0];
 }
 
 // ---- Connecting rod: big end, tapered shaft, small end ----------------------------------------------------
@@ -182,8 +177,6 @@ function connectingRod(b: Builder, def: AddPart, d: Detail): void {
   rib.closePath();
   b.add(slab(rib, sz, 0.02 * sz, d), 'metal', { color: BRIGHT });
   for (const side of [-1, 1]) b.add(cyl(sx * 0.055, sx * 0.055, sz * 1.04, 12), 'metal', { color: DARK_STEEL, rot: [90, 0, 0], pos: [side * rb * 0.82, yb - rb * 0.55, 0] });
-  b.anchors['big-end'] = [0, yb, 0];
-  b.anchors['small-end'] = [0, ys, 0];
 }
 
 // ---- Crankshaft: main journal along z, a throw (two webs, a counterweight and a pin) for each of n --------
@@ -218,12 +211,7 @@ function crankshaft(b: Builder, def: AddPart, d: Detail): void {
     const pin = alongZ(cyl(rp, rp, pitch * 0.4, d.curve));
     pin.translate(0, throwR, 0);
     b.add(rot(pin).translate(0, 0, z), 'metal', { color: BRIGHT, edges: true });
-    const key = `pin${n > 1 ? i + 1 : ''}`;
-    b.anchors[key] = [-Math.sin(a) * throwR, Math.cos(a) * throwR, z];
   }
-  b.anchors['axis-front'] = [0, 0, sz / 2];
-  b.anchors['axis-rear'] = [0, 0, -sz / 2];
-  b.anchors['throw'] = [0, throwR, 0];
 }
 
 // ---- Valve: a lathe-turned stem and head; the head points down (-y) ----------------------------------------
@@ -235,8 +223,6 @@ function valve(b: Builder, def: AddPart, d: Detail): void {
   const y0 = -sy / 2;
   b.add(spin([[0, y0], [rh, y0], [rh * 0.97, y0 + sy * 0.035], [rs * 1.7, y0 + sy * 0.13], [rs, y0 + sy * 0.2], [rs, sy / 2 - sy * 0.05], [rs * 0.78, sy / 2 - sy * 0.025], [rs * 0.78, sy / 2], [0, sy / 2]], d.curve, 0.7), 'metal', { tint: true, edges: false });
   b.add(cyl(rs * 1.5, rs * 1.5, sy * 0.025, 14), 'metal', { color: DARK_STEEL, pos: [0, sy / 2 - sy * 0.09, 0] });
-  b.anchors['head'] = [0, y0, 0];
-  b.anchors['tip'] = [0, sy / 2, 0];
 }
 
 // ---- Camshaft: a shaft along z with n lobes, each with its nose at +y when the shaft is at angle 0 ---------
@@ -275,8 +261,6 @@ function camshaft(b: Builder, def: AddPart, d: Detail): void {
     // The journal either side of the lobe, a little wider than the shaft.
     for (const side of [-1, 1]) b.add(alongZ(cyl(rs * 1.35, rs * 1.35, lobeW * 0.35, d.curve)), 'metal', { color: DARK_STEEL, pos: [0, 0, z + side * (lobeW / 2 + lobeW * 0.17)] });
   }
-  b.anchors['axis-front'] = [0, 0, sz / 2];
-  b.anchors['axis-rear'] = [0, 0, -sz / 2];
 }
 
 // ---- Spark plug: thread, hex, ceramic, terminal and the electrode --------------------------------------------
@@ -299,8 +283,6 @@ function sparkPlug(b: Builder, def: AddPart, d: Detail): void {
   b.add(cyl(sx * 0.15, sx * 0.15, sy * 0.025, 6), 'metal', { color: BRIGHT, pos: [0, sy / 2 - sy * 0.06, 0] });
   b.add(cyl(sx * 0.045, sx * 0.045, sy * 0.09, 10), 'metal', { color: BRIGHT, pos: [0, y0 + sy * 0.015, 0] });
   b.add(boxGeometry([sx * 0.4, sy * 0.02, sx * 0.07], 0, d), 'metal', { color: STEEL, pos: [sx * 0.17, y0 + sy * 0.02, 0] });
-  b.anchors['tip'] = [0, y0, 0];
-  b.anchors['terminal'] = [0, sy / 2, 0];
 }
 
 // ---- Gear: n teeth, a hub and lightening holes; the axis is z -------------------------------------------------
@@ -333,7 +315,6 @@ function gear(b: Builder, def: AddPart, d: Detail): void {
   }
   b.add(slab(s, sz, Math.min(sz * 0.12, 0.05), d), 'metal', { tint: true, edges: true });
   b.add(alongZ(cyl(rOut * 0.26, rOut * 0.26, sz * 1.25, d.curve)), 'metal', { color: DARK_STEEL, edges: true });
-  b.anchors['axis'] = [0, 0, sz / 2];
 }
 
 // ---- Spring: a coil of wire along y --------------------------------------------------------------------------
@@ -355,8 +336,6 @@ function spring(b: Builder, def: AddPart, d: Detail): void {
   }
   const geo = new TubeGeometry(new CatmullRomCurve3(pts), total * 2, wire, 8, false);
   b.add(toCreasedNormals(geo, 0.8), 'metal', { tint: true });
-  b.anchors['top'] = [0, sy / 2, 0];
-  b.anchors['bottom'] = [0, -sy / 2, 0];
 }
 
 // ---- Bearing: outer race, inner race and balls; the axis is z -----------------------------------------------
@@ -374,7 +353,6 @@ function bearing(b: Builder, def: AddPart, d: Detail): void {
     b.add(new SphereGeometry(rb, 14, 10), 'metal', { color: STEEL, pos: [Math.cos(a) * pitch, Math.sin(a) * pitch, 0] });
   }
   b.add(slab(ringShape(ro * 0.8, ro * 0.61), sz * 0.3, 0, d), 'rubber', { color: [38, 40, 46] });
-  b.anchors['axis'] = [0, 0, sz / 2];
 }
 
 // ---- Pipe and elbow: hollow tubes with flanges ----------------------------------------------------------------
@@ -386,8 +364,6 @@ function pipe(b: Builder, def: AddPart, d: Detail): void {
   const h = sy / 2;
   b.add(spin([[ri, -h], [ro, -h], [ro, h], [ri, h], [ri, -h]], d.curve, 0.8), 'metal', { tint: true, edges: false });
   for (const side of [-1, 1]) b.add(spin([[ri, -sy * 0.03], [ro * 1.28, -sy * 0.03], [ro * 1.28, sy * 0.03], [ri, sy * 0.03], [ri, -sy * 0.03]], d.curve, 0.6).translate(0, side * (h - sy * 0.04), 0), 'metal', { color: DARK_STEEL, edges: true });
-  b.anchors['top'] = [0, h, 0];
-  b.anchors['bottom'] = [0, -h, 0];
 }
 
 function elbow(b: Builder, def: AddPart, d: Detail): void {
@@ -400,8 +376,6 @@ function elbow(b: Builder, def: AddPart, d: Detail): void {
   // Flanges at the two ends: one opens downwards at (bend, 0), the other to the left at (0, bend).
   b.add(cyl(r * 1.3, r * 1.3, r * 0.22, d.curve), 'metal', { color: DARK_STEEL, pos: [cx + bend, cy - r * 0.02, 0], edges: true });
   b.add(alongZ(cyl(r * 1.3, r * 1.3, r * 0.22, d.curve)).rotateZ(Math.PI / 2), 'metal', { color: DARK_STEEL, pos: [cx - r * 0.02, cy + bend, 0], edges: true });
-  b.anchors['a'] = [cx + bend, cy, 0];
-  b.anchors['b'] = [cx, cy + bend, 0];
 }
 
 // ---- Housing: a casing with a lip and bolts; "cutaway" leaves the front open so the inside shows --------------
@@ -425,8 +399,6 @@ function housing(b: Builder, def: AddPart, d: Detail): void {
     b.add(boxGeometry(lip, t * 0.2, d), 'enamel', { tint: true, pos: [0, 0, sz / 2 - t * 0.3], edges: true });
   }
   bolts(b, [-1, 1].flatMap((sx1) => [-1, 1].map((sy1): Vec3 => [sx1 * (sx / 2 - t * 1.1), sy1 * (sy / 2 - t * 1.1), sz / 2 - t * 0.1])), t * 0.5, t * 0.6, 'z');
-  b.anchors['front'] = [0, 0, sz / 2];
-  b.anchors['back'] = [0, 0, -sz / 2];
 }
 
 export const MECHANISM_PARTS = ['cylinder-block', 'piston', 'connecting-rod', 'crankshaft', 'valve', 'camshaft', 'spark-plug', 'gear', 'spring', 'bearing', 'pipe', 'elbow', 'housing'] as const;
@@ -439,7 +411,9 @@ const BUILDERS: Record<string, (b: Builder, def: AddPart, d: Detail) => void> = 
 export function buildMechanismPart(b: Builder, def: AddPart, d: Detail): boolean {
   const build = BUILDERS[def.part];
   if (!build) return false;
-  build(b, { ...def, size: normalSize(def.part, def.size) }, d);
+  const { size, anchors } = resolvePartGeometry(def);
+  Object.assign(b.anchors, anchors);
+  build(b, { ...def, size }, d);
   return true;
 }
 
