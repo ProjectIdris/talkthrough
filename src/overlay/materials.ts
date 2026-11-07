@@ -4,6 +4,7 @@
 
 import { Color, DoubleSide, MeshPhysicalMaterial } from 'three';
 import type { Material } from 'three';
+import type { SurfaceFinish } from '../scene/types.ts';
 import type { Rgb } from './timeline.ts';
 
 export type Tier = 'low' | 'mid' | 'high';
@@ -61,11 +62,12 @@ const RECIPES: Record<SurfaceName, Recipe> = {
 
 export type Surface = MeshPhysicalMaterial & { userData: { base: number; glow: number } };
 
-export function makeSurface(name: string | undefined, tier: TierSettings): Surface {
+export function makeSurface(name: string | undefined, tier: TierSettings, finish: SurfaceFinish = {}): Surface {
   const r = RECIPES[(name as SurfaceName) in RECIPES ? (name as SurfaceName) : 'plastic'];
   const m = new MeshPhysicalMaterial({
-    color: 0xffffff, roughness: r.roughness, metalness: r.metalness,
-    clearcoat: tier.clearcoat ? r.clearcoat ?? 0 : 0, clearcoatRoughness: r.clearcoatRoughness ?? 0,
+    color: 0xffffff, roughness: finish.roughness ?? r.roughness, metalness: finish.metalness ?? r.metalness,
+    clearcoat: tier.clearcoat ? finish.clearcoat ?? r.clearcoat ?? 0 : 0,
+    clearcoatRoughness: finish.clearcoatRoughness ?? r.clearcoatRoughness ?? 0,
     envMapIntensity: r.envMapIntensity ?? 1, transparent: true, side: r.doubleSided ? DoubleSide : 0,
   }) as Surface;
   if (r.sheen) {

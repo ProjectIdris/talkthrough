@@ -63,16 +63,25 @@ export type PanelAction = { op: 'panel'; x: number; y: number; w: number; h: num
 
 // 3D objects, added to the stage. Units: y up, x right, z toward the viewer.
 export type Material = 'plastic' | 'metal' | 'rubber' | 'pcb' | 'glass' | 'glow' | 'paper' | 'tissue';
-type Surface = { color?: Color; material?: Material; edges?: boolean; opacity?: number };
+/** Optional 0..1 overrides of a named surface. Missing values keep that recipe; low quality disables clearcoat. */
+export type SurfaceFinish = { roughness?: number; metalness?: number; clearcoat?: number; clearcoatRoughness?: number };
+type Surface = { color?: Color; material?: Material; edges?: boolean; opacity?: number } & SurfaceFinish;
 export type SolidShape = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'plane';
 export type AddSolid = {
   op: 'add'; shape: SolidShape; id: string; parent?: string; explode?: Vec3; pos?: Vec3; size: Vec3; rot?: Vec3; bevel?: number;
 } & Surface & At;
 export type AddExtrude = {
-  op: 'add'; shape: 'extrude'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; depth: number; bevel?: number;
+  op: 'add'; shape: 'extrude'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; holes?: Vec2[][]; taper?: number; shift?: Vec2; depth: number; bevel?: number;
+} & Surface & At;
+export type AddHull = {
+  op: 'add'; shape: 'hull'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[];
 } & Surface & At;
 export type AddLathe = {
-  op: 'add'; shape: 'lathe'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; profile: Vec2[]; sides?: number;
+  op: 'add'; shape: 'lathe'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; profile: Vec2[]; sides?: number; sweep?: number;
+} & Surface & At;
+/** Open bicubic sheet, 16 control points in four row-major rows. */
+export type AddPatch = {
+  op: 'add'; shape: 'patch'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[];
 } & Surface & At;
 /** A closed polygon carried along a smooth open path. up sets its initial +y direction. */
 export type AddSweep = {
@@ -84,7 +93,7 @@ export type AddBlob = {
 /** An end of a tube or line that lies on a 3D part: the part and the point on it (in the part's own space), which the end keeps wherever the part goes. Set by the validator, never written. */
 export type AttachEnd = { to: string; at: Vec3 };
 export type AddTube = {
-  op: 'add'; shape: 'tube'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; radius: number; flat?: number; swell?: Vec2[]; draw?: number;
+  op: 'add'; shape: 'tube'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; radius: number; flat?: number; swell?: Vec2[]; closed?: boolean; draw?: number;
   attach?: [AttachEnd | null, AttachEnd | null];
 } & Surface & At;
 export type AddPath = {
@@ -96,14 +105,14 @@ export type PartKind =
   | 'cylinder-block' | 'piston' | 'connecting-rod' | 'crankshaft' | 'valve' | 'camshaft' | 'spark-plug' | 'gear' | 'spring' | 'bearing' | 'pipe' | 'elbow' | 'housing';
 export type PartVariant = 'black' | 'metal' | 'usb' | 'usb3' | 'ethernet' | 'hdmi' | 'usbc' | 'gold' | 'cutaway' | 'finned';
 export type AddPart = {
-  op: 'add'; shape: 'part'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; part: PartKind; variant?: PartVariant;
+  op: 'add'; shape: 'part'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; part: PartKind; variant?: PartVariant;
   size: Vec3; n?: number; color?: Color; opacity?: number;
 } & At;
 export type AddArray = { op: 'add'; shape: 'array'; id: string; of: string; count: number; step?: Vec3; turn?: Vec3 } & At;
 export type AddText = {
   op: 'add'; shape: 'text'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; text: string; height: number; color: Color;
 } & At;
-export type AddGroup = { op: 'add'; shape: 'group'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3 } & At;
+export type AddGroup = { op: 'add'; shape: 'group'; id: string; parent?: string; parentAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3 } & At;
 
 export type Side = 'left' | 'right' | 'top' | 'bottom' | 'front' | 'back';
 /** A rope, belt, wire, chain or pipe between two objects, drawn as a tube that follows them as they move. */
@@ -120,7 +129,7 @@ export type AddStream = {
 /** A stream on an edge of a flat diagram: what the timeline makes of an AddStream whose `along` is an edge. Never written by the model. */
 export type StreamPiece = { op: 'stream'; id: string; along: string; mark?: StreamMark; count?: number; color?: Color; toColor?: Color; shiftAt?: number; period?: number; opacity?: number } & At;
 
-export type AddAction = AddSolid | AddExtrude | AddLathe | AddSweep | AddBlob | AddTube | AddPath | AddConnector | AddStream | AddPart | AddArray | AddText | AddGroup;
+export type AddAction = AddSolid | AddExtrude | AddHull | AddLathe | AddSweep | AddPatch | AddBlob | AddTube | AddPath | AddConnector | AddStream | AddPart | AddArray | AddText | AddGroup;
 
 // Tweens and changes on existing ids.
 export type MoveAction = { op: 'move'; id: string; to: Vec3 } & Timing;
@@ -134,7 +143,7 @@ export type HighlightAction = { op: 'highlight'; id: string; color?: Color } & T
 
 // Machines: parts that keep moving by themselves once started.
 export type SpinAction = { op: 'spin'; id: string; rpm?: number; by?: string; ratio?: number; phase?: number; axis?: 'x' | 'y' | 'z' } & Timing;
-export type CutAction = { op: 'cut'; id: string; axis?: 'x' | 'y' | 'z'; to: number } & Timing;
+export type CutAction = { op: 'cut'; id: string; axis?: 'x' | 'y' | 'z'; normal?: Vec3; to: number } & Timing;
 export type CrankAction = { op: 'crank'; id: string; shaft: string; rod?: string; pin?: number } & At;
 export type CamAction = { op: 'cam'; id: string; by: string; lift?: number; open?: number; phase?: number } & At;
 /** A repeating motion that is not a full turn, for any object: slide along an axis, swing about a pivot, or pulse in size. Its own period, or locked to a spinning part with by. */

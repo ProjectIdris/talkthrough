@@ -130,11 +130,8 @@ export function createSettingsService(options: { path: string; warn?: (message: 
       try {
         mkdirSync(dirname(options.path), { recursive: true });
         if (broken) {
-          try {
-            copyFileSync(options.path, `${options.path}.unreadable`);
-          } catch {
-            // nothing there to keep
-          }
+          // Do not replace an unreadable file unless its original contents are safely kept.
+          copyFileSync(options.path, `${options.path}.unreadable`);
         }
         writeFileSync(temp, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
         renameSync(temp, options.path);

@@ -1,0 +1,354 @@
+{
+  "steps": [
+    {
+      "say": "One surface tool makes all three forms. The blue cover bows through its middle. The orange membrane curves in opposite directions. The green panel changes its boundary and curvature together. Only their sixteen control points differ.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 60,
+          "y": 80,
+          "w": 880,
+          "h": 800
+        },
+        {
+          "op": "orbit",
+          "az": -12,
+          "el": 18,
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "shape": "patch",
+          "id": "cover",
+          "pts": [
+            [
+              -1.5,
+              -1.5,
+              0
+            ],
+            [
+              -0.5,
+              -1.5,
+              0
+            ],
+            [
+              0.5,
+              -1.5,
+              0
+            ],
+            [
+              1.5,
+              -1.5,
+              0
+            ],
+            [
+              -1.5,
+              -0.5,
+              0
+            ],
+            [
+              -0.5,
+              -0.5,
+              2
+            ],
+            [
+              0.5,
+              -0.5,
+              2
+            ],
+            [
+              1.5,
+              -0.5,
+              0
+            ],
+            [
+              -1.5,
+              0.5,
+              0
+            ],
+            [
+              -0.5,
+              0.5,
+              2
+            ],
+            [
+              0.5,
+              0.5,
+              2
+            ],
+            [
+              1.5,
+              0.5,
+              0
+            ],
+            [
+              -1.5,
+              1.5,
+              0
+            ],
+            [
+              -0.5,
+              1.5,
+              0
+            ],
+            [
+              0.5,
+              1.5,
+              0
+            ],
+            [
+              1.5,
+              1.5,
+              0
+            ]
+          ],
+          "pos": [
+            -3.6,
+            1.8,
+            0
+          ],
+          "color": "#4b79b0",
+          "material": "metal"
+        },
+        {
+          "op": "add",
+          "shape": "text",
+          "id": "coverLabel",
+          "pos": [
+            -3.6,
+            -0.19999999999999996,
+            0
+          ],
+          "text": "Domed cover",
+          "height": 0.3,
+          "color": "#334155"
+        },
+        {
+          "op": "add",
+          "shape": "patch",
+          "id": "saddle",
+          "pts": [
+            [
+              -1.5,
+              -1.5,
+              1.2
+            ],
+            [
+              -0.5,
+              -1.5,
+              0.4
+            ],
+            [
+              0.5,
+              -1.5,
+              -0.4
+            ],
+            [
+              1.5,
+              -1.5,
+              -1.2
+            ],
+            [
+              -1.5,
+              -0.5,
+              0.4
+            ],
+            [
+              -0.5,
+              -0.5,
+              0.133333
+            ],
+            [
+              0.5,
+              -0.5,
+              -0.133333
+            ],
+            [
+              1.5,
+              -0.5,
+              -0.4
+            ],
+            [
+              -1.5,
+              0.5,
+              -0.4
+            ],
+            [
+              -0.5,
+              0.5,
+              -0.133333
+            ],
+            [
+              0.5,
+              0.5,
+              0.133333
+            ],
+            [
+              1.5,
+              0.5,
+              0.4
+            ],
+            [
+              -1.5,
+              1.5,
+              -1.2
+            ],
+            [
+              -0.5,
+              1.5,
+              -0.4
+            ],
+            [
+              0.5,
+              1.5,
+              0.4
+            ],
+            [
+              1.5,
+              1.5,
+              1.2
+            ]
+          ],
+          "pos": [
+            0,
+            -1.9,
+            0
+          ],
+          "color": "#d98953",
+          "material": "paper"
+        },
+        {
+          "op": "add",
+          "shape": "text",
+          "id": "saddleLabel",
+          "pos": [
+            0,
+            -3.9,
+            0
+          ],
+          "text": "Saddle membrane",
+          "height": 0.3,
+          "color": "#334155"
+        },
+        {
+          "op": "add",
+          "shape": "patch",
+          "id": "curvedPanel",
+          "pts": [
+            [
+              -0.75,
+              -1.5,
+              0
+            ],
+            [
+              -0.25,
+              -1.5,
+              0.6
+            ],
+            [
+              0.25,
+              -1.5,
+              0.6
+            ],
+            [
+              0.75,
+              -1.5,
+              0
+            ],
+            [
+              -1.5,
+              -0.5,
+              0.7
+            ],
+            [
+              -0.5,
+              -0.5,
+              1.3
+            ],
+            [
+              0.5,
+              -0.5,
+              1.3
+            ],
+            [
+              1.5,
+              -0.5,
+              0.7
+            ],
+            [
+              -1.5,
+              0.5,
+              -0.7
+            ],
+            [
+              -0.5,
+              0.5,
+              -0.1
+            ],
+            [
+              0.5,
+              0.5,
+              -0.1
+            ],
+            [
+              1.5,
+              0.5,
+              -0.7
+            ],
+            [
+              -0.75,
+              1.5,
+              0
+            ],
+            [
+              -0.25,
+              1.5,
+              0.6
+            ],
+            [
+              0.25,
+              1.5,
+              0.6
+            ],
+            [
+              0.75,
+              1.5,
+              0
+            ]
+          ],
+          "pos": [
+            3.6,
+            1.8,
+            0
+          ],
+          "color": "#33968b",
+          "material": "plastic"
+        },
+        {
+          "op": "add",
+          "shape": "text",
+          "id": "curvedPanelLabel",
+          "pos": [
+            3.6,
+            -0.19999999999999996,
+            0
+          ],
+          "text": "Curved panel",
+          "height": 0.3,
+          "color": "#334155"
+        }
+      ]
+    },
+    {
+      "say": "These are two-sided sheets, not solid volumes. Turning them shows the reverse side. The boundary lines follow the surface without exposing its triangulation. To make a thick closed part, use an extrusion or a rotational profile instead.",
+      "actions": [
+        {
+          "op": "orbit",
+          "az": 155,
+          "el": 20,
+          "dur": 1
+        }
+      ]
+    }
+  ]
+}
