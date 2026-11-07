@@ -2,6 +2,7 @@
 // It reads data and builds fresh objects from known fields. It never evaluates, imports,
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
+import { PATCH_SEGMENTS, preparePatch, readPatchControls } from './patch.ts';
 import { nearestPaletteColor } from './colors.ts';
 import { attachTolerance, landOn } from './attach.ts';
 import type { Body } from './attach.ts';
@@ -330,7 +331,7 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
     else state.bodies.set(id, { shape: 'group', ...place }); // a cone or a torus is not asked about, but things hang from it
   } else if (name === 'addPart') state.bodies.set(id, { shape: 'box', size: out.size as Vec3, ...place });
   else if (name === 'addBlob') state.bodies.set(id, { shape: 'blob', pts: out.pts as Vec3[], sizes: out.sizes as Vec3[], ...place });
-  else if (name === 'addExtrude' || name === 'addLathe' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
+  else if (name === 'addExtrude' || name === 'addLathe' || name === 'addPatch' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addTube' || (name === 'addPath' && shape === 'line')) {
     holdEnds(state, id, out, path, notes);
     return;
@@ -433,6 +434,15 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   if (typeof variant === 'string') {
     note(notes, 'dropped', path, variant);
     return null;
+  }
+  // A fixed control net must not pass through ordinary list trimming or coordinate
+  // clamping. Preflight before identity, hierarchy or replacement state can change.
+  if (variant.name === 'addPatch') {
+    const pts = readPatchControls(own(raw, 'pts'));
+    if (!pts || !Object.values(PATCH_SEGMENTS).every((n) => preparePatch(pts, n))) {
+      note(notes, 'dropped', `${path}.pts`, 'patch needs exactly 16 finite controls in -100..100, with no collapsed, singular or reversed sampled faces at any quality tier');
+      return null;
+    }
   }
   const input = variant.op === 'panel' ? fitStage(raw as Record<string, unknown>, state, path, notes) : raw;
   const out: Record<string, unknown> = { op: variant.op };

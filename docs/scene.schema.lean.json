@@ -1273,6 +1273,109 @@
       ],
       "additionalProperties": false
     },
+    "addPatch": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "patch"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ]
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "pts",
+        "color",
+        "material",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
     "addBlob": {
       "type": "object",
       "properties": {
@@ -3270,6 +3373,9 @@
         },
         {
           "$ref": "#/$defs/addLathe"
+        },
+        {
+          "$ref": "#/$defs/addPatch"
         },
         {
           "$ref": "#/$defs/addBlob"

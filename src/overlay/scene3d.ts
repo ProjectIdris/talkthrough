@@ -10,7 +10,7 @@
 import {
   AmbientLight, Box3, BufferGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight, EdgesGeometry, Euler,
   FrontSide, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Material, Matrix4, Mesh, MeshBasicMaterial, Object3D,
-  PerspectiveCamera, PlaneGeometry, Raycaster, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3,
+  DoubleSide, PerspectiveCamera, PlaneGeometry, Raycaster, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3,
 } from 'three';
 import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
@@ -27,6 +27,8 @@ import type { Piece } from './parts.ts';
 import type { FocusFrame, Frame, ObjectFrame, Rgb } from './timeline.ts';
 import { spreadPosition, userOffsets } from './explode.ts';
 import type { Part } from './explode.ts';
+import { PATCH_SEGMENTS } from '../scene/patch.ts';
+import { patchGeometry, patchEdges } from './patch.ts';
 import { Cutaway } from './cutaway.ts';
 import { buildConnector, buildStream, updateAttached, updateConnectors, updateStreams } from './scene3d-flow.ts';
 import type { FlowNode } from './scene3d-flow.ts';
@@ -208,6 +210,7 @@ export class PanelScene {
     const material = 'material' in def ? def.material : undefined;
     const addMesh: AddMesh = (geo, surfaceName, edges) => {
       const surface = makeSurface(surfaceName, settings);
+      if (def.shape === 'patch') { surface.side = DoubleSide; surface.forceSinglePass = true; }
       if (geo.getAttribute('color')) surface.vertexColors = true;
       const mesh = new Mesh(geo, surface);
       mesh.castShadow = settings.shadows;
@@ -216,7 +219,7 @@ export class PanelScene {
       node.materials.push(surface);
       const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'torus';
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
-      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.edgeKey(def));
+      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.edgeKey(def), def.shape === 'patch');
       node.pieces.push(piece);
       return mesh;
     };
@@ -249,7 +252,7 @@ export class PanelScene {
     return JSON.stringify([this.tier, def.shape, solid.size, def.shape === 'box' ? solid.bevel ?? defaultBevel(solid.size) : null, 28]);
   }
 
-  private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string): LineSegments {
+  private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string, patch = false): LineSegments {
     const mat = new LineBasicMaterial({ color: 0x10131a, transparent: true, opacity: 0.5 });
     let outline: BufferGeometry;
     const existing = key && this.sharedEdges.get(key);
@@ -262,7 +265,7 @@ export class PanelScene {
       generated.dispose();
       this.sharedEdges.set(key, { geometry: outline, refs: 1 });
       this.edgeKeys.set(outline, key);
-    } else outline = new EdgesGeometry(geo, 28);
+    } else outline = patch ? patchEdges(geo, PATCH_SEGMENTS[this.tier]) : new EdgesGeometry(geo, 28);
     const lines = new LineSegments(outline, mat);
     mesh.add(lines);
     node.geometries.push(lines.geometry);
@@ -305,6 +308,7 @@ export class PanelScene {
         const [sx, sy] = (def as { size: Vec3 }).size;
         return new PlaneGeometry(sx, sy);
       }
+      case 'patch': return patchGeometry(def.pts, PATCH_SEGMENTS[this.tier]);
       case 'extrude': {
         const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number };
         return extrudeGeometry(e.outline, e.depth, e.bevel ?? Math.min(0.1, e.depth * 0.2), d);
