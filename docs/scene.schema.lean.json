@@ -1834,6 +1834,18 @@
             "null"
           ]
         },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "pos": {
           "type": [
             "array",
@@ -1928,6 +1940,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "pos",
         "rot",
         "part",
@@ -2081,6 +2095,12 @@
             "null"
           ]
         },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "pos": {
           "type": [
             "array",
@@ -2111,6 +2131,7 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
         "pos",
         "rot",
         "at"

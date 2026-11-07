@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -85,6 +85,126 @@ test(`only the newest ${RECORD_KEEP} question folders are kept, and nothing else
     assert.equal(kept.at(-1), folderName(stamp(RECORD_KEEP + 4)), 'the newest stayed');
     assert.ok(existsSync(join(dir, 'notes.txt')) && existsSync(join(dir, 'my-pictures')), 'files and folders that are not a question\'s are left alone');
     assert.equal(pruneRecord(dir, RECORD_KEEP), 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('record retention keeps the latest questions after repeated clock rollback and restart', () => {
+  const dir = scratch();
+  try {
+    writeFileSync(join(dir, 'notes.txt'), 'keep this');
+    mkdirSync(join(dir, 'my-pictures'));
+    const warnings: string[] = [];
+    const folders: string[] = [];
+    for (let n = 0; n < 5; n++) {
+      // Reopening the record simulates restarting the app after the clock moved back.
+      const rec = createQuestionRecord({ dir, keep: 3, now: () => stamp(10 - n), warn: (m) => warnings.push(m) });
+      rec.begin('question');
+      const folder = rec.folder()!;
+      folders.push(folder);
+      rec.transcript(`Question ${n}`);
+      rec.report({ steps: 1, recordOrder: 0 }); // report updates must not replace the assigned order
+      assert.equal(read(folder, 'transcript.txt'), `Question ${n}\n`, 'the active folder survives cleanup');
+    }
+    assert.deepEqual(folders.map((folder) => existsSync(folder)), [false, false, true, true, true]);
+    assert.deepEqual(warnings, []);
+    assert.equal(read(dir, 'notes.txt'), 'keep this');
+    assert.ok(existsSync(join(dir, 'my-pictures')));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('same-second records keep the latest questions when names are reused after pruning', () => {
+  const dir = scratch();
+  try {
+    const rec = createQuestionRecord({ dir, now: () => stamp(0) });
+    for (let n = 0; n < RECORD_KEEP + 2; n++) {
+      rec.begin('question');
+      rec.transcript(`Question ${n}`);
+    }
+    const saved = readdirSync(dir).map((name) => read(dir, name, 'transcript.txt').trim()).sort();
+    const wanted = Array.from({ length: RECORD_KEEP }, (_, n) => `Question ${n + 2}`).sort();
+    assert.deepEqual(saved, wanted);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('legacy same-second folders are pruned by numeric suffix', () => {
+  const dir = scratch();
+  try {
+    const base = folderName(stamp(0));
+    for (let n = 1; n <= 12; n++) mkdirSync(join(dir, n === 1 ? base : `${base}-${n}`));
+    assert.equal(pruneRecord(dir, 3), 9);
+    assert.deepEqual(readdirSync(dir).sort(), [`${base}-10`, `${base}-11`, `${base}-12`]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('missing or invalid ordering metadata falls back to legacy names without blocking retention', () => {
+  const dir = scratch();
+  try {
+    const reports = [undefined, '{ broken', '{}', '{"recordOrder":-1}', '{"recordOrder":1.5}', '{"recordOrder":"20"}'];
+    for (let n = 0; n < reports.length; n++) {
+      const folder = join(dir, folderName(stamp(n)));
+      mkdirSync(folder);
+      if (reports[n] !== undefined) writeFileSync(join(folder, 'report.json'), reports[n]!);
+    }
+    const unrelated = folderName(stamp(20));
+    writeFileSync(join(dir, unrelated), 'a matching name is not enough: this is a file');
+    const rec = createQuestionRecord({ dir, keep: 2, now: () => stamp(-1) });
+    rec.begin('question');
+    rec.transcript('Newest');
+    assert.equal(read(rec.folder()!, 'transcript.txt'), 'Newest\n');
+    assert.deepEqual(readdirSync(dir).sort(), [folderName(stamp(-1)), folderName(stamp(5)), unrelated].sort());
+    assert.equal(read(dir, unrelated), 'a matching name is not enough: this is a file');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an exhausted record order does not overflow or prune existing records', () => {
+  const dir = scratch();
+  try {
+    const folder = join(dir, folderName(stamp(0)));
+    mkdirSync(folder);
+    const original = JSON.stringify({ recordOrder: Number.MAX_SAFE_INTEGER });
+    writeFileSync(join(folder, 'report.json'), original);
+    const warnings: string[] = [];
+    const rec = createQuestionRecord({ dir, keep: 1, now: () => stamp(1), warn: (m) => warnings.push(m) });
+    rec.begin('question');
+    rec.begin('question');
+    assert.equal(rec.folder(), undefined);
+    assert.equal(warnings.length, 1, 'recording failure is nonfatal and warned once');
+    assert.deepEqual(readdirSync(dir), [folderName(stamp(0))]);
+    assert.equal(read(folder, 'report.json'), original);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an unreadable record inventory does not allocate a stale order or prune existing records', () => {
+  const dir = scratch();
+  try {
+    let n = 0;
+    const warnings: string[] = [];
+    const rec = createQuestionRecord({ dir, keep: 2, now: () => stamp(n++), warn: (m) => warnings.push(m) });
+    rec.begin('question'); rec.transcript('First');
+    rec.begin('question'); rec.transcript('Second');
+    const broken = join(dir, folderName(stamp(20)));
+    symlinkSync(join(dir, 'missing-target'), broken, 'junction');
+    rec.begin('question');
+    assert.equal(rec.folder(), undefined, 'unknown existing order must not be treated as an empty record');
+    assert.equal(warnings.length, 1);
+    assert.equal(read(dir, folderName(stamp(0)), 'transcript.txt'), 'First\n');
+    assert.equal(read(dir, folderName(stamp(1)), 'transcript.txt'), 'Second\n');
+    rmSync(broken);
+    rec.begin('question'); rec.transcript('Third');
+    const saved = readdirSync(dir).map((name) => read(dir, name, 'transcript.txt').trim()).sort();
+    assert.deepEqual(saved, ['Second', 'Third'], 'recording and retention resume after the inventory is readable');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
