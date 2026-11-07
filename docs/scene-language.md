@@ -97,7 +97,7 @@ When the thing to explain is a process, a sequence of events, a how-to or a tren
 | shape | fields | |
 |---|---|---|
 | `box` `sphere` `cylinder` `cone` `torus` `plane` | `size` `pos`? `rot`? `color`? `material`? `bevel`? `edges`? `opacity`? | `size` is the bounding box `[x,y,z]`. A cylinder and a cone stand on `y` (diameter `x`, height `y`, cone apex up). A torus lies flat: outer diameter `x`, tube thickness `y`. A plane faces `+z` and ignores `z`. A sphere is an ellipsoid fitted to the box. A box is slightly rounded by default; `bevel` sets the rounding in units (0 for sharp) |
-| `extrude` | `outline` `holes`? `depth` `bevel`? `pos`? `rot`? `color`? `material`? | a flat outline `[[x,y],...]` (3 to 40 points in the x,y plane) pushed out `depth` along `z` and centred on it: wings, fins, plates. `holes` is a list of closed outlines for actual through-openings; see below |
+| `extrude` | `outline` `holes`? `taper`? `shift`? `depth` `bevel`? `pos`? `rot`? `color`? `material`? | a flat outline `[[x,y],...]` (3 to 40 points in the x,y plane) pushed out `depth` along `z` and centred on it: wings, fins, plates. `holes` is a list of closed outlines for actual through-openings; see below |
 | `lathe` | `profile` `sides`? `sweep`? `pos`? `rot`? `color`? `material`? | a profile `[[radius,y],...]` spun round the `y` axis: bodies, nozzles, rings, bottles. `sides` (3 to 64, default quality tiers 20/36/64) makes it faceted |
 | `hull` | `pts` `pos`? `rot`? `color`? `material`? `edges`? `opacity`? | the smallest closed convex solid enclosing 4 to 64 local 3D points: independently positioned corners for asymmetric tapered bodies, oblique pyramids and faceted forms. The renderer computes the faces; see below |
 | `blob` | `pts` `sizes` `soft`? `pos`? `rot`? `color`? `material`? `opacity`? | a soft organic form blended from 1 to 12 ellipsoid lumps: `pts` are the lump centres and `sizes` their boxes `[x,y,z]` (one for each point; a short list repeats its last). Lumps that overlap melt into one smooth skin with necks between them, so a heart chamber, an animal's body or head, a leaf, a fruit is one blob. `soft` (0.05 to 1, default 0.5) is how far they blend: low is nearly a hard union, 1 joins lumps a little apart. A lone lump is exactly its ellipsoid. For several forms (the chambers of an organ) write one blob each. No edge lines; cut tiers use a coarser skin |
@@ -152,6 +152,20 @@ Schedule a new parent no later than its child: the parent's `at` must be at or b
 This is a conservative start-time check, not full chronological lifetime validation. The validator does not reconstruct every clear, re-add or reparenting interval, so an accepted scene can still name a parent absent at the child's start. During timeline playback, such a child is skipped rather than silently drawn as an unattached root. Schedule children while their intended parent exists, and do not rely on validation to catch clear gaps.
 
 `explode` is `[x,y,z]`, where the part goes when its group is exploded all the way (spread 1), in the units of the group it is in (capped at 100 either way). Without it a part moves outward from the group's origin. The same offset is where the part goes when the person opens the finished model with the Explode control (see the overlay notes); a part with none moves away from the middle of the parts around it instead. Give it where the real assembly comes apart (pins up, a shaft out the back); leave it off when outward is fine. The lean schema (`scene.schema.lean.json`, what the live models are asked for) leaves `explode` out, because every optional field there costs the model an explicit `null` on every part; the validator and the full schema accept it.
+
+### Tapered and offset extrusions
+
+Give an `extrude` a `taper` or `shift` to make a sharp, closed transition. The outline sits at `z = -depth/2`. At `z = +depth/2`, every point becomes `outline * taper + shift`: `taper` scales about the local origin, and `shift` is a local `[x,y]` offset. Between the ends the cross-section changes linearly. Rotation and position apply afterward, as usual.
+
+```json
+{"op":"add","shape":"extrude","id":"transition","outline":[[-2,-1],[2,-1],[2,1],[-2,1]],"depth":4,"taper":0.5,"shift":[1,0],"color":"teal"}
+```
+
+Within this mode, `taper` defaults to 1 and `shift` to `[0,0]`. `taper` must be 0.05..20; `depth` 0.01..100; `shift` and both endpoint polygons must stay within -100..100 on x and y. The outline must be a simple polygon with 3..40 authored points, in either winding. One repeated closing point and exact redundant collinear points are normalized. Touching, intersecting, degenerate, out-of-range or Float32-unsafe polygons are rejected rather than repaired, without consuming an ID or a detail replacement.
+
+Tapered forms have flat caps and sharp walls. Omit `bevel`, use `null`, or set it to zero. Nonzero bevel and through-holes are not supported in this mode and are rejected. Omit both new fields or set both to `null` to retain the original extrusion behavior, including bevels. Explicit `taper: 1` or `shift: [0,0]` still selects the sharp mode.
+
+The capability is a closed solid, not a hollow duct or a general multi-section loft. Concave outlines, materials, parent transforms, arrays and ordinary cutaways work with the existing controls. See [`tapered-extrusions.json`](../samples/scenes/tapered-extrusions.json) and the [review recipe](tapered-extrusions.md).
 
 ### The mechanism kit
 

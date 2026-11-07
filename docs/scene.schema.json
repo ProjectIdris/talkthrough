@@ -1249,6 +1249,23 @@
           },
           "description": "3 to 40 points [x,y], each -100 to 100"
         },
+        "taper": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.05 to 20"
+        },
+        "shift": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y], each -100 to 100"
+        },
         "holes": {
           "type": [
             "array",
@@ -1328,6 +1345,8 @@
         "pos",
         "rot",
         "outline",
+        "taper",
+        "shift",
         "holes",
         "depth",
         "color",
@@ -1338,7 +1357,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets. holes are disjoint rings strictly inside the outline, cut through the full depth; flat edges only, no bevel."
+      "description": "A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets. Ordinary extrusions support disjoint through-hole rings strictly inside the outline, with flat edges only. Optional taper or shift makes a sharp closed transition: the negative-z end is the outline, the positive-z end is outline*taper+shift, scaling about the local origin. Defaults in this mode: taper 1, shift [0,0]. taper 0.05..20; both end coordinates -100..100; depth 0.01..100. Requires a simple polygon, 3..40 points, either winding. Invalid or Float32-unsafe geometry rejects, not repairs. Bevel must be omitted/null/0; through-holes are not supported in this mode."
     },
     "addHull": {
       "type": "object",

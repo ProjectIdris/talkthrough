@@ -1,3 +1,4 @@
+import { prepareTaperedExtrusion } from './tapered-extrusion.ts';
 // The scene validator: the only way a scene from a model reaches the renderer.
 // It reads data and builds fresh objects from known fields. It never evaluates, imports,
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
@@ -544,6 +545,28 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
       sectorProfile = normalized.profile;
     }
   }
+  // Deformed outlines must not be clamped or truncated, nor consume replacement state on rejection.
+  let taperedOutline: Vec2[] | undefined;
+  if (variant.name === 'addExtrude') {
+    const taper = own(raw, 'taper'), shift = own(raw, 'shift');
+    for (const field of ['taper', 'shift']) {
+      const descriptor = Object.getOwnPropertyDescriptor(raw, field);
+      if (descriptor && !('value' in descriptor)) { note(notes, 'dropped', path, `${field} must be a data value`); return null; }
+    }
+    if (taper != null || shift != null) {
+      for (const field of ['outline', 'depth', 'bevel', 'holes']) {
+        const descriptor = Object.getOwnPropertyDescriptor(raw, field);
+        if (descriptor && !('value' in descriptor)) { note(notes, 'dropped', path, `${field} must be a data value`); return null; }
+      }
+      const bevel = own(raw, 'bevel'), holes = own(raw, 'holes');
+      if ((bevel != null && bevel !== 0) || (holes != null && (!Array.isArray(holes) || holes.length !== 0))) {
+        note(notes, 'dropped', path, 'tapered extrusions require zero bevel and no through-holes'); return null;
+      }
+      const prepared = prepareTaperedExtrusion(own(raw, 'outline'), own(raw, 'depth'), taper ?? 1, shift ?? [0, 0]);
+      if (!prepared.ok) { note(notes, 'dropped', path, prepared.reason); return null; }
+      taperedOutline = prepared.value.outline;
+    }
+  }
   const input = variant.op === 'panel' ? fitStage(raw as Record<string, unknown>, state, path, notes) : raw;
   // Do not let the ordinary outline parser truncate or clamp a perforated profile.
   const rawHoles = variant.name === 'addExtrude' ? own(input, 'holes') : undefined;
@@ -561,6 +584,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   for (const [name, f] of Object.entries(variant.fields)) {
     if (bound.has(name)) continue;
     if (name === 'profile' && sectorProfile) { out.profile = sectorProfile; continue; }
+    if (name === 'outline' && taperedOutline) { out.outline = taperedOutline; continue; }
     const v = own(input, name);
     const optional = 'opt' in f && f.opt === true;
     if (v === undefined || v === null) {

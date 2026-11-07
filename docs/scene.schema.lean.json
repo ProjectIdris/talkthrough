@@ -1281,6 +1281,12 @@
         "outline": {
           "$ref": "#/$defs/3"
         },
+        "taper": {
+          "$ref": "#/$defs/0"
+        },
+        "shift": {
+          "$ref": "#/$defs/2"
+        },
         "holes": {
           "type": [
             "array",
@@ -1326,6 +1332,8 @@
         "pos",
         "rot",
         "outline",
+        "taper",
+        "shift",
         "holes",
         "depth",
         "color",

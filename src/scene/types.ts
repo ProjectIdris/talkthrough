@@ -69,7 +69,7 @@ export type AddSolid = {
   op: 'add'; shape: SolidShape; id: string; parent?: string; explode?: Vec3; pos?: Vec3; size: Vec3; rot?: Vec3; bevel?: number;
 } & Surface & At;
 export type AddExtrude = {
-  op: 'add'; shape: 'extrude'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; holes?: Vec2[][]; depth: number; bevel?: number;
+  op: 'add'; shape: 'extrude'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; holes?: Vec2[][]; taper?: number; shift?: Vec2; depth: number; bevel?: number;
 } & Surface & At;
 export type AddHull = {
   op: 'add'; shape: 'hull'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[];
