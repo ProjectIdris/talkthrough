@@ -7,6 +7,7 @@ import {
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { shadeExtrusion } from './extrusion-normals.ts';
 import { BLOB_CELLS, SCENE_BLOB_TRIANGLES } from './blob.ts';
 import { shadeLatheProfile } from './lathe.ts';
 import { sampleOpenCurve } from './open-curve.ts';
@@ -48,7 +49,8 @@ export function extrudeGeometry(outline: readonly Vec2[], depth: number, bevel: 
     depth: straight, bevelEnabled: useBevel, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: detail.bevel, curveSegments: 8,
   });
   geo.translate(0, 0, -straight / 2);
-  return toCreasedNormals(geo, 0.6);
+  shadeExtrusion(geo);
+  return geo;
 }
 
 /** A profile of [radius, y] points spun round the y axis. */
