@@ -1,0 +1,70 @@
+{
+  "steps": [
+    {
+      "say": "The bars match within each row and pass through blue glass. Their local origins differ. Below, identical solid spheres sit behind glass: the right sphere is authored small and enlarged. Both spheres should keep the blue glass tint.",
+      "actions": [
+        {"op": "panel", "x": 60, "y": 100, "w": 880, "h": 760},
+        {"op": "orbit", "az": 0, "el": 0, "dur": 0},
+        {"op": "add", "shape": "group", "id": "far"},
+        {"op": "add", "shape": "extrude", "id": "far0", "parent": "far", "outline": [[1.5, -0.4], [6.5, -0.4], [6.5, 0.4], [1.5, 0.4]], "depth": 0.4, "bevel": 0, "pos": [-6.964101615137755, 2, -1.7], "rot": [0, -30, 0], "color": "#dc6d36", "material": "plastic", "edges": false},
+        {"op": "add", "shape": "plane", "id": "far0glass", "parent": "far", "size": [5.3, 2, 0.1], "pos": [-3.5, 2, 0], "color": "#3399dd", "material": "glass", "edges": false},
+        {"op": "add", "shape": "extrude", "id": "far1", "parent": "far", "outline": [[1.5, -0.4], [6.5, -0.4], [6.5, 0.4], [1.5, 0.4]], "depth": 0.4, "bevel": 0, "pos": [-6.964101615137755, -1, -1.7], "rot": [0, -30, 0], "color": "#419b72", "material": "rubber", "edges": false},
+        {"op": "add", "shape": "plane", "id": "far1glass", "parent": "far", "size": [5.3, 2, 0.1], "pos": [-3.5, -1, 0], "color": "#3399dd", "material": "glass", "edges": false},
+        {"op": "add", "shape": "text", "id": "farlabel", "pos": [-3.5, 0.4, 0], "text": "Origin behind", "height": 0.3, "color": "#334155"},
+        {"op": "add", "shape": "group", "id": "near"},
+        {"op": "add", "shape": "extrude", "id": "near0", "parent": "near", "outline": [[-6.5, -0.4], [-1.5, -0.4], [-1.5, 0.4], [-6.5, 0.4]], "depth": 0.4, "bevel": 0, "pos": [6.964101615137755, 2, 2.3], "rot": [0, -30, 0], "color": "#dc6d36", "material": "plastic", "edges": false},
+        {"op": "add", "shape": "plane", "id": "near0glass", "parent": "near", "size": [5.3, 2, 0.1], "pos": [3.5, 2, 0], "color": "#3399dd", "material": "glass", "edges": false},
+        {"op": "add", "shape": "extrude", "id": "near1", "parent": "near", "outline": [[-6.5, -0.4], [-1.5, -0.4], [-1.5, 0.4], [-6.5, 0.4]], "depth": 0.4, "bevel": 0, "pos": [6.964101615137755, -1, 2.3], "rot": [0, -30, 0], "color": "#419b72", "material": "rubber", "edges": false},
+        {"op": "add", "shape": "plane", "id": "near1glass", "parent": "near", "size": [5.3, 2, 0.1], "pos": [3.5, -1, 0], "color": "#3399dd", "material": "glass", "edges": false},
+        {"op": "add", "shape": "text", "id": "nearlabel", "pos": [3.5, 0.4, 0], "text": "Origin in front", "height": 0.3, "color": "#334155"},
+        {"op": "add", "shape": "sphere", "id": "farsphere", "pos": [-3.5, -4, 0], "size": [1.4, 1.4, 1.4], "color": "#dc5a23", "material": "plastic", "edges": false},
+        {"op": "scale", "id": "farsphere", "to": [1, 1, 1], "dur": 0},
+        {"op": "add", "shape": "plane", "id": "farsphereglass", "pos": [-3.5, -4, 1.2], "size": [2.4, 2.4, 0.1], "color": "#236edc", "material": "glass", "edges": false},
+        {"op": "add", "shape": "text", "id": "farspherelabel", "pos": [-3.5, -5.7, 0], "text": "Full-size sphere", "height": 0.3, "color": "#334155"},
+        {"op": "add", "shape": "sphere", "id": "nearsphere", "pos": [3.5, -4, 0], "size": [0.28, 0.28, 0.28], "color": "#dc5a23", "material": "plastic", "edges": false},
+        {"op": "scale", "id": "nearsphere", "to": [5, 5, 5], "dur": 0},
+        {"op": "add", "shape": "plane", "id": "nearsphereglass", "pos": [3.5, -4, 1.2], "size": [2.4, 2.4, 0.1], "color": "#236edc", "material": "glass", "edges": false},
+        {"op": "add", "shape": "text", "id": "nearspherelabel", "pos": [3.5, -5.7, 0], "text": "Small sphere enlarged", "height": 0.3, "color": "#334155"}
+      ]
+    },
+    {
+      "say": "From a different view the same front and rear relationship should remain.",
+      "actions": [
+        {"op": "orbit", "az": -18, "el": 15, "dur": 1}
+      ]
+    },
+    {
+      "say": "Actual translucency keeps blending. Intersecting translucent surfaces still use object sorting; this change only corrects fully opaque surfaces.",
+      "actions": [
+        {"op": "style", "id": "far0", "opacity": 0.45, "dur": 1},
+        {"op": "style", "id": "far1", "opacity": 0.45, "dur": 1},
+        {"op": "style", "id": "near0", "opacity": 0.45, "dur": 1},
+        {"op": "style", "id": "near1", "opacity": 0.45, "dur": 1}
+      ]
+    },
+    {
+      "say": "Returning to solid restores depth before the glass is drawn.",
+      "actions": [
+        {"op": "style", "id": "far0", "opacity": 1, "dur": 1},
+        {"op": "style", "id": "far1", "opacity": 1, "dur": 1},
+        {"op": "style", "id": "near0", "opacity": 1, "dur": 1},
+        {"op": "style", "id": "near1", "opacity": 1, "dur": 1},
+        {"op": "orbit", "az": 0, "el": 0, "dur": 1}
+      ]
+    },
+    {
+      "say": "A cut through each lower bar keeps its section face while the glass remains transparent.",
+      "actions": [
+        {"op": "cut", "id": "far1", "axis": "y", "to": 0, "dur": 1},
+        {"op": "cut", "id": "near1", "axis": "y", "to": 0, "dur": 1}
+      ]
+    },
+    {
+      "say": "The return state restores the original complete solid bars and glass covers.",
+      "actions": [
+        {"op": "cut", "id": "far1", "to": 100, "dur": 1},
+        {"op": "cut", "id": "near1", "to": 100, "dur": 1}
+      ]
+    }
+  ]
+}
