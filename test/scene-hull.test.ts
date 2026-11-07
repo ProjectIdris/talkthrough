@@ -1,3 +1,4 @@
+import { variantDefinitions } from './support/json-schema.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateScene } from '../src/scene/validate.ts';
@@ -65,7 +66,7 @@ test('whole and streamed validation agree; optional fields and both schemas expo
   stream.end(); const streamed = steps.map((s,i) => validateStep(s,createSceneState(),i).step);
   assert.deepEqual(streamed,whole.scene!.steps); assert.deepEqual(whole.issues,[]);
   for (const schema of [sceneSchema, sceneSchemaLean]) {
-    const def = (schema.$defs as Record<string, { properties: Record<string, unknown> }>).addHull!;
+    const def = variantDefinitions(schema).addHull!;
     assert.ok(def.properties.pts); assert.ok(def.properties.edges); assert.ok(def.properties.parent);
   }
 });
