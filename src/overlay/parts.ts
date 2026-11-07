@@ -7,9 +7,9 @@ import type { AddPart } from '../scene/types.ts';
 import { boxGeometry, defaultBevel } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { buildMechanismPart } from './mechanism-parts.ts';
-import { BLACK, Builder, GOLD, cyl } from './parts-base.ts';
+import { Builder, GOLD, cyl } from './parts-base.ts';
 import type { BuiltPart, Piece } from './parts-base.ts';
-import type { Rgb } from './timeline.ts';
+import { buildPort } from './port.ts';
 
 export type { BuiltPart, Piece };
 
@@ -46,22 +46,6 @@ function header(b: Builder, def: AddPart, d: Detail): void {
   pins.instanceMatrix.needsUpdate = true;
   b.root.add(pins);
   b.pieces.push({ object: pins, surface: 'metal', tint: false, color: GOLD, edges: false, closed: false });
-}
-
-function port(b: Builder, def: AddPart, d: Detail): void {
-  const [sx, sy, sz] = def.size;
-  const variant = def.variant ?? 'usb';
-  b.add(boxGeometry(def.size, defaultBevel(def.size) * 0.7, d), 'metal', { tint: true, edges: true });
-  const front = sz / 2 + 0.003;
-  const open = (w: number, h: number, y = 0) => b.add(boxGeometry([sx * w, sy * h, 0.01], 0, d), 'rubber', { color: BLACK, pos: [0, y, front] });
-  const tongue = (w: number, h: number, color: Rgb, y: number) => b.add(boxGeometry([sx * w, sy * h, 0.012], 0, d), 'plastic', { color, pos: [0, y, front + 0.004] });
-  switch (variant) {
-    case 'usb3': open(0.84, 0.58); tongue(0.66, 0.16, [44, 112, 232], -sy * 0.02); break;
-    case 'ethernet': open(0.8, 0.66, -sy * 0.02); tongue(0.6, 0.07, GOLD, sy * 0.14); break;
-    case 'hdmi': open(0.8, 0.46); tongue(0.6, 0.08, [170, 176, 186], -sy * 0.02); break;
-    case 'usbc': open(0.74, 0.34); tongue(0.56, 0.07, [170, 176, 186], 0); break;
-    default: open(0.84, 0.58); tongue(0.66, 0.16, [226, 229, 236], -sy * 0.02); break;
-  }
 }
 
 function lens(b: Builder, def: AddPart, d: Detail): void {
@@ -133,7 +117,7 @@ export function buildPart(def: AddPart, detail: Detail): BuiltPart {
   switch (def.part) {
     case 'chip': chip(b, def, detail); break;
     case 'header': header(b, def, detail); break;
-    case 'port': port(b, def, detail); break;
+    case 'port': buildPort(b, def, detail); break;
     case 'lens': lens(b, def, detail); break;
     case 'screen': screen(b, def, detail); break;
     case 'button': button(b, def, detail); break;

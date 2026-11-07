@@ -109,6 +109,8 @@ When the thing to explain is a process, a sequence of events, a how-to or a tren
 | `text` | `text` `height` `pos`? `color` | text in the 3D scene, always facing the camera |
 | `group` | `pos`? `rot`? | an empty node |
 
+Ports are simplified recessed sockets, opening toward `+z`: a shaped metal shell, dark back, inset plastic tongue and individual gold contacts. USB-C has rounded ends; HDMI has tapered lower corners; Ethernet has a lower latch recess. `size` remains the centred outer box, and `color` tints the shell while insulator and contact colours stay fixed. These are explanatory models, not dimensioned connector CAD. See `samples/scenes/connector-sockets.json`.
+
 All take `parent`? (the id of a group, or of a part or shape, to attach to; they nest up to 6 deep, and a mark, a pin or a text cannot be a parent), `explode`? (see below) and `at`?. `pos` defaults to `[0,0,0]`, `rot` to `[0,0,0]`, `opacity` to 1. A child moves, turns and scales with its parent. To make something grow from its base, put it in a group at the base, offset the child by half its height, and scale the group (see `bar-chart.json`). Arrays are capped at 64 copies each and 400 in a scene.
 
 Schedule a new parent no later than its child: the parent's `at` must be at or before the child's `at` (omitted means 0). A child scheduled before its parent's earliest known creation is dropped with a validation issue. This applies to both complete and streamed scenes, even when streaming arrival times would delay the child. Existing parents and earlier creations remain usable before later replacements or scheduled clears.
