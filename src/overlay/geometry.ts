@@ -9,6 +9,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { BLOB_CELLS, SCENE_BLOB_TRIANGLES } from './blob.ts';
 import { catmull } from './timeline.ts';
+import { shadeLatheProfile } from './lathe.ts';
 import type { Vec2, Vec3 } from '../scene/types.ts';
 
 export type Detail = { curve: number; bevel: number; radial: number; tube: number; blob: number; blobTriangles: number };
@@ -48,8 +49,12 @@ export function extrudeGeometry(outline: readonly Vec2[], depth: number, bevel: 
 /** A profile of [radius, y] points spun round the y axis. */
 export function latheGeometry(profile: readonly Vec2[], sides: number): BufferGeometry {
   const pts = profile.map((p) => new Vector2(Math.abs(p[0]), p[1]));
-  const geo = new LatheGeometry(pts, Math.max(3, Math.round(sides)));
-  return toCreasedNormals(geo, sides <= 8 ? 0.4 : 0.9);
+  const segments = Math.max(3, Math.round(sides));
+  const source = new LatheGeometry(pts, segments);
+  const geo = source.toNonIndexed();
+  source.dispose();
+  shadeLatheProfile(geo, pts, segments);
+  return geo;
 }
 
 /**
