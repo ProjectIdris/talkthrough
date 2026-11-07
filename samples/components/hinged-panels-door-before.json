@@ -1,0 +1,460 @@
+{
+  "steps": [
+    {
+      "say": "Two leaves share one pin. Each knuckle and leaf remains a separate part.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 100,
+          "y": 100,
+          "w": 800,
+          "h": 800
+        },
+        {
+          "op": "orbit",
+          "az": -25,
+          "el": 20
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "door"
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "door_fixed",
+          "parent": "door"
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "door_moving",
+          "parent": "door",
+          "rot": [
+            0,
+            55,
+            0
+          ]
+        },
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "door_fixed_leaf",
+          "parent": "door_fixed",
+          "size": [
+            2.4,
+            5.76,
+            0.1152
+          ],
+          "pos": [
+            -1.4735999999999998,
+            0,
+            0.21599999999999997
+          ],
+          "bevel": 0.020735999999999997,
+          "material": "metal",
+          "color": "#8594ad",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "door_moving_leaf",
+          "parent": "door_moving",
+          "size": [
+            2.4,
+            5.76,
+            0.1152
+          ],
+          "pos": [
+            1.4735999999999998,
+            0,
+            0.21599999999999997
+          ],
+          "bevel": 0.020735999999999997,
+          "material": "metal",
+          "color": "#42b8ae",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "lathe",
+          "id": "door_knuckle1",
+          "parent": "door_fixed",
+          "profile": [
+            [
+              0.17856,
+              -0.504
+            ],
+            [
+              0.26496,
+              -0.504
+            ],
+            [
+              0.288,
+              -0.48096
+            ],
+            [
+              0.288,
+              0.48096
+            ],
+            [
+              0.26496,
+              0.504
+            ],
+            [
+              0.17856,
+              0.504
+            ],
+            [
+              0.17856,
+              -0.504
+            ]
+          ],
+          "sides": 40,
+          "pos": [
+            0,
+            -2.4,
+            0
+          ],
+          "material": "metal",
+          "color": "#8594ad",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "door_neck1",
+          "parent": "door_fixed",
+          "size": [
+            0.1584,
+            0.66528,
+            0.1152
+          ],
+          "pos": [
+            -0.23759999999999998,
+            -2.4,
+            0.21599999999999997
+          ],
+          "bevel": 0.016128,
+          "material": "metal",
+          "color": "#8594ad",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "lathe",
+          "id": "door_knuckle2",
+          "parent": "door_moving",
+          "profile": [
+            [
+              0.17856,
+              -0.504
+            ],
+            [
+              0.26496,
+              -0.504
+            ],
+            [
+              0.288,
+              -0.48096
+            ],
+            [
+              0.288,
+              0.48096
+            ],
+            [
+              0.26496,
+              0.504
+            ],
+            [
+              0.17856,
+              0.504
+            ],
+            [
+              0.17856,
+              -0.504
+            ]
+          ],
+          "sides": 40,
+          "pos": [
+            0,
+            -1.2000000000000002,
+            0
+          ],
+          "material": "metal",
+          "color": "#42b8ae",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "door_neck2",
+          "parent": "door_moving",
+          "size": [
+            0.1584,
+            0.66528,
+            0.1152
+          ],
+          "pos": [
+            0.23759999999999998,
+            -1.2000000000000002,
+            0.21599999999999997
+          ],
+          "bevel": 0.016128,
+          "material": "metal",
+          "color": "#42b8ae",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "lathe",
+          "id": "door_knuckle3",
+          "parent": "door_fixed",
+          "profile": [
+            [
+              0.17856,
+              -0.504
+            ],
+            [
+              0.26496,
+              -0.504
+            ],
+            [
+              0.288,
+              -0.48096
+            ],
+            [
+              0.288,
+              0.48096
+            ],
+            [
+              0.26496,
+              0.504
+            ],
+            [
+              0.17856,
+              0.504
+            ],
+            [
+              0.17856,
+              -0.504
+            ]
+          ],
+          "sides": 40,
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "material": "metal",
+          "color": "#8594ad",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "door_neck3",
+          "parent": "door_fixed",
+          "size": [
+            0.1584,
+            0.66528,
+            0.1152
+          ],
+          "pos": [
+            -0.23759999999999998,
+            0,
+            0.21599999999999997
+          ],
+          "bevel": 0.016128,
+          "material": "metal",
+          "color": "#8594ad",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "lathe",
+          "id": "door_knuckle4",
+          "parent": "door_moving",
+          "profile": [
+            [
+              0.17856,
+              -0.504
+            ],
+            [
+              0.26496,
+              -0.504
+            ],
+            [
+              0.288,
+              -0.48096
+            ],
+            [
+              0.288,
+              0.48096
+            ],
+            [
+              0.26496,
+              0.504
+            ],
+            [
+              0.17856,
+              0.504
+            ],
+            [
+              0.17856,
+              -0.504
+            ]
+          ],
+          "sides": 40,
+          "pos": [
+            0,
+            1.2000000000000002,
+            0
+          ],
+          "material": "metal",
+          "color": "#42b8ae",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "door_neck4",
+          "parent": "door_moving",
+          "size": [
+            0.1584,
+            0.66528,
+            0.1152
+          ],
+          "pos": [
+            0.23759999999999998,
+            1.2000000000000002,
+            0.21599999999999997
+          ],
+          "bevel": 0.016128,
+          "material": "metal",
+          "color": "#42b8ae",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "lathe",
+          "id": "door_knuckle5",
+          "parent": "door_fixed",
+          "profile": [
+            [
+              0.17856,
+              -0.504
+            ],
+            [
+              0.26496,
+              -0.504
+            ],
+            [
+              0.288,
+              -0.48096
+            ],
+            [
+              0.288,
+              0.48096
+            ],
+            [
+              0.26496,
+              0.504
+            ],
+            [
+              0.17856,
+              0.504
+            ],
+            [
+              0.17856,
+              -0.504
+            ]
+          ],
+          "sides": 40,
+          "pos": [
+            0,
+            2.3999999999999995,
+            0
+          ],
+          "material": "metal",
+          "color": "#8594ad",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "door_neck5",
+          "parent": "door_fixed",
+          "size": [
+            0.1584,
+            0.66528,
+            0.1152
+          ],
+          "pos": [
+            -0.23759999999999998,
+            2.3999999999999995,
+            0.21599999999999997
+          ],
+          "bevel": 0.016128,
+          "material": "metal",
+          "color": "#8594ad",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "cylinder",
+          "id": "door_pin",
+          "parent": "door",
+          "size": [
+            0.3168,
+            6.1728,
+            0.3168
+          ],
+          "material": "metal",
+          "color": "#d5dce6",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "cylinder",
+          "id": "door_pin_head",
+          "parent": "door_pin",
+          "size": [
+            0.48383999999999994,
+            0.10079999999999999,
+            0.48383999999999994
+          ],
+          "pos": [
+            0,
+            3.0864,
+            0
+          ],
+          "material": "metal",
+          "color": "#d5dce6",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "cylinder",
+          "id": "door_pin_tip",
+          "parent": "door_pin",
+          "size": [
+            0.48383999999999994,
+            0.10079999999999999,
+            0.48383999999999994
+          ],
+          "pos": [
+            0,
+            -3.0864,
+            0
+          ],
+          "material": "metal",
+          "color": "#d5dce6",
+          "edges": false
+        }
+      ]
+    }
+  ]
+}
