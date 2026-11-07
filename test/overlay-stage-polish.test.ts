@@ -99,3 +99,25 @@ test('pin reports its actually drawn leader and anchor for hit testing', () => {
   assert.deepEqual(hit.anchor, { x: 300, y: 400 });
   assert.deepEqual(hit.leaderEnd, { x: 500, y: 420 });
 });
+
+test('an unclocked fit replaces prior smoothing state without restarting a later draw', () => {
+  const steps: Scene['steps'] = [
+    { say: '', actions: [{ op: 'add', shape: 'box', id: 'body', size: [3, 2, 2] }] },
+    { say: '', actions: [{ op: 'scale', id: 'body', to: [30, 30, 30], dur: 0 }] },
+    { say: '', actions: [{ op: 'scale', id: 'body', to: [1, 1, 1], dur: 0 }] },
+  ];
+  const scene = new PanelScene();
+  scene.sync(frameAt(steps, 0, 5), 1, { ...VIEW, now: 0 });
+  const original = scene.camera.position.clone();
+  for (const [step, scale] of [[1, 30], [2, 1]] as const) {
+    const frame = frameAt(steps, step, 5);
+    scene.sync(frame, 1, VIEW);
+    assert.ok(scene.camera.position.distanceTo(original.clone().multiplyScalar(scale)) < 1e-6);
+    assert.equal(scene.fitting, false);
+    for (const now of [100, 100, 200]) {
+      scene.sync(frame, 1, { ...VIEW, now });
+      assert.ok(scene.camera.position.distanceTo(original.clone().multiplyScalar(scale)) < 1e-6, 'later frozen-clock RAF keeps the fitted camera');
+      assert.equal(scene.fitting, false);
+    }
+  }
+});

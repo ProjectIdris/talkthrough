@@ -167,3 +167,54 @@ test('unknown token and malformed metadata cannot replace the capture acknowledg
     assert.equal(metadata.initial.renderer, null);
   } finally { rmSync(out, { recursive: true, force: true }); }
 });
+
+test('sequential fixed-time grabs fit large scale changes and returns on the first seek', { timeout: 120_000 }, (t) => {
+  const runtime = electronRuntime();
+  if (runtime.reason) return t.skip(runtime.reason);
+  const build = spawnSync(process.execPath, ['scripts/build.mjs'], { encoding: 'utf8' });
+  assert.equal(build.status, 0, build.stderr);
+  const out = mkdtempSync(join(tmpdir(), 'tt-grab-camera-'));
+  try {
+    const input = join(out, 'scale-return.json');
+    writeFileSync(input, JSON.stringify({ steps: [
+      { say: '', actions: [
+        { op: 'panel', x: 100, y: 100, w: 800, h: 800 },
+        { op: 'add', shape: 'group', id: 'model' },
+        { op: 'add', shape: 'box', id: 'body', parent: 'model', size: [3, 2, 2] },
+      ] },
+      { say: '', actions: [{ op: 'scale', id: 'model', to: [30, 30, 30], dur: 0 }] },
+      { say: '', actions: [{ op: 'orbit', az: 65, el: 18, dur: 0 }] },
+      { say: '', actions: [{ op: 'scale', id: 'model', to: [1, 1, 1], dur: 0 }] },
+    ] }));
+    const env: NodeJS.ProcessEnv = { ...process.env, APPDATA: out, LOCALAPPDATA: out };
+    delete env.ELECTRON_RUN_AS_NODE; delete env.TALKTHROUGH_OVERLAY_PAGE;
+    const run = grabChild(runtime.executable!, out, ['--grab', input, '--steps', '0:5:15:12,1:5:15:12,2:5:65:18,3:5:15:12', '--out', out, '--size', '640x360', '--layout-seeks', '15', '--grab-metadata'], env);
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    const records = [0, 1, 2, 3].map(i => JSON.parse(readFileSync(join(out, `request${i}-step${i}-t5-az${i === 2 ? 65 : 15}-el${i === 2 ? 18 : 12}.json`), 'utf8')));
+    const positions = records.map((record, i) => {
+      const initial = record.initial.renderer, attempt = record.attempt.renderer;
+      assert.ok(initial?.worldCamera && attempt?.worldCamera, `request ${i} has a real rendered camera`);
+      assert.ok(initial.worldCamera.position.every(Number.isFinite));
+      const az = i === 2 ? 65 : 15, el = i === 2 ? 18 : 12;
+      assert.deepEqual(initial.camera, { az, el, zoom: 1 });
+      assert.deepEqual(attempt.camera, initial.camera);
+      const a = az * Math.PI / 360, e = el * Math.PI / 360;
+      const orientation = [-Math.sin(e) * Math.cos(a), Math.cos(e) * Math.sin(a), Math.sin(e) * Math.sin(a), Math.cos(e) * Math.cos(a)];
+      const radius = Math.hypot(...initial.worldCamera.position);
+      assert.ok(radius > 1, 'the real camera has a nonzero fitting distance');
+      const direction = [Math.sin(2 * a) * Math.cos(2 * e), Math.sin(2 * e), Math.cos(2 * a) * Math.cos(2 * e)];
+      for (let axis = 0; axis < 3; axis++) assert.ok(Math.abs(initial.worldCamera.position[axis] / radius - direction[axis]!) < 1e-6, 'world position follows the requested view');
+      for (let axis = 0; axis < 4; axis++) assert.ok(Math.abs(initial.worldCamera.quaternion[axis] - orientation[axis]!) < 1e-6, 'world orientation follows the requested view');
+      assert.ok(Math.abs(initial.seekClock - (i * 16 + 1) * 1000 / 30) < 1e-6, 'layout clock still advances per seek');
+      const drift = Math.hypot(...initial.worldCamera.position.map((x: number, axis: number) => x - attempt.worldCamera.position[axis]));
+      assert.ok(drift < 1e-6, `request ${i}: fixed camera must not drift through layout attempts (${drift})`);
+      const png = readFileSync(join(out, `request${i}-step${i}-t5-az${i === 2 ? 65 : 15}-el${i === 2 ? 18 : 12}-initial.png`));
+      assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [640, 360]);
+      return initial.worldCamera.position as number[];
+    });
+    for (let axis = 0; axis < 3; axis++) {
+      assert.ok(Math.abs(positions[1]![axis]! - positions[0]![axis]! * 30) < 1e-5, 'uniform scale changes camera distance proportionally on its first seek');
+      assert.ok(Math.abs(positions[3]![axis]! - positions[0]![axis]!) < 1e-6, 'return has the original framing without a renderer reset');
+    }
+  } finally { rmSync(out, { recursive: true, force: true }); }
+});
