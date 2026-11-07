@@ -539,7 +539,10 @@ function placer(): Placer | undefined {
     }
     return next;
   });
-  p.setControls([...realControls, ...displayBoxesFromPixels(overlayControlRects(), view.width, view.height)]);
+  // The model's own buttons follow its bounds; feeding them back here makes the
+  // next panel placement move or shrink to avoid its previous controls. Cards
+  // still avoid those buttons through syncRenderedStage's separate obstacles.
+  p.setControls([...realControls, ...displayBoxesFromPixels(overlayControlRects('fixed'), view.width, view.height)]);
   previousPlacer = p;
   return p;
 }
@@ -930,9 +933,11 @@ function overlayUiRegions(): OverlayUiRegion[] {
 }
 
 /** Visible control and pill bounds in CSS pixels; contained child buttons use their enclosing pill's geometry. */
-function overlayControlRects(): ScreenRect[] {
+function overlayControlRects(scope: 'all' | 'fixed' = 'all'): ScreenRect[] {
   // Follow-up controls move around the drawing after it is laid out, not the other way round.
-  const rects = overlayUiRegions().filter((r) => r.kind === 'pill' || (r.kind === 'capture-control' && r.id === 'button:undo')).map((r) => r.rect);
+  const rects = overlayUiRegions().filter((r) =>
+    (scope !== 'fixed' || !['button:explode', 'button:cut', 'button:detail'].includes(r.id)) &&
+    (r.kind === 'pill' || (r.kind === 'capture-control' && r.id === 'button:undo'))).map((r) => r.rect);
   return rects.filter((rect, i) => !rects.some((other, j) => {
     if (i === j) return false;
     const contains = other.x <= rect.x && other.y <= rect.y && other.x + other.w >= rect.x + rect.w && other.y + other.h >= rect.y + rect.h;
