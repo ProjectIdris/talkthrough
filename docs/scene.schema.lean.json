@@ -1223,6 +1223,18 @@
         "material": {
           "$ref": "#/$defs/5"
         },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
         "bevel": {
           "$ref": "#/$defs/0"
         },
@@ -1246,6 +1258,10 @@
         "rot",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "bevel",
         "edges",
         "opacity",
@@ -1311,6 +1327,18 @@
         "material": {
           "$ref": "#/$defs/5"
         },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
         "bevel": {
           "$ref": "#/$defs/0"
         },
@@ -1338,6 +1366,10 @@
         "depth",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "bevel",
         "edges",
         "opacity",
@@ -1379,6 +1411,18 @@
         "material": {
           "$ref": "#/$defs/5"
         },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
         "edges": {
           "$ref": "#/$defs/4"
         },
@@ -1399,6 +1443,10 @@
         "pts",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "edges",
         "opacity",
         "at"
@@ -1445,6 +1493,18 @@
         "material": {
           "$ref": "#/$defs/5"
         },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
         "edges": {
           "$ref": "#/$defs/4"
         },
@@ -1467,6 +1527,10 @@
         "sides",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "edges",
         "opacity",
         "at"
@@ -1513,6 +1577,18 @@
         "material": {
           "$ref": "#/$defs/5"
         },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
         "opacity": {
           "$ref": "#/$defs/0"
         },
@@ -1532,6 +1608,10 @@
         "soft",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "opacity",
         "at"
       ],
@@ -1586,6 +1666,18 @@
         "material": {
           "$ref": "#/$defs/5"
         },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
         "draw": {
           "$ref": "#/$defs/0"
         },
@@ -1608,6 +1700,10 @@
         "closed",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "draw",
         "opacity",
         "at"
@@ -1720,6 +1816,18 @@
         "material": {
           "$ref": "#/$defs/5"
         },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
         "draw": {
           "$ref": "#/$defs/0"
         },
@@ -1746,6 +1854,10 @@
         "radius",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "draw",
         "opacity",
         "at"

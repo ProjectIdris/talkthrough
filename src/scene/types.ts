@@ -63,7 +63,9 @@ export type PanelAction = { op: 'panel'; x: number; y: number; w: number; h: num
 
 // 3D objects, added to the stage. Units: y up, x right, z toward the viewer.
 export type Material = 'plastic' | 'metal' | 'rubber' | 'pcb' | 'glass' | 'glow' | 'paper' | 'tissue';
-type Surface = { color?: Color; material?: Material; edges?: boolean; opacity?: number };
+/** Optional 0..1 overrides of a named surface. Missing values keep that recipe; low quality disables clearcoat. */
+export type SurfaceFinish = { roughness?: number; metalness?: number; clearcoat?: number; clearcoatRoughness?: number };
+type Surface = { color?: Color; material?: Material; edges?: boolean; opacity?: number } & SurfaceFinish;
 export type SolidShape = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'plane';
 export type AddSolid = {
   op: 'add'; shape: SolidShape; id: string; parent?: string; explode?: Vec3; pos?: Vec3; size: Vec3; rot?: Vec3; bevel?: number;

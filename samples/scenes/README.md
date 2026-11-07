@@ -33,3 +33,4 @@ The follow-up must be validated with the same `SceneState` as the first scene; o
 The timings (`at`, `dur`) assume a speaking pace of about 2.5 words a second; a renderer playing without a voice can use that to time each step.
 
 - `connector-sockets.json`: five existing port variants with physical recessed sockets, inset tongues and contacts, shown from front and reverse views. Simplified explanatory geometry, not connector CAD.
+`surface-finishes.json` is a hand-authored renderer comparison: matched copper spheres, blue housings and teal tubes with different bounded PBR finish values. See `docs/surface-finish.md` for native review and tier-specific expectations.
