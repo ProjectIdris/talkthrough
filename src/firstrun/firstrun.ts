@@ -94,6 +94,7 @@ el('micTest').addEventListener('click', async () => {
   const loud = Math.max(0, ...result.levels) > 0.04;
   el('heard').textContent = result.heard ? `I heard: “${result.heard}”` : loud ? 'The microphone works, but I could not make out words. Try again closer.' : 'I heard nothing. Check the microphone, or choose another in Settings.';
 });
+el('visualTour').addEventListener('click', () => api.openVisualTour());
 el('next1').addEventListener('click', () => step(2));
 el('back2').addEventListener('click', () => step(1));
 el('next2').addEventListener('click', () => step(3));

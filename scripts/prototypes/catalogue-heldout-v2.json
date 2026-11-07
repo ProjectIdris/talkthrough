@@ -1,0 +1,536 @@
+[
+  {
+    "id": "heldout-v2-01",
+    "query": "Could you give me an eight-spoke wheel for the side view of a little delivery cart?",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "wheel"
+    ],
+    "rationale": "The depicted object is a spoked wheel; the cart is context."
+  },
+  {
+    "id": "heldout-v2-02",
+    "query": "Which built-in would let me put a metal-topped processor chip in an exploded gadget illustration?",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "chip"
+    ],
+    "rationale": "A processor package is the chip family, including its metal variant."
+  },
+  {
+    "id": "heldout-v2-03",
+    "query": "I need a pipe elbow where the vertical water line turns toward the wall. What part should I use?",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "elbow"
+    ],
+    "rationale": "Only the bend is requested as the depicted component."
+  },
+  {
+    "id": "heldout-v2-04",
+    "query": "Can I get a crankshaft with three throws for a classroom engine model?",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "crankshaft"
+    ],
+    "rationale": "The named object and throw count select crankshaft."
+  },
+  {
+    "id": "heldout-v2-05",
+    "query": "What should I choose for a rectangular screen on the front of a ticket machine?",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "screen"
+    ],
+    "rationale": "The requested front display is screen."
+  },
+  {
+    "id": "heldout-v2-06",
+    "query": "Show me the available ball bearing component for a close-up around an axle.",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "bearing"
+    ],
+    "rationale": "The axle supplies placement context; the requested component is the bearing."
+  },
+  {
+    "id": "heldout-v2-07",
+    "query": "Is there a spark plug I can place tip-down above the combustion space?",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "spark-plug"
+    ],
+    "rationale": "The only requested depicted object is spark plug."
+  },
+  {
+    "id": "heldout-v2-08",
+    "query": "Find me the two-row pin header for a schematic microcontroller-board illustration.",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "header"
+    ],
+    "rationale": "The request is specifically the exposed two-row connector."
+  },
+  {
+    "id": "heldout-v2-09",
+    "query": "I want the little toothed disc that transfers rotation by meshing with its neighbour. Which object is closest?",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "gear"
+    ],
+    "rationale": "A meshing toothed disc is a gear; no separate neighbour geometry is requested."
+  },
+  {
+    "id": "heldout-v2-10",
+    "query": "Which piece represents the sliding slug that goes up and down inside a combustion bore?",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "piston"
+    ],
+    "rationale": "The sliding engine slug is the piston, while the bore is contextual."
+  },
+  {
+    "id": "heldout-v2-11",
+    "query": "What can depict the shaft with off-centre bumps that periodically push an engine mechanism open?",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "camshaft"
+    ],
+    "rationale": "The shaft carrying periodic lifting lobes is a camshaft."
+  },
+  {
+    "id": "heldout-v2-12",
+    "query": "I need a helical metal element that compresses and returns to its original length in the diagram.",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "spring"
+    ],
+    "rationale": "A compressible helical element is a coil spring."
+  },
+  {
+    "id": "heldout-v2-13",
+    "query": "What object gives me the circular optical glass at the front of a camera?",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "lens"
+    ],
+    "rationale": "The camera optical element is lens."
+  },
+  {
+    "id": "heldout-v2-14",
+    "query": "For the cutaway, I want the long link joining the reciprocating engine slug to the offset rotating shaft, just that link.",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "connecting-rod"
+    ],
+    "rationale": "Only the connecting linkage is requested; the piston and crankshaft are referential endpoints."
+  },
+  {
+    "id": "heldout-v2-15",
+    "query": "Is there a ring of blades I can spin to suggest air being moved through a computer?",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "fan"
+    ],
+    "rationale": "Air-moving blades correspond to fan."
+  },
+  {
+    "id": "heldout-v2-16",
+    "query": "What part would stand in for the mushroom-shaped stem that opens and seals an engine gas passage?",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "valve"
+    ],
+    "rationale": "The stem with a sealing head is an engine valve."
+  },
+  {
+    "id": "heldout-v2-17",
+    "query": "For a bathroom repair diagram, can you show a straight pipe, a right-angle fitting, and a pressure gauge beside them?",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "pipe",
+      "elbow"
+    ],
+    "rationale": "Pipe and elbow directly depict requested objects; no pressure-gauge family exists."
+  },
+  {
+    "id": "heldout-v2-18",
+    "query": "I am mocking up a portable radio: please include its display, a round push control, and a telescoping aerial.",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "screen",
+      "button"
+    ],
+    "rationale": "Display and push control map to screen and button; the aerial is unsupported."
+  },
+  {
+    "id": "heldout-v2-19",
+    "query": "Can you lay out a camera lens next to a USB-C socket and an SD memory-card slot?",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "lens",
+      "port"
+    ],
+    "rationale": "Lens and USB-C socket are supported; a memory-card slot is not a documented port variant."
+  },
+  {
+    "id": "heldout-v2-20",
+    "query": "I need a finned engine cylinder, the moving piston, and the link underneath it, spaced apart for labels.",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "cylinder-block",
+      "piston",
+      "connecting-rod"
+    ],
+    "rationale": "All three requested engine objects have direct families."
+  },
+  {
+    "id": "heldout-v2-21",
+    "query": "For a bicycle repair explainer, place a spoked wheel beside a ball bearing and a length of chain.",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "wheel",
+      "bearing"
+    ],
+    "rationale": "Wheel and bearing are available; chain has no family."
+  },
+  {
+    "id": "heldout-v2-22",
+    "query": "Could I have an enclosure with its side cut away, containing a processor package and a small cooling rotor?",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "housing",
+      "chip",
+      "fan"
+    ],
+    "rationale": "The cutaway enclosure, electronic package, and cooling rotor are directly useful supported parts."
+  },
+  {
+    "id": "heldout-v2-23",
+    "query": "Make an exploded ignition row containing a spark plug, its rubber cable, and a round push button used to start the demonstration.",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "spark-plug",
+      "button"
+    ],
+    "rationale": "Plug and push button are requested supported objects; an ignition cable is not a part family."
+  },
+  {
+    "id": "heldout-v2-24",
+    "query": "For a mechanism lesson, I want a toothed cog compressing a coil spring, plus a shaft with four cam lobes.",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "gear",
+      "spring",
+      "camshaft"
+    ],
+    "rationale": "All three independently requested objects have direct matching families; behaviour is separate."
+  },
+  {
+    "id": "heldout-v2-25",
+    "query": "Which available families could populate a labelled tray of the main combustion-engine internals, covering compression, the crank linkage, gas admission, timing, and spark ignition?",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "cylinder-block",
+      "piston",
+      "connecting-rod",
+      "crankshaft",
+      "valve",
+      "camshaft",
+      "spark-plug"
+    ],
+    "rationale": "These seven engine-specific families directly cover the named functions. General fixtures or accessories are not requested."
+  },
+  {
+    "id": "heldout-v2-26",
+    "query": "What can you offer for an electronics teaching panel showing processing, exposed pin connections, external cable sockets, a visual display, a press control, and forced-air cooling?",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "chip",
+      "header",
+      "port",
+      "screen",
+      "button",
+      "fan"
+    ],
+    "rationale": "Each of the six explicitly requested electronics functions has a direct family."
+  },
+  {
+    "id": "heldout-v2-27",
+    "query": "I am filling a mechanical-parts sampler with examples of rolling on tyres, meshing teeth, elastic coils, rolling-element supports, straight fluid runs, fluid bends, and protective cases. Which families fit?",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "wheel",
+      "gear",
+      "spring",
+      "bearing",
+      "pipe",
+      "elbow",
+      "housing"
+    ],
+    "rationale": "Seven physical roles are requested and each maps directly to one available family."
+  },
+  {
+    "id": "heldout-v2-28",
+    "query": "Could you lay out a catalogue overview with one example of every built-in component family, arranged like a parts-shop sample board?",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "chip",
+      "header",
+      "port",
+      "lens",
+      "screen",
+      "button",
+      "fan",
+      "wheel",
+      "cylinder-block",
+      "piston",
+      "connecting-rod",
+      "crankshaft",
+      "valve",
+      "camshaft",
+      "spark-plug",
+      "gear",
+      "spring",
+      "bearing",
+      "pipe",
+      "elbow",
+      "housing"
+    ],
+    "rationale": "The user explicitly requests one depicted example from every family; all 21 are relevant without a four-label limit."
+  },
+  {
+    "id": "heldout-v2-29",
+    "query": "For a basic pipework tray, show the stock pieces for both uninterrupted straight runs and changes of direction. Which built-ins belong there?",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "pipe",
+      "elbow"
+    ],
+    "rationale": "Straight pipe and elbow directly cover the two requested pipework categories."
+  },
+  {
+    "id": "heldout-v2-30",
+    "query": "I need a camera control-surface concept with an optical window, a preview display, a shutter push control, and an external data socket. What components are usable?",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "lens",
+      "screen",
+      "button",
+      "port"
+    ],
+    "rationale": "All four requested visible categories have directly useful parts; the full camera body is not requested."
+  },
+  {
+    "id": "heldout-v2-31",
+    "query": "Which parts could I use on a museum board comparing a camshaft, a crankshaft, a toothed transmission disc, a rubber-tyred road wheel, and an air-moving rotor as different rotating mechanisms?",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "camshaft",
+      "crankshaft",
+      "gear",
+      "wheel",
+      "fan"
+    ],
+    "rationale": "Five rotating objects are explicitly requested, with a directly useful family for each."
+  },
+  {
+    "id": "heldout-v2-32",
+    "query": "For an engine service display, collect the parts illustrating the bored cylinder, sliding piston, connecting link and offset crank, plus the lobed timing shaft, gas valves, ignition plug, and a protective cutaway casing. What existing families cover that?",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "cylinder-block",
+      "piston",
+      "connecting-rod",
+      "crankshaft",
+      "valve",
+      "camshaft",
+      "spark-plug",
+      "housing"
+    ],
+    "rationale": "Eight requested engine-related roles directly map to all seven engine-specific parts plus a protective housing."
+  },
+  {
+    "id": "heldout-v2-33",
+    "query": "Can you depict a fan waving a scarf in the football stands? I need a person, rather than a ventilation device.",
+    "language": "en",
+    "category": "absent/polysemy",
+    "relevantIds": [],
+    "rationale": "Fan refers to a spectator, which has no part family; ventilation is explicitly excluded."
+  },
+  {
+    "id": "heldout-v2-34",
+    "query": "What built-in can show spring arriving as a flowering cherry tree for a seasonal calendar?",
+    "language": "en",
+    "category": "absent/polysemy",
+    "relevantIds": [],
+    "rationale": "Spring denotes a season; a flowering tree is unsupported."
+  },
+  {
+    "id": "heldout-v2-35",
+    "query": "I want a corked bottle of port and a wineglass for a restaurant scene. Any ready-made component?",
+    "language": "en",
+    "category": "absent/polysemy",
+    "relevantIds": [],
+    "rationale": "Port denotes fortified wine, not an electronic socket; neither requested object is supported."
+  },
+  {
+    "id": "heldout-v2-36",
+    "query": "Could you make a potato chip resting on a paper plate for a snack advert?",
+    "language": "en",
+    "category": "absent/polysemy",
+    "relevantIds": [],
+    "rationale": "Chip denotes food, not an electronic package; the food and plate are unsupported."
+  },
+  {
+    "id": "heldout-v2-37",
+    "query": "Which component shows a compass bearing of northeast, as a compass rose on a map?",
+    "language": "en",
+    "category": "absent/polysemy",
+    "relevantIds": [],
+    "rationale": "Bearing denotes navigation direction; a compass rose is unsupported."
+  },
+  {
+    "id": "heldout-v2-38",
+    "query": "I need a document header with a company name at the top of a paper invoice. Is there a built-in for that?",
+    "language": "en",
+    "category": "absent/polysemy",
+    "relevantIds": [],
+    "rationale": "Header denotes document content, not exposed pins; paper invoice geometry is unsupported."
+  },
+  {
+    "id": "heldout-v2-39",
+    "query": "Can you show a housing estate with rows of terraced homes, viewed from above?",
+    "language": "en",
+    "category": "absent/polysemy",
+    "relevantIds": [],
+    "rationale": "Housing denotes residences rather than a mechanical enclosure; homes are unsupported."
+  },
+  {
+    "id": "heldout-v2-40",
+    "query": "I am explaining a theatre screen door: please show the mesh door and wooden frame, not a video display.",
+    "language": "en",
+    "category": "absent/polysemy",
+    "relevantIds": [],
+    "rationale": "Screen describes door mesh, not an electronic display; door and frame are unsupported."
+  },
+  {
+    "id": "heldout-v2-41",
+    "query": "Leave out the gears and wheels; I only want the coil spring on a blank background.",
+    "language": "en",
+    "category": "negation",
+    "relevantIds": [
+      "spring"
+    ],
+    "rationale": "Spring is requested, while gear and wheel are explicitly excluded."
+  },
+  {
+    "id": "heldout-v2-42",
+    "query": "Instead of the camera lens and preview screen, show only its USB-C connection socket in this detail.",
+    "language": "en",
+    "category": "negation",
+    "relevantIds": [
+      "port"
+    ],
+    "rationale": "Only the socket is requested; lens and screen are contrastive exclusions."
+  },
+  {
+    "id": "heldout-v2-43",
+    "query": "Please show the piston and connecting rod but omit the cylinder block, crankshaft, and spark plug so the linkage stays visible.",
+    "language": "en",
+    "category": "negation",
+    "relevantIds": [
+      "piston",
+      "connecting-rod"
+    ],
+    "rationale": "The two included objects are relevant; all three omitted families are irrelevant."
+  },
+  {
+    "id": "heldout-v2-44",
+    "query": "Do not include either a pin header or a push button. This panel detail needs the HDMI socket and nothing else.",
+    "language": "en",
+    "category": "negation",
+    "relevantIds": [
+      "port"
+    ],
+    "rationale": "HDMI maps to port; header and button are explicitly excluded."
+  },
+  {
+    "id": "heldout-v2-45",
+    "query": "¿Qué piezas puedo usar para mostrar un engranaje y un resorte helicoidal dentro de una carcasa abierta?",
+    "language": "es",
+    "category": "non-English",
+    "relevantIds": [
+      "gear",
+      "spring",
+      "housing"
+    ],
+    "rationale": "Spanish asks for a gear, a helical spring, and an open housing."
+  },
+  {
+    "id": "heldout-v2-46",
+    "query": "Je voudrais représenter une bougie d’allumage à côté d’un piston, sans le vilebrequin. Quels éléments sont disponibles ?",
+    "language": "fr",
+    "category": "non-English",
+    "relevantIds": [
+      "spark-plug",
+      "piston"
+    ],
+    "rationale": "French requests spark plug and piston, explicitly excluding crankshaft."
+  },
+  {
+    "id": "heldout-v2-47",
+    "query": "Für die Vorderseite eines Messgeräts brauche ich einen rechteckigen Bildschirm, einen runden Druckknopf und eine USB-Buchse. Welche Bauteile passen?",
+    "language": "de",
+    "category": "non-English",
+    "relevantIds": [
+      "screen",
+      "button",
+      "port"
+    ],
+    "rationale": "German requests a rectangular display, round push button, and USB socket."
+  },
+  {
+    "id": "heldout-v2-48",
+    "query": "水道の説明図に、まっすぐな配管と曲がり継手を置きたいです。使える部品はありますか？",
+    "language": "ja",
+    "category": "non-English",
+    "relevantIds": [
+      "pipe",
+      "elbow"
+    ],
+    "rationale": "Japanese requests a straight pipe and a bent pipe fitting for a water-supply diagram."
+  }
+]
