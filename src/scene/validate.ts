@@ -2,6 +2,7 @@
 // It reads data and builds fresh objects from known fields. It never evaluates, imports,
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
+import { prepareSweep, SWEEP_SUBDIVISIONS } from './sweep.ts';
 import { nearestPaletteColor } from './colors.ts';
 import { attachTolerance, landOn } from './attach.ts';
 import type { Body } from './attach.ts';
@@ -330,7 +331,7 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
     else state.bodies.set(id, { shape: 'group', ...place }); // a cone or a torus is not asked about, but things hang from it
   } else if (name === 'addPart') state.bodies.set(id, { shape: 'box', size: out.size as Vec3, ...place });
   else if (name === 'addBlob') state.bodies.set(id, { shape: 'blob', pts: out.pts as Vec3[], sizes: out.sizes as Vec3[], ...place });
-  else if (name === 'addExtrude' || name === 'addLathe' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
+  else if (name === 'addExtrude' || name === 'addLathe' || name === 'addSweep' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addTube' || (name === 'addPath' && shape === 'line')) {
     holdEnds(state, id, out, path, notes);
     return;
@@ -440,6 +441,13 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   const bindings = BINDINGS[variant.name];
   const bound = new Set(bindings?.flatMap((b) => (b.alias === undefined ? [b.field] : [b.field, b.alias])));
   for (const [name, f] of Object.entries(variant.fields)) {
+    // Cheap id/parent checks precede expensive geometry. Held forward references
+    // can be retried after every accepted action. Validate raw geometry before any
+    // generic point parser can trim, clamp or read an accessor, and before state changes.
+    if (variant.name === 'addSweep' && name === 'outline' && !Object.values(SWEEP_SUBDIVISIONS).every(n => prepareSweep(own(input, 'outline'), own(input, 'pts'), own(input, 'up'), n))) {
+      note(notes, 'dropped', path, 'sweep needs a simple 3–24 point outline, 2–16 distinct path controls, a usable initial up direction and a nonfolded Float32 mesh at every quality');
+      return null;
+    }
     if (bound.has(name)) continue;
     const v = own(input, name);
     const optional = 'opt' in f && f.opt === true;

@@ -19,6 +19,8 @@ Hand-written scenes in the scene language (`docs/scene-language.md`) for playing
 | `export-guide.json` | an app with a File menu top-left (20,30 to 90,80) and the menu's Export item below it (20,190 to 200,240) | a guide: each step marks its target and ends with a `wait` for the person's click, and the first draws a checklist the app ticks off as steps are followed; played without the app, it just shows the three steps one after another |
 | `escalate.json` | a settings menu top-left (20,40 to 180,100) | a brief partial answer with a mark, plus an `escalate` reason: the app offers a deeper backend |
 
+| `profile-sweeps.json` | any page with space for a large model | a rectangular curved rail, a concave channel section and a thin spatial band, all made with the same sweep primitive |
+
 
 `samples/pages/` has a 1920x1080 backdrop for each page layout (`bar-chart.svg`, `request-flow.svg`, `earth-layers.svg`, `lock-article.svg`, `wind-power-explainer.svg`; the pages are made up) so the marks can be seen landing on the parts they point at; see `docs/overlay.md` for rendering frames over them.
 
