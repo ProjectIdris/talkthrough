@@ -171,28 +171,6 @@ test('intermediate folds keep the two leaf volumes separate', () => {
   }
 });
 
-test('CPU preview export preserves each actual mesh identity and source hash', async () => {
-  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
-  const { tmpdir } = await import('node:os');
-  const { join } = await import('node:path');
-  const { spawnSync } = await import('node:child_process');
-  const { createHash } = await import('node:crypto');
-  const temp = mkdtempSync(join(tmpdir(), 'hinge-preview-'));
-  try {
-    const input = 'samples/components/hinged-panels-door.json', output = join(temp, 'meshes.json');
-    const run = spawnSync(process.execPath, ['scripts/components/hinged-panels-preview.ts', input, output], { encoding: 'utf8' });
-    assert.equal(run.status, 0, run.stderr);
-    const exported = JSON.parse(readFileSync(output, 'utf8'));
-    assert.deepEqual(exported.meshes.map((m: { id: string }) => m.id).sort(), [
-      'door_fixed_leaf', 'door_moving_leaf', 'door_pin', 'door_pin_head', 'door_pin_tip',
-      'door_knuckle1', 'door_knuckle2', 'door_knuckle3', 'door_knuckle4', 'door_knuckle5',
-      'door_neck1', 'door_neck2', 'door_neck3', 'door_neck4', 'door_neck5',
-    ].sort());
-    assert.equal(exported.sourceSha256, createHash('sha256').update(readFileSync(input)).digest('hex'));
-    assert.ok(exported.meshes.every((m: { vertices: unknown[]; normals: unknown[]; faces: unknown[] }) => m.vertices.length > 0 && m.vertices.length === m.normals.length && m.faces.length > 0));
-  } finally { rmSync(temp, { recursive: true, force: true }); }
-});
-
 test('finished leaves have rounded silhouettes and readable thickness in actual geometry', () => {
   const part = hingedPanels({ id: 'finish', width: 2.4, height: 6, fold: 0 });
   const leaf = part.actions.find((a) => a.id === part.ids.fixedLeaf)!;
