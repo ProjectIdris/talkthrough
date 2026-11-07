@@ -100,6 +100,8 @@ export class Player {
   /** The step still being written (its actions arrive one by one), if any, and the latest start time given to one of its actions. */
   private openIndex: number | null = null;
   private openLastAt = 0;
+  /** Original instructions for display-retimed actions; no runtime timing leaks into saved scenes. */
+  private readonly authoredActions = new WeakMap<Action, Action>();
   /** A turn is open: more steps may still arrive, so running out of steps is not the end. */
   private live = false;
   private index = 0;
@@ -273,10 +275,12 @@ export class Player {
     if (i === this.index && this.phase === 'running') at = Math.max(at, ((this.clock.now() - this.startedAt) / 1000) * this.speed);
     at = Math.max(at, this.openLastAt);
     this.openLastAt = at;
-    const next: Step = { say: step.say, actions: [...step.actions, { ...action, at } as Action] };
+    const displayed = { ...action, at } as Action;
+    this.authoredActions.set(displayed, action);
+    const next: Step = { say: step.say, actions: [...step.actions, displayed] };
     this.steps = this.steps.map((s, j) => (j === i ? next : s));
     // The plan of the step in progress is made again with the new action in it; what was already planned keeps its times.
-    if (i === this.index && (this.phase === 'running' || this.phase === 'waiting')) this.plan = planStep(this.base, next);
+    if (i === this.index && (this.phase === 'running' || this.phase === 'waiting')) this.plan = this.planAuthoredStep(next);
   }
 
   /** The open step is whole. */
@@ -445,9 +449,13 @@ export class Player {
     this.onDone?.();
   }
 
+  private planAuthoredStep(step: Step): StepPlan {
+    return planStep(this.base, step, step.actions.map((a) => this.authoredActions.get(a) ?? a));
+  }
+
   private beginStep(): void {
     const step = this.steps[this.index] as Step;
-    this.plan = planStep(this.base, step);
+    this.plan = this.planAuthoredStep(step);
     this.phase = 'waiting';
     this.speechStarted = false;
     this.speechEnded = false;
@@ -494,7 +502,7 @@ export class Player {
     // A machine kept turning while the step waited for its voice; the step's own plan goes on from where it got to.
     if (isMoving(this.restMotion)) {
       this.rebase(withMotion(this.base, (now - this.restAt) / 1000, this.restMotion));
-      this.plan = planStep(this.base, step);
+      this.plan = this.planAuthoredStep(step);
     }
     this.lastT = 0;
     const authored = estimateSpeechSeconds(step.say);
