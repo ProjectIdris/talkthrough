@@ -12,19 +12,6 @@
         },
         {
           "op": "add",
-          "shape": "text",
-          "id": "title-faceted",
-          "text": "Faceted",
-          "height": 0.25,
-          "pos": [
-            -1.7,
-            2.7,
-            0
-          ],
-          "color": "#4c586b"
-        },
-        {
-          "op": "add",
           "shape": "loft",
           "id": "loft-faceted",
           "outline": [
@@ -328,19 +315,6 @@
           "color": "#4c91b9",
           "material": "plastic",
           "roughness": 0.3
-        },
-        {
-          "op": "add",
-          "shape": "text",
-          "id": "title-smooth",
-          "text": "Smooth",
-          "height": 0.25,
-          "pos": [
-            1.7,
-            2.7,
-            0
-          ],
-          "color": "#4c586b"
         },
         {
           "op": "add",
