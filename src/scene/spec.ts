@@ -268,10 +268,11 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addExtrude', op: 'add', shapes: ['extrude'], creates: 'solid',
-    doc: 'A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets.',
+    doc: 'A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets. Optional taper or shift makes a sharp closed transition: the negative-z end is the outline, the positive-z end is outline*taper+shift, scaling about the local origin. Defaults in this mode: taper 1, shift [0,0]. taper 0.05..20; both end coordinates -100..100; depth 0.01..100. Requires a simple polygon, 3..40 points, either winding. Invalid or Float32-unsafe geometry rejects, not repairs. Bevel must be omitted/null/0; through-holes are not supported in this mode.',
     fields: {
       shape: { k: 'enum', values: ['extrude'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: LIMITS.maxOutline, lo: WORLD.min, hi: WORLD.max },
+      taper: { k: 'num', min: 0.05, max: 20, opt: true }, shift: { k: 'vec2', min: -100, max: 100, opt: true },
       depth: { k: 'num', min: 0.01, max: 100 }, color: COLOR_OPT, material: MATERIAL, bevel: BEVEL, edges: EDGES, opacity: OPACITY, at: AT,
     },
   },

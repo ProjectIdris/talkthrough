@@ -1,3 +1,4 @@
+import { taperedExtrudeEdges, taperedExtrudeGeometry } from './tapered-extrusion.ts';
 // The 3D scene: builds objects from a Frame, moves them as the frame changes, lights them, puts a soft
 // shadow under them on the page, and places the camera. It never touches the DOM itself (text sprites
 // and the shadow's gradient ask for a canvas through `makeCanvas`), so it can run and be tested
@@ -216,7 +217,7 @@ export class PanelScene {
       node.materials.push(surface);
       const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'torus';
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
-      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.edgeKey(def));
+      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.edgeKey(def), def.shape === 'extrude' && (def.taper != null || def.shift != null));
       node.pieces.push(piece);
       return mesh;
     };
@@ -249,7 +250,7 @@ export class PanelScene {
     return JSON.stringify([this.tier, def.shape, solid.size, def.shape === 'box' ? solid.bevel ?? defaultBevel(solid.size) : null, 28]);
   }
 
-  private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string): LineSegments {
+  private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string, tapered = false): LineSegments {
     const mat = new LineBasicMaterial({ color: 0x10131a, transparent: true, opacity: 0.5 });
     let outline: BufferGeometry;
     const existing = key && this.sharedEdges.get(key);
@@ -262,7 +263,7 @@ export class PanelScene {
       generated.dispose();
       this.sharedEdges.set(key, { geometry: outline, refs: 1 });
       this.edgeKeys.set(outline, key);
-    } else outline = new EdgesGeometry(geo, 28);
+    } else outline = tapered ? taperedExtrudeEdges(geo) : new EdgesGeometry(geo, 28);
     const lines = new LineSegments(outline, mat);
     mesh.add(lines);
     node.geometries.push(lines.geometry);
@@ -306,7 +307,8 @@ export class PanelScene {
         return new PlaneGeometry(sx, sy);
       }
       case 'extrude': {
-        const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number };
+        const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number; taper?: number; shift?: [number, number] };
+        if (e.taper != null || e.shift != null) return taperedExtrudeGeometry(e.outline, e.depth, e.taper ?? 1, e.shift ?? [0, 0]);
         return extrudeGeometry(e.outline, e.depth, e.bevel ?? Math.min(0.1, e.depth * 0.2), d);
       }
       case 'blob': {

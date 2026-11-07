@@ -1098,6 +1098,21 @@
             }
           }
         },
+        "taper": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "shift": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
         "depth": {
           "type": "number"
         },
@@ -1153,6 +1168,8 @@
         "pos",
         "rot",
         "outline",
+        "taper",
+        "shift",
         "depth",
         "color",
         "material",
