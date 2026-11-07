@@ -61,6 +61,7 @@ export async function runGrab(grab: NonNullable<Options['grab']>, backdrop: stri
   ipcMain.on(CHANNEL.ready, onReady);
 
   const written: string[] = [];
+  let subscribed = false;
   try {
     const loaded = new Promise<void>((done, fail) => {
       ipcMain.once(CHANNEL.ready, () => done());
@@ -68,6 +69,12 @@ export async function runGrab(grab: NonNullable<Options['grab']>, backdrop: stri
     });
     void window.loadFile(env.page);
     await loaded;
+    // Keep a compositor consumer alive for this hidden capture session. Without
+    // one, idle hidden windows can pace the two-frame acknowledgement at 1 Hz
+    // between capturePage calls, even with background throttling disabled.
+    // Discard subscription pixels; the explicit captures below remain the output.
+    window.webContents.beginFrameSubscription(true, () => undefined);
+    subscribed = true;
     await new Promise((r) => setTimeout(r, 200)); // let the display message land
     let token = 0;
     const hashIfPresent = (path: string): string | null => { try { return createHash('sha256').update(readFileSync(path)).digest('hex'); } catch { return null; } };
@@ -107,7 +114,9 @@ export async function runGrab(grab: NonNullable<Options['grab']>, backdrop: stri
   } finally {
     ipcMain.off(CHANNEL.rendered, onRendered);
     ipcMain.off(CHANNEL.ready, onReady);
-    window.destroy();
+    try {
+      if (subscribed && !window.webContents.isDestroyed()) window.webContents.endFrameSubscription();
+    } finally { window.destroy(); }
   }
   return written;
 }
