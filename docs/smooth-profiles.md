@@ -14,7 +14,7 @@ Omitted, null and false retain the original shading and outlines. Existing scene
 
 Smoothing does not change positions, indices, triangle counts, bounds, cap shape or polygon silhouettes. It is not a bevel, extra tessellation, hollowing, or an exact curved CAD surface. Use enough authored points to describe the outline you need, within the existing 24-point limit. Higher quality still changes longitudinal sampling, not the section's point count. Low quality retains its normal no-outline policy.
 
-The additional work happens at geometry creation. There are no new shader variants, render passes, dependencies or per-frame geometry rebuilds. Each loft's uninterrupted sharp corner run remains one outline line; partial runs can split it. Sweep outlines keep their existing sampled segments.
+The additional work happens at geometry creation. There are no new shader variants, render passes, dependencies or per-frame geometry rebuilds. Each loft's uninterrupted sharp corner run remains one outline line; partial runs can split it. At high quality, the maximum 24-corner loft therefore has at most 336 outline segments with smoothing, compared with 72 default segments; its solid vertex and triangle budgets do not change. Sweep smoothing only removes existing sampled outline segments.
 
 ## Native comparison
 

@@ -13,7 +13,7 @@ Alternatives considered: unconditional smoothing would change authored polygonal
 ## Constraints and acceptance
 
 - No dependencies, new render passes, code execution from scene data, Blender, security overrides or backend changes.
-- Positions, indices, triangle count, bounds, cap normals and topology are unchanged. Detail tiers retain their budgets and low-tier no-outline policy.
+- Positions, indices, triangle count, bounds, cap normals and topology are unchanged. Detail tiers retain their solid vertex/triangle budgets and low-tier no-outline policy. Loft outline segments may split at changing creases, bounded by the existing sampled rings.
 - Default behavior remains byte-identical. New work occurs only at geometry creation, not ordinary sync.
 - Prove radial lighting on a straight regular profile, crease/cap preservation, transformed/replaced/array ownership, compact and reversed profiles, bent/warped sections, and outward finite unit normals.
 - Run focused and full portable tests, typecheck, build and independent review. Native visual review must use the authorised desktop route and be reported separately from portable evidence.

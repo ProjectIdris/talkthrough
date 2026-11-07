@@ -18,7 +18,7 @@ A strongly rotated second ring can narrow or cross the middle even if both ends 
 
 ## Bounds and mesh meaning
 
-Low/mid/high quality use 4/8/12 longitudinal strips, respectively. Maximum high-quality output is 672 vertices and 620 triangles per object, plus 72 outline segments. Construction and admission checks run when an object is created, not on every animation sync. Low quality retains its ordinary no-outline behavior.
+Low/mid/high quality use 4/8/12 longitudinal strips, respectively. Maximum high-quality solid output is 672 vertices and 620 triangles per object. Default outlines have at most 72 segments. With `smooth: true`, changing creases can split longitudinal lines into partial runs, bounded conservatively by 336 outline segments at high quality (144 low, 240 mid, before the ordinary low-tier no-outline policy). Construction and admission checks run when an object is created, not on every animation sync. Low quality retains its ordinary no-outline behavior.
 
 The intended side is a bilinear ruled patch. Triangles approximate its curvature between strip rows, while analytic normals avoid shading seams along diagonals. The emitted triangle mesh is therefore an approximation, not exact CAD. Higher quality adds strips. Only end perimeters and corresponding corner joins receive lines.
 

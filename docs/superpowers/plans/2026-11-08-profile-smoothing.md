@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-No dependencies, new render passes, Blender, security overrides, backend changes or merge. Preserve default behavior, positions, indices, topology, cap normals and current quality budgets. Work only at construction.
+No dependencies, new render passes, Blender, security overrides, backend changes or merge. Preserve default behavior, positions, indices, topology, cap normals and current solid vertex/triangle budgets. Work only at construction.
 
 ## Review Focus
 
