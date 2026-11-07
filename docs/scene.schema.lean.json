@@ -4,7 +4,7 @@
     "steps": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/step"
+        "$ref": "#/$defs/1t"
       }
     },
     "escalate": {
@@ -20,7 +20,73 @@
   ],
   "additionalProperties": false,
   "$defs": {
-    "box": {
+    "0": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "1": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "2": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "number"
+      }
+    },
+    "3": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        }
+      }
+    },
+    "4": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "5": {
+      "enum": [
+        "plastic",
+        "metal",
+        "rubber",
+        "pcb",
+        "glass",
+        "glow",
+        "paper",
+        "tissue",
+        null
+      ]
+    },
+    "6": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    },
+    "7": {
+      "enum": [
+        "left",
+        "right",
+        "top",
+        "bottom",
+        "front",
+        "back",
+        null
+      ]
+    },
+    "8": {
       "type": "object",
       "properties": {
         "op": {
@@ -44,19 +110,13 @@
           "type": "number"
         },
         "rot": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "color": {
           "type": "string"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -72,7 +132,7 @@
       ],
       "additionalProperties": false
     },
-    "circle": {
+    "9": {
       "type": "object",
       "properties": {
         "op": {
@@ -96,19 +156,13 @@
           "type": "number"
         },
         "rot": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "color": {
           "type": "string"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -124,1705 +178,7 @@
       ],
       "additionalProperties": false
     },
-    "underline": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "underline"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "x": {
-          "type": "number"
-        },
-        "y": {
-          "type": "number"
-        },
-        "w": {
-          "type": "number"
-        },
-        "color": {
-          "type": "string"
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "x",
-        "y",
-        "w",
-        "color",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "arrow": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "arrow"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "x1": {
-          "type": "number"
-        },
-        "y1": {
-          "type": "number"
-        },
-        "x2": {
-          "type": "number"
-        },
-        "y2": {
-          "type": "number"
-        },
-        "color": {
-          "type": "string"
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "x1",
-        "y1",
-        "x2",
-        "y2",
-        "color",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "poly": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "poly"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "pts": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
-        },
-        "color": {
-          "type": "string"
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "pts",
-        "color",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "point": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "point"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "x": {
-          "type": "number"
-        },
-        "y": {
-          "type": "number"
-        },
-        "color": {
-          "type": "string"
-        },
-        "cell": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "x",
-        "y",
-        "color",
-        "cell",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "trace": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "trace"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "pts": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
-        },
-        "head": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "color": {
-          "type": "string"
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "pts",
-        "head",
-        "color",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "label": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "label"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "x": {
-          "type": "number"
-        },
-        "y": {
-          "type": "number"
-        },
-        "text": {
-          "type": "string"
-        },
-        "color": {
-          "type": "string"
-        },
-        "size": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "x",
-        "y",
-        "text",
-        "color",
-        "size",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "card": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "card"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "x": {
-          "type": "number"
-        },
-        "y": {
-          "type": "number"
-        },
-        "w": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "title": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "rows": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "string"
-          }
-        },
-        "layout": {
-          "enum": [
-            "list",
-            "timeline",
-            "stat",
-            null
-          ]
-        },
-        "to": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "x",
-        "y",
-        "w",
-        "title",
-        "rows",
-        "layout",
-        "to",
-        "color",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "image": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "image"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "sx": {
-          "type": "number"
-        },
-        "sy": {
-          "type": "number"
-        },
-        "sw": {
-          "type": "number"
-        },
-        "sh": {
-          "type": "number"
-        },
-        "dx": {
-          "type": "number"
-        },
-        "dy": {
-          "type": "number"
-        },
-        "dw": {
-          "type": "number"
-        },
-        "caption": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "sx",
-        "sy",
-        "sw",
-        "sh",
-        "dx",
-        "dy",
-        "dw",
-        "caption",
-        "color",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "diagram": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "diagram"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "flow",
-            "timeline",
-            "steps",
-            "chart"
-          ]
-        },
-        "x": {
-          "type": "number"
-        },
-        "y": {
-          "type": "number"
-        },
-        "w": {
-          "type": "number"
-        },
-        "h": {
-          "type": "number"
-        },
-        "title": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "xlabel": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "ylabel": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "xrange": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
-        "yrange": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "kind",
-        "x",
-        "y",
-        "w",
-        "h",
-        "title",
-        "xlabel",
-        "ylabel",
-        "xrange",
-        "yrange",
-        "color",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "node": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "node"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "of": {
-          "type": "string"
-        },
-        "text": {
-          "type": "string"
-        },
-        "note": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "when": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "pos": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "of",
-        "text",
-        "note",
-        "when",
-        "pos",
-        "color",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "edge": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "edge"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "from": {
-          "type": "string"
-        },
-        "to": {
-          "type": "string"
-        },
-        "text": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "from",
-        "to",
-        "text",
-        "color",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "series": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "series"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "of": {
-          "type": "string"
-        },
-        "pts": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
-        },
-        "label": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "curve": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "of",
-        "pts",
-        "label",
-        "curve",
-        "color",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "dot": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "dot"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "of": {
-          "type": "string"
-        },
-        "x": {
-          "type": "number"
-        },
-        "y": {
-          "type": "number"
-        },
-        "text": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "of",
-        "x",
-        "y",
-        "text",
-        "color",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "tick": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "tick"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "done": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "done",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "panel": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "panel"
-          ]
-        },
-        "x": {
-          "type": "number"
-        },
-        "y": {
-          "type": "number"
-        },
-        "w": {
-          "type": "number"
-        },
-        "h": {
-          "type": "number"
-        },
-        "frame": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "x",
-        "y",
-        "w",
-        "h",
-        "frame",
-        "at",
-        "dur"
-      ],
-      "additionalProperties": false
-    },
-    "addSolid": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "add"
-          ]
-        },
-        "shape": {
-          "enum": [
-            "box",
-            "sphere",
-            "cylinder",
-            "cone",
-            "torus",
-            "plane"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "parent": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "pos": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
-        "size": {
-          "type": "array",
-          "items": {
-            "type": "number"
-          }
-        },
-        "rot": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "material": {
-          "enum": [
-            "plastic",
-            "metal",
-            "rubber",
-            "pcb",
-            "glass",
-            "glow",
-            "paper",
-            "tissue",
-            null
-          ]
-        },
-        "bevel": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "edges": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "opacity": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "shape",
-        "id",
-        "parent",
-        "pos",
-        "size",
-        "rot",
-        "color",
-        "material",
-        "bevel",
-        "edges",
-        "opacity",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "addExtrude": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "add"
-          ]
-        },
-        "shape": {
-          "enum": [
-            "extrude"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "parent": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "pos": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
-        "rot": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
-        "outline": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
-        },
-        "depth": {
-          "type": "number"
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "material": {
-          "enum": [
-            "plastic",
-            "metal",
-            "rubber",
-            "pcb",
-            "glass",
-            "glow",
-            "paper",
-            "tissue",
-            null
-          ]
-        },
-        "bevel": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "edges": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "opacity": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "shape",
-        "id",
-        "parent",
-        "pos",
-        "rot",
-        "outline",
-        "depth",
-        "color",
-        "material",
-        "bevel",
-        "edges",
-        "opacity",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "addLathe": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "add"
-          ]
-        },
-        "shape": {
-          "enum": [
-            "lathe"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "parent": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "pos": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
-        "rot": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
-        "profile": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
-        },
-        "sides": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "material": {
-          "enum": [
-            "plastic",
-            "metal",
-            "rubber",
-            "pcb",
-            "glass",
-            "glow",
-            "paper",
-            "tissue",
-            null
-          ]
-        },
-        "edges": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "opacity": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "shape",
-        "id",
-        "parent",
-        "pos",
-        "rot",
-        "profile",
-        "sides",
-        "color",
-        "material",
-        "edges",
-        "opacity",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "addLoft": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "add"
-          ]
-        },
-        "shape": {
-          "enum": [
-            "loft"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "parent": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "pos": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
-        "rot": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
-        "outline": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
-        },
-        "endOutline": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
-        },
-        "depth": {
-          "type": "number"
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "material": {
-          "enum": [
-            "plastic",
-            "metal",
-            "rubber",
-            "pcb",
-            "glass",
-            "glow",
-            "paper",
-            "tissue",
-            null
-          ]
-        },
-        "edges": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "opacity": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "shape",
-        "id",
-        "parent",
-        "pos",
-        "rot",
-        "outline",
-        "endOutline",
-        "depth",
-        "color",
-        "material",
-        "edges",
-        "opacity",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "addBlob": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "add"
-          ]
-        },
-        "shape": {
-          "enum": [
-            "blob"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "parent": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "pos": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
-        "rot": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
-        },
-        "pts": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
-        },
-        "sizes": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
-        },
-        "soft": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "material": {
-          "enum": [
-            "plastic",
-            "metal",
-            "rubber",
-            "pcb",
-            "glass",
-            "glow",
-            "paper",
-            "tissue",
-            null
-          ]
-        },
-        "opacity": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "shape",
-        "id",
-        "parent",
-        "pos",
-        "rot",
-        "pts",
-        "sizes",
-        "soft",
-        "color",
-        "material",
-        "opacity",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "addTube": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "add"
-          ]
-        },
-        "shape": {
-          "enum": [
-            "tube"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "parent": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "pts": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
-        },
-        "radius": {
-          "type": "number"
-        },
-        "flat": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "swell": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "material": {
-          "enum": [
-            "plastic",
-            "metal",
-            "rubber",
-            "pcb",
-            "glass",
-            "glow",
-            "paper",
-            "tissue",
-            null
-          ]
-        },
-        "draw": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "opacity": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "shape",
-        "id",
-        "parent",
-        "pts",
-        "radius",
-        "flat",
-        "swell",
-        "color",
-        "material",
-        "draw",
-        "opacity",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "addPath": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "add"
-          ]
-        },
-        "shape": {
-          "enum": [
-            "line",
-            "arrow"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "parent": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "pts": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "draw": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "opacity": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "shape",
-        "id",
-        "parent",
-        "pts",
-        "color",
-        "draw",
-        "opacity",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "addConnector": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "add"
-          ]
-        },
-        "shape": {
-          "enum": [
-            "connector"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "parent": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "from": {
-          "type": "string"
-        },
-        "to": {
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "straight",
-            "slack",
-            "wrapped",
-            null
-          ]
-        },
-        "fromSide": {
-          "enum": [
-            "left",
-            "right",
-            "top",
-            "bottom",
-            "front",
-            "back",
-            null
-          ]
-        },
-        "toSide": {
-          "enum": [
-            "left",
-            "right",
-            "top",
-            "bottom",
-            "front",
-            "back",
-            null
-          ]
-        },
-        "fromAnchor": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "toAnchor": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "sag": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "radius": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "color": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "material": {
-          "enum": [
-            "plastic",
-            "metal",
-            "rubber",
-            "pcb",
-            "glass",
-            "glow",
-            "paper",
-            "tissue",
-            null
-          ]
-        },
-        "draw": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "opacity": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "at": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "op",
-        "shape",
-        "id",
-        "parent",
-        "from",
-        "to",
-        "kind",
-        "fromSide",
-        "toSide",
-        "fromAnchor",
-        "toAnchor",
-        "sag",
-        "radius",
-        "color",
-        "material",
-        "draw",
-        "opacity",
-        "at"
-      ],
-      "additionalProperties": false
-    },
-    "addStream": {
+    "10": {
       "type": "object",
       "properties": {
         "op": {
@@ -1850,64 +206,34 @@
           ]
         },
         "count": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "size": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "color": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "toColor": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "shiftAt": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "period": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "by": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "ratio": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "opacity": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -1929,7 +255,7 @@
       ],
       "additionalProperties": false
     },
-    "addPart": {
+    "11": {
       "type": "object",
       "properties": {
         "op": {
@@ -1946,28 +272,19 @@
           "type": "string"
         },
         "parent": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
+        },
+        "parentAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "selfAnchor": {
+          "$ref": "#/$defs/1"
         },
         "pos": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/2"
         },
         "rot": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/2"
         },
         "part": {
           "enum": [
@@ -2010,34 +327,19 @@
           ]
         },
         "size": {
-          "type": "array",
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/6"
         },
         "n": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "color": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "opacity": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2045,6 +347,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "pos",
         "rot",
         "part",
@@ -2057,7 +361,7 @@
       ],
       "additionalProperties": false
     },
-    "addArray": {
+    "12": {
       "type": "object",
       "properties": {
         "op": {
@@ -2080,28 +384,13 @@
           "type": "number"
         },
         "step": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/2"
         },
         "turn": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/2"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2116,7 +405,7 @@
       ],
       "additionalProperties": false
     },
-    "addText": {
+    "13": {
       "type": "object",
       "properties": {
         "op": {
@@ -2133,19 +422,10 @@
           "type": "string"
         },
         "parent": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "pos": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/2"
         },
         "text": {
           "type": "string"
@@ -2157,10 +437,7 @@
           "type": "string"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2176,7 +453,7 @@
       ],
       "additionalProperties": false
     },
-    "addGroup": {
+    "14": {
       "type": "object",
       "properties": {
         "op": {
@@ -2193,34 +470,19 @@
           "type": "string"
         },
         "parent": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
+        },
+        "parentAnchor": {
+          "$ref": "#/$defs/1"
         },
         "pos": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/2"
         },
         "rot": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/2"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2228,13 +490,14 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
         "pos",
         "rot",
         "at"
       ],
       "additionalProperties": false
     },
-    "pin": {
+    "15": {
       "type": "object",
       "properties": {
         "op": {
@@ -2249,43 +512,22 @@
           "type": "string"
         },
         "point": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/2"
         },
         "anchor": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "text": {
           "type": "string"
         },
         "off": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/2"
         },
         "color": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2301,7 +543,7 @@
       ],
       "additionalProperties": false
     },
-    "move": {
+    "16": {
       "type": "object",
       "properties": {
         "op": {
@@ -2313,22 +555,13 @@
           "type": "string"
         },
         "to": {
-          "type": "array",
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/6"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2340,7 +573,7 @@
       ],
       "additionalProperties": false
     },
-    "along": {
+    "17": {
       "type": "object",
       "properties": {
         "op": {
@@ -2352,25 +585,13 @@
           "type": "string"
         },
         "pts": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
+          "$ref": "#/$defs/3"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2382,7 +603,7 @@
       ],
       "additionalProperties": false
     },
-    "turn": {
+    "18": {
       "type": "object",
       "properties": {
         "op": {
@@ -2394,22 +615,13 @@
           "type": "string"
         },
         "to": {
-          "type": "array",
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/6"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2421,7 +633,7 @@
       ],
       "additionalProperties": false
     },
-    "scale": {
+    "19": {
       "type": "object",
       "properties": {
         "op": {
@@ -2433,22 +645,13 @@
           "type": "string"
         },
         "to": {
-          "type": "array",
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/6"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2460,7 +663,1585 @@
       ],
       "additionalProperties": false
     },
-    "explode": {
+    "a": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "underline"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "color": {
+          "type": "string"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "w",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "b": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "arrow"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x1": {
+          "type": "number"
+        },
+        "y1": {
+          "type": "number"
+        },
+        "x2": {
+          "type": "number"
+        },
+        "y2": {
+          "type": "number"
+        },
+        "color": {
+          "type": "string"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "c": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "poly"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "pts": {
+          "$ref": "#/$defs/3"
+        },
+        "color": {
+          "type": "string"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "pts",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "d": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "point"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "color": {
+          "type": "string"
+        },
+        "cell": {
+          "$ref": "#/$defs/1"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "color",
+        "cell",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "e": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "trace"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "pts": {
+          "$ref": "#/$defs/3"
+        },
+        "head": {
+          "$ref": "#/$defs/4"
+        },
+        "color": {
+          "type": "string"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "pts",
+        "head",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "f": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "label"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "size": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "text",
+        "color",
+        "size",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "g": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "card"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "$ref": "#/$defs/0"
+        },
+        "title": {
+          "$ref": "#/$defs/1"
+        },
+        "rows": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "layout": {
+          "enum": [
+            "list",
+            "timeline",
+            "stat",
+            null
+          ]
+        },
+        "to": {
+          "$ref": "#/$defs/2"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "x",
+        "y",
+        "w",
+        "title",
+        "rows",
+        "layout",
+        "to",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "h": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "image"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "sx": {
+          "type": "number"
+        },
+        "sy": {
+          "type": "number"
+        },
+        "sw": {
+          "type": "number"
+        },
+        "sh": {
+          "type": "number"
+        },
+        "dx": {
+          "type": "number"
+        },
+        "dy": {
+          "type": "number"
+        },
+        "dw": {
+          "type": "number"
+        },
+        "caption": {
+          "$ref": "#/$defs/1"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "sx",
+        "sy",
+        "sw",
+        "sh",
+        "dx",
+        "dy",
+        "dw",
+        "caption",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "i": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "diagram"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "flow",
+            "timeline",
+            "steps",
+            "chart"
+          ]
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number"
+        },
+        "title": {
+          "$ref": "#/$defs/1"
+        },
+        "xlabel": {
+          "$ref": "#/$defs/1"
+        },
+        "ylabel": {
+          "$ref": "#/$defs/1"
+        },
+        "xrange": {
+          "$ref": "#/$defs/2"
+        },
+        "yrange": {
+          "$ref": "#/$defs/2"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "kind",
+        "x",
+        "y",
+        "w",
+        "h",
+        "title",
+        "xlabel",
+        "ylabel",
+        "xrange",
+        "yrange",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "j": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "node"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "of": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "note": {
+          "$ref": "#/$defs/1"
+        },
+        "when": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/0"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "of",
+        "text",
+        "note",
+        "when",
+        "pos",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "k": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "edge"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "text": {
+          "$ref": "#/$defs/1"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "from",
+        "to",
+        "text",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "l": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "series"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "of": {
+          "type": "string"
+        },
+        "pts": {
+          "$ref": "#/$defs/3"
+        },
+        "label": {
+          "$ref": "#/$defs/1"
+        },
+        "curve": {
+          "$ref": "#/$defs/4"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "of",
+        "pts",
+        "label",
+        "curve",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "m": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "dot"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "of": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "text": {
+          "$ref": "#/$defs/1"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "of",
+        "x",
+        "y",
+        "text",
+        "color",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "n": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "tick"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "done": {
+          "$ref": "#/$defs/4"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "done",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "o": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "panel"
+          ]
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number"
+        },
+        "frame": {
+          "$ref": "#/$defs/4"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        },
+        "dur": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "x",
+        "y",
+        "w",
+        "h",
+        "frame",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false
+    },
+    "p": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "box",
+            "sphere",
+            "cylinder",
+            "cone",
+            "torus",
+            "plane"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/2"
+        },
+        "size": {
+          "$ref": "#/$defs/6"
+        },
+        "rot": {
+          "$ref": "#/$defs/2"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "material": {
+          "$ref": "#/$defs/5"
+        },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
+        "bevel": {
+          "$ref": "#/$defs/0"
+        },
+        "edges": {
+          "$ref": "#/$defs/4"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "size",
+        "rot",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "bevel",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "q": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "extrude"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/2"
+        },
+        "rot": {
+          "$ref": "#/$defs/2"
+        },
+        "outline": {
+          "$ref": "#/$defs/3"
+        },
+        "taper": {
+          "$ref": "#/$defs/0"
+        },
+        "shift": {
+          "$ref": "#/$defs/2"
+        },
+        "holes": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "depth": {
+          "type": "number"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "material": {
+          "$ref": "#/$defs/5"
+        },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
+        "bevel": {
+          "$ref": "#/$defs/0"
+        },
+        "edges": {
+          "$ref": "#/$defs/4"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "outline",
+        "taper",
+        "shift",
+        "holes",
+        "depth",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "bevel",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "r": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "hull"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/2"
+        },
+        "rot": {
+          "$ref": "#/$defs/2"
+        },
+        "pts": {
+          "$ref": "#/$defs/3"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "material": {
+          "$ref": "#/$defs/5"
+        },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
+        "edges": {
+          "$ref": "#/$defs/4"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "pts",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "s": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "lathe"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/2"
+        },
+        "rot": {
+          "$ref": "#/$defs/2"
+        },
+        "profile": {
+          "$ref": "#/$defs/3"
+        },
+        "sweep": {
+          "$ref": "#/$defs/0"
+        },
+        "sides": {
+          "$ref": "#/$defs/0"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "material": {
+          "$ref": "#/$defs/5"
+        },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
+        "edges": {
+          "$ref": "#/$defs/4"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "profile",
+        "sweep",
+        "sides",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "t": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "patch"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/2"
+        },
+        "rot": {
+          "$ref": "#/$defs/2"
+        },
+        "pts": {
+          "$ref": "#/$defs/3"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "material": {
+          "$ref": "#/$defs/5"
+        },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
+        "edges": {
+          "$ref": "#/$defs/4"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "pts",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "u": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "sweep"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/2"
+        },
+        "rot": {
+          "$ref": "#/$defs/2"
+        },
+        "outline": {
+          "$ref": "#/$defs/3"
+        },
+        "pts": {
+          "$ref": "#/$defs/3"
+        },
+        "up": {
+          "$ref": "#/$defs/2"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "material": {
+          "$ref": "#/$defs/5"
+        },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
+        "edges": {
+          "$ref": "#/$defs/4"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "outline",
+        "pts",
+        "up",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "v": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "loft"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/2"
+        },
+        "rot": {
+          "$ref": "#/$defs/2"
+        },
+        "outline": {
+          "$ref": "#/$defs/3"
+        },
+        "endOutline": {
+          "$ref": "#/$defs/3"
+        },
+        "depth": {
+          "type": "number"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "material": {
+          "$ref": "#/$defs/5"
+        },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
+        "edges": {
+          "$ref": "#/$defs/4"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "outline",
+        "endOutline",
+        "depth",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "w": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "blob"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/2"
+        },
+        "rot": {
+          "$ref": "#/$defs/2"
+        },
+        "pts": {
+          "$ref": "#/$defs/3"
+        },
+        "sizes": {
+          "$ref": "#/$defs/3"
+        },
+        "soft": {
+          "$ref": "#/$defs/0"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "material": {
+          "$ref": "#/$defs/5"
+        },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "pts",
+        "sizes",
+        "soft",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "x": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "tube"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "pts": {
+          "$ref": "#/$defs/3"
+        },
+        "radius": {
+          "type": "number"
+        },
+        "flat": {
+          "$ref": "#/$defs/0"
+        },
+        "swell": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "closed": {
+          "$ref": "#/$defs/4"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "material": {
+          "$ref": "#/$defs/5"
+        },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
+        "draw": {
+          "$ref": "#/$defs/0"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pts",
+        "radius",
+        "flat",
+        "swell",
+        "closed",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "draw",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "y": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "line",
+            "arrow"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "pts": {
+          "$ref": "#/$defs/3"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "draw": {
+          "$ref": "#/$defs/0"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pts",
+        "color",
+        "draw",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "z": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "connector"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "straight",
+            "slack",
+            "wrapped",
+            null
+          ]
+        },
+        "fromSide": {
+          "$ref": "#/$defs/7"
+        },
+        "toSide": {
+          "$ref": "#/$defs/7"
+        },
+        "fromAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "toAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "sag": {
+          "$ref": "#/$defs/0"
+        },
+        "radius": {
+          "$ref": "#/$defs/0"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "material": {
+          "$ref": "#/$defs/5"
+        },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
+        "draw": {
+          "$ref": "#/$defs/0"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "from",
+        "to",
+        "kind",
+        "fromSide",
+        "toSide",
+        "fromAnchor",
+        "toAnchor",
+        "sag",
+        "radius",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "draw",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "1a": {
       "type": "object",
       "properties": {
         "op": {
@@ -2475,16 +2256,10 @@
           "type": "number"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2496,7 +2271,7 @@
       ],
       "additionalProperties": false
     },
-    "reveal": {
+    "1b": {
       "type": "object",
       "properties": {
         "op": {
@@ -2511,16 +2286,10 @@
           "type": "number"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2532,7 +2301,7 @@
       ],
       "additionalProperties": false
     },
-    "style": {
+    "1c": {
       "type": "object",
       "properties": {
         "op": {
@@ -2544,28 +2313,16 @@
           "type": "string"
         },
         "color": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "opacity": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2578,7 +2335,7 @@
       ],
       "additionalProperties": false
     },
-    "highlight": {
+    "1d": {
       "type": "object",
       "properties": {
         "op": {
@@ -2590,22 +2347,13 @@
           "type": "string"
         },
         "color": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2617,7 +2365,7 @@
       ],
       "additionalProperties": false
     },
-    "spin": {
+    "1e": {
       "type": "object",
       "properties": {
         "op": {
@@ -2629,28 +2377,16 @@
           "type": "string"
         },
         "rpm": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "by": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "ratio": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "phase": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "axis": {
           "enum": [
@@ -2661,16 +2397,10 @@
           ]
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2686,7 +2416,7 @@
       ],
       "additionalProperties": false
     },
-    "crank": {
+    "1f": {
       "type": "object",
       "properties": {
         "op": {
@@ -2695,37 +2425,22 @@
           ]
         },
         "piston": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "id": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "shaft": {
           "type": "string"
         },
         "rod": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "pin": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2739,7 +2454,7 @@
       ],
       "additionalProperties": false
     },
-    "cam": {
+    "1g": {
       "type": "object",
       "properties": {
         "op": {
@@ -2748,43 +2463,25 @@
           ]
         },
         "valve": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "id": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "by": {
           "type": "string"
         },
         "lift": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "open": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "phase": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2799,7 +2496,7 @@
       ],
       "additionalProperties": false
     },
-    "flash": {
+    "1h": {
       "type": "object",
       "properties": {
         "op": {
@@ -2820,16 +2517,10 @@
           "type": "number"
         },
         "cycle": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2843,7 +2534,7 @@
       ],
       "additionalProperties": false
     },
-    "loop": {
+    "1i": {
       "type": "object",
       "properties": {
         "op": {
@@ -2864,10 +2555,7 @@
           ]
         },
         "amount": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "axis": {
           "enum": [
@@ -2878,34 +2566,19 @@
           ]
         },
         "period": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "by": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "ratio": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "phase": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -2922,7 +2595,7 @@
       ],
       "additionalProperties": false
     },
-    "joint": {
+    "1j": {
       "type": "object",
       "properties": {
         "op": {
@@ -2949,46 +2622,22 @@
           ]
         },
         "dir": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/2"
         },
         "pivot": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "number"
-          }
+          "$ref": "#/$defs/2"
         },
         "min": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "max": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "to": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -3005,7 +2654,7 @@
       ],
       "additionalProperties": false
     },
-    "couple": {
+    "1k": {
       "type": "object",
       "properties": {
         "op": {
@@ -3017,40 +2666,22 @@
           "type": "string"
         },
         "by": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "ratio": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "pitch": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "phase": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "stop": {
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "$ref": "#/$defs/4"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -3065,7 +2696,7 @@
       ],
       "additionalProperties": false
     },
-    "cut": {
+    "1l": {
       "type": "object",
       "properties": {
         "op": {
@@ -3084,33 +2715,31 @@
             null
           ]
         },
+        "normal": {
+          "$ref": "#/$defs/2"
+        },
         "to": {
           "type": "number"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
         "op",
         "id",
         "axis",
+        "normal",
         "to",
         "at",
         "dur"
       ],
       "additionalProperties": false
     },
-    "orbit": {
+    "1m": {
       "type": "object",
       "properties": {
         "op": {
@@ -3125,16 +2754,10 @@
           "type": "number"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -3146,7 +2769,7 @@
       ],
       "additionalProperties": false
     },
-    "zoom": {
+    "1n": {
       "type": "object",
       "properties": {
         "op": {
@@ -3158,16 +2781,10 @@
           "type": "number"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -3178,7 +2795,7 @@
       ],
       "additionalProperties": false
     },
-    "focus": {
+    "1o": {
       "type": "object",
       "properties": {
         "op": {
@@ -3187,22 +2804,13 @@
           ]
         },
         "id": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "$ref": "#/$defs/1"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "dur": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -3213,7 +2821,7 @@
       ],
       "additionalProperties": false
     },
-    "wait": {
+    "1p": {
       "type": "object",
       "properties": {
         "op": {
@@ -3227,28 +2835,16 @@
           ]
         },
         "x": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "y": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "w": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         },
         "h": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -3261,7 +2857,7 @@
       ],
       "additionalProperties": false
     },
-    "go": {
+    "1q": {
       "type": "object",
       "properties": {
         "op": {
@@ -3301,7 +2897,7 @@
       ],
       "additionalProperties": false
     },
-    "clear": {
+    "1r": {
       "type": "object",
       "properties": {
         "op": {
@@ -3313,10 +2909,7 @@
           "type": "string"
         },
         "at": {
-          "type": [
-            "number",
-            "null"
-          ]
+          "$ref": "#/$defs/0"
         }
       },
       "required": [
@@ -3326,170 +2919,179 @@
       ],
       "additionalProperties": false
     },
-    "action": {
+    "1s": {
       "anyOf": [
         {
-          "$ref": "#/$defs/box"
+          "$ref": "#/$defs/8"
         },
         {
-          "$ref": "#/$defs/circle"
+          "$ref": "#/$defs/9"
         },
         {
-          "$ref": "#/$defs/underline"
+          "$ref": "#/$defs/a"
         },
         {
-          "$ref": "#/$defs/arrow"
+          "$ref": "#/$defs/b"
         },
         {
-          "$ref": "#/$defs/poly"
+          "$ref": "#/$defs/c"
         },
         {
-          "$ref": "#/$defs/point"
+          "$ref": "#/$defs/d"
         },
         {
-          "$ref": "#/$defs/trace"
+          "$ref": "#/$defs/e"
         },
         {
-          "$ref": "#/$defs/label"
+          "$ref": "#/$defs/f"
         },
         {
-          "$ref": "#/$defs/card"
+          "$ref": "#/$defs/g"
         },
         {
-          "$ref": "#/$defs/image"
+          "$ref": "#/$defs/h"
         },
         {
-          "$ref": "#/$defs/diagram"
+          "$ref": "#/$defs/i"
         },
         {
-          "$ref": "#/$defs/node"
+          "$ref": "#/$defs/j"
         },
         {
-          "$ref": "#/$defs/edge"
+          "$ref": "#/$defs/k"
         },
         {
-          "$ref": "#/$defs/series"
+          "$ref": "#/$defs/l"
         },
         {
-          "$ref": "#/$defs/dot"
+          "$ref": "#/$defs/m"
         },
         {
-          "$ref": "#/$defs/tick"
+          "$ref": "#/$defs/n"
         },
         {
-          "$ref": "#/$defs/panel"
+          "$ref": "#/$defs/o"
         },
         {
-          "$ref": "#/$defs/addSolid"
+          "$ref": "#/$defs/p"
         },
         {
-          "$ref": "#/$defs/addExtrude"
+          "$ref": "#/$defs/q"
         },
         {
-          "$ref": "#/$defs/addLathe"
+          "$ref": "#/$defs/r"
         },
         {
-          "$ref": "#/$defs/addLoft"
+          "$ref": "#/$defs/s"
         },
         {
-          "$ref": "#/$defs/addBlob"
+          "$ref": "#/$defs/t"
         },
         {
-          "$ref": "#/$defs/addTube"
+          "$ref": "#/$defs/u"
         },
         {
-          "$ref": "#/$defs/addPath"
+          "$ref": "#/$defs/v"
         },
         {
-          "$ref": "#/$defs/addConnector"
+          "$ref": "#/$defs/w"
         },
         {
-          "$ref": "#/$defs/addStream"
+          "$ref": "#/$defs/x"
         },
         {
-          "$ref": "#/$defs/addPart"
+          "$ref": "#/$defs/y"
         },
         {
-          "$ref": "#/$defs/addArray"
+          "$ref": "#/$defs/z"
         },
         {
-          "$ref": "#/$defs/addText"
+          "$ref": "#/$defs/10"
         },
         {
-          "$ref": "#/$defs/addGroup"
+          "$ref": "#/$defs/11"
         },
         {
-          "$ref": "#/$defs/pin"
+          "$ref": "#/$defs/12"
         },
         {
-          "$ref": "#/$defs/move"
+          "$ref": "#/$defs/13"
         },
         {
-          "$ref": "#/$defs/along"
+          "$ref": "#/$defs/14"
         },
         {
-          "$ref": "#/$defs/turn"
+          "$ref": "#/$defs/15"
         },
         {
-          "$ref": "#/$defs/scale"
+          "$ref": "#/$defs/16"
         },
         {
-          "$ref": "#/$defs/explode"
+          "$ref": "#/$defs/17"
         },
         {
-          "$ref": "#/$defs/reveal"
+          "$ref": "#/$defs/18"
         },
         {
-          "$ref": "#/$defs/style"
+          "$ref": "#/$defs/19"
         },
         {
-          "$ref": "#/$defs/highlight"
+          "$ref": "#/$defs/1a"
         },
         {
-          "$ref": "#/$defs/spin"
+          "$ref": "#/$defs/1b"
         },
         {
-          "$ref": "#/$defs/crank"
+          "$ref": "#/$defs/1c"
         },
         {
-          "$ref": "#/$defs/cam"
+          "$ref": "#/$defs/1d"
         },
         {
-          "$ref": "#/$defs/flash"
+          "$ref": "#/$defs/1e"
         },
         {
-          "$ref": "#/$defs/loop"
+          "$ref": "#/$defs/1f"
         },
         {
-          "$ref": "#/$defs/joint"
+          "$ref": "#/$defs/1g"
         },
         {
-          "$ref": "#/$defs/couple"
+          "$ref": "#/$defs/1h"
         },
         {
-          "$ref": "#/$defs/cut"
+          "$ref": "#/$defs/1i"
         },
         {
-          "$ref": "#/$defs/orbit"
+          "$ref": "#/$defs/1j"
         },
         {
-          "$ref": "#/$defs/zoom"
+          "$ref": "#/$defs/1k"
         },
         {
-          "$ref": "#/$defs/focus"
+          "$ref": "#/$defs/1l"
         },
         {
-          "$ref": "#/$defs/wait"
+          "$ref": "#/$defs/1m"
         },
         {
-          "$ref": "#/$defs/go"
+          "$ref": "#/$defs/1n"
         },
         {
-          "$ref": "#/$defs/clear"
+          "$ref": "#/$defs/1o"
+        },
+        {
+          "$ref": "#/$defs/1p"
+        },
+        {
+          "$ref": "#/$defs/1q"
+        },
+        {
+          "$ref": "#/$defs/1r"
         }
       ]
     },
-    "step": {
+    "1t": {
       "type": "object",
       "properties": {
         "say": {
@@ -3498,7 +3100,7 @@
         "actions": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/action"
+            "$ref": "#/$defs/1s"
           }
         }
       },

@@ -1,0 +1,132 @@
+// An offline discovery index over existing public built-ins, not new geometry or assemblies.
+import { PARTS, VARIANTS } from '../../src/scene/spec.ts';
+import type { ComponentCard } from './catalogue-retrieval.ts';
+
+type PartName = typeof PARTS[number];
+interface Description { summary: string; n?: string; variants?: string[] }
+const descriptions: Record<PartName, Description> = {
+  chip: { summary: 'Electronic package. Metal variant gives a metal top.', variants: ['black', 'metal'] },
+  header: { summary: 'Two rows of exposed electrical pins. n is pins per row.', n: 'pins per row' },
+  port: { summary: 'Electronic socket facing +z. Variant chooses the connector family; schematic, not dimensioned CAD.', variants: ['usb', 'usb3', 'ethernet', 'hdmi', 'usbc'] },
+  lens: { summary: 'Round lens facing +z.' },
+  screen: { summary: 'Rectangular display facing +z.' },
+  button: { summary: 'Round push button oriented along y.' },
+  fan: { summary: 'Fan blades around the y axis. n is blade count.', n: 'blades' },
+  wheel: { summary: 'Tyre and wheel around the z axis. n is spoke count.', n: 'spokes' },
+  'cylinder-block': { summary: 'Engine cylinder along y, with a round bore in x,z.', variants: ['cutaway', 'finned'] },
+  piston: { summary: 'Piston along y. Use ordinary crank actions for motion.' },
+  'connecting-rod': { summary: 'Rod along y with its small end up.' },
+  crankshaft: { summary: 'Crankshaft around z. n is throw count.', n: 'throws' },
+  valve: { summary: 'Valve along y with its head down.' },
+  camshaft: { summary: 'Camshaft around z. n is lobe count.', n: 'lobes' },
+  'spark-plug': { summary: 'Spark plug along y with its tip down.' },
+  gear: { summary: 'Toothed gear around z. n is tooth count. Motion is an ordinary spin or coupling action.', n: 'teeth' },
+  spring: { summary: 'Coil spring along y. n is coil count.', n: 'coils' },
+  bearing: { summary: 'Bearing around z. n is ball count.', n: 'balls' },
+  pipe: { summary: 'Straight pipe along y. For a custom curved path, use the ordinary tube primitive instead.' },
+  elbow: { summary: 'Pipe elbow oriented from the y axis.' },
+  housing: { summary: 'Mechanical housing along y, optionally cut away.', variants: ['cutaway'] },
+};
+
+// Maintained discovery vocabulary, not learned from user questions. Multiword aliases are
+// atomic, topics require browsing intent, and conflicts only qualify nearby single-word senses.
+const discovery: Record<PartName, { tags: string[]; topics: string[]; keywords?: string[]; conflicts?: string[] }> = {
+  chip: { tags: ['processor', 'microchip', 'integrated circuit', 'electronic package', 'processor chip', 'puce electronique', 'Mikrochip', '半導体チップ'], topics: ['electronics'], conflicts: ['potato', 'food', 'snack', 'poker', 'wood'] },
+  header: { tags: ['pin header', 'pin connector', 'two row pins', 'exposed electrical pins', 'electrical pins', 'Stiftleiste'], topics: ['electronics', 'connectors'], conflicts: ['page', 'document', 'website', 'heading', 'football'] },
+  port: { tags: ['usb', 'usb-c', 'usbc', 'ethernet', 'hdmi', 'socket', 'electronic socket', 'USB socket', 'USB port', 'connecteur usb', 'USB Anschluss'], topics: ['electronics', 'connectors'], conflicts: ['sea', 'harbour', 'harbor', 'ship', 'cargo', 'networking', 'tcp', 'wine', 'eye'] },
+  lens: { tags: ['camera lens', 'optical lens', 'lentille', 'Linse', 'lente', 'レンズ'], topics: ['optics', 'camera'], conflicts: ['contact', 'metaphor'] },
+  screen: { tags: ['display', 'monitor', 'LCD', 'electronic display', 'ecran', 'Bildschirm', 'pantalla', '画面'], topics: ['electronics'], conflicts: ['insect', 'mesh', 'privacy', 'sieve'] },
+  button: { tags: ['push button', 'pushbutton', 'physical switch', 'bouton poussoir', 'Druckknopf', 'pulsador', '押しボタン'], topics: ['electronics', 'controls'], conflicts: ['shirt', 'clothing', 'web', 'website', 'software'] },
+  fan: { tags: ['cooling fan', 'ventilation fan', 'fan blades', 'impeller', 'ventilateur', 'Lufter', 'ventilador', '冷却ファン'], topics: ['cooling'], conflicts: ['football', 'sports', 'supporter', 'celebrity'] },
+  wheel: { tags: ['tyre', 'tire', 'spoked wheel', 'rubber wheel', 'roue', 'Laufrad', 'rueda', '車輪'], topics: ['mechanical', 'vehicle'], conflicts: ['colour', 'color', 'roulette', 'pottery'] },
+  'cylinder-block': { tags: ['engine cylinder', 'cylinder bore', 'engine block', 'bloc cylindre', 'Zylinderblock', 'シリンダーブロック'], topics: ['engine', 'mechanical'] },
+  piston: { tags: ['engine plunger', 'sliding plunger', 'reciprocating piston', 'Kolben', 'piston de motor', 'ピストン'], topics: ['engine', 'mechanical'] },
+  'connecting-rod': { tags: ['conrod', 'connecting link', 'engine rod', 'piston rod', 'bielle', 'Pleuel', 'biela', 'コンロッド'], topics: ['engine', 'mechanical'] },
+  crankshaft: { tags: ['crank', 'crank shaft', 'offset throws', 'offset crank', 'vilebrequin', 'Kurbelwelle', 'ciguenal', 'クランクシャフト'], topics: ['engine', 'mechanical'] },
+  valve: { tags: ['poppet', 'engine valve', 'intake valve', 'exhaust valve', 'soupape', 'Ventil', 'valvula', 'バルブ'], topics: ['engine', 'mechanical'], conflicts: ['heart', 'cardiac'] },
+  camshaft: { tags: ['cam', 'cam shaft', 'lobed shaft', 'shaft with lobes', 'arbre a cames', 'Nockenwelle', 'arbol de levas', 'カムシャフト'], topics: ['engine', 'mechanical'] },
+  'spark-plug': { tags: ['ignition plug', 'sparkplug', 'bougie', 'Zundkerze', 'bujia', '点火プラグ'], topics: ['engine', 'ignition'] },
+  gear: { tags: ['cog', 'cogwheel', 'toothed wheel', 'engrenage', 'Zahnrad', 'rueda dentada', '歯車'], topics: ['mechanical', 'transmission'], conflicts: ['camping', 'clothing', 'outdoor', 'equipment'] },
+  spring: { tags: ['coil', 'coil spring', 'compression spring', 'helical spring', 'ressort', 'ressort helicoidal', 'Schraubenfeder', 'muelle', 'コイルばね'], topics: ['mechanical', 'suspension'], conflicts: ['season', 'flower', 'leaf', 'leaves', 'water', 'garden'] },
+  bearing: { tags: ['ball bearing', 'roller bearing', 'roulement', 'Kugellager', 'rodamiento', 'ベアリング'], topics: ['mechanical'], conflicts: ['compass', 'direction', 'navigation', 'north'] },
+  pipe: { tags: ['straight pipe', 'straight conduit', 'tuyau', 'Rohr', 'tuberia', 'パイプ'], topics: ['plumbing', 'mechanical'], conflicts: ['smoking', 'tobacco', 'unix', 'shell', 'software'] },
+  elbow: { tags: ['pipe elbow', 'pipe bend', 'right angle pipe', 'coude de tuyau', 'Rohrbogen', 'codo de tuberia', 'エルボ管'], topics: ['plumbing', 'mechanical'], conflicts: ['human', 'arm', 'forearm', 'anatomy', 'joint'] },
+  housing: { tags: ['casing', 'mechanical casing', 'protective casing', 'enclosure', 'boitier', 'Gehause', 'carcasa', '筐体'], topics: ['mechanical'], conflicts: ['affordable', 'apartment', 'residential', 'city', 'estate'] },
+};
+
+// Explicit descriptive evidence is separate from presentation prose and broad categories.
+// A single feature is not enough: the selector requires two distinct keyword matches.
+const keywords: Record<PartName, string[]> = {
+  chip: ['silicon', 'processor', 'processing', 'microprocessor', 'integrated', 'circuit', 'package', 'electronic'],
+  header: ['electrical', 'pin', 'pins', 'rows', 'exposed', 'connector', 'board'],
+  port: ['electrical', 'connector', 'cable', 'socket', 'receptacle', 'data', 'connection'],
+  lens: ['optical', 'optics', 'glass', 'camera', 'focus', 'light', 'circular'],
+  screen: ['visual', 'electronic', 'display', 'rectangular', 'preview', 'pixels', 'image'],
+  button: ['press', 'push', 'control', 'switch', 'round', 'actuator', 'physical'],
+  fan: ['cooling', 'air', 'airflow', 'ventilation', 'blades', 'rotor', 'impeller'],
+  wheel: ['rolling', 'tyre', 'tire', 'spokes', 'road', 'rubber', 'vehicle'],
+  'cylinder-block': ['engine', 'cylinder', 'bore', 'bored', 'finned', 'combustion', 'block'],
+  piston: ['plunger', 'sliding', 'reciprocating', 'combustion', 'compression', 'pressure', 'cylinder'],
+  'connecting-rod': ['link', 'linkage', 'connects', 'connecting', 'reciprocating', 'piston', 'crank', 'engine'],
+  crankshaft: ['shaft', 'rotation', 'rotating', 'offset', 'throws', 'journals', 'crank', 'reciprocating'],
+  valve: ['poppet', 'stem', 'mushroom', 'passage', 'intake', 'exhaust', 'gas', 'seals'],
+  camshaft: ['shaft', 'lobes', 'lobed', 'timing', 'valves', 'rotating', 'cam'],
+  'spark-plug': ['ignition', 'spark', 'electrode', 'electric', 'petrol', 'gasoline', 'combustion'],
+  gear: ['teeth', 'toothed', 'meshing', 'mesh', 'transmission', 'rotation', 'disc'],
+  spring: ['coil', 'coils', 'helical', 'elastic', 'compression', 'compresses', 'returns', 'suspension'],
+  bearing: ['rolling', 'balls', 'ball', 'roller', 'rings', 'axle', 'friction', 'shaft', 'support'],
+  pipe: ['straight', 'hollow', 'fluid', 'water', 'plumbing', 'conduit', 'pipework'],
+  elbow: ['bend', 'bends', 'fitting', 'angle', 'fluid', 'plumbing', 'pipework', 'direction'],
+  housing: ['protective', 'case', 'casing', 'enclosure', 'shell', 'cutaway', 'mechanical'],
+};
+
+// Each profile combines independent shape/function/context facts. Alternatives name a
+// concept, not a complete request. All groups in a profile are required on distinct spans.
+const descriptors: Record<PartName, NonNullable<ComponentCard['descriptors']>> = {
+  chip: [[['silicon', 'semiconductor', 'electronic'], ['process', 'compute', 'logic', 'integrated circuit']],
+    [['circuit', 'processor'], ['package', 'encapsulated', 'pins']]],
+  header: [[['pin', 'prong', 'contact'], ['row', 'array', 'exposed'], ['electrical', 'board', 'connector']]],
+  port: [[['cable', 'plug', 'connector'], ['socket', 'receptacle', 'insert', 'receive', 'opening']]],
+  lens: [[['glass', 'transparent', 'optical'], ['focus', 'concentrate', 'refract', 'magnify', 'bend light']]],
+  screen: [[['image', 'pixel', 'picture', 'video'], ['display', 'show', 'rectangular', 'panel']]],
+  button: [[['press', 'push', 'depress'], ['control', 'activate', 'switch', 'start', 'input']]],
+  fan: [[['air', 'airflow', 'ventilation', 'cooling'], ['rotate', 'spin', 'vane', 'blade', 'impeller']]],
+  wheel: [[['rubber', 'tyre', 'tire'], ['roll', 'spoke', 'axle', 'road']],
+    [['spoke'], ['roll', 'vehicle', 'road']]],
+  'cylinder-block': [[['bore', 'chamber', 'cylinder'], ['engine', 'combustion'], ['block', 'body', 'casting', 'fins']]],
+  piston: [[['slide', 'reciprocate', 'back and forth', 'up and down', 'plunger'], ['bore', 'cylinder', 'combustion', 'engine']]],
+  'connecting-rod': [[['link', 'connect', 'join'], ['piston', 'small end'], ['crank', 'big end']],
+    [['rod', 'linkage'], ['two eyes', 'two ends', 'small end']]],
+  crankshaft: [[['shaft', 'rotate', 'spin'], ['offset', 'throw', 'crank pin', 'journal']]],
+  valve: [[['mushroom', 'stem', 'poppet'], ['seal', 'passage', 'gas', 'intake', 'exhaust']]],
+  camshaft: [[['shaft', 'rotate', 'spin'], ['lobe', 'bump', 'eccentric']],
+    [['lobe', 'bump'], ['lift', 'timing', 'valve']]],
+  'spark-plug': [[['electric', 'electrical', 'spark', 'electrode'], ['ignite', 'ignition', 'combustion', 'petrol', 'gasoline', 'fuel']]],
+  gear: [[['tooth', 'teeth', 'serrated', 'toothed'], ['mesh', 'disc', 'transmission', 'engage']],
+    [['cog'], ['rotate', 'transfer', 'motion']]],
+  spring: [[['elastic', 'resilient', 'recover', 'return', 'compress'], ['helix', 'helical', 'coil', 'wound wire']]],
+  bearing: [[['ball', 'roller'], ['ring', 'race', 'friction', 'support']],
+    [['inner ring', 'outer ring'], ['rotate', 'roll', 'friction']]],
+  pipe: [[['hollow', 'tube', 'conduit'], ['straight', 'fluid', 'water', 'liquid', 'plumbing']]],
+  elbow: [[['tube', 'conduit', 'plumbing', 'fluid', 'pipe'], ['bend', 'right angle', 'corner', 'ninety degree']]],
+  housing: [[['protect', 'enclose', 'surround', 'cover'], ['mechanism', 'machinery', 'mechanical', 'internal parts']],
+    [['case', 'shell', 'enclosure'], ['protect', 'cutaway']]],
+};
+
+const fields = VARIANTS.find(v => v.name === 'addPart')!.fields;
+export const partCards: readonly ComponentCard[] = PARTS.map(part => {
+  const description = descriptions[part];
+  return {
+    id: part,
+    summary: description.summary,
+    ...discovery[part],
+    keywords: keywords[part],
+    descriptors: descriptors[part],
+    parameters: {
+      size: fields.size!,
+      ...(description.n ? { n: fields.n!, nMeaning: description.n, nNote: 'Validator bounds; individual renderers may use a narrower count range.' } : {}),
+      ...(description.variants ? { variant: { k: 'enum', values: description.variants, opt: true } } : {}),
+    },
+    example: { op: 'add', shape: 'part', part, id: 'example', size: [2, 2, 1] },
+  };
+});

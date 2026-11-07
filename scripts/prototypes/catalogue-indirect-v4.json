@@ -1,0 +1,624 @@
+[
+  {
+    "id": "iv4-001",
+    "query": "A small black rectangle with metal legs all around, the computing part on a circuit board.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "chip"
+    ],
+    "rationale": "The packaged computing device with surrounding leads is an integrated electronic package."
+  },
+  {
+    "id": "iv4-002",
+    "query": "Two neat parallel ranks of bare metal posts for plugging a daughterboard onto a circuit.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "header"
+    ],
+    "rationale": "Two exposed electrical pin rows identify the board interconnect."
+  },
+  {
+    "id": "iv4-003",
+    "query": "The little socket on a laptop edge where a wired network cable clicks into place.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "port"
+    ],
+    "rationale": "A wired network cable receptacle is an Ethernet socket."
+  },
+  {
+    "id": "iv4-004",
+    "query": "A circular glass piece that brings incoming light into focus inside a camera.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "lens"
+    ],
+    "rationale": "The requested depicted object is a round focusing optical element."
+  },
+  {
+    "id": "iv4-005",
+    "query": "A flat rectangular face that lights up to show readings on a handheld instrument.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "screen"
+    ],
+    "rationale": "The illuminated readout face is a rectangular display."
+  },
+  {
+    "id": "iv4-006",
+    "query": "A round cap you press down to start the machine, with travel along the vertical y direction.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "button"
+    ],
+    "rationale": "A round manually pressed actuator with the specified travel matches the pushbutton."
+  },
+  {
+    "id": "iv4-007",
+    "query": "A cluster of blades spinning behind a grille to move hot air away from electronics.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "fan"
+    ],
+    "rationale": "The requested cooling airflow rotor is a fan; the grille is only context."
+  },
+  {
+    "id": "iv4-008",
+    "query": "A rubber ring with spokes and a central hub, supporting a small cart as it rolls.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "wheel"
+    ],
+    "rationale": "The rubber tire and spokes describe a road wheel."
+  },
+  {
+    "id": "iv4-009",
+    "query": "A chunky engine body with a circular bore through which the moving plunger travels.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "cylinder-block"
+    ],
+    "rationale": "The bore-containing engine body is requested; its moving plunger is contextual."
+  },
+  {
+    "id": "iv4-010",
+    "query": "The metal slug that slides up and down inside an engine bore as combustion pushes it.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "piston"
+    ],
+    "rationale": "The reciprocating combustion-driven slug is a piston."
+  },
+  {
+    "id": "iv4-011",
+    "query": "The narrow link with a hole at each end joining the reciprocating slug to the rotating engine shaft.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "connecting-rod"
+    ],
+    "rationale": "The connecting member, rather than the contextual endpoints, is the target."
+  },
+  {
+    "id": "iv4-012",
+    "query": "An engine shaft with offset journals that turns repeated up and down motion into rotation.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "crankshaft"
+    ],
+    "rationale": "Offset journals converting reciprocation characterize a crankshaft."
+  },
+  {
+    "id": "iv4-013",
+    "query": "A long slender stem ending in a mushroom head that seals a combustion chamber opening.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "valve"
+    ],
+    "rationale": "The mushroom-ended sealing stem is an engine poppet valve."
+  },
+  {
+    "id": "iv4-014",
+    "query": "The long rotating engine shaft whose spaced egg-shaped bumps open the intake and exhaust hardware on schedule.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "camshaft"
+    ],
+    "rationale": "Spaced timing lobes identify a camshaft."
+  },
+  {
+    "id": "iv4-015",
+    "query": "A threaded ignition piece with a white ceramic neck and a tiny electrode gap at its tip.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "spark-plug"
+    ],
+    "rationale": "The ceramic-insulated threaded ignition electrode is a spark plug."
+  },
+  {
+    "id": "iv4-016",
+    "query": "A circular metal disc with evenly spaced teeth around its rim for meshing with another disc.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "gear"
+    ],
+    "rationale": "A toothed meshing disc is a gear."
+  },
+  {
+    "id": "iv4-017",
+    "query": "A length of wire wound into a helix that squashes under load and returns when released.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "spring"
+    ],
+    "rationale": "The elastic helical wire is a coil spring."
+  },
+  {
+    "id": "iv4-018",
+    "query": "Two concentric metal rings with small rolling balls trapped between them to let an axle turn smoothly.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "bearing"
+    ],
+    "rationale": "Rolling balls between concentric races identify a bearing."
+  },
+  {
+    "id": "iv4-019",
+    "query": "A straight tube open at both ends to carry coolant between two tanks.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "pipe"
+    ],
+    "rationale": "The requested straight hollow fluid conduit is a pipe."
+  },
+  {
+    "id": "iv4-020",
+    "query": "A hollow plumbing fitting that turns the water path through exactly ninety degrees.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "elbow"
+    ],
+    "rationale": "A right-angle fluid conduit fitting is an elbow."
+  },
+  {
+    "id": "iv4-021",
+    "query": "The rigid outer shell enclosing a gearbox, without any of the moving pieces inside.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "housing"
+    ],
+    "rationale": "An enclosing mechanical shell is a housing; contents are excluded."
+  },
+  {
+    "id": "iv4-022",
+    "query": "Show the toothed disc and the ball-filled ring that supports its rotating axle.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "gear",
+      "bearing"
+    ],
+    "rationale": "Both the meshing disc and its rolling support are useful depicted families."
+  },
+  {
+    "id": "iv4-023",
+    "query": "A cooling rotor mounted beside the black many-legged processor package.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "fan",
+      "chip"
+    ],
+    "rationale": "The requested assembly includes the cooling blades and integrated electronic package."
+  },
+  {
+    "id": "iv4-024",
+    "query": "The engine plunger together with its two-ended link, separated so their connection is clear.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "piston",
+      "connecting-rod"
+    ],
+    "rationale": "Both the reciprocating slug and the link are requested."
+  },
+  {
+    "id": "iv4-025",
+    "query": "A rectangular readout next to a round press-to-start control.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "screen",
+      "button"
+    ],
+    "rationale": "The requested controls comprise a display and a round pushbutton."
+  },
+  {
+    "id": "iv4-026",
+    "query": "A straight coolant tube joined to a ninety-degree bend.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "pipe",
+      "elbow"
+    ],
+    "rationale": "Both the straight conduit and right-angle fitting are requested."
+  },
+  {
+    "id": "iv4-027",
+    "query": "A mushroom-headed combustion seal with a helical return coil around its stem.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "valve",
+      "spring"
+    ],
+    "rationale": "The described mechanism includes an engine poppet valve and coil spring."
+  },
+  {
+    "id": "iv4-028",
+    "query": "The bore-containing engine casting and the threaded ceramic ignition electrode above it.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "cylinder-block",
+      "spark-plug"
+    ],
+    "rationale": "Both the engine bore body and ignition electrode are depicted targets."
+  },
+  {
+    "id": "iv4-029",
+    "query": "A protective mechanical shell surrounding a rotating shaft with several timing lobes.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "housing",
+      "camshaft"
+    ],
+    "rationale": "The enclosing casing and lobed timing shaft are both requested."
+  },
+  {
+    "id": "iv4-030",
+    "query": "Two offset engine throws on a rotating shaft beside a spoked rubber road disc.",
+    "category": "indirect",
+    "language": "en",
+    "relevantIds": [
+      "crankshaft",
+      "wheel"
+    ],
+    "rationale": "Offset engine throws imply a crankshaft; the separate rubber spoked disc is a wheel."
+  },
+  {
+    "id": "iv4-031",
+    "query": "A clay flowerpot with a drainage hole and a saucer.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "A plant container is outside the listed schematic families."
+  },
+  {
+    "id": "iv4-032",
+    "query": "A kitchen whisk made of several looping wires.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "Wire loops used for mixing are not an elastic coil spring."
+  },
+  {
+    "id": "iv4-033",
+    "query": "A potato chip with a curled golden edge.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "The food sense of chip does not depict electronics."
+  },
+  {
+    "id": "iv4-034",
+    "query": "A harbour port with cranes and cargo ships.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "A maritime port is not an electronic cable socket."
+  },
+  {
+    "id": "iv4-035",
+    "query": "A document header with a logo and page number.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "The page-layout meaning of header has no electrical pin rows."
+  },
+  {
+    "id": "iv4-036",
+    "query": "A cinema screen made from hanging white fabric.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "A projection cloth is not the rectangular electronic display family."
+  },
+  {
+    "id": "iv4-037",
+    "query": "A flower bud shaped like a little button on a stem.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "The botanical resemblance does not request a pushbutton."
+  },
+  {
+    "id": "iv4-038",
+    "query": "A football fan waving a scarf in the stadium.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "A human supporter is not a cooling-blade rotor."
+  },
+  {
+    "id": "iv4-039",
+    "query": "A diagram of the spring season with budding branches.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "The season does not imply an elastic coil."
+  },
+  {
+    "id": "iv4-040",
+    "query": "A compass showing the bearing from north to a distant lighthouse.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "Directional bearing is not a rolling-element support."
+  },
+  {
+    "id": "iv4-041",
+    "query": "A bent human elbow with the upper arm and forearm.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "An anatomical joint is not a fluid fitting."
+  },
+  {
+    "id": "iv4-042",
+    "query": "A tobacco pipe with a carved bowl and curved mouthpiece.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "A smoking implement is not the straight fluid conduit offered."
+  },
+  {
+    "id": "iv4-043",
+    "query": "A housing estate with six detached homes.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "Residential housing does not request a mechanical casing."
+  },
+  {
+    "id": "iv4-044",
+    "query": "A butterfly valve with a flat rotating disc inside a water main.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "A butterfly flow-control assembly is not the available mushroom engine valve."
+  },
+  {
+    "id": "iv4-045",
+    "query": "A hydraulic ram with an extending polished rod and sealed barrel.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "The complete hydraulic actuator is not the reciprocating engine plunger family."
+  },
+  {
+    "id": "iv4-046",
+    "query": "A rechargeable battery with two terminals and a charge indicator sticker.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "Battery storage is unsupported; terminals alone do not imply a two-row header."
+  },
+  {
+    "id": "iv4-047",
+    "query": "A flexible toothed belt stretched between two smooth rollers.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "Neither a belt nor smooth rollers are the toothed disc gear family."
+  },
+  {
+    "id": "iv4-048",
+    "query": "A socket wrench with a ratcheting handle and interchangeable hex heads.",
+    "category": "absent",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "A mechanical tool socket is not an electronic cable receptacle."
+  },
+  {
+    "id": "iv4-049",
+    "query": "A camera focusing glass beside a tripod and a cloth carrying bag.",
+    "category": "mixed",
+    "language": "en",
+    "relevantIds": [
+      "lens"
+    ],
+    "rationale": "The round focusing optic is supported; tripod and bag are not."
+  },
+  {
+    "id": "iv4-050",
+    "query": "A rubber cart wheel with a brake caliper gripping a separate smooth disc.",
+    "category": "mixed",
+    "language": "en",
+    "relevantIds": [
+      "wheel"
+    ],
+    "rationale": "The road wheel is supported; brake caliper and brake disc are not gear families."
+  },
+  {
+    "id": "iv4-051",
+    "query": "A USB socket beside a battery and a flexible charging cable.",
+    "category": "mixed",
+    "language": "en",
+    "relevantIds": [
+      "port"
+    ],
+    "rationale": "Only the electronic cable socket is represented by a listed family."
+  },
+  {
+    "id": "iv4-052",
+    "query": "A ball bearing, a threaded bolt and a hexagonal nut laid out separately.",
+    "category": "mixed",
+    "language": "en",
+    "relevantIds": [
+      "bearing"
+    ],
+    "rationale": "The rolling-element support is available; fasteners are not."
+  },
+  {
+    "id": "iv4-053",
+    "query": "A piston and connecting rod beside a fuel injector and rubber gasket.",
+    "category": "mixed",
+    "language": "en",
+    "relevantIds": [
+      "piston",
+      "connecting-rod"
+    ],
+    "rationale": "Two engine linkage parts are supported; injector and gasket are not."
+  },
+  {
+    "id": "iv4-054",
+    "query": "A cooling fan beside a copper fin stack, with a rectangular display above them.",
+    "category": "mixed",
+    "language": "en",
+    "relevantIds": [
+      "fan",
+      "screen"
+    ],
+    "rationale": "Cooling blades and electronic display are supported; the fin stack is not a separate family."
+  },
+  {
+    "id": "iv4-055",
+    "query": "Show a chip and a two-row electrical header.",
+    "category": "direct",
+    "language": "en",
+    "relevantIds": [
+      "chip",
+      "header"
+    ],
+    "rationale": "Direct electronic-package and exposed-pin-row controls."
+  },
+  {
+    "id": "iv4-056",
+    "query": "Put a lens above a screen and a round pushbutton.",
+    "category": "direct",
+    "language": "en",
+    "relevantIds": [
+      "lens",
+      "screen",
+      "button"
+    ],
+    "rationale": "Direct optical, display and pushbutton controls."
+  },
+  {
+    "id": "iv4-057",
+    "query": "Arrange a crankshaft, connecting rod and piston as three separate engine pieces.",
+    "category": "direct",
+    "language": "en",
+    "relevantIds": [
+      "crankshaft",
+      "connecting-rod",
+      "piston"
+    ],
+    "rationale": "Three directly named engine mechanism families are requested."
+  },
+  {
+    "id": "iv4-058",
+    "query": "Place a gear, coil spring and ball bearing next to one another.",
+    "category": "direct",
+    "language": "en",
+    "relevantIds": [
+      "gear",
+      "spring",
+      "bearing"
+    ],
+    "rationale": "Three directly named mechanical families are requested."
+  },
+  {
+    "id": "iv4-059",
+    "query": "Show a pipe, right-angle elbow and mechanical housing.",
+    "category": "direct",
+    "language": "en",
+    "relevantIds": [
+      "pipe",
+      "elbow",
+      "housing"
+    ],
+    "rationale": "Direct conduit, fluid bend and enclosing-casing controls."
+  },
+  {
+    "id": "iv4-060",
+    "query": "Show only the ceramic-topped ignition electrode, not the engine block mentioned in the caption.",
+    "category": "negation",
+    "language": "en",
+    "relevantIds": [
+      "spark-plug"
+    ],
+    "rationale": "Only the ignition component is requested; engine body is explicitly excluded context."
+  },
+  {
+    "id": "iv4-061",
+    "query": "No wheels or gears; I want a rubber belt with a buckle.",
+    "category": "negation",
+    "language": "en",
+    "relevantIds": [],
+    "rationale": "Both potentially supported rotating families are excluded; the target belt is unsupported."
+  },
+  {
+    "id": "iv4-062",
+    "query": "The title says camshaft, but depict only a straight coolant conduit with open ends.",
+    "category": "negation",
+    "language": "en",
+    "relevantIds": [
+      "pipe"
+    ],
+    "rationale": "The title is context; the actual depicted target is a straight fluid conduit."
+  },
+  {
+    "id": "iv4-063",
+    "query": "A rectangular electronic readout without its round push controls or outer casing.",
+    "category": "negation",
+    "language": "en",
+    "relevantIds": [
+      "screen"
+    ],
+    "rationale": "Only the display is requested; button and housing are excluded."
+  },
+  {
+    "id": "iv4-064",
+    "query": "Do not draw the electrical socket. Draw the two parallel rows of exposed contact pins instead.",
+    "category": "negation",
+    "language": "en",
+    "relevantIds": [
+      "header"
+    ],
+    "rationale": "The cable port is excluded and the exposed two-row electrical header is requested."
+  }
+]

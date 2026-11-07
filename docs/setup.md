@@ -11,9 +11,11 @@ npm start        # builds, then starts the app in the tray
 
 On first launch, choose a model route and check that hearing is available. Codex and Claude Code must already be installed and signed in; the API-key route needs your key, and the local route needs a running vision-model server. See [model routes](#choose-how-it-runs-your-model) and [Speech](#speech). A paid model route can use your allowance or incur API charges when you ask a question.
 
+**Try it before setup:** choose **Explore examples** on the welcome screen, or **Explore visual examples…** from the tray at any time. The offline explorer has four built-in explanations: a web request, a recipe, supply and demand, and a timeline. Choose an example, then use **Next step**, **Back** or **Restart example** to read and inspect it at your own pace. It uses the real diagram renderer in its own window and makes no model request, recording, screen capture or download. Closing it leaves setup unchanged. These are hand-written examples, not a test of your model or speech setup.
+
 To check the overlay before connecting a model or microphone, choose **Play a sample scene** from the tray. It draws a built-in scene without asking a model or recording a question. If anything fails, start with [Troubleshooting](troubleshooting.md).
 
-Hold **Right Ctrl + Right Shift** (or the single key or chord you chose in *Settings*), ask out loud, let go. The overlay answers on the screen you were looking at. The tray icon has *Settings…*, *Play a sample scene*, *Clear the overlay* and *Quit*.
+Hold **Right Ctrl + Right Shift** (or the single key or chord you chose in *Settings*), ask out loud, let go. The overlay answers on the screen you were looking at. The tray icon has *Settings…*, *Explore visual examples…*, *Play a sample scene*, *Clear the overlay* and *Quit*.
 
 ### Building the installer
 

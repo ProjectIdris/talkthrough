@@ -31,6 +31,7 @@ import { createOverlayManager } from './overlay-windows.ts';
 import { createPins } from './pins.ts';
 import { createPrefs } from './prefs.ts';
 import { createSamplePlayer } from './samples.ts';
+import { createVisualTourWindow } from './visual-tour-window.ts';
 import { createSession } from './session.ts';
 import { createSettingsWindow } from './settings-window.ts';
 import { createGuideNavigation } from './guide-nav.ts';
@@ -304,7 +305,15 @@ async function main(): Promise<void> {
       return { ok: false, message: 'The microphone could not be used. Check that Windows allows it, or choose another in Settings.' };
     }
   };
+  const visualTour = createVisualTourWindow({
+    samplesDir: join(app.getAppPath(), 'samples', 'scenes'),
+    page: join(__dirname, '..', 'tour', 'index.html'),
+    preload: join(__dirname, 'visual-tour-preload.cjs'),
+    overlayPage: join(__dirname, '..', 'overlay', 'index.html'),
+    overlayPreload: preload,
+  });
   const settingsWindow = createSettingsWindow({
+    onVisualTour: () => visualTour.open(),
     onSaved: (form) => {
       skipList = form.captureBlocklist;
       if (skipList.length > 0) void frontReader.read().catch(() => undefined);
@@ -574,6 +583,7 @@ async function main(): Promise<void> {
     overlays.dispose();
     media.dispose();
     settingsWindow.dispose();
+    visualTour.dispose();
     frontReader.dispose();
     trayStatus.dispose();
     tray.destroy();
@@ -587,6 +597,7 @@ async function main(): Promise<void> {
       overlays.clearAll();
       session?.reset();
     },
+    onVisualTour: () => visualTour.open(),
     onPlaySample: () => playSample(screen.getPrimaryDisplay().id),
     onSettings: () => settingsWindow.open(),
     hotkeyLabel: chord.label,
