@@ -313,6 +313,15 @@ export const VARIANTS: readonly Variant[] = [
     },
   },
   {
+    name: 'addPatch', op: 'add', shapes: ['patch'], creates: 'solid',
+    doc: 'An open bicubic Bézier sheet: exactly 16 controls [x,y,z], four rows of four in row-major order. Each row runs across u; rows advance v. Corners lie on the sheet; other controls pull its curvature, not interpolation points. Curved panels, canopies, membranes. Two-sided, no thickness or solid cut cap. Use a regular net without folds or collapsed rows.',
+    fields: {
+      shape: { k: 'enum', values: ['patch'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      pts: { k: 'pts', min: 16, max: 16, lo: WORLD.min, hi: WORLD.max, doc: 'exactly 16 finite controls in -100..100; never trimmed or clamped; numerically unsafe sampled nets are rejected' },
+      color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
+    },
+  },
+  {
     name: 'addBlob', op: 'add', shapes: ['blob'], creates: 'solid',
     doc: 'A soft organic form blended from up to 12 ellipsoid lumps, each at a point of pts with its own box size [x,y,z] in sizes (the same count, or the last is repeated): a heart or other organ, a fruit, an animal body or head, a leaf. Lumps that overlap melt into one skin with smooth necks; soft (0.05 to 1, default 0.5) is how far they blend. Build one form per blob and join forms with tube.',
     fields: {

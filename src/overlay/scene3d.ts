@@ -11,7 +11,7 @@ import { taperedExtrudeEdges, taperedExtrudeGeometry } from './tapered-extrusion
 import {
   AmbientLight, Box3, BufferGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight, EdgesGeometry, Euler,
   FrontSide, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Material, Matrix4, Mesh, MeshBasicMaterial, Object3D,
-  PerspectiveCamera, PlaneGeometry, Raycaster, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3,
+  DoubleSide, PerspectiveCamera, PlaneGeometry, Raycaster, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3,
 } from 'three';
 import type { Texture } from 'three';
 import type { AddAction, SurfaceFinish, Vec3 } from '../scene/types.ts';
@@ -30,6 +30,8 @@ import type { Piece } from './parts.ts';
 import type { FocusFrame, Frame, ObjectFrame, Rgb } from './timeline.ts';
 import { spreadPosition, userOffsets } from './explode.ts';
 import type { Part } from './explode.ts';
+import { PATCH_SEGMENTS } from '../scene/patch.ts';
+import { patchGeometry, patchEdges } from './patch.ts';
 import { Cutaway } from './cutaway.ts';
 import { latheSectorEdges, latheSectorGeometry } from './lathe-sector.ts';
 import { buildConnector, buildStream, updateAttached, updateConnectors, updateStreams } from './scene3d-flow.ts';
@@ -227,6 +229,7 @@ export class PanelScene {
     };
     const addMesh: AddMesh = (geo, surfaceName, edges) => {
       const surface = makeSurface(surfaceName, settings, finish);
+      if (def.shape === 'patch') { surface.side = DoubleSide; surface.forceSinglePass = true; }
       if (geo.getAttribute('color')) surface.vertexColors = true;
       const mesh = new Mesh(geo, surface);
       mesh.castShadow = settings.shadows;
@@ -236,7 +239,7 @@ export class PanelScene {
       node.materials.push(surface);
       const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'hull' || def.shape === 'torus' || (def.shape === 'lathe' && def.sweep != null);
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
-      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.primitiveKey(def), def.shape === 'lathe' && def.sweep != null ? 'sector' : def.shape === 'extrude' && (def.taper != null || def.shift != null) ? 'tapered' : undefined);
+      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.primitiveKey(def), def.shape === 'lathe' && def.sweep != null ? 'sector' : def.shape === 'extrude' && (def.taper != null || def.shift != null) ? 'tapered' : def.shape === 'patch' ? 'patch' : undefined);
       node.pieces.push(piece);
       return mesh;
     };
@@ -275,7 +278,7 @@ export class PanelScene {
     return JSON.stringify([this.tier, def.shape, solid.size, def.shape === 'box' ? solid.bevel ?? defaultBevel(solid.size) : null]);
   }
 
-  private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string, boundary?: 'sector' | 'tapered'): LineSegments {
+  private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string, boundary?: 'sector' | 'tapered' | 'patch'): LineSegments {
     const mat = new LineBasicMaterial({ color: 0x10131a, transparent: true, opacity: 0.5 });
     let outline: BufferGeometry;
     const existing = key && this.sharedEdges.get(key);
@@ -288,7 +291,7 @@ export class PanelScene {
       generated.dispose();
       this.sharedEdges.set(key, { geometry: outline, refs: 1 });
       this.edgeKeys.set(outline, key);
-    } else outline = boundary === 'sector' ? latheSectorEdges(geo) : boundary === 'tapered' ? taperedExtrudeEdges(geo) : creaseGeometry(geo);
+    } else outline = boundary === 'sector' ? latheSectorEdges(geo) : boundary === 'tapered' ? taperedExtrudeEdges(geo) : boundary === 'patch' ? patchEdges(geo, PATCH_SEGMENTS[this.tier]) : creaseGeometry(geo);
     const lines = new LineSegments(outline, mat);
     mesh.add(lines);
     node.geometries.push(lines.geometry);
@@ -345,6 +348,7 @@ export class PanelScene {
         const [sx, sy] = (def as { size: Vec3 }).size;
         return new PlaneGeometry(sx, sy);
       }
+      case 'patch': return patchGeometry(def.pts, PATCH_SEGMENTS[this.tier]);
       case 'extrude': {
         const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number; holes?: Array<Array<[number, number]>>; taper?: number; shift?: [number, number] };
         if (e.taper != null || e.shift != null) return taperedExtrudeGeometry(e.outline, e.depth, e.taper ?? 1, e.shift ?? [0, 0]);

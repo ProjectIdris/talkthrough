@@ -9,6 +9,7 @@ import { PanelScene } from '../src/overlay/scene3d.ts';
 const finish = { roughness: 0.17, metalness: 0.63, clearcoat: 0.82, clearcoatRoughness: 0.09 };
 const square = [[-1,-1],[1,-1],[1,1],[-1,1]];
 const shapes: Record<string, Record<string, unknown>> = {
+  patch: { pts: Array.from({ length: 16 }, (_, i) => [i % 4 - 1.5, Math.floor(i / 4) - 1.5, 0.2 * (i % 4 - 1.5) * (Math.floor(i / 4) - 1.5)]) },
   hull: { pts: [[-1,-1,-1],[1,-1,-1],[0,1,-1],[0,0,1]] },
 };
 const meshOf = (panel: PanelScene, key: number): Mesh => {
