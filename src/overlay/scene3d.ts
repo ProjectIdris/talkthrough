@@ -173,7 +173,6 @@ export class PanelScene {
     this.light.castShadow = settings.shadows;
     this.light.shadow.mapSize.set(settings.shadowMapSize, settings.shadowMapSize);
     this.light.shadow.bias = -0.0004;
-    this.light.shadow.normalBias = 0.03;
     this.light.shadow.radius = settings.shadowMapSize >= 2048 ? 10 : 5; // the shadow map is sampled over a disc: wider on the big map so the edge is soft, not hard
     this.scene.add(this.light, this.light.target);
 
@@ -787,7 +786,7 @@ export class PanelScene {
   }
 
   /**
-   * Where everything drawn is on screen: the box of every visible mesh, line or sprite in the scene (the floor and its shadow blob are the shadow's own rectangle),
+   * Where everything drawn is on screen: the box of every visible mesh, line or sprite, including the actual shadow receiver and blob,
    * projected corner by corner. A box is roomier than the thing in it and never smaller. Something at or behind the camera could be anywhere on screen, so the
    * whole window is then given.
    */
@@ -798,7 +797,7 @@ export class PanelScene {
     const inv = this.camera.matrixWorldInverse;
     let anywhere = false;
     this.scene.traverseVisible((o) => {
-      if (o === this.floor || o === this.blob || !((o as Mesh).isMesh || (o as LineSegments).isLineSegments || (o as Sprite).isSprite)) return;
+      if (!((o as Mesh).isMesh || (o as LineSegments).isLineSegments || (o as Sprite).isSprite)) return;
       box.setFromObject(o);
       if (box.isEmpty()) return;
       for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
@@ -866,7 +865,7 @@ export class PanelScene {
     this.box.makeEmpty();
     this.hasBox = false;
     // How solid the model is, by its biggest part: a shadow under a see-through shell would grey the layers inside it.
-    let biggest = 0, solidity = 1;
+    let biggest = 0, solidity = 1, smallestRadius = Infinity;
     for (const node of this.nodes.values()) {
       if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
       const b = new Box3().setFromObject(node.obj);
@@ -874,6 +873,7 @@ export class PanelScene {
         this.box.union(b);
         this.hasBox = true;
         const sz = b.getSize(new Vector3());
+        smallestRadius = Math.min(smallestRadius, sz.length() / 2);
         const volume = sz.x * sz.y * sz.z;
         if (volume > biggest) {
           biggest = volume;
@@ -889,19 +889,32 @@ export class PanelScene {
     if (!show) return;
     const size = this.box.getSize(new Vector3());
     const centre = this.box.getCenter(new Vector3());
-    const span = Math.max(size.x, size.z, 1);
-    const radius = Math.max(size.length() / 2, 1);
+    const radius = Math.max(size.length() / 2, 1e-9);
     const floorY = this.box.min.y - 0.03 * Math.max(size.x, size.y, size.z);
-    this.floor.position.set(centre.x, floorY, centre.z);
-    this.floor.scale.set(span * 4, 1, span * 4);
+    const dir = new Vector3(-0.16, 1, 0.3).normalize();
+    // The receiver must cover the caster's projection along the light, not a
+    // square around its feet: a tall narrow part can throw a long shadow.
+    const footprint = new Box3();
+    for (const x of [this.box.min.x, this.box.max.x]) for (const y of [this.box.min.y, this.box.max.y]) for (const z of [this.box.min.z, this.box.max.z]) {
+      footprint.expandByPoint(new Vector3(x, y, z).addScaledVector(dir, (floorY - y) / dir.y));
+    }
+    const receiverSize = footprint.getSize(new Vector3());
+    const receiverCentre = footprint.getCenter(new Vector3());
+    // Leave room for the shadow-map filter around the projected silhouette.
+    const padding = radius * 0.1;
+    this.floor.position.set(receiverCentre.x, floorY, receiverCentre.z);
+    this.floor.scale.set(receiverSize.x + 2 * padding, 1, receiverSize.z + 2 * padding);
     (this.floor.material as ShadowMaterial).opacity = 0.24 * presence * weight;
     if (this.blob && this.blobMaterial) {
-      this.blob.position.set(centre.x, floorY + 0.002, centre.z);
-      // Close to the foot of the model: a wider cloud smears across the stage and out of its card.
-      this.blob.scale.set(size.x * 1.05 + 0.3, 1, size.z * 1.05 + 0.3);
+      this.blob.position.set(centre.x, floorY + radius * 0.002, centre.z);
+      // All distances follow the model's scale. Fixed padding overwhelms a
+      // compact model even though the camera has already framed its geometry.
+      this.blob.scale.set(size.x * 1.15, 1, size.z * 1.15);
       this.blobMaterial.opacity = 0.36 * presence * weight;
     }
-    const dir = new Vector3(-0.16, 1, 0.3).normalize();
+    // One light serves the whole assembly. A distant part must not push a
+    // local surface's lookup through its neighbour and erase their shadow.
+    this.light.shadow.normalBias = Math.min(radius, smallestRadius) * 0.02;
     this.light.target.position.copy(centre);
     this.light.position.copy(centre).addScaledVector(dir, radius * 4);
     const cam = this.light.shadow.camera;
@@ -1047,13 +1060,8 @@ export class PanelScene {
       return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
     };
     const model = this.tightRect(width, height) ?? rect(corners);
-    const size = this.box.getSize(new Vector3());
-    const floorY = min.y - 0.03 * Math.max(size.x, size.y, size.z);
-    const span = Math.max(size.x, size.z, 1) * 1.6;
-    const centre = this.box.getCenter(new Vector3());
-    const shadow = rect([-1, 1].flatMap((sx) => [-1, 1].map((sz) => new Vector3(centre.x + sx * span, floorY, centre.z + sz * span))));
-    let x0 = Math.min(model.x, shadow.x), y0 = Math.min(model.y, shadow.y);
-    let x1 = Math.max(model.x + model.w, shadow.x + shadow.w), y1 = Math.max(model.y + model.h, shadow.y + shadow.h);
+    let x0 = model.x, y0 = model.y;
+    let x1 = model.x + model.w, y1 = model.y + model.h;
     // Everything that is drawn, not only the parts the camera is fitted to: a line, an arrow, a hose or a stream, a cap on a cut, a part not yet counted.
     // The tight rectangle above is for where buttons and tags go; the scissor must never be tighter than what is actually drawn.
     const loose = this.looseRect(width, height);
