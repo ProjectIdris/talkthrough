@@ -1,6 +1,6 @@
 # Surface finish review
 
-Four bounded `add` fields tune the existing named PBR surfaces without adding a material preset for every subject: `roughness`, `metalness`, `clearcoat` and `clearcoatRoughness`, each 0..1. They are available on solids, extrude, lathe, blob, tube and connector, the same additions that already accept `material`. Omission or null retains each named recipe; explicit zero is honored. See [scene language](scene-language.md#surfaces) for exact behavior.
+Four bounded `add` fields tune the existing named PBR surfaces without adding a material preset for every subject: `roughness`, `metalness`, `clearcoat` and `clearcoatRoughness`, each 0..1. They are available on solids, extrude, lathe, hull, patch, sweep, loft, shell, blob, tube and connector, the same additions that already accept `material`. Omission or null retains each named recipe; explicit zero is honored. See [scene language](scene-language.md#surfaces) for exact behavior.
 
 The authored `surface-finishes.json` scene compares polished/rough copper spheres, matte/coated blue housings and glossy/matte teal tubes. Geometry and tint are identical within each pair. These are illustrative surfaces, not measured material presets.
 

@@ -12,6 +12,7 @@ const shapes: Record<string, Record<string, unknown>> = {
   patch: { pts: Array.from({ length: 16 }, (_, i) => [i % 4 - 1.5, Math.floor(i / 4) - 1.5, 0.2 * (i % 4 - 1.5) * (Math.floor(i / 4) - 1.5)]) },
   sweep: { outline: [[-0.3,-0.2],[0.3,-0.2],[0.3,0.2],[-0.3,0.2]], pts: [[0,0,-2],[0,0,2]] },
   loft: { outline: square, endOutline: [[-.5,-.8],[1.5,-.4],[.8,1.4],[-.8,.6]], depth: 2 },
+  shell: { size: [2,2,2], inner: 0.7, latitude: [-40,70], sweep: 240 },
   hull: { pts: [[-1,-1,-1],[1,-1,-1],[0,1,-1],[0,0,1]] },
 };
 const meshOf = (panel: PanelScene, key: number): Mesh => {

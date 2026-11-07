@@ -70,6 +70,11 @@ export type SolidShape = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'pla
 export type AddSolid = {
   op: 'add'; shape: SolidShape; id: string; parent?: string; explode?: Vec3; pos?: Vec3; size: Vec3; rot?: Vec3; bevel?: number;
 } & Surface & At;
+/** A closed hollow section of a concentric ellipsoid; inner is a radial scale, not uniform wall thickness. */
+export type AddShell = {
+  op: 'add'; shape: 'shell'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3;
+  size: Vec3; inner?: number; latitude?: Vec2; sweep?: number;
+} & Surface & At;
 export type AddExtrude = {
   op: 'add'; shape: 'extrude'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; holes?: Vec2[][]; taper?: number; shift?: Vec2; depth: number; bevel?: number;
 } & Surface & At;
@@ -133,7 +138,7 @@ export type AddStream = {
 /** A stream on an edge of a flat diagram: what the timeline makes of an AddStream whose `along` is an edge. Never written by the model. */
 export type StreamPiece = { op: 'stream'; id: string; along: string; mark?: StreamMark; count?: number; color?: Color; toColor?: Color; shiftAt?: number; period?: number; opacity?: number } & At;
 
-export type AddAction = AddSolid | AddExtrude | AddHull | AddLathe | AddLoft | AddSweep | AddPatch | AddBlob | AddTube | AddPath | AddConnector | AddStream | AddPart | AddArray | AddText | AddGroup;
+export type AddAction = AddSolid | AddShell | AddExtrude | AddHull | AddLathe | AddLoft | AddSweep | AddPatch | AddBlob | AddTube | AddPath | AddConnector | AddStream | AddPart | AddArray | AddText | AddGroup;
 
 // Tweens and changes on existing ids.
 export type MoveAction = { op: 'move'; id: string; to: Vec3 } & Timing;

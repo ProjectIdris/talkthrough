@@ -16,6 +16,7 @@ import {
 import type { Texture } from 'three';
 import type { AddAction, SurfaceFinish, Vec3 } from '../scene/types.ts';
 import { sweepGeometry, sweepEdges } from './sweep.ts';
+import { shellGeometry, shellEdges } from './shell.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
 import { buildHullGeometry } from './hull.ts';
 import { loftEdges, loftGeometry } from './loft.ts';
@@ -239,7 +240,7 @@ export class PanelScene {
       // Stream markers share geometry within this node; own and release it once.
       if (!node.geometries.includes(geo)) node.geometries.push(geo);
       node.materials.push(surface);
-      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'hull' || def.shape === 'loft' || def.shape === 'sweep' || def.shape === 'torus' || (def.shape === 'lathe' && def.sweep != null);
+      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'hull' || def.shape === 'shell' || def.shape === 'loft' || def.shape === 'sweep' || def.shape === 'torus' || (def.shape === 'lathe' && def.sweep != null);
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
       if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.primitiveKey(def), def.shape === 'lathe' && def.sweep != null ? 'sector' : def.shape === 'extrude' && (def.taper != null || def.shift != null) ? 'tapered' : def.shape === 'patch' ? 'patch' : undefined);
       node.pieces.push(piece);
@@ -268,6 +269,19 @@ export class PanelScene {
       case 'loft': {
         const geo = loftGeometry(def, this.tier);
         if (geo) node.obj = addMesh(geo, material, def.edges !== false);
+        break;
+      }
+      case 'shell': {
+        const geometry = shellGeometry(def, this.tier);
+        if (!geometry) break;
+        const mesh = addMesh(geometry, material, false);
+        node.obj = mesh;
+        if (def.edges !== false && settings.edges && material !== 'glass' && material !== 'glow' && (geometry.userData.shellEdges as Float32Array).length) {
+          const mat = new LineBasicMaterial({ color: 0x10131a, transparent: true, opacity: 0.5 });
+          const lines = new LineSegments(shellEdges(geometry), mat);
+          mesh.add(lines); node.geometries.push(lines.geometry); node.materials.push(mat);
+          node.pieces[0]!.lines = lines;
+        }
         break;
       }
       case 'text': this.buildText(node, o); break;

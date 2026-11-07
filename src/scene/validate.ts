@@ -9,6 +9,8 @@ import { normalizeSectorProfile } from './sector-profile.ts';
 import { PATCH_SEGMENTS, preparePatch, readPatchControls } from './patch.ts';
 import { prepareSweep, SWEEP_SUBDIVISIONS } from './sweep.ts';
 import { LOFT_STRIPS, prepareLoft } from './loft.ts';
+import { prepareShell, SHELL_DETAIL } from './shell.ts';
+import type { ShellTier } from './shell.ts';
 import { nearestPaletteColor } from './colors.ts';
 import { attachTolerance, landOn, mountPosition } from './attach.ts';
 import { resolvePartGeometry } from './part-geometry.ts';
@@ -386,7 +388,7 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
     else state.bodies.set(id, { shape: 'group', ...place }); // a cone or a torus is not asked about, but things hang from it
   } else if (name === 'addPart') state.bodies.set(id, { shape: 'box', ...resolvePartGeometry(out as AddPart), ...place });
   else if (name === 'addBlob') state.bodies.set(id, { shape: 'blob', pts: out.pts as Vec3[], sizes: out.sizes as Vec3[], ...place });
-  else if (name === 'addExtrude' || name === 'addHull' || name === 'addLathe' || name === 'addLoft' || name === 'addSweep' || name === 'addPatch' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
+  else if (name === 'addExtrude' || name === 'addHull' || name === 'addLathe' || name === 'addShell' || name === 'addLoft' || name === 'addSweep' || name === 'addPatch' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addTube' || (name === 'addPath' && shape === 'line')) {
     if (name === 'addTube' && out.closed === true) return; // A loop has no endpoints to attach.
     holdEnds(state, id, out, path, notes);
@@ -605,6 +607,11 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     // Check raw profiles before point parsing can trim, clamp or invoke a getter.
     if (variant.name === 'addLoft' && name === 'outline' && !Object.values(LOFT_STRIPS).every(n => prepareLoft(own(input, 'outline'), own(input, 'endOutline'), own(input, 'depth'), n))) {
       note(notes, 'dropped', path, 'loft needs matching 3–24 corner convex outlines with the same winding, depth 0.01–100, and safe intermediate sections and Float32 meshes at every quality');
+      return null;
+    }
+    // ID/parent checks stay cheap for held references; geometry fields must not be clamped or invoke accessors.
+    if (variant.name === 'addShell' && name === 'size' && !(Object.keys(SHELL_DETAIL) as ShellTier[]).every(tier => prepareShell(own(input, 'size'), own(input, 'inner'), own(input, 'latitude'), own(input, 'sweep'), tier))) {
+      note(notes, 'dropped', path, 'shell needs size .01–100, inner .01–.99, increasing latitude -90–90 spanning at least 1 degree, sweep 1–360, and safe Float32 surfaces at every quality');
       return null;
     }
     if (bound.has(name)) continue;
