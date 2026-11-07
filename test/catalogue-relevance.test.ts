@@ -107,6 +107,7 @@ test('refuses sparse labels and malformed retrieval responses, not false success
 
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { partCards } from '../scripts/prototypes/catalogue-parts.ts';
 
 test('independent challenge covers each public family and preserves bounded baseline responses', () => {
@@ -148,10 +149,50 @@ test('offline CLI selects the frozen validation corpus and rejects unknown optio
   const result = JSON.parse(run.stdout);
   assert.equal(result.quality.summary.cases, 48);
   assert.equal(result.quality.summary.searchErrors, 0);
-  assert.equal(result.provenance.corpusSha256, 'b48923ba997ed496782a1ce9ccb800261685e9c347c78e5b0aa0485422a2c702');
+  const corpus = readFileSync(new URL('../scripts/prototypes/catalogue-validation-v3.json', import.meta.url));
+  assert.equal(result.provenance.corpus, 'scripts/prototypes/catalogue-validation-v3.json');
+  // Runtime provenance is the exact checkout bytes, including its line endings.
+  assert.equal(result.provenance.corpusSha256, createHash('sha256').update(corpus).digest('hex'));
+  // Separately retain the original frozen LF identity, allowing only checkout newline conversion.
+  assert.equal(createHash('sha256').update(corpus.toString('utf8').replace(/\r\n/g, '\n')).digest('hex'),
+    'b48923ba997ed496782a1ce9ccb800261685e9c347c78e5b0aa0485422a2c702');
   assert.equal(result.scope.liveModelMeasured, false);
   const bad = spawnSync(process.execPath, ['scripts/prototypes/evaluate-catalogue.ts', '--corpus', 'not-a-corpus'], {
     cwd: new URL('..', import.meta.url), encoding: 'utf8', timeout: 30_000,
   });
   assert.notEqual(bad.status, 0);
+});
+
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+
+test('the corpus-selection assertion works in isolated LF and CRLF checkouts', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'tt-catalogue-newlines-'));
+  const files = [
+    'test/catalogue-relevance.test.ts', 'src/scene/spec.ts',
+    'scripts/prototypes/catalogue-evaluation.ts', 'scripts/prototypes/catalogue-retrieval.ts',
+    'scripts/prototypes/catalogue-parts.ts', 'scripts/prototypes/evaluate-catalogue.ts',
+    'scripts/prototypes/catalogue-validation-v3.json',
+  ];
+  try {
+    writeFileSync(join(directory, 'package.json'), JSON.stringify({ type: 'module' }));
+    for (const eol of ['\n', '\r\n']) {
+      for (const file of files) {
+        const target = join(directory, file);
+        mkdirSync(dirname(target), { recursive: true });
+        const content = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+        writeFileSync(target, content.replace(/\n/g, eol));
+      }
+      // Run only the real corpus-selection test. This regression does not recursively run itself.
+      const env = { ...process.env };
+      delete env.NODE_TEST_CONTEXT;
+      const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=^offline CLI selects the frozen validation corpus and rejects unknown options$', 'test/catalogue-relevance.test.ts'], {
+        cwd: directory, env, encoding: 'utf8', timeout: 30_000,
+      });
+      assert.match(run.stdout, /# tests 1\b/, 'The nested runner must execute the selected test.');
+      assert.equal(run.status, 0, `${eol === '\n' ? 'LF' : 'CRLF'} checkout:\n${run.stdout}\n${run.stderr}`);
+      assert.match(run.stdout, /# pass 1\b/, 'The selected test must pass, not skip.');
+    }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });
