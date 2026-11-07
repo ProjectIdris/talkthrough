@@ -87,7 +87,7 @@ export async function runGrab(grab: NonNullable<Options['grab']>, backdrop: stri
           waiters.set(mine, done);
           timer = setTimeout(() => fail(new Error(`no frame for step ${step} at ${t}s within 15 s`)), 15000);
         });
-        const message: SceneMessage = { kind: 'seek', scene, step, t, token: mine, ...(view ? { view } : {}), ...(grab.metadata ? { captureMetadata: true } : {}) };
+        const message: SceneMessage = { kind: 'seek', scene, step, t, token: mine, cameraFit: 'instant', ...(view ? { view } : {}), ...(grab.metadata ? { captureMetadata: true } : {}) };
         window.webContents.send(CHANNEL.scene, message);
         const result = await frame;
         return captureMetadata(result);
@@ -109,7 +109,7 @@ export async function runGrab(grab: NonNullable<Options['grab']>, backdrop: stri
       let attempt: CaptureMetadata | null = null;
       for (let i = 0; i < (grab.layoutSeeks ?? 0); i++) attempt = await requestSeek(step, t, view);
       if (grab.layoutSeeks) await capture(join(grab.out, `${unique}-layout-attempt-${grab.layoutSeeks}.png`));
-      if (grab.metadata) writeFileSync(join(grab.out, `${unique}.json`), JSON.stringify({ inputs, build, request: { step, t, view: view ?? null }, layoutSeeks: grab.layoutSeeks ?? 0, initial: { seekCount: initialCount, renderer: initial }, attempt: grab.layoutSeeks ? { seekCount: token, renderer: attempt } : null, boundary: 'renderer acknowledgement precedes capturePage by at least 120 ms', width: grab.width, height: grab.height, scaleFactor: grab.scaleFactor }, null, 2));
+      if (grab.metadata) writeFileSync(join(grab.out, `${unique}.json`), JSON.stringify({ inputs, build, request: { step, t, view: view ?? null, cameraFit: 'instant' }, layoutSeeks: grab.layoutSeeks ?? 0, initial: { seekCount: initialCount, renderer: initial }, attempt: grab.layoutSeeks ? { seekCount: token, renderer: attempt } : null, boundary: 'renderer acknowledgement precedes capturePage by at least 120 ms', width: grab.width, height: grab.height, scaleFactor: grab.scaleFactor }, null, 2));
     }
   } finally {
     ipcMain.off(CHANNEL.rendered, onRendered);

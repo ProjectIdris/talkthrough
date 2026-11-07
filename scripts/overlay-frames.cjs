@@ -110,7 +110,7 @@ app.whenReady().then(async () => {
   const seek = async (scene, step, t, name) => {
     const mine = ++token;
     const done = new Promise((r) => pending.set(mine, r));
-    win.webContents.send(CHANNEL.scene, { kind: 'seek', scene, step, t, token: mine });
+    win.webContents.send(CHANNEL.scene, { kind: 'seek', scene, step, t, token: mine, cameraFit: 'instant' });
     await Promise.race([done, sleep(10000).then(() => { throw new Error('no frame painted for ' + name); })]);
     await sleep(120 + Number(args.hold || 0)); // --hold <ms>: wait longer so tags that glide or fade in real time have arrived
     const image = await capture();

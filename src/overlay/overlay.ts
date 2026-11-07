@@ -311,7 +311,7 @@ let stageSize: { w: number; h: number } | undefined;
 let lastDisplayedFrame: Frame | undefined;
 let lastSourceFrame: Frame | undefined;
 
-function draw(frame: Frame, seekView = false): Frame {
+function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
   frame = displayedFrame(frame);
   renderer?.setScissorTest(false);
   renderer?.clear();
@@ -323,7 +323,9 @@ function draw(frame: Frame, seekView = false): Frame {
   stageSize = undefined;
   if (renderer && rect && frame.panel) {
     const { x, y, w, h, alpha } = rect;
-    panelScene.sync(frame, w / h, { rect: { x, y, w, h }, width: view.width, height: view.height, now: labelClock() });
+    // A fixed still takes this frame's fit, independent of earlier captures. Clips
+    // and playback retain the camera glide; the label/pen clock is unchanged.
+    panelScene.sync(frame, w / h, { rect: { x, y, w, h }, width: view.width, height: view.height, now: cameraFit === 'instant' ? undefined : labelClock() });
     stageSize = { w, h };
     const bounds = panelScene.screenBounds(view.width, view.height);
     // The card is not a frame the model is cut to: it grows to hold the whole model (see StageGrowth). The camera keeps the panel's own rectangle.
@@ -1613,7 +1615,7 @@ function applyScene(message: SceneMessage): void {
       seekClock = (seekClock ?? 0) + 1000 / 30;
       fader.disarm();
       player.seek(placedScene(message.scene), message.step, message.t, message.view);
-      draw(player.update(), true);
+      draw(player.update(), true, message.cameraFit);
       if (message.captureMetadata) {
         void painted().then(() => {
           const camera = lastDisplayedFrame?.panel && modelRect ? lastDisplayedFrame.camera : null;

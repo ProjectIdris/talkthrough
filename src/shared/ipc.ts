@@ -119,8 +119,9 @@ export type SceneMessage =
   /**
    * Frame grabs: stop the clock and draw the scene as it is `t` seconds into step `step`
    * (earlier steps complete), with no speech. Once painted, answer with `rendered(token)`.
+   * Still captures use `cameraFit: instant`; omitted preserves the per-frame glide for clips.
    */
-  | { kind: 'seek'; scene: Scene; step: number; t: number; token: number; view?: SeekView; captureMetadata?: true }
+  | { kind: 'seek'; scene: Scene; step: number; t: number; token: number; view?: SeekView; captureMetadata?: true; cameraFit?: 'instant' }
   /**
    * Live turns, while a model is still writing. `begin` starts a turn (1 = fresh scene, later = continues),
    * each `step` is one validated step to append (the first starts at once, the rest queue behind it), and
