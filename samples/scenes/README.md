@@ -39,3 +39,5 @@ The timings (`at`, `dur`) assume a speaking pace of about 2.5 words a second; a 
 - `connector-sockets.json`: five existing port variants with physical recessed sockets, inset tongues and contacts, shown from front and reverse views. Simplified explanatory geometry, not connector CAD.
 `surface-finishes.json` is a hand-authored renderer comparison: matched copper spheres, blue housings and teal tubes with different bounded PBR finish values. See `docs/surface-finish.md` for native review and tier-specific expectations.
 - `ellipsoid-shells.json`: a dome, bowl and open enclosure made from the same bounded hollow ellipsoid primitive. Includes reverse and oblique native-review views; no captured appearance is claimed.
+
+The `integration-*-finish.json` scenes compare matched matte/polished examples of hulls, patches, sweeps, lofts, shells, sectors, ordinary extrusion holes, tapered extrusions and closed tubes. Each uses transformed mounts and independent material state. See [scene integration review](../../docs/scene-integration-review.md) for exact native views and delayed-cut checkpoints.

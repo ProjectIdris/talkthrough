@@ -237,7 +237,8 @@ export class PanelScene {
       const mesh = new Mesh(geo, surface);
       mesh.castShadow = settings.shadows;
       mesh.receiveShadow = settings.shadows;
-      // Stream markers share geometry within this node; own and release it once.
+      // Stream markers reuse one buffer inside this node, with separate materials.
+      // Record node ownership once, not once per marker, so teardown releases once.
       if (!node.geometries.includes(geo)) node.geometries.push(geo);
       node.materials.push(surface);
       const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'hull' || def.shape === 'shell' || def.shape === 'loft' || def.shape === 'sweep' || def.shape === 'torus' || (def.shape === 'lathe' && def.sweep != null);
