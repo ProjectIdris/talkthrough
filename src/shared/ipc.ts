@@ -264,6 +264,7 @@ export interface TalkthroughAudioApi {
 
 /** The settings window. The API key only ever travels page -> main; the other settings are checked by main before they are written. */
 export const SETTINGS_CHANNEL = {
+  visualTour: 'tt:settings-visual-tour',
   status: 'tt:key-status',
   save: 'tt:key-save',
   clear: 'tt:key-clear',
@@ -333,6 +334,8 @@ export interface TalkthroughSettingsApi {
   devices(): Promise<DeviceList>;
   /** First run only: the settings, the line that says what answers will use, and the tools found. */
   firstRun(): Promise<FirstRunInfo | null>;
+  /** Opens the offline visual explorer without changing setup. */
+  openVisualTour(): void;
   /** A short test: record about three seconds, then say how loud it was and what was heard. */
   micTest(): Promise<MicTestResult>;
   tools(): Promise<ToolsFound>;

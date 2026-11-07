@@ -15,8 +15,10 @@ import {
 import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
+import { buildHullGeometry } from './hull.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
+import { closedTubeGeometry } from './closed-tube.ts';
 import { TIERS, applySurface, makeSurface } from './materials.ts';
 import type { Surface, Tier } from './materials.ts';
 import { buildPart } from './parts.ts';
@@ -108,6 +110,12 @@ type Node = {
 
 type AddMesh = (geo: BufferGeometry, surface: string | undefined, edges: boolean) => Mesh;
 
+/** A rounded box has a continuous surface, not authored creases. Position hashing on
+ * tiny rounded meshes can invent dark seams, so do not derive crease lines for them. */
+function creaseGeometry(geo: BufferGeometry): BufferGeometry {
+  return geo.type === 'RoundedBoxGeometry' ? new BufferGeometry().setFromPoints([]) : new EdgesGeometry(geo, 28);
+}
+
 /** True when `a` is `b` or sits above it: adding `a` under `b` would make a loop, which hangs every walk of the scene. */
 function isAncestor(a: Object3D, b: Object3D): boolean {
   for (let o: Object3D | null = b; o; o = o.parent) if (o === a) return true;
@@ -142,6 +150,9 @@ export class PanelScene {
   private cutaway = new Cutaway();
   private sharedEdges = new Map<string, { geometry: BufferGeometry; refs: number }>();
   private edgeKeys = new WeakMap<BufferGeometry, string>();
+  /** Only immutable primitive buffers are shared; materials, transforms and mutable paths stay per node. */
+  private sharedSolids = new Map<string, { geometry: BufferGeometry; refs: number }>();
+  private solidKeys = new WeakMap<BufferGeometry, string>();
   private pinWarnings = new Set<number>();
 
   constructor(deps: PanelDeps = {}) {
@@ -213,16 +224,23 @@ export class PanelScene {
       const mesh = new Mesh(geo, surface);
       mesh.castShadow = settings.shadows;
       mesh.receiveShadow = settings.shadows;
-      node.geometries.push(geo);
+      // Stream markers share geometry within this node; own and release it once.
+      if (!node.geometries.includes(geo)) node.geometries.push(geo);
       node.materials.push(surface);
-      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'torus' || (def.shape === 'lathe' && def.sweep != null);
+      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'hull' || def.shape === 'torus' || (def.shape === 'lathe' && def.sweep != null);
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
-      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.edgeKey(def), def.shape === 'lathe' && def.sweep != null);
+      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.primitiveKey(def), def.shape === 'lathe' && def.sweep != null);
       node.pieces.push(piece);
       return mesh;
     };
     switch (def.shape) {
       case 'group': case 'array': break;
+      case 'hull': {
+        const result = buildHullGeometry(def.pts);
+        if (result.ok) node.obj = addMesh(result.geometry, material, def.edges !== false);
+        else console.warn(`talkthrough: hull ${o.id} could not be built: ${result.message}`);
+        break;
+      }
       case 'part': {
         const built = buildPart(def, this.detail);
         node.obj = built.root;
@@ -244,10 +262,10 @@ export class PanelScene {
     return node;
   }
 
-  private edgeKey(def: AddAction): string | undefined {
+  private primitiveKey(def: AddAction): string | undefined {
     if (!['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'].includes(def.shape)) return undefined;
     const solid = def as { size: Vec3; bevel?: number };
-    return JSON.stringify([this.tier, def.shape, solid.size, def.shape === 'box' ? solid.bevel ?? defaultBevel(solid.size) : null, 28]);
+    return JSON.stringify([this.tier, def.shape, solid.size, def.shape === 'box' ? solid.bevel ?? defaultBevel(solid.size) : null]);
   }
 
   private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string, sector = false): LineSegments {
@@ -258,12 +276,12 @@ export class PanelScene {
     else if (key) {
       // EdgesGeometry.parameters retains the input mesh geometry. Copy the derived
       // buffers so a surviving outline never retains a removed part's geometry.
-      const generated = new EdgesGeometry(geo, 28);
+      const generated = creaseGeometry(geo);
       outline = new BufferGeometry().copy(generated);
       generated.dispose();
       this.sharedEdges.set(key, { geometry: outline, refs: 1 });
       this.edgeKeys.set(outline, key);
-    } else outline = sector ? latheSectorEdges(geo) : new EdgesGeometry(geo, 28);
+    } else outline = sector ? latheSectorEdges(geo) : creaseGeometry(geo);
     const lines = new LineSegments(outline, mat);
     mesh.add(lines);
     node.geometries.push(lines.geometry);
@@ -285,6 +303,20 @@ export class PanelScene {
   }
 
   private solidGeometry(def: AddAction): BufferGeometry {
+    const key = this.primitiveKey(def);
+    if (!key) return this.buildSolidGeometry(def);
+    const existing = this.sharedSolids.get(key);
+    if (existing) {
+      existing.refs++;
+      return existing.geometry;
+    }
+    const geometry = this.buildSolidGeometry(def);
+    this.sharedSolids.set(key, { geometry, refs: 1 });
+    this.solidKeys.set(geometry, key);
+    return geometry;
+  }
+
+  private buildSolidGeometry(def: AddAction): BufferGeometry {
     const d = this.detail;
     switch (def.shape) {
       case 'sphere': return new SphereGeometry(0.5, d.curve, Math.round(d.curve * 0.6)).scale(...(def as { size: Vec3 }).size);
@@ -307,8 +339,8 @@ export class PanelScene {
         return new PlaneGeometry(sx, sy);
       }
       case 'extrude': {
-        const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number };
-        return extrudeGeometry(e.outline, e.depth, e.bevel ?? Math.min(0.1, e.depth * 0.2), d);
+        const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number; holes?: Array<Array<[number, number]>> };
+        return extrudeGeometry(e.outline, e.depth, e.bevel ?? Math.min(0.1, e.depth * 0.2), d, e.holes);
       }
       case 'blob': {
         const b = def as { pts: Vec3[]; sizes: Vec3[]; soft?: number };
@@ -329,11 +361,12 @@ export class PanelScene {
   }
 
   private buildPath(node: Node, o: ObjectFrame, addMesh: AddMesh): void {
-    const def = o.def as { shape: string; pts: Vec3[]; radius?: number; flat?: number; swell?: Array<[number, number]>; material?: string };
+    const def = o.def as { shape: string; pts: Vec3[]; radius?: number; flat?: number; swell?: Array<[number, number]>; closed?: boolean; material?: string };
     const tube = def.shape === 'tube';
-    const sampled = samplePath(def.pts, tube, this.detail.tube);
     const radius = tube ? def.radius ?? PATH_RADIUS : PATH_RADIUS;
-    const geo = tubeGeometry(sampled, radius, tube ? def.flat ?? 1 : 1, this.detail.radial, tube ? def.swell : undefined);
+    const loop = tube && def.closed ? closedTubeGeometry(def.pts, radius, def.flat ?? 1, this.detail.radial, this.detail.tube, def.swell) : undefined;
+    const sampled = loop?.sampled ?? samplePath(def.pts, tube, this.detail.tube);
+    const geo = loop?.geo ?? tubeGeometry(sampled, radius, tube ? def.flat ?? 1 : 1, this.detail.radial, tube ? def.swell : undefined);
     const mesh = addMesh(geo, tube ? def.material : 'plastic', false);
     const group = new Group();
     group.add(mesh);
@@ -345,7 +378,9 @@ export class PanelScene {
     node.obj = group;
     let length = 0;
     for (let i = 1; i < sampled.length; i++) length += Math.hypot(sampled[i]![0] - sampled[i - 1]![0], sampled[i]![1] - sampled[i - 1]![1], sampled[i]![2] - sampled[i - 1]![2]);
-    node.path = { geo, sampled, head, body: tube && radius >= 0.04 * length };
+    // Closed loops are model geometry, even when thin; only open trailing cables
+    // may stay outside the camera fit and the bounds that enable rendering.
+    node.path = { geo, sampled, head, body: tube && (def.closed === true || radius >= 0.04 * length) };
   }
 
   private buildText(node: Node, o: ObjectFrame): void {
@@ -401,6 +436,12 @@ export class PanelScene {
     this.cutaway.release(node);
     node.obj.removeFromParent();
     for (const g of node.geometries) {
+      const solidKey = this.solidKeys.get(g);
+      const solid = solidKey && this.sharedSolids.get(solidKey);
+      if (solid) {
+        if (--solid.refs === 0) { this.sharedSolids.delete(solidKey!); this.solidKeys.delete(g); g.dispose(); }
+        continue;
+      }
       const key = this.edgeKeys.get(g);
       const shared = key && this.sharedEdges.get(key);
       if (shared) {

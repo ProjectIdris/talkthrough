@@ -12,6 +12,8 @@ const targets = [
   { entry: 'src/main/front-window-worker.ts', out: 'dist/main/front-window-worker.cjs', ...node, external: ['get-windows'] },
   { entry: 'src/main/preload.ts', out: 'dist/main/preload.cjs', ...node, external: ['electron'] },
   { entry: 'src/main/audio-preload.ts', out: 'dist/main/audio-preload.cjs', ...node, external: ['electron'] },
+  { entry: 'src/main/visual-tour-preload.ts', out: 'dist/main/visual-tour-preload.cjs', ...node, external: ['electron'] },
+  { entry: 'src/tour/tour.ts', out: 'dist/tour/tour.js', ...browser, external: [] },
   { entry: 'src/main/settings-preload.ts', out: 'dist/main/settings-preload.cjs', ...node, external: ['electron'] },
   { entry: 'src/settings/settings.ts', out: 'dist/settings/settings.js', ...browser, external: [] },
   { entry: 'src/firstrun/firstrun.ts', out: 'dist/firstrun/firstrun.js', ...browser, external: [] },
@@ -23,6 +25,7 @@ const pages = [
   ['src/audio/index.html', 'dist/audio/index.html'],
   ['src/settings/index.html', 'dist/settings/index.html'],
   ['src/firstrun/index.html', 'dist/firstrun/index.html'],
+  ['src/tour/index.html', 'dist/tour/index.html'],
   ['src/shared/glass.css', 'dist/shared/glass.css'],
 ];
 

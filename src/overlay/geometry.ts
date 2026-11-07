@@ -3,13 +3,16 @@
 // touches the DOM.
 
 import {
-  BoxGeometry, BufferAttribute, BufferGeometry, ExtrudeGeometry, LatheGeometry, Shape, Vector2, Vector3,
+  BoxGeometry, BufferAttribute, BufferGeometry, ExtrudeGeometry, LatheGeometry, Path, Shape, Vector2, Vector3,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { shadeExtrusion } from './extrusion-normals.ts';
 import { BLOB_CELLS, SCENE_BLOB_TRIANGLES } from './blob.ts';
-import { catmull } from './timeline.ts';
+import { shadeLatheProfile } from './lathe.ts';
+import { sampleOpenCurve } from './open-curve.ts';
 import type { Vec2, Vec3 } from '../scene/types.ts';
+import { normalizeExtrudeProfile } from '../scene/extrude-profile.ts';
 
 export type Detail = { curve: number; bevel: number; radial: number; tube: number; blob: number; blobTriangles: number };
 export const DETAIL: Record<'low' | 'mid' | 'high', Detail> = {
@@ -25,13 +28,98 @@ export function defaultBevel(size: Vec3): number {
 
 /** A box with rounded edges (a plain box when the rounding is nothing). */
 export function boxGeometry(size: Vec3, bevel: number, detail: Detail): BufferGeometry {
-  const r = Math.min(bevel, Math.min(size[0], size[1], size[2]) / 2 - 1e-4);
-  if (!(r > 0.002)) return new BoxGeometry(size[0], size[1], size[2]);
+  const shortest = Math.min(size[0], size[1], size[2]);
+  // Keep rounding and the small flat seam proportional to the shape. Fixed unit cutoffs
+  // made compact models (and thin panels enlarged by a parent) unexpectedly sharp.
+  const r = Math.min(bevel, shortest * 0.4999);
+  // Positions are Float32: a tiny radius on a wide, thin box can otherwise collapse
+  // rounded triangles or reverse their winding. Base this precision floor on the long side.
+  if (!(r > Math.max(...size) * 1e-6)) return new BoxGeometry(size[0], size[1], size[2]);
   return new RoundedBoxGeometry(size[0], size[1], size[2], detail.bevel, r);
 }
 
+/**
+ * Earcut can bridge aligned openings with a cap edge that runs through other
+ * boundary vertices. Split that edge at those vertices so the cap and the
+ * independently built side walls have the same welded topology.
+ */
+function splitCapEdges(geo: BufferGeometry, rings: readonly (readonly Vec2[])[]): void {
+  const points = rings.flat();
+  const byPosition = new Map(points.map((p) => [`${Math.fround(p[0])},${Math.fround(p[1])}`, p]));
+  const attrs = ['position', 'normal', 'uv'] as const;
+  const source = attrs.map((name) => geo.getAttribute(name));
+  const data: number[][] = attrs.map(() => []);
+  type Vertex = { original: Vec2; values: number[][] };
+  const vertex = (i: number): Vertex => {
+    const values = source.map((a) => Array.from({ length: a.itemSize }, (_, j) => a.getComponent(i, j)));
+    const original = byPosition.get(`${values[0]![0]},${values[0]![1]}`);
+    if (!original) throw new Error('Extrusion cap contains an unexpected vertex');
+    return { original, values };
+  };
+  const split = (triangle: Vertex[]): Vertex[][] => {
+    for (let edge = 0; edge < 3; edge++) {
+      const a = triangle[edge]!, b = triangle[(edge + 1) % 3]!, c = triangle[(edge + 2) % 3]!;
+      const dx = b.original[0] - a.original[0], dy = b.original[1] - a.original[1];
+      const length2 = dx * dx + dy * dy;
+      for (const p of points) {
+        if ((p[0] === a.original[0] && p[1] === a.original[1]) ||
+            (p[0] === b.original[0] && p[1] === b.original[1]) ||
+            (p[0] === c.original[0] && p[1] === c.original[1])) continue;
+        const px = p[0] - a.original[0], py = p[1] - a.original[1];
+        const t = (px * dx + py * dy) / length2;
+        if (!(t > 0 && t < 1) || dx * py - dy * px !== 0) continue;
+        const values = a.values.map((v, k) => v.map((x, j) => x + t * (b.values[k]![j]! - x)));
+        values[0]![0] = Math.fround(p[0]); values[0]![1] = Math.fround(p[1]);
+        const middle: Vertex = { original: p, values };
+        return [...split([a, middle, c]), ...split([middle, b, c])];
+      }
+    }
+    return [triangle];
+  };
+  const groups = geo.groups.map((group) => ({ ...group }));
+  geo.clearGroups();
+  let start = 0;
+  for (const group of groups) {
+    for (let i = group.start; i < group.start + group.count; i += 3) {
+      const triangles = group.materialIndex === 0 ? split([vertex(i), vertex(i + 1), vertex(i + 2)]) : undefined;
+      if (triangles) {
+        for (const triangle of triangles) for (const v of triangle) v.values.forEach((values, k) => data[k]!.push(...values));
+      } else {
+        for (let j = 0; j < 3; j++) source.forEach((a, k) => {
+          for (let c = 0; c < a.itemSize; c++) data[k]!.push(a.getComponent(i + j, c));
+        });
+      }
+    }
+    const count = data[0]!.length / 3 - start;
+    geo.addGroup(start, count, group.materialIndex);
+    start += count;
+  }
+  attrs.forEach((name, i) => geo.setAttribute(name, new BufferAttribute(new Float32Array(data[i]!), source[i]!.itemSize)));
+}
+
 /** A flat outline pushed out `depth` along z and centred on z = 0. */
-export function extrudeGeometry(outline: readonly Vec2[], depth: number, bevel: number, detail: Detail): BufferGeometry {
+export function extrudeGeometry(outline: readonly Vec2[], depth: number, bevel: number, detail: Detail, holes?: readonly (readonly Vec2[])[]): BufferGeometry {
+  if (holes?.length) {
+    const normalized = normalizeExtrudeProfile(outline, holes);
+    // The generated positions are Float32, so triangulate those same coordinates.
+    const round = (ring: Vec2[]): Vec2[] => ring.map(([x, y]) => [Math.fround(x), Math.fround(y)]);
+    const profile = { outline: round(normalized.outline), holes: normalized.holes.map(round) };
+    const shape = new Shape();
+    profile.outline.forEach((p, i) => (i === 0 ? shape.moveTo(p[0], p[1]) : shape.lineTo(p[0], p[1])));
+    shape.closePath();
+    for (const ring of profile.holes) {
+      const path = new Path();
+      ring.forEach((p, i) => (i === 0 ? path.moveTo(p[0], p[1]) : path.lineTo(p[0], p[1])));
+      path.closePath();
+      shape.holes.push(path);
+    }
+    const geo = new ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 8 });
+    splitCapEdges(geo, [profile.outline, ...profile.holes]);
+    geo.translate(0, 0, -depth / 2);
+    // ExtrudeGeometry's flat face normals preserve sharp walls even when distinct
+    // features are closer than the position buckets used by toCreasedNormals.
+    return geo;
+  }
   const shape = new Shape();
   outline.forEach((p, i) => (i === 0 ? shape.moveTo(p[0], p[1]) : shape.lineTo(p[0], p[1])));
   shape.closePath();
@@ -42,14 +130,19 @@ export function extrudeGeometry(outline: readonly Vec2[], depth: number, bevel: 
     depth: straight, bevelEnabled: useBevel, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: detail.bevel, curveSegments: 8,
   });
   geo.translate(0, 0, -straight / 2);
-  return toCreasedNormals(geo, 0.6);
+  shadeExtrusion(geo);
+  return geo;
 }
 
 /** A profile of [radius, y] points spun round the y axis. */
 export function latheGeometry(profile: readonly Vec2[], sides: number): BufferGeometry {
   const pts = profile.map((p) => new Vector2(Math.abs(p[0]), p[1]));
-  const geo = new LatheGeometry(pts, Math.max(3, Math.round(sides)));
-  return toCreasedNormals(geo, sides <= 8 ? 0.4 : 0.9);
+  const segments = Math.max(3, Math.round(sides));
+  const source = new LatheGeometry(pts, segments);
+  const geo = source.toNonIndexed();
+  source.dispose();
+  shadeLatheProfile(geo, pts, segments);
+  return geo;
 }
 
 /**
@@ -92,20 +185,7 @@ export function shadeByHeight(geo: BufferGeometry): void {
 
 /** Points along the path: smooth (a spline) for tubes, straight between the points for lines. */
 export function samplePath(pts: readonly Vec3[], smooth: boolean, perSegment: number): Vec3[] {
-  const raw = pts.map((p) => [p[0], p[1], p[2]]);
-  const out: Vec3[] = [];
-  const segments = raw.length - 1;
-  for (let i = 0; i < segments; i++) {
-    const n = smooth ? perSegment : 1;
-    for (let k = 0; k < n; k++) {
-      const u = (i + k / n) / segments;
-      const p = smooth ? catmull(raw, u) : (raw[i] as number[]).map((a, c) => a + (((raw[i + 1] as number[])[c] ?? a) - a) * (k / n));
-      out.push([p[0] ?? 0, p[1] ?? 0, p[2] ?? 0]);
-    }
-  }
-  const end = raw[segments] as number[];
-  out.push([end[0] ?? 0, end[1] ?? 0, end[2] ?? 0]);
-  return out;
+  return smooth ? sampleOpenCurve(pts, perSegment) : pts.map(p => [...p]);
 }
 
 const UP = new Vector3(0, 1, 0);
@@ -201,6 +281,28 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
     }
   }
   const row = radial + 1;
+  // Follow the swept skin, including taper and a ribbon's changing orientation.
+  // Radial-only normals make the shoulders of a swollen tube shade like a cylinder.
+  // Keep the analytic direction around each ellipse to avoid radial faceting or a seam.
+  const along = new Vector3(), around = new Vector3(), normal = new Vector3();
+  for (let i = 0; i < rings; i++) {
+    const frame = frames[i]!;
+    const prev = Math.max(0, i - 1), next = Math.min(rings - 1, i + 1);
+    for (let j = 0; j <= radial; j++) {
+      const offset = (i * row + j) * 3;
+      const before = (prev * row + j) * 3, after = (next * row + j) * 3;
+      along.set(pos[after]! - pos[before]!, pos[after + 1]! - pos[before + 1]!, pos[after + 2]! - pos[before + 2]!);
+      const angle = (j / radial) * Math.PI * 2;
+      around.copy(frame.wide).multiplyScalar(-Math.sin(angle)).addScaledVector(frame.thin, flat * Math.cos(angle));
+      normal.crossVectors(along, around);
+      // A repeated point or folded/collapsed span has no usable surface derivative.
+      // Retain the finite outward ellipse normal already assigned to that vertex.
+      if (normal.lengthSq() > 0 && (normal.x * nor[offset]! + normal.y * nor[offset + 1]! + normal.z * nor[offset + 2]!) > 0) {
+        normal.normalize();
+        nor[offset] = normal.x; nor[offset + 1] = normal.y; nor[offset + 2] = normal.z;
+      }
+    }
+  }
   for (let i = 0; i < rings - 1; i++) {
     for (let j = 0; j < radial; j++) {
       const p0 = i * row + j, p1 = p0 + 1, p2 = p0 + row, p3 = p2 + 1;
@@ -228,10 +330,10 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
             frame.centre.y + frame.wide.y * c * r + frame.thin.y * sn * r * flat + frame.tangent.y * lift,
             frame.centre.z + frame.wide.z * c * r + frame.thin.z * sn * r * flat + frame.tangent.z * lift,
           );
-          // Normals of a sphere-like cap: outward from the ring, tilted along the tangent as the cap closes.
-          const nx = frame.wide.x * c * flat * scale + frame.thin.x * sn * scale + frame.tangent.x * Math.sin(th) * dir;
-          const ny = frame.wide.y * c * flat * scale + frame.thin.y * sn * scale + frame.tangent.y * Math.sin(th) * dir;
-          const nz = frame.wide.z * c * flat * scale + frame.thin.z * sn * scale + frame.tangent.z * Math.sin(th) * dir;
+          // Ellipsoid gradient: the thin axis needs the reciprocal flattening, including relative to the tangent.
+          const nx = frame.wide.x * c * flat * scale + frame.thin.x * sn * scale + frame.tangent.x * Math.sin(th) * dir * flat;
+          const ny = frame.wide.y * c * flat * scale + frame.thin.y * sn * scale + frame.tangent.y * Math.sin(th) * dir * flat;
+          const nz = frame.wide.z * c * flat * scale + frame.thin.z * sn * scale + frame.tangent.z * Math.sin(th) * dir * flat;
           const l = Math.hypot(nx, ny, nz) || 1;
           nor.push(nx / l, ny / l, nz / l);
         }
