@@ -138,6 +138,18 @@ export function extrudeGeometry(outline: readonly Vec2[], depth: number, bevel: 
 /** A profile of [radius, y] points spun round the y axis. */
 export function latheGeometry(profile: readonly Vec2[], sides: number): BufferGeometry {
   const pts = profile.map((p) => new Vector2(Math.abs(p[0]), p[1]));
+  const first = pts[0], last = pts.at(-1);
+  if (first && last && (first.equals(last) || (first.x === 0 && last.x === 0))) {
+    // A closed section has an outside regardless of the direction it was drawn.
+    // Open sheets retain their authored direction, which chooses their visible side.
+    // Translate before summing area so a small section far from y=0 stays stable.
+    let area = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i]!, b = pts[i + 1]!;
+      area += (a.x - first.x) * (b.y - first.y) - (b.x - first.x) * (a.y - first.y);
+    }
+    if (area < 0) pts.reverse();
+  }
   const segments = Math.max(3, Math.round(sides));
   const source = new LatheGeometry(pts, segments);
   const geo = source.toNonIndexed();
