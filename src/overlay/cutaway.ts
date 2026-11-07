@@ -89,11 +89,15 @@ export class Cutaway {
       }
       // The object's own axis, turned the way the object is turned; the removed side is the +axis side.
       node.obj.updateWorldMatrix(true, false);
-      const axis = new Vector3(o.cut.axis === 0 ? 1 : 0, o.cut.axis === 1 ? 1 : 0, o.cut.axis === 2 ? 1 : 0);
-      const at = axis.clone().multiplyScalar(o.cut.at);
-      node.obj.localToWorld(at);
-      const normal = axis.transformDirection(node.obj.matrixWorld).negate();
-      plane.setFromNormalAndCoplanarPoint(normal, at);
+      const normal = o.cut.normal
+        ? new Vector3(...o.cut.normal)
+        : new Vector3(o.cut.axis === 0 ? 1 : 0, o.cut.axis === 1 ? 1 : 0, o.cut.axis === 2 ? 1 : 0);
+      // Divide before normalizing so even subnormal, nonzero directions keep their angle.
+      const largest = Math.max(Math.abs(normal.x), Math.abs(normal.y), Math.abs(normal.z));
+      normal.set(normal.x / largest, normal.y / largest, normal.z / largest).normalize();
+      // Planes transform by the inverse transpose, not as a direction. A rotated child
+      // under a nonuniformly scaled parent has shear in matrixWorld.
+      plane.set(normal.negate(), o.cut.at).applyMatrix4(node.obj.matrixWorld);
       give(o.key, plane);
     }
     for (const key of [...this.ownerPlanes.keys()]) if (!live.has(key)) this.ownerPlanes.delete(key);
@@ -148,8 +152,10 @@ export class Cutaway {
         // The cap lies on the plane, large enough to cover the part, facing along it.
         const cap = helper.cap;
         const plane = helper.plane;
-        const point = plane.coplanarPoint(new Vector3());
-        cap.position.copy(point);
+        // Centre the slab over the model, not the world origin. A small model can
+        // sit far along the plane; its diagonal alone cannot cover that translation.
+        this.box.getCenter(cap.position);
+        plane.projectPoint(cap.position, cap.position);
         cap.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), plane.normal);
         cap.scale.setScalar(radius * 2);
       }
