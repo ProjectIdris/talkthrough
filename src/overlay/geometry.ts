@@ -3,7 +3,7 @@
 // touches the DOM.
 
 import {
-  BoxGeometry, BufferAttribute, BufferGeometry, ExtrudeGeometry, LatheGeometry, Shape, Vector2, Vector3,
+  BoxGeometry, BufferAttribute, BufferGeometry, ExtrudeGeometry, LatheGeometry, Path, Shape, Vector2, Vector3,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -12,6 +12,7 @@ import { BLOB_CELLS, SCENE_BLOB_TRIANGLES } from './blob.ts';
 import { shadeLatheProfile } from './lathe.ts';
 import { sampleOpenCurve } from './open-curve.ts';
 import type { Vec2, Vec3 } from '../scene/types.ts';
+import { normalizeExtrudeProfile } from '../scene/extrude-profile.ts';
 
 export type Detail = { curve: number; bevel: number; radial: number; tube: number; blob: number; blobTriangles: number };
 export const DETAIL: Record<'low' | 'mid' | 'high', Detail> = {
@@ -37,8 +38,88 @@ export function boxGeometry(size: Vec3, bevel: number, detail: Detail): BufferGe
   return new RoundedBoxGeometry(size[0], size[1], size[2], detail.bevel, r);
 }
 
+/**
+ * Earcut can bridge aligned openings with a cap edge that runs through other
+ * boundary vertices. Split that edge at those vertices so the cap and the
+ * independently built side walls have the same welded topology.
+ */
+function splitCapEdges(geo: BufferGeometry, rings: readonly (readonly Vec2[])[]): void {
+  const points = rings.flat();
+  const byPosition = new Map(points.map((p) => [`${Math.fround(p[0])},${Math.fround(p[1])}`, p]));
+  const attrs = ['position', 'normal', 'uv'] as const;
+  const source = attrs.map((name) => geo.getAttribute(name));
+  const data: number[][] = attrs.map(() => []);
+  type Vertex = { original: Vec2; values: number[][] };
+  const vertex = (i: number): Vertex => {
+    const values = source.map((a) => Array.from({ length: a.itemSize }, (_, j) => a.getComponent(i, j)));
+    const original = byPosition.get(`${values[0]![0]},${values[0]![1]}`);
+    if (!original) throw new Error('Extrusion cap contains an unexpected vertex');
+    return { original, values };
+  };
+  const split = (triangle: Vertex[]): Vertex[][] => {
+    for (let edge = 0; edge < 3; edge++) {
+      const a = triangle[edge]!, b = triangle[(edge + 1) % 3]!, c = triangle[(edge + 2) % 3]!;
+      const dx = b.original[0] - a.original[0], dy = b.original[1] - a.original[1];
+      const length2 = dx * dx + dy * dy;
+      for (const p of points) {
+        if ((p[0] === a.original[0] && p[1] === a.original[1]) ||
+            (p[0] === b.original[0] && p[1] === b.original[1]) ||
+            (p[0] === c.original[0] && p[1] === c.original[1])) continue;
+        const px = p[0] - a.original[0], py = p[1] - a.original[1];
+        const t = (px * dx + py * dy) / length2;
+        if (!(t > 0 && t < 1) || dx * py - dy * px !== 0) continue;
+        const values = a.values.map((v, k) => v.map((x, j) => x + t * (b.values[k]![j]! - x)));
+        values[0]![0] = Math.fround(p[0]); values[0]![1] = Math.fround(p[1]);
+        const middle: Vertex = { original: p, values };
+        return [...split([a, middle, c]), ...split([middle, b, c])];
+      }
+    }
+    return [triangle];
+  };
+  const groups = geo.groups.map((group) => ({ ...group }));
+  geo.clearGroups();
+  let start = 0;
+  for (const group of groups) {
+    for (let i = group.start; i < group.start + group.count; i += 3) {
+      const triangles = group.materialIndex === 0 ? split([vertex(i), vertex(i + 1), vertex(i + 2)]) : undefined;
+      if (triangles) {
+        for (const triangle of triangles) for (const v of triangle) v.values.forEach((values, k) => data[k]!.push(...values));
+      } else {
+        for (let j = 0; j < 3; j++) source.forEach((a, k) => {
+          for (let c = 0; c < a.itemSize; c++) data[k]!.push(a.getComponent(i + j, c));
+        });
+      }
+    }
+    const count = data[0]!.length / 3 - start;
+    geo.addGroup(start, count, group.materialIndex);
+    start += count;
+  }
+  attrs.forEach((name, i) => geo.setAttribute(name, new BufferAttribute(new Float32Array(data[i]!), source[i]!.itemSize)));
+}
+
 /** A flat outline pushed out `depth` along z and centred on z = 0. */
-export function extrudeGeometry(outline: readonly Vec2[], depth: number, bevel: number, detail: Detail): BufferGeometry {
+export function extrudeGeometry(outline: readonly Vec2[], depth: number, bevel: number, detail: Detail, holes?: readonly (readonly Vec2[])[]): BufferGeometry {
+  if (holes?.length) {
+    const normalized = normalizeExtrudeProfile(outline, holes);
+    // The generated positions are Float32, so triangulate those same coordinates.
+    const round = (ring: Vec2[]): Vec2[] => ring.map(([x, y]) => [Math.fround(x), Math.fround(y)]);
+    const profile = { outline: round(normalized.outline), holes: normalized.holes.map(round) };
+    const shape = new Shape();
+    profile.outline.forEach((p, i) => (i === 0 ? shape.moveTo(p[0], p[1]) : shape.lineTo(p[0], p[1])));
+    shape.closePath();
+    for (const ring of profile.holes) {
+      const path = new Path();
+      ring.forEach((p, i) => (i === 0 ? path.moveTo(p[0], p[1]) : path.lineTo(p[0], p[1])));
+      path.closePath();
+      shape.holes.push(path);
+    }
+    const geo = new ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 8 });
+    splitCapEdges(geo, [profile.outline, ...profile.holes]);
+    geo.translate(0, 0, -depth / 2);
+    // ExtrudeGeometry's flat face normals preserve sharp walls even when distinct
+    // features are closer than the position buckets used by toCreasedNormals.
+    return geo;
+  }
   const shape = new Shape();
   outline.forEach((p, i) => (i === 0 ? shape.moveTo(p[0], p[1]) : shape.lineTo(p[0], p[1])));
   shape.closePath();

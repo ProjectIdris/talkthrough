@@ -330,8 +330,8 @@ export class PanelScene {
         return new PlaneGeometry(sx, sy);
       }
       case 'extrude': {
-        const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number };
-        return extrudeGeometry(e.outline, e.depth, e.bevel ?? Math.min(0.1, e.depth * 0.2), d);
+        const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number; holes?: Array<Array<[number, number]>> };
+        return extrudeGeometry(e.outline, e.depth, e.bevel ?? Math.min(0.1, e.depth * 0.2), d, e.holes);
       }
       case 'blob': {
         const b = def as { pts: Vec3[]; sizes: Vec3[]; soft?: number };

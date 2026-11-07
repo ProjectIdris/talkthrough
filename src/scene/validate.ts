@@ -2,6 +2,7 @@
 // It reads data and builds fresh objects from known fields. It never evaluates, imports,
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
+import { extrudeProfileIssue } from './extrude-profile.ts';
 import { nearestPaletteColor } from './colors.ts';
 import { attachTolerance, landOn, mountPosition } from './attach.ts';
 import { resolvePartGeometry } from './part-geometry.ts';
@@ -9,7 +10,7 @@ import type { Body } from './attach.ts';
 import { bindParts, bindUnknownId, BINDINGS } from './bind.ts';
 import { DIAGRAM_PARTS, ID_PATTERN, LIMITS, PALETTE, RESERVED_IDS, SCREEN_KINDS, VARIANTS } from './spec.ts';
 import type { DiagramKind, Field, ObjectKind, Variant } from './spec.ts';
-import type { Action, AddPart, AttachEnd, Issue, IssueKind, Scene, Step, Vec3 } from './types.ts';
+import type { Action, AddPart, AttachEnd, Issue, IssueKind, Scene, Step, Vec2, Vec3 } from './types.ts';
 
 /** What the scene holds so far. Keep one per session and pass it to every turn so follow-ups reach earlier ids. */
 export type SceneState = {
@@ -227,6 +228,21 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
         out.push(p.value);
       }
       return good(out);
+    }
+    case 'rings2': {
+      if (!Array.isArray(v) || v.length > f.max) return bad(`expected at most ${f.max} hole rings`);
+      const rings: Vec2[][] = [];
+      for (let h = 0; h < v.length; h++) {
+        const ring: unknown = v[h];
+        if (!Array.isArray(ring) || ring.length < 3 || ring.length > f.points) return bad(`hole ${h}: expected 3 to ${f.points} points`);
+        const points: Vec2[] = [];
+        for (const point of ring) {
+          if (!Array.isArray(point) || point.length !== 2 || [point[0], point[1]].some((n) => typeof n !== 'number' || !Number.isFinite(n) || n < f.lo || n > f.hi)) return bad(`hole ${h}: expected finite coordinates from ${f.lo} to ${f.hi}`);
+          points.push([point[0], point[1]]);
+        }
+        rings.push(points);
+      }
+      return good(rings);
     }
     case 'strs': {
       if (!Array.isArray(v)) return bad('expected a list of texts');
@@ -485,6 +501,15 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     }
   }
   const input = variant.op === 'panel' ? fitStage(raw as Record<string, unknown>, state, path, notes) : raw;
+  // Do not let the ordinary outline parser truncate or clamp a perforated profile.
+  const rawHoles = variant.name === 'addExtrude' ? own(input, 'holes') : undefined;
+  if (Array.isArray(rawHoles) && rawHoles.length > 0) {
+    const outer = own(input, 'outline');
+    if (!Array.isArray(outer) || outer.length < 3 || outer.length > LIMITS.maxOutline || outer.some((p) => !Array.isArray(p) || p.length !== 2 || [p[0], p[1]].some((n) => typeof n !== 'number' || !Number.isFinite(n) || n < -100 || n > 100))) {
+      note(notes, 'dropped', `${path}.outline`, `perforated outline needs 3 to ${LIMITS.maxOutline} finite points in the world range`);
+      return null;
+    }
+  }
   const out: Record<string, unknown> = { op: variant.op };
   // Fields that name a part already in the scene are bound in one place (bind.ts) once the others are read.
   const bindings = BINDINGS[variant.name];
@@ -506,6 +531,15 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
       return null;
     }
     out[name] = p.value;
+  }
+  if (variant.name === 'addExtrude' && Array.isArray(out.holes) && out.holes.length > 0) {
+    const issue = extrudeProfileIssue(out.outline as Vec2[], out.holes as Vec2[][]);
+    if (issue) {
+      note(notes, 'dropped', `${path}.${issue.field}`, issue.message);
+      return null;
+    }
+    if (typeof out.bevel === 'number' && out.bevel > 0) note(notes, 'clamped', `${path}.bevel`, 'perforated extrusions use flat edges; bevel reduced to 0');
+    out.bevel = 0;
   }
   if (bindings && !bindParts(bindings, (n) => own(input, n), out, state, path, (kind, at, why) => note(notes, kind, at, why))) return null;
   if (variant.op === 'add' && typeof out.parent === 'string' && (parentFirstAt.get(out.parent) ?? 0) > ((out.at as number | undefined) ?? 0)) {

@@ -26,6 +26,9 @@ export const LIMITS = {
   maxPts: 24,
   /** Points of an outline or profile. */
   maxOutline: 40,
+  maxExtrudeHoles: 8,
+  maxHolePoints: 24,
+  maxExtrudePoints: 128,
   /** Corners of a screen polygon, and points of a traced curve. */
   maxPoly: 24,
   maxTrace: 40,
@@ -84,6 +87,8 @@ export type Field =
   | { k: 'vec2'; min: number; max: number; opt?: boolean; doc?: string }
   /** A list of [x,y] points (an outline or a profile). */
   | { k: 'pts2'; min: number; max: number; lo: number; hi: number; opt?: boolean; doc?: string }
+  /** Bounded nested rings for extrusion through-openings. */
+  | { k: 'rings2'; max: number; points: number; lo: number; hi: number; opt?: boolean; doc?: string }
   /** A short list of short texts. */
   | { k: 'strs'; max: number; len: number; opt?: boolean; doc?: string }
   | { k: 'pts'; min: number; max: number; lo: number; hi: number; opt?: boolean; doc?: string }
@@ -270,10 +275,11 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addExtrude', op: 'add', shapes: ['extrude'], creates: 'solid',
-    doc: 'A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets.',
+    doc: 'A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets. holes are disjoint rings strictly inside the outline, cut through the full depth; flat edges only, no bevel.',
     fields: {
       shape: { k: 'enum', values: ['extrude'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: LIMITS.maxOutline, lo: WORLD.min, hi: WORLD.max },
+      holes: { k: 'rings2', max: LIMITS.maxExtrudeHoles, points: LIMITS.maxHolePoints, lo: WORLD.min, hi: WORLD.max, opt: true, doc: 'up to 8 through-openings in outline local XY; 3 to 24 points each, 128 points total including outline; no crossing, touching or nesting; either winding and a single closing point are allowed' },
       depth: { k: 'num', min: 0.01, max: 100 }, color: COLOR_OPT, material: MATERIAL, bevel: BEVEL, edges: EDGES, opacity: OPACITY, at: AT,
     },
   },
