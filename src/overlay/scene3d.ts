@@ -15,6 +15,7 @@ import {
 import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
+import { buildHullGeometry } from './hull.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { TIERS, applySurface, makeSurface } from './materials.ts';
@@ -224,7 +225,7 @@ export class PanelScene {
       // Stream markers share geometry within this node; own and release it once.
       if (!node.geometries.includes(geo)) node.geometries.push(geo);
       node.materials.push(surface);
-      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'torus';
+      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'hull' || def.shape === 'torus';
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
       if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.primitiveKey(def));
       node.pieces.push(piece);
@@ -232,6 +233,12 @@ export class PanelScene {
     };
     switch (def.shape) {
       case 'group': case 'array': break;
+      case 'hull': {
+        const result = buildHullGeometry(def.pts);
+        if (result.ok) node.obj = addMesh(result.geometry, material, def.edges !== false);
+        else console.warn(`talkthrough: hull ${o.id} could not be built: ${result.message}`);
+        break;
+      }
       case 'part': {
         const built = buildPart(def, this.detail);
         node.obj = built.root;

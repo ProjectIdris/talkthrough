@@ -6,6 +6,7 @@ import { extrudeProfileIssue } from './extrude-profile.ts';
 import { nearestPaletteColor } from './colors.ts';
 import { attachTolerance, landOn, mountPosition } from './attach.ts';
 import { resolvePartGeometry } from './part-geometry.ts';
+import { resolveHullPoints } from './hull-points.ts';
 import type { Body } from './attach.ts';
 import { bindParts, bindUnknownId, BINDINGS } from './bind.ts';
 import { DIAGRAM_PARTS, ID_PATTERN, LIMITS, PALETTE, RESERVED_IDS, SCREEN_KINDS, VARIANTS } from './spec.ts';
@@ -379,7 +380,7 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
     else state.bodies.set(id, { shape: 'group', ...place }); // a cone or a torus is not asked about, but things hang from it
   } else if (name === 'addPart') state.bodies.set(id, { shape: 'box', ...resolvePartGeometry(out as AddPart), ...place });
   else if (name === 'addBlob') state.bodies.set(id, { shape: 'blob', pts: out.pts as Vec3[], sizes: out.sizes as Vec3[], ...place });
-  else if (name === 'addExtrude' || name === 'addLathe' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
+  else if (name === 'addExtrude' || name === 'addHull' || name === 'addLathe' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addTube' || (name === 'addPath' && shape === 'line')) {
     holdEnds(state, id, out, path, notes);
     return;
@@ -498,6 +499,14 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
         note(notes, 'dropped', path, 'cut normal needs 3 finite numbers from -100 to 100, not all zero');
         return null;
       }
+    }
+  }
+  // Strict admission precedes the ordinary, deliberately lenient field parser and any state changes.
+  if (variant.name === 'addHull') {
+    const result = resolveHullPoints(own(raw, 'pts'));
+    if (!result.ok) {
+      note(notes, 'dropped', path, `pts: ${result.message}`);
+      return null;
     }
   }
   const input = variant.op === 'panel' ? fitStage(raw as Record<string, unknown>, state, path, notes) : raw;
