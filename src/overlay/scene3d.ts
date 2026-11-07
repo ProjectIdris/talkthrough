@@ -28,6 +28,7 @@ import type { FocusFrame, Frame, ObjectFrame, Rgb } from './timeline.ts';
 import { spreadPosition, userOffsets } from './explode.ts';
 import type { Part } from './explode.ts';
 import { Cutaway } from './cutaway.ts';
+import { latheSectorEdges, latheSectorGeometry } from './lathe-sector.ts';
 import { buildConnector, buildStream, updateAttached, updateConnectors, updateStreams } from './scene3d-flow.ts';
 import type { FlowNode } from './scene3d-flow.ts';
 
@@ -214,9 +215,9 @@ export class PanelScene {
       mesh.receiveShadow = settings.shadows;
       node.geometries.push(geo);
       node.materials.push(surface);
-      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'torus';
+      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'torus' || (def.shape === 'lathe' && def.sweep != null);
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
-      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.edgeKey(def));
+      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.edgeKey(def), def.shape === 'lathe' && def.sweep != null);
       node.pieces.push(piece);
       return mesh;
     };
@@ -249,7 +250,7 @@ export class PanelScene {
     return JSON.stringify([this.tier, def.shape, solid.size, def.shape === 'box' ? solid.bevel ?? defaultBevel(solid.size) : null, 28]);
   }
 
-  private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string): LineSegments {
+  private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string, sector = false): LineSegments {
     const mat = new LineBasicMaterial({ color: 0x10131a, transparent: true, opacity: 0.5 });
     let outline: BufferGeometry;
     const existing = key && this.sharedEdges.get(key);
@@ -262,7 +263,7 @@ export class PanelScene {
       generated.dispose();
       this.sharedEdges.set(key, { geometry: outline, refs: 1 });
       this.edgeKeys.set(outline, key);
-    } else outline = new EdgesGeometry(geo, 28);
+    } else outline = sector ? latheSectorEdges(geo) : new EdgesGeometry(geo, 28);
     const lines = new LineSegments(outline, mat);
     mesh.add(lines);
     node.geometries.push(lines.geometry);
@@ -317,8 +318,8 @@ export class PanelScene {
         return blobGeometry(b.pts, b.sizes, b.soft ?? 0.5, d.blob, Math.max(BLOB_MIN_TRIANGLES, d.blobTriangles - used));
       }
       case 'lathe': {
-        const l = def as { profile: Array<[number, number]>; sides?: number };
-        return latheGeometry(l.profile, l.sides ?? d.curve);
+        const l = def as { profile: Array<[number, number]>; sides?: number; sweep?: number };
+        return l.sweep == null ? latheGeometry(l.profile, l.sides ?? d.curve) : latheSectorGeometry(l.profile, l.sides ?? d.curve, l.sweep);
       }
       default: {
         const b = def as { size: Vec3; bevel?: number };

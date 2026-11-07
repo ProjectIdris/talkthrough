@@ -277,10 +277,11 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addLathe', op: 'add', shapes: ['lathe'], creates: 'solid',
-    doc: 'A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides (default 48) makes it faceted.',
+    doc: 'A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides makes it faceted (default quality tiers: 20/36/64). Optional sweep 1..359 degrees makes a closed sector from +z towards +x about +y; rotate to choose its start. Sector profile: simple closed polygon, 3..40 points (one repeated closing point allowed), radius 0..100, y -100..100. Invalid, touching, intersecting or Float32-unsafe profiles and invalid sweeps are rejected, not repaired. Either winding; exact redundant collinear boundary points are removed. sides is segments per full revolution (sector segments scale proportionally, at most 90 degrees each).',
     fields: {
       shape: { k: 'enum', values: ['lathe'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
       profile: { k: 'pts2', min: 2, max: LIMITS.maxOutline, lo: WORLD.min, hi: WORLD.max },
+      sweep: { k: 'num', min: 1, max: 359, opt: true },
       sides: { k: 'num', min: 3, max: 64, int: true, opt: true }, color: COLOR_OPT, material: MATERIAL, edges: EDGES, opacity: OPACITY, at: AT,
     },
   },

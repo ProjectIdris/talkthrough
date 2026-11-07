@@ -1386,6 +1386,13 @@
           },
           "description": "2 to 40 points [x,y], each -100 to 100"
         },
+        "sweep": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 359"
+        },
         "sides": {
           "type": [
             "number",
@@ -1445,6 +1452,7 @@
         "pos",
         "rot",
         "profile",
+        "sweep",
         "sides",
         "color",
         "material",
@@ -1453,7 +1461,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides (default 48) makes it faceted."
+      "description": "A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides makes it faceted (default quality tiers: 20/36/64). Optional sweep 1..359 degrees makes a closed sector from +z towards +x about +y; rotate to choose its start. Sector profile: simple closed polygon, 3..40 points (one repeated closing point allowed), radius 0..100, y -100..100. Invalid, touching, intersecting or Float32-unsafe profiles and invalid sweeps are rejected, not repaired. Either winding; exact redundant collinear boundary points are removed. sides is segments per full revolution (sector segments scale proportionally, at most 90 degrees each)."
     },
     "addBlob": {
       "type": "object",

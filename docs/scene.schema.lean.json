@@ -1212,6 +1212,12 @@
             }
           }
         },
+        "sweep": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "sides": {
           "type": [
             "number",
@@ -1264,6 +1270,7 @@
         "pos",
         "rot",
         "profile",
+        "sweep",
         "sides",
         "color",
         "material",
