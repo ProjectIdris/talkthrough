@@ -1,0 +1,507 @@
+[
+  {
+    "id": "fresh-v3-01",
+    "query": "Put a metal chip beside a USB-C port on the board.",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "chip",
+      "port"
+    ],
+    "rationale": "Both explicitly requested electronic components have matching built-ins."
+  },
+  {
+    "id": "fresh-v3-02",
+    "query": "Show a lens above a screen on the front panel.",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "lens",
+      "screen"
+    ],
+    "rationale": "Both front-facing optical and display objects are directly requested."
+  },
+  {
+    "id": "fresh-v3-03",
+    "query": "Add a button next to a fan with seven blades.",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "button",
+      "fan"
+    ],
+    "rationale": "A push control and a bladed fan are explicitly requested."
+  },
+  {
+    "id": "fresh-v3-04",
+    "query": "Place a wheel on each side of the little vehicle.",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "wheel"
+    ],
+    "rationale": "The requested objects are tyre-and-wheel assemblies."
+  },
+  {
+    "id": "fresh-v3-05",
+    "query": "Show the piston inside a cutaway cylinder block.",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "piston",
+      "cylinder-block"
+    ],
+    "rationale": "The internal moving part and bored engine block are requested."
+  },
+  {
+    "id": "fresh-v3-06",
+    "query": "Lay out a crankshaft, connecting rod and spark plug separately.",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "crankshaft",
+      "connecting-rod",
+      "spark-plug"
+    ],
+    "rationale": "All three named engine objects are depicted, not merely mentioned."
+  },
+  {
+    "id": "fresh-v3-07",
+    "query": "Put a valve below the camshaft.",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "valve",
+      "camshaft"
+    ],
+    "rationale": "Both named engine parts are requested."
+  },
+  {
+    "id": "fresh-v3-08",
+    "query": "Show a gear supported by a bearing inside a housing.",
+    "language": "en",
+    "category": "direct",
+    "relevantIds": [
+      "gear",
+      "bearing",
+      "housing"
+    ],
+    "rationale": "The requested toothed rotor, bearing and enclosure each have a built-in."
+  },
+  {
+    "id": "fresh-v3-09",
+    "query": "I need two parallel lines of bare contacts sticking out of a circuit board.",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "header"
+    ],
+    "rationale": "Two rows of exposed electrical pins identify the header family."
+  },
+  {
+    "id": "fresh-v3-10",
+    "query": "Make a little opening where I can plug in the network cable.",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "port"
+    ],
+    "rationale": "A network cable receptacle is the supported Ethernet socket variant."
+  },
+  {
+    "id": "fresh-v3-11",
+    "query": "Add the shiny circular glass at the front of a small camera.",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "lens"
+    ],
+    "rationale": "The camera optical element is the round lens."
+  },
+  {
+    "id": "fresh-v3-12",
+    "query": "Put a round pressable control on top of the box.",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "button",
+      "housing"
+    ],
+    "rationale": "The pressable control maps to button; the depicted enclosing box maps to housing."
+  },
+  {
+    "id": "fresh-v3-13",
+    "query": "Show the twisted metal helix that compresses when you push down.",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "spring"
+    ],
+    "rationale": "The described compressible metal helix is a coil spring."
+  },
+  {
+    "id": "fresh-v3-14",
+    "query": "I want the ring of little balls that lets a shaft turn smoothly.",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "bearing"
+    ],
+    "rationale": "The ball-bearing assembly is directly described; a shaft is functional context, not a requested separate object."
+  },
+  {
+    "id": "fresh-v3-15",
+    "query": "Make a straight hollow conduit with a right-angle bend attached at its end.",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "pipe",
+      "elbow"
+    ],
+    "rationale": "Both the straight pipe and separate bent pipe fitting are directly depicted."
+  },
+  {
+    "id": "fresh-v3-16",
+    "query": "Draw the rotating lobed shaft that lifts the engine intake parts.",
+    "language": "en",
+    "category": "paraphrase",
+    "relevantIds": [
+      "camshaft"
+    ],
+    "rationale": "The lobed actuator shaft is requested; the intake parts explain its function rather than request their depiction."
+  },
+  {
+    "id": "fresh-v3-17",
+    "query": "Build a desk gadget with a screen, two buttons and a microphone.",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "screen",
+      "button"
+    ],
+    "rationale": "Display and push buttons are supported; no microphone family exists."
+  },
+  {
+    "id": "fresh-v3-18",
+    "query": "Show a wheel with a brake disc and a coil spring behind it.",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "wheel",
+      "spring"
+    ],
+    "rationale": "Wheel and spring are available; brake disc has no built-in family."
+  },
+  {
+    "id": "fresh-v3-19",
+    "query": "Place a spark plug beside an injector and a fuel tank.",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "spark-plug"
+    ],
+    "rationale": "Only the spark plug has a directly matching built-in; injector and tank do not."
+  },
+  {
+    "id": "fresh-v3-20",
+    "query": "Make a robot face with camera lenses, a speaker grille and an HDMI socket.",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "lens",
+      "port"
+    ],
+    "rationale": "Lenses and HDMI receptacle are supported; the grille has no direct family."
+  },
+  {
+    "id": "fresh-v3-21",
+    "query": "Lay out a straight pipe, an elbow and a kitchen tap.",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "pipe",
+      "elbow"
+    ],
+    "rationale": "Pipe and elbow are available; an engine valve is not a kitchen tap."
+  },
+  {
+    "id": "fresh-v3-22",
+    "query": "Show a processor, its pin header, a battery and a loose ribbon cable.",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "chip",
+      "header"
+    ],
+    "rationale": "Chip and pin header match; battery and ribbon cable are absent."
+  },
+  {
+    "id": "fresh-v3-23",
+    "query": "Add a crankshaft and connecting rod beside a propeller and a chain.",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "crankshaft",
+      "connecting-rod"
+    ],
+    "rationale": "The two engine parts match; a propeller and chain are not supported families, and fan is not substituted."
+  },
+  {
+    "id": "fresh-v3-24",
+    "query": "Put a bearing, a gear and a toothed drive belt on the workbench.",
+    "language": "en",
+    "category": "mixed",
+    "relevantIds": [
+      "bearing",
+      "gear"
+    ],
+    "rationale": "Bearing and toothed gear match; belt and workbench have no direct family."
+  },
+  {
+    "id": "fresh-v3-25",
+    "query": "Give me the available engine components for an exploded teaching display.",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "cylinder-block",
+      "piston",
+      "connecting-rod",
+      "crankshaft",
+      "valve",
+      "camshaft",
+      "spark-plug"
+    ],
+    "rationale": "The complete directly described engine family set serves an unspecified exploded engine display; generic accessories are not presumed."
+  },
+  {
+    "id": "fresh-v3-26",
+    "query": "Which built-in electronic board and front-panel components can I show together?",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "chip",
+      "header",
+      "port",
+      "screen",
+      "button"
+    ],
+    "rationale": "These are the five families explicitly described as electronics, board connections or electronic controls; optical and ventilation hardware are outside this scope."
+  },
+  {
+    "id": "fresh-v3-27",
+    "query": "Show the available plumbing pieces for a rigid water line.",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "pipe",
+      "elbow"
+    ],
+    "rationale": "Straight pipe and elbow are the plumbing families; the engine valve does not represent a plumbing valve."
+  },
+  {
+    "id": "fresh-v3-28",
+    "query": "I need a selection of electrical connection types, not the devices they connect.",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "header",
+      "port"
+    ],
+    "rationale": "Exposed-pin connections and connector-family sockets cover the available electrical connection types."
+  },
+  {
+    "id": "fresh-v3-29",
+    "query": "Show the engine parts involved in opening and closing the intake passage.",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "valve",
+      "camshaft"
+    ],
+    "rationale": "Engine valves and the camshaft directly perform this function; unrelated engine internals are not depicted."
+  },
+  {
+    "id": "fresh-v3-30",
+    "query": "Show the available pieces that turn piston travel into engine rotation.",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "piston",
+      "connecting-rod",
+      "crankshaft"
+    ],
+    "rationale": "The piston, connecting rod and crankshaft form the requested motion-conversion chain."
+  },
+  {
+    "id": "fresh-v3-31",
+    "query": "Give me the visual input and visual output parts for a camera demonstration.",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "lens",
+      "screen"
+    ],
+    "rationale": "The lens receives the image and the display presents it; unspecified supporting electronics are incidental."
+  },
+  {
+    "id": "fresh-v3-32",
+    "query": "Show the toothed transmission parts and the ball supports that let them rotate.",
+    "language": "en",
+    "category": "broad",
+    "relevantIds": [
+      "gear",
+      "bearing"
+    ],
+    "rationale": "Toothed gears and ball bearings directly match the two requested component categories."
+  },
+  {
+    "id": "fresh-v3-33",
+    "query": "Draw a potato chip resting on a dinner plate.",
+    "language": "en",
+    "category": "absent",
+    "relevantIds": [],
+    "rationale": "Food chip is not an electronic package; neither requested object has a matching family."
+  },
+  {
+    "id": "fresh-v3-34",
+    "query": "Show a wheel of cheese on a market stall.",
+    "language": "en",
+    "category": "absent",
+    "relevantIds": [],
+    "rationale": "Wheel describes cheese shape, not a tyre-and-wheel assembly; no supported depicted object is requested."
+  },
+  {
+    "id": "fresh-v3-35",
+    "query": "Show spring arriving in a garden full of tulips.",
+    "language": "en",
+    "category": "absent",
+    "relevantIds": [],
+    "rationale": "Spring is the season, not a coil spring; garden and flowers are unsupported."
+  },
+  {
+    "id": "fresh-v3-36",
+    "query": "Put a bold header above the title of this newspaper.",
+    "language": "en",
+    "category": "absent",
+    "relevantIds": [],
+    "rationale": "Header is page typography rather than exposed electrical pins."
+  },
+  {
+    "id": "fresh-v3-37",
+    "query": "Illustrate a busy port with cargo ships and cranes.",
+    "language": "en",
+    "category": "absent",
+    "relevantIds": [],
+    "rationale": "Port is a harbour; ships and cranes have no directly matching families."
+  },
+  {
+    "id": "fresh-v3-38",
+    "query": "Show a tennis fan cheering from the grandstand.",
+    "language": "en",
+    "category": "absent",
+    "relevantIds": [],
+    "rationale": "Fan means spectator, not a bladed ventilation component."
+  },
+  {
+    "id": "fresh-v3-39",
+    "query": "Draw a person resting an elbow on a kitchen table.",
+    "language": "en",
+    "category": "absent",
+    "relevantIds": [],
+    "rationale": "Elbow is anatomy rather than a pipe fitting; no directly useful family is present."
+  },
+  {
+    "id": "fresh-v3-40",
+    "query": "Make a medical illustration of a heart valve.",
+    "language": "en",
+    "category": "absent",
+    "relevantIds": [],
+    "rationale": "A heart valve is biologically and geometrically distinct from the available engine valve."
+  },
+  {
+    "id": "fresh-v3-41",
+    "query": "Show a bare connecting rod without the piston or crankshaft.",
+    "language": "en",
+    "category": "negation",
+    "relevantIds": [
+      "connecting-rod"
+    ],
+    "rationale": "Only the connecting rod is depicted; piston and crankshaft are explicitly excluded."
+  },
+  {
+    "id": "fresh-v3-42",
+    "query": "Use an Ethernet socket rather than a screen or push button.",
+    "language": "en",
+    "category": "negation",
+    "relevantIds": [
+      "port"
+    ],
+    "rationale": "Only the connector is requested; screen and button are rejected alternatives."
+  },
+  {
+    "id": "fresh-v3-43",
+    "query": "Remove the spring from the idea; I only want a wheel and its bearing.",
+    "language": "en",
+    "category": "negation",
+    "relevantIds": [
+      "wheel",
+      "bearing"
+    ],
+    "rationale": "Spring is excluded; wheel and bearing are explicitly retained."
+  },
+  {
+    "id": "fresh-v3-44",
+    "query": "Show a solid housing, with no fan, gears or electronic chips inside.",
+    "language": "en",
+    "category": "negation",
+    "relevantIds": [
+      "housing"
+    ],
+    "rationale": "Only the enclosure is requested; all listed internal parts are explicitly absent."
+  },
+  {
+    "id": "fresh-v3-45",
+    "query": "Pon un engranaje y un muelle junto al motor.",
+    "language": "es",
+    "category": "non-English",
+    "relevantIds": [
+      "gear",
+      "spring"
+    ],
+    "rationale": "Spanish requests gear and spring; a generic whole motor does not justify inferring unspecified internal engine parts."
+  },
+  {
+    "id": "fresh-v3-46",
+    "query": "Je voudrais une prise USB et deux boutons ronds sur le boîtier.",
+    "language": "fr",
+    "category": "non-English",
+    "relevantIds": [
+      "port",
+      "button",
+      "housing"
+    ],
+    "rationale": "French explicitly requests a USB socket, round buttons and enclosing case."
+  },
+  {
+    "id": "fresh-v3-47",
+    "query": "Zeige einen Kolben mit Pleuelstange, aber keine Kurbelwelle.",
+    "language": "de",
+    "category": "non-English",
+    "relevantIds": [
+      "piston",
+      "connecting-rod"
+    ],
+    "rationale": "German requests piston and connecting rod while explicitly excluding crankshaft."
+  },
+  {
+    "id": "fresh-v3-48",
+    "query": "カメラのレンズと小さな画面を並べてください。",
+    "language": "ja",
+    "category": "non-English",
+    "relevantIds": [
+      "lens",
+      "screen"
+    ],
+    "rationale": "Japanese requests a camera lens beside a small display."
+  }
+]
