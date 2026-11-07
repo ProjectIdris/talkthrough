@@ -90,6 +90,19 @@ When the thing to explain is a process, a sequence of events, a how-to or a tren
 
 `material` is one of `plastic` (default), `metal`, `rubber`, `pcb`, `glass`, `glow`, `paper`, `tissue` (living tissue: soft, a little wet). They are physically based surfaces lit by a room environment; `color` tints them, and an object with no colour takes the natural colour of its surface (a `pcb` is green, `rubber` near black). Solids and tubes have dark edge lines unless `edges` is false.
 
+Each object that accepts `material` also accepts four optional finish numbers, independently overriding that material's recipe:
+
+- `roughness`: 0 is polished, 1 is matte. It controls the base surface's highlight spread, not geometry.
+- `metalness`: 0 is a nonmetal, 1 is metal. Intermediate values blend the responses; use the endpoints for ordinary pure materials. Set `color` explicitly when turning a named nonmetal into metal so its inherited tint does not unexpectedly darken it.
+- `clearcoat`: 0 removes the clear top coating, 1 gives its full strength. Low quality always disables this layer; mid and high honor the value.
+- `clearcoatRoughness`: 0 is a polished coating, 1 is matte. This only affects a coating whose strength is nonzero.
+
+For example, `material: "metal", roughness: 0.12` gives a polished metal; `material: "plastic", roughness: 0.9, clearcoat: 0` removes the plastic recipe's lacquer highlight; `material: "plastic", roughness: 0.7, clearcoat: 1, clearcoatRoughness: 0.08` gives a polished coat over a rough base. These examples use the existing environment lighting, not texture maps or a physical material measurement.
+
+Omitted or null fields keep the named defaults, including when no `material` is given. Zero is an explicit override. Finite values outside 0..1 clamp with a validation issue; non-numbers and nonfinite values reject the action before its ID or replacement is consumed. Finish is set by `add`, retained by arrays, and not animated by `style`. To change it, replace the object in a later answer. Groups do not pass finishes to children, kit parts retain their separate built-in surfaces, and cut caps retain their contrasting section material. Glass stays an alpha-blended explanatory shell, not physical refraction. The fields do not change opacity, emission, geometry, edge lines or sidedness.
+
+See [surface finish review](surface-finish.md) and `samples/scenes/surface-finishes.json` for an authored comparison and native acceptance checklist.
+
 ### Adding objects
 
 `{ "op": "add", "shape": ..., "id": ... }` plus:

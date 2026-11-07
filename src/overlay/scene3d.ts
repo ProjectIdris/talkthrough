@@ -13,7 +13,7 @@ import {
   PerspectiveCamera, PlaneGeometry, Raycaster, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3,
 } from 'three';
 import type { Texture } from 'three';
-import type { AddAction, Vec3 } from '../scene/types.ts';
+import type { AddAction, SurfaceFinish, Vec3 } from '../scene/types.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
@@ -206,8 +206,14 @@ export class PanelScene {
     const settings = TIERS[this.tier];
     const node: Node = { obj: new Group(), pieces: [], geometries: [], materials: [], baseScale: new Vector3(1, 1, 1), alpha: 1, color: [255, 255, 255] };
     const material = 'material' in def ? def.material : undefined;
+    const finish: SurfaceFinish = {
+      roughness: 'roughness' in def ? def.roughness : undefined,
+      metalness: 'metalness' in def ? def.metalness : undefined,
+      clearcoat: 'clearcoat' in def ? def.clearcoat : undefined,
+      clearcoatRoughness: 'clearcoatRoughness' in def ? def.clearcoatRoughness : undefined,
+    };
     const addMesh: AddMesh = (geo, surfaceName, edges) => {
-      const surface = makeSurface(surfaceName, settings);
+      const surface = makeSurface(surfaceName, settings, finish);
       if (geo.getAttribute('color')) surface.vertexColors = true;
       const mesh = new Mesh(geo, surface);
       mesh.castShadow = settings.shadows;

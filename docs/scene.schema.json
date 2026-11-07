@@ -1138,6 +1138,34 @@
           ],
           "description": "surface, default plastic"
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
         "bevel": {
           "type": [
             "number",
@@ -1178,6 +1206,10 @@
         "rot",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "bevel",
         "edges",
         "opacity",
@@ -1274,6 +1306,34 @@
           ],
           "description": "surface, default plastic"
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
         "bevel": {
           "type": [
             "number",
@@ -1315,6 +1375,10 @@
         "depth",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "bevel",
         "edges",
         "opacity",
@@ -1414,6 +1478,34 @@
           ],
           "description": "surface, default plastic"
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
         "edges": {
           "type": [
             "boolean",
@@ -1448,6 +1540,10 @@
         "sides",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "edges",
         "opacity",
         "at"
@@ -1556,6 +1652,34 @@
           ],
           "description": "surface, default plastic"
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
         "opacity": {
           "type": [
             "number",
@@ -1584,6 +1708,10 @@
         "soft",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "opacity",
         "at"
       ],
@@ -1678,6 +1806,34 @@
           ],
           "description": "surface, default plastic"
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
         "draw": {
           "type": [
             "number",
@@ -1712,6 +1868,10 @@
         "swell",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "draw",
         "opacity",
         "at"
@@ -1917,6 +2077,34 @@
           ],
           "description": "surface, default plastic"
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
         "draw": {
           "type": [
             "number",
@@ -1955,6 +2143,10 @@
         "radius",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "draw",
         "opacity",
         "at"

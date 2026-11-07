@@ -1007,6 +1007,30 @@
             null
           ]
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "bevel": {
           "type": [
             "number",
@@ -1042,6 +1066,10 @@
         "rot",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "bevel",
         "edges",
         "opacity",
@@ -1120,6 +1148,30 @@
             null
           ]
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "bevel": {
           "type": [
             "number",
@@ -1156,6 +1208,10 @@
         "depth",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "bevel",
         "edges",
         "opacity",
@@ -1237,6 +1293,30 @@
             null
           ]
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "edges": {
           "type": [
             "boolean",
@@ -1267,6 +1347,10 @@
         "sides",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "edges",
         "opacity",
         "at"
@@ -1356,6 +1440,30 @@
             null
           ]
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "opacity": {
           "type": [
             "number",
@@ -1381,6 +1489,10 @@
         "soft",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "opacity",
         "at"
       ],
@@ -1457,6 +1569,30 @@
             null
           ]
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "draw": {
           "type": [
             "number",
@@ -1487,6 +1623,10 @@
         "swell",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "draw",
         "opacity",
         "at"
@@ -1664,6 +1804,30 @@
             null
           ]
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "draw": {
           "type": [
             "number",
@@ -1699,6 +1863,10 @@
         "radius",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "draw",
         "opacity",
         "at"
