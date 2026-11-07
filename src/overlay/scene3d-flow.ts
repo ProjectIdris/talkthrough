@@ -8,7 +8,7 @@ import type { Rgb } from '../scene/colors.ts';
 import type { AddConnector, AddPath, AddStream, AddTube, Vec3 } from '../scene/types.ts';
 import { arcPoint, beltPoints, endPoint, ropePoints, roundOf } from './connector.ts';
 import { drawFraction, tubeGeometry } from './geometry.ts';
-import { applySurface } from './materials.ts';
+import { applySurface, setSurfaceOpacity } from './materials.ts';
 import type { Surface } from './materials.ts';
 import { markerPlaces, markerSize, streamColour } from './stream.ts';
 import { parseColor } from './timeline.ts';
@@ -68,7 +68,7 @@ export function updateConnectors(nodes: ReadonlyMap<number, FlowNode>, frame: Fr
       node.obj.visible = false;
       continue;
     }
-    if (held < 1) for (const p of node.pieces) if (p.surface) p.surface.opacity *= held;
+    for (const p of node.pieces) if (p.surface) setSurfaceOpacity(p.surface, p.surface.opacity * held);
     const a = endPoint(na.obj, fa.def, def.fromSide, def.fromAnchor, na.anchors);
     const b = endPoint(nb.obj, fb.def, def.toSide, def.toAnchor, nb.anchors);
     const thick = def.radius ?? ROPE_RADIUS;
@@ -142,7 +142,7 @@ export function updateAttached(nodes: ReadonlyMap<number, FlowNode>, frame: Fram
       node.obj.visible = false;
       continue;
     }
-    if (held < 1) for (const p of node.pieces) if (p.surface) p.surface.opacity *= held;
+    for (const p of node.pieces) if (p.surface) setSurfaceOpacity(p.surface, p.surface.opacity * held);
     if (!node.attached) {
       const base = node.path.sampled.map((p): Vec3 => [p[0], p[1], p[2]]);
       const along = [0];

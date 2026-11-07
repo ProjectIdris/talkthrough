@@ -68,7 +68,7 @@ export function makeSurface(name: string | undefined, tier: TierSettings, finish
     color: 0xffffff, roughness: finish.roughness ?? r.roughness, metalness: finish.metalness ?? r.metalness,
     clearcoat: tier.clearcoat ? finish.clearcoat ?? r.clearcoat ?? 0 : 0,
     clearcoatRoughness: finish.clearcoatRoughness ?? r.clearcoatRoughness ?? 0,
-    envMapIntensity: r.envMapIntensity ?? 1, transparent: true, side: r.doubleSided ? DoubleSide : 0,
+    envMapIntensity: r.envMapIntensity ?? 1, transparent: (r.opacity ?? 1) < 1, side: r.doubleSided ? DoubleSide : 0,
   }) as Surface;
   if (r.sheen) {
     m.sheen = r.sheen;
@@ -76,17 +76,35 @@ export function makeSurface(name: string | undefined, tier: TierSettings, finish
     m.sheenColor.setRGB(1, 0.9, 0.88);
   }
   m.userData = { base: r.opacity ?? 1, glow: r.emissive ?? 0 };
-  if (name === 'glass') m.depthWrite = false;
+  m.opacity = m.userData.base;
+  m.depthWrite = !m.transparent;
   if (name === 'section') hatched(m);
   return m;
 }
 
 const scratch = new Color();
 
-/** Sets a surface's tint, strength and glow for the moment. `alpha` is the object's own opacity. */
-export function applySurface(m: Surface, rgb: Rgb, alpha: number, pulse: number, pulseRgb: Rgb | undefined): void {
+/** Fully solid surfaces must write depth before glass is blended over them. Sorting
+ * both by whole-object priority/depth can erase glass covering a solid's rear portion.
+ * This also handles opacity inherited from the ends of a connector or path. */
+export function setSurfaceOpacity(m: Surface, opacity: number): void {
+  m.opacity = opacity;
+  const transparent = opacity < 1;
+  if (m.transparent !== transparent) {
+    m.transparent = transparent;
+    // Three's opaque shader forces alpha to one, so a pass change needs its
+    // corresponding shader variant as well as a different render queue.
+    m.needsUpdate = true;
+  }
+  m.depthWrite = !transparent;
+}
+
+/** Sets a surface's tint, strength and glow for the moment. `alpha` is the object's own opacity.
+ * Endpoint-held paths defer classification until their flow update supplies the final opacity. */
+export function applySurface(m: Surface, rgb: Rgb, alpha: number, pulse: number, pulseRgb: Rgb | undefined, deferOpacity = false): void {
   m.color.setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 'srgb');
-  m.opacity = alpha * m.userData.base;
+  if (deferOpacity) m.opacity = alpha * m.userData.base;
+  else setSurfaceOpacity(m, alpha * m.userData.base);
   if (m.userData.glow > 0 || pulse > 0) {
     const glow = pulseRgb ?? rgb;
     scratch.setRGB(glow[0] / 255, glow[1] / 255, glow[2] / 255, 'srgb');
@@ -95,8 +113,6 @@ export function applySurface(m: Surface, rgb: Rgb, alpha: number, pulse: number,
   } else {
     m.emissiveIntensity = 0;
   }
-  if (m.userData.base < 1) m.depthWrite = false;
-  else m.depthWrite = alpha >= 0.999;
 }
 
 /**

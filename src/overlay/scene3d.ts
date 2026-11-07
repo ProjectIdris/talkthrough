@@ -582,10 +582,14 @@ export class PanelScene {
     node.obj.visible = alpha > 0.003;
     node.alpha = alpha;
     node.color = o.color;
+    // A path's endpoints can hold its fade. Classify its material only after that
+    // factor is known, not once as solid here and again as translucent each frame.
+    const heldOpacity = o.def.shape === 'connector' ||
+      ((o.def.shape === 'tube' || o.def.shape === 'line') && !!o.def.attach);
     const dark: Rgb = [o.color[0] * 0.22, o.color[1] * 0.22, o.color[2] * 0.22];
     for (const p of node.pieces) {
       const rgb = p.tint ? o.color : p.color ?? o.color;
-      if (p.surface) applySurface(p.surface, rgb, alpha, pulse, o.pulseColor);
+      if (p.surface) applySurface(p.surface, rgb, alpha, pulse, o.pulseColor, heldOpacity);
       else if (p.object instanceof Sprite) (p.object.material as SpriteMaterial).opacity = alpha;
       if (p.lines) {
         const m = p.lines.material as LineBasicMaterial;
