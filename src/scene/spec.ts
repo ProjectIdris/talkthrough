@@ -285,6 +285,16 @@ export const VARIANTS: readonly Variant[] = [
     },
   },
   {
+    name: 'addLoft', op: 'add', shapes: ['loft'], creates: 'solid',
+    doc: 'A closed solid joining independently shaped convex end outlines by matching point indices, at z=-depth/2 and +depth/2. Both rings need 3–24 corners, equal counts and the same winding; every interpolated section must stay strictly convex. No closing duplicate, collinear corners, holes or bevel. Use for asymmetric shape-changing transitions; no automatic recentering or point rematching.',
+    fields: {
+      shape: { k: 'enum', values: ['loft'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      outline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
+      endOutline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
+      depth: { k: 'num', min: 0.01, max: 100 }, color: COLOR_OPT, material: MATERIAL, edges: EDGES, opacity: OPACITY, at: AT,
+    },
+  },
+  {
     name: 'addBlob', op: 'add', shapes: ['blob'], creates: 'solid',
     doc: 'A soft organic form blended from up to 12 ellipsoid lumps, each at a point of pts with its own box size [x,y,z] in sizes (the same count, or the last is repeated): a heart or other organ, a fruit, an animal body or head, a leaf. Lumps that overlap melt into one skin with smooth necks; soft (0.05 to 1, default 0.5) is how far they blend. Build one form per blob and join forms with tube.',
     fields: {

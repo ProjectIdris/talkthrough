@@ -4,6 +4,7 @@ Hand-written scenes in the scene language (`docs/scene-language.md`) for playing
 
 | file | the page it assumes | what it shows |
 |---|---|---|
+| `profile-lofts.json` | a free central stage | three solid shape-changing sections, front/reverse camera views and a cutaway; no model or microphone |
 | `bar-chart.json` | a quarterly revenue bar chart on the left (80,180 to 560,620) with empty margin on the right | marks on the chart and its tallest bar; then a 3D bar chart growing bar by bar in time with the narration, a camera orbit at the end to invite dragging |
 | `request-flow.json` | a three-box diagram across the page (browser, server, database; 60,240 to 940,470) with room underneath | marks on each box and arrow; a 3D browser, server and database appear in turn while a small packet moves between them (move tweens), turns green on the way back |
 | `earth-layers.json` | an article with a cutaway picture on the left (60,130 to 580,470), a paragraph below and empty margin on the right | concentric translucent spheres built from the core outwards while the group turns |

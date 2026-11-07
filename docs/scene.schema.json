@@ -1455,6 +1455,146 @@
       "additionalProperties": false,
       "description": "A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides (default 48) makes it faceted."
     },
+    "addLoft": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "loft"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "outline": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "3 to 24 points [x,y], each -100 to 100"
+        },
+        "endOutline": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "3 to 24 points [x,y], each -100 to 100"
+        },
+        "depth": {
+          "type": "number",
+          "description": "0.01 to 100"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "dark edge lines (default true)"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "explode",
+        "pos",
+        "rot",
+        "outline",
+        "endOutline",
+        "depth",
+        "color",
+        "material",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A closed solid joining independently shaped convex end outlines by matching point indices, at z=-depth/2 and +depth/2. Both rings need 3–24 corners, equal counts and the same winding; every interpolated section must stay strictly convex. No closing duplicate, collinear corners, holes or bevel. Use for asymmetric shape-changing transitions; no automatic recentering or point rematching."
+    },
     "addBlob": {
       "type": "object",
       "properties": {
@@ -3716,6 +3856,9 @@
         },
         {
           "$ref": "#/$defs/addLathe"
+        },
+        {
+          "$ref": "#/$defs/addLoft"
         },
         {
           "$ref": "#/$defs/addBlob"

@@ -15,6 +15,7 @@ import {
 import type { Texture } from 'three';
 import type { AddAction, Vec3 } from '../scene/types.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
+import { loftEdges, loftGeometry } from './loft.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { TIERS, applySurface, makeSurface } from './materials.ts';
@@ -214,7 +215,7 @@ export class PanelScene {
       mesh.receiveShadow = settings.shadows;
       node.geometries.push(geo);
       node.materials.push(surface);
-      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'torus';
+      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'loft' || def.shape === 'torus';
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
       if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.edgeKey(def));
       node.pieces.push(piece);
@@ -227,6 +228,11 @@ export class PanelScene {
         node.obj = built.root;
         node.anchors = built.anchors;
         for (const p of built.pieces) this.adoptPiece(node, p);
+        break;
+      }
+      case 'loft': {
+        const geo = loftGeometry(def, this.tier);
+        if (geo) node.obj = addMesh(geo, material, def.edges !== false);
         break;
       }
       case 'text': this.buildText(node, o); break;
@@ -262,7 +268,7 @@ export class PanelScene {
       generated.dispose();
       this.sharedEdges.set(key, { geometry: outline, refs: 1 });
       this.edgeKeys.set(outline, key);
-    } else outline = new EdgesGeometry(geo, 28);
+    } else outline = geo.userData.loftEdges instanceof Float32Array ? loftEdges(geo) : new EdgesGeometry(geo, 28);
     const lines = new LineSegments(outline, mat);
     mesh.add(lines);
     node.geometries.push(lines.geometry);
