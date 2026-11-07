@@ -1,0 +1,36 @@
+{
+  "steps": [
+    {
+      "say": "Close view: the cut faces retain fine diagonal section lines. The blue box and teal sphere use live cut caps. The engine block has built-in section faces.",
+      "actions": [
+        { "op": "panel", "x": 80, "y": 75, "w": 840, "h": 810 },
+        { "op": "orbit", "az": 15, "el": 12, "dur": 0 },
+        { "op": "add", "shape": "group", "id": "models" },
+        { "op": "add", "shape": "box", "id": "box", "parent": "models", "pos": [-3.3, 0, 0], "size": [2.5, 3, 2.5], "bevel": 0.1, "color": "#4b79b0", "edges": false },
+        { "op": "cut", "id": "box", "axis": "z", "to": 0, "dur": 0 },
+        { "op": "add", "shape": "sphere", "id": "sphere", "parent": "models", "pos": [0, 0, 0], "size": [2.5, 3, 2.5], "color": "#33968b", "edges": false },
+        { "op": "cut", "id": "sphere", "axis": "z", "to": 0, "dur": 0 },
+        { "op": "add", "shape": "part", "part": "cylinder-block", "variant": "cutaway", "id": "block", "parent": "models", "pos": [3.3, 0, 0], "size": [2.5, 3, 2.5], "color": "#c47d52" }
+      ]
+    },
+    {
+      "say": "The model is now larger in world units but fits the same stage. Subpixel section lines should average into a steady tone instead of false dark bands.",
+      "actions": [
+        { "op": "scale", "id": "models", "to": [30, 30, 30], "dur": 0 }
+      ]
+    },
+    {
+      "say": "At a grazing view the same filtering follows the projected spacing. This is a one-dimensional pixel-footprint approximation, not a new lighting or geometry effect.",
+      "actions": [
+        { "op": "orbit", "az": 65, "el": 18, "dur": 0 }
+      ]
+    },
+    {
+      "say": "Return to the original scale and view. The section pattern should return without changing the shapes, caps, or material colours.",
+      "actions": [
+        { "op": "scale", "id": "models", "to": [1, 1, 1], "dur": 0 },
+        { "op": "orbit", "az": 15, "el": 12, "dur": 0 }
+      ]
+    }
+  ]
+}

@@ -109,15 +109,37 @@ export function sectionTone(rgb: readonly number[], out: Color): void {
   out.setRGB(mix(0), mix(1), mix(2), 'srgb');
 }
 
-/** The hatching: stripes across a face in world space, a fixed spacing whatever size or way up the face is. */
+// Integral of the stripe minus its 0.24 mean, restricted to one period. Keeping
+// this periodic avoids subtracting large accumulated integrals at distant origins.
+const SECTION_FILTER = `
+float sectionHatchPrimitive(float x) {
+  float a = clamp((x - 0.38) / 0.12, 0.0, 1.0);
+  float b = clamp((x - 0.62) / 0.12, 0.0, 1.0);
+  return 0.12 * (a*a*a*(1.0 - 0.5*a) - b*b*b*(1.0 - 0.5*b))
+    + max(x - 0.50, 0.0) - max(x - 0.74, 0.0) - 0.24*x;
+}
+float filteredSectionHatch(float phase, float footprint) {
+  float p = fract(phase);
+  // At magnification retain the original soft stripe without cancellation noise.
+  if (footprint < 0.001) {
+    return smoothstep(0.38, 0.5, p) * (1.0 - smoothstep(0.62, 0.74, p));
+  }
+  float halfWidth = 0.5 * footprint;
+  float coverage = 0.24 + (sectionHatchPrimitive(fract(p + halfWidth))
+    - sectionHatchPrimitive(fract(p - halfWidth))) / footprint;
+  return clamp(coverage, 0.0, 1.0);
+}
+`;
+
+/** World-space section stripes, averaged over their projected pixel footprint. */
 export function hatched(material: Material): void {
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace('void main() {', 'varying vec3 vCapWorld;\nvoid main() {')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vCapWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('void main() {', 'varying vec3 vCapWorld;\nvoid main() {')
-      .replace('#include <color_fragment>', '#include <color_fragment>\n  float capLine = fract(dot(vCapWorld, vec3(0.78, 0.55, 0.3)) / 0.16);\n  diffuseColor.rgb *= mix(1.0, 0.55, smoothstep(0.38, 0.5, capLine) * (1.0 - smoothstep(0.62, 0.74, capLine)));');
+      .replace('void main() {', `varying vec3 vCapWorld;\n${SECTION_FILTER}\nvoid main() {\n  float capPhase = dot(vCapWorld, vec3(0.78, 0.55, 0.3)) / 0.16;\n  float capCoverage = filteredSectionHatch(capPhase, fwidth(capPhase));`)
+      .replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb *= mix(1.0, 0.55, capCoverage);');
   };
-  material.customProgramCacheKey = () => 'section-hatch';
+  material.customProgramCacheKey = () => 'section-hatch-filtered-v1';
 }
