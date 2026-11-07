@@ -43,6 +43,7 @@ import { hitVisibleModel } from './model-hit.ts';
 import type { VisibleRegion, VisibleRegionSnapshot } from './visible-regions.ts';
 import { Player, VOICE_PATIENCE_MARGIN_MS, createSilentVoice } from './player.ts';
 import { captionSpot, createCaptionDriver } from './captions.ts';
+import { followupKeepOut, followupSpot } from './followup-placement.ts';
 import type { CaptionDriver, CaptionState, Rect } from './captions.ts';
 import { readingSeconds } from '../shared/captions.ts';
 import { PanelScene } from './scene3d.ts';
@@ -274,6 +275,7 @@ let wake: ReturnType<typeof setTimeout> | undefined;
 
 function resize(): void {
   controlBounds.reset();
+  followupAt = undefined;
   const width = display?.bounds.width ?? window.innerWidth;
   const height = display?.bounds.height ?? window.innerHeight;
   const dpr = window.devicePixelRatio || display?.scaleFactor || 1;
@@ -651,14 +653,27 @@ function showFollowupControls(frame: Frame, k: number): void {
   captureControlsEl.style.display = status === 'listening' ? 'flex' : 'none';
 }
 
+let followupAt: { x: number; y: number } | undefined;
+/** Place after drawing and captions, so measured labels and grown cards own their space. */
+function placeFollowupControls(content: readonly VisibleRegion[]): void {
+  const el = askMoreEl.style.display === 'flex' ? askMoreEl : captureControlsEl.style.display === 'flex' ? captureControlsEl : undefined;
+  if (!el) { followupAt = undefined; return; }
+  const ui: VisibleRegion[] = overlayUiRegions().map(r => ({ id: r.id, kind: r.kind, alpha: r.alpha, shape: { type: 'rect', ...r.rect } }));
+  const at = followupSpot(view, { w: el.offsetWidth, h: el.offsetHeight }, followupKeepOut([...content, ...ui]), followupAt);
+  followupAt = at;
+  el.style.left = `${at.x}px`;
+  el.style.top = `${at.y}px`;
+  el.style.bottom = 'auto';
+}
+
 function elementRect(el: HTMLElement): { x: number; y: number; w: number; h: number } | undefined {
   if (getComputedStyle(el).display === 'none' || getComputedStyle(el).visibility === 'hidden') return undefined;
   const r = el.getBoundingClientRect();
   return r.width > 0 && r.height > 0 ? { x: r.left, y: r.top, w: r.width, h: r.height } : undefined;
 }
 
-let lastVisibleSignature = '';
-function publishRenderedRegions(frame: Frame): void {
+/** Shared measured drawing bounds for control placement and pointer hit publication. */
+function renderedContentRegions(frame: Frame): VisibleRegion[] {
   const regions: VisibleRegion[] = [];
   const addRect = (id: string, kind: VisibleRegion['kind'], rect: { x: number; y: number; w: number; h: number }, alpha = 1): void => {
     if (rect.w > 0 && rect.h > 0 && alpha > 0.02) regions.push({ id, kind, alpha, shape: { type: 'rect', ...rect } });
@@ -687,9 +702,13 @@ function publishRenderedRegions(frame: Frame): void {
   for (const d of frame.diagrams) unitRect(`diagram:${d.key}`, 'content', d.def, d.appear * d.fade);
   regions.push(...pinGeometry);
   for (const [i, rect] of board.shownRects().entries()) addRect(`pin-label:${i}`, 'content', rect);
+  return regions;
+}
 
-  for (const region of overlayUiRegions()) addRect(region.id, region.kind, region.rect, region.alpha);
-  if (guideTargetLive && guideTarget) unitRect('guide-target', 'guide-target', guideTarget);
+let lastVisibleSignature = '';
+function publishRenderedRegions(content: readonly VisibleRegion[]): void {
+  const regions = [...content, ...overlayUiRegions().map(r => ({ id: r.id, kind: r.kind, alpha: r.alpha, shape: { type: 'rect' as const, ...r.rect } }))];
+  if (guideTargetLive && guideTarget) regions.push({ id: 'guide-target', kind: 'guide-target', alpha: 1, shape: { type: 'rect', x: guideTarget.x * view.width / 1000, y: guideTarget.y * view.height / 1000, w: guideTarget.w * view.width / 1000, h: guideTarget.h * view.height / 1000 } });
 
   const signature = JSON.stringify({ width: view.width, height: view.height, regions });
   if (signature === lastVisibleSignature) return;
@@ -912,7 +931,8 @@ function overlayUiRegions(): OverlayUiRegion[] {
 
 /** Visible control and pill bounds in CSS pixels; contained child buttons use their enclosing pill's geometry. */
 function overlayControlRects(): ScreenRect[] {
-  const rects = overlayUiRegions().filter((r) => r.kind === 'pill' || r.kind === 'capture-control').map((r) => r.rect);
+  // Follow-up controls move around the drawing after it is laid out, not the other way round.
+  const rects = overlayUiRegions().filter((r) => r.kind === 'pill' || (r.kind === 'capture-control' && r.id === 'button:undo')).map((r) => r.rect);
   return rects.filter((rect, i) => !rects.some((other, j) => {
     if (i === j) return false;
     const contains = other.x <= rect.x && other.y <= rect.y && other.x + other.w >= rect.x + rect.w && other.y + other.h >= rect.y + rect.h;
@@ -947,6 +967,7 @@ function pressButton(id: string): void {
 
 function clearEverything(): void {
   controlBounds.reset();
+  followupAt = undefined;
   cancelOwnedPointer();
   guideTarget = undefined;
   guideTargetLive = false;
@@ -983,8 +1004,10 @@ function loop(): void {
   reportShowing(frame, k);
   frame = draw(frame);
   showCaption(frame);
+  const content = renderedContentRegions(frame);
+  placeFollowupControls(content);
   if (pen.active) sendPen();
-  publishRenderedRegions(frame);
+  publishRenderedRegions(content);
   reportButtons();
   const fading = fader.armed && k < 1 && k > 0;
   const captionFading = captionState?.endedAt !== undefined && now > captionState.endedAt + CAPTION_HOLD_MS;
