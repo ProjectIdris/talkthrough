@@ -486,8 +486,8 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'cut', op: 'cut',
-    doc: 'Cut a 3D object (usually a whole model) open with a plane, so the inside shows: everything beyond the plane is removed and the cut faces are capped. axis is x, y or z (default z, the plane faces the viewer at the front); to is where the plane is along that axis in the object own space (the middle of the object is 0). Move the plane through with another cut; to 100 puts it beyond everything: no cut.',
-    fields: { id: { k: 'ref', of: 'object3d' }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, to: { k: 'num', min: -100, max: 100 }, at: AT, dur: DUR },
+    doc: 'Cut a 3D object and its children open. Choose axis x/y/z or normal [x,y,z], never both. normal is a nonzero local direction with finite components from -100 to 100; magnitude is ignored. to is signed distance along that unit direction from the local origin; the positive side is removed. Omit direction to keep the active cut direction (initially +z). Direction changes at the action start; only to animates. Closed opaque pieces are capped; open surfaces are not. to 100 removes the cut.',
+    fields: { id: { k: 'ref', of: 'object3d' }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, normal: { k: 'vec3', min: -100, max: 100, opt: true, doc: 'nonzero local cut direction; do not combine with axis' }, to: { k: 'num', min: -100, max: 100 }, at: AT, dur: DUR },
   },
   {
     name: 'orbit', op: 'orbit',

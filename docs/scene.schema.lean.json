@@ -2267,6 +2267,9 @@
             null
           ]
         },
+        "normal": {
+          "$ref": "#/$defs/2"
+        },
         "to": {
           "type": "number"
         },
@@ -2281,6 +2284,7 @@
         "op",
         "id",
         "axis",
+        "normal",
         "to",
         "at",
         "dur"

@@ -130,7 +130,7 @@ export type HighlightAction = { op: 'highlight'; id: string; color?: Color } & T
 
 // Machines: parts that keep moving by themselves once started.
 export type SpinAction = { op: 'spin'; id: string; rpm?: number; by?: string; ratio?: number; phase?: number; axis?: 'x' | 'y' | 'z' } & Timing;
-export type CutAction = { op: 'cut'; id: string; axis?: 'x' | 'y' | 'z'; to: number } & Timing;
+export type CutAction = { op: 'cut'; id: string; axis?: 'x' | 'y' | 'z'; normal?: Vec3; to: number } & Timing;
 export type CrankAction = { op: 'crank'; id: string; shaft: string; rod?: string; pin?: number } & At;
 export type CamAction = { op: 'cam'; id: string; by: string; lift?: number; open?: number; phase?: number } & At;
 /** A repeating motion that is not a full turn, for any object: slide along an axis, swing about a pivot, or pulse in size. Its own period, or locked to a spinning part with by. */
