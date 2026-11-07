@@ -107,6 +107,12 @@ type Node = {
 
 type AddMesh = (geo: BufferGeometry, surface: string | undefined, edges: boolean) => Mesh;
 
+/** A rounded box has a continuous surface, not authored creases. Position hashing on
+ * tiny rounded meshes can invent dark seams, so do not derive crease lines for them. */
+function creaseGeometry(geo: BufferGeometry): BufferGeometry {
+  return geo.type === 'RoundedBoxGeometry' ? new BufferGeometry().setFromPoints([]) : new EdgesGeometry(geo, 28);
+}
+
 /** True when `a` is `b` or sits above it: adding `a` under `b` would make a loop, which hangs every walk of the scene. */
 function isAncestor(a: Object3D, b: Object3D): boolean {
   for (let o: Object3D | null = b; o; o = o.parent) if (o === a) return true;
@@ -141,6 +147,9 @@ export class PanelScene {
   private cutaway = new Cutaway();
   private sharedEdges = new Map<string, { geometry: BufferGeometry; refs: number }>();
   private edgeKeys = new WeakMap<BufferGeometry, string>();
+  /** Only immutable primitive buffers are shared; materials, transforms and mutable paths stay per node. */
+  private sharedSolids = new Map<string, { geometry: BufferGeometry; refs: number }>();
+  private solidKeys = new WeakMap<BufferGeometry, string>();
   private pinWarnings = new Set<number>();
 
   constructor(deps: PanelDeps = {}) {
@@ -216,7 +225,7 @@ export class PanelScene {
       node.materials.push(surface);
       const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'torus';
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
-      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.edgeKey(def));
+      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.primitiveKey(def));
       node.pieces.push(piece);
       return mesh;
     };
@@ -243,10 +252,10 @@ export class PanelScene {
     return node;
   }
 
-  private edgeKey(def: AddAction): string | undefined {
+  private primitiveKey(def: AddAction): string | undefined {
     if (!['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'].includes(def.shape)) return undefined;
     const solid = def as { size: Vec3; bevel?: number };
-    return JSON.stringify([this.tier, def.shape, solid.size, def.shape === 'box' ? solid.bevel ?? defaultBevel(solid.size) : null, 28]);
+    return JSON.stringify([this.tier, def.shape, solid.size, def.shape === 'box' ? solid.bevel ?? defaultBevel(solid.size) : null]);
   }
 
   private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string): LineSegments {
@@ -257,12 +266,12 @@ export class PanelScene {
     else if (key) {
       // EdgesGeometry.parameters retains the input mesh geometry. Copy the derived
       // buffers so a surviving outline never retains a removed part's geometry.
-      const generated = new EdgesGeometry(geo, 28);
+      const generated = creaseGeometry(geo);
       outline = new BufferGeometry().copy(generated);
       generated.dispose();
       this.sharedEdges.set(key, { geometry: outline, refs: 1 });
       this.edgeKeys.set(outline, key);
-    } else outline = new EdgesGeometry(geo, 28);
+    } else outline = creaseGeometry(geo);
     const lines = new LineSegments(outline, mat);
     mesh.add(lines);
     node.geometries.push(lines.geometry);
@@ -284,6 +293,20 @@ export class PanelScene {
   }
 
   private solidGeometry(def: AddAction): BufferGeometry {
+    const key = this.primitiveKey(def);
+    if (!key) return this.buildSolidGeometry(def);
+    const existing = this.sharedSolids.get(key);
+    if (existing) {
+      existing.refs++;
+      return existing.geometry;
+    }
+    const geometry = this.buildSolidGeometry(def);
+    this.sharedSolids.set(key, { geometry, refs: 1 });
+    this.solidKeys.set(geometry, key);
+    return geometry;
+  }
+
+  private buildSolidGeometry(def: AddAction): BufferGeometry {
     const d = this.detail;
     switch (def.shape) {
       case 'sphere': return new SphereGeometry(0.5, d.curve, Math.round(d.curve * 0.6)).scale(...(def as { size: Vec3 }).size);
@@ -400,6 +423,12 @@ export class PanelScene {
     this.cutaway.release(node);
     node.obj.removeFromParent();
     for (const g of node.geometries) {
+      const solidKey = this.solidKeys.get(g);
+      const solid = solidKey && this.sharedSolids.get(solidKey);
+      if (solid) {
+        if (--solid.refs === 0) { this.sharedSolids.delete(solidKey!); this.solidKeys.delete(g); g.dispose(); }
+        continue;
+      }
       const key = this.edgeKeys.get(g);
       const shared = key && this.sharedEdges.get(key);
       if (shared) {
