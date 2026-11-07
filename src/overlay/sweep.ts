@@ -2,6 +2,7 @@ import { BufferAttribute, BufferGeometry } from 'three';
 import { prepareSweep, SWEEP_SUBDIVISIONS } from '../scene/sweep.ts';
 import type { AddSweep } from '../scene/types.ts';
 import type { Tier } from './materials.ts';
+import { shadeProfileWalls } from './profile-normals.ts';
 
 /** Invalid direct callers get no mesh, never a silently different solid. */
 export function sweepGeometry(def: AddSweep, tier: Tier): BufferGeometry | undefined {
@@ -11,7 +12,7 @@ export function sweepGeometry(def: AddSweep, tier: Tier): BufferGeometry | undef
   geometry.setAttribute('position',new BufferAttribute(mesh.positions,3));
   geometry.setAttribute('normal',new BufferAttribute(mesh.normals,3));
   geometry.setIndex(new BufferAttribute(mesh.indices,1));
-  geometry.userData.sweepEdges=mesh.edges;
+  geometry.userData.sweepEdges=def.smooth === true ? shadeProfileWalls(geometry,mesh.sectionSize,mesh.wallRings,false) : mesh.edges;
   return geometry;
 }
 

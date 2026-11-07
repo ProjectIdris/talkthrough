@@ -90,11 +90,11 @@ export type AddPatch = {
 } & Surface & At;
 /** A closed polygon carried along a smooth open path. up sets its initial +y direction. */
 export type AddSweep = {
-  op: 'add'; shape: 'sweep'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; pts: Vec3[]; up?: Vec3;
+  op: 'add'; shape: 'sweep'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; pts: Vec3[]; up?: Vec3; smooth?: boolean;
 } & Surface & At;
 /** Independently shaped convex end sections, joined by matching vertex indices. */
 export type AddLoft = {
-  op: 'add'; shape: 'loft'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; endOutline: Vec2[]; depth: number;
+  op: 'add'; shape: 'loft'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; endOutline: Vec2[]; depth: number; smooth?: boolean;
 } & Surface & At;
 export type AddBlob = {
   op: 'add'; shape: 'blob'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[]; sizes: Vec3[]; soft?: number;

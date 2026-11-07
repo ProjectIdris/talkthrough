@@ -2170,6 +2170,13 @@
           },
           "description": "nonzero initial section +y direction, not parallel to the starting path; [x,y,z], each -100 to 100"
         },
+        "smooth": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "blend shallow section corners for rounded wall lighting; retain sharp corners and flat caps, without changing the silhouette; default false"
+        },
         "color": {
           "type": [
             "string",
@@ -2252,6 +2259,7 @@
         "outline",
         "pts",
         "up",
+        "smooth",
         "color",
         "material",
         "roughness",
@@ -2263,7 +2271,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A closed polygon outline carried along a smooth open 3D path: curved rails, shaped cables and solid bands. Outline x,y are local section offsets; up sets initial +y, projected perpendicular to the path (default +y, or +x for a vertical start). The section follows with minimum rotation. Flat caps, sharp section corners, no bevel or holes. Keep the profile narrow relative to bends; folded or collapsed sampled meshes are rejected."
+      "description": "A closed polygon outline carried along a smooth open 3D path: curved rails, shaped cables and solid bands. Outline x,y are local section offsets; up sets initial +y, projected perpendicular to the path (default +y, or +x for a vertical start). The section follows with minimum rotation. Flat caps and sharp section corners by default; smooth:true blends shallow wall joins without changing geometry. No bevel or holes. Keep the profile narrow relative to bends; folded or collapsed sampled meshes are rejected."
     },
     "addLoft": {
       "type": "object",
@@ -2337,6 +2345,13 @@
             }
           },
           "description": "3 to 24 points [x,y], each -100 to 100"
+        },
+        "smooth": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "blend shallow section corners for rounded wall lighting; retain sharp corners and flat caps, without changing the silhouette; default false"
         },
         "depth": {
           "type": "number",
@@ -2423,6 +2438,7 @@
         "rot",
         "outline",
         "endOutline",
+        "smooth",
         "depth",
         "color",
         "material",
@@ -2435,7 +2451,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A closed solid joining independently shaped convex end outlines by matching point indices, at z=-depth/2 and +depth/2. Both rings need 3–24 corners, equal counts and the same winding; every interpolated section must stay strictly convex. No closing duplicate, collinear corners, holes or bevel. Use for asymmetric shape-changing transitions; no automatic recentering or point rematching."
+      "description": "A closed solid joining independently shaped convex end outlines by matching point indices, at z=-depth/2 and +depth/2. Both rings need 3–24 corners, equal counts and the same winding; every interpolated section must stay strictly convex. No closing duplicate, collinear corners, holes or bevel. Use for asymmetric shape-changing transitions; no automatic recentering or point rematching. Optional smooth:true blends shallow wall joins while retaining flat caps and sharp corners."
     },
     "addBlob": {
       "type": "object",

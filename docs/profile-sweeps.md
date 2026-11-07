@@ -14,7 +14,7 @@
 - The section's +x is `up × forward`; +y is `forward × +x`. Along a +z path, default up gives the familiar x/y section. Along the rest of the path, minimum-rotation transport carries the section rather than continually resetting it to world up.
 - Outline coordinates are offsets from the path, not an automatically centered shape. Path and section coordinates are all finite in −100..100. `pos`, `rot`, `parent` and `explode` are ordinary local solid transforms.
 
-The result has sharp section corners, smooth lengthwise lighting and flat end caps. Outlines trace profile corners and end perimeters, not internal triangulation diagonals. Named materials, colour, opacity, arrays, transforms and ordinary cutaways work as for other solids. `edges: false` removes outlines; low quality omits them normally.
+By default the result has sharp section corners, smooth lengthwise lighting and flat end caps. Optional `smooth: true` also blends shallow section joins and removes their longitudinal outlines, while retaining sharp corners and flat caps; see [smooth profile surfaces](smooth-profiles.md). Outlines trace profile corners and end perimeters, not internal triangulation diagonals. Named materials, colour, opacity, arrays, transforms and ordinary cutaways work as for other solids. `edges: false` removes outlines; low quality omits them normally.
 
 ## Bounds and limits
 

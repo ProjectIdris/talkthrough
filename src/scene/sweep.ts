@@ -9,7 +9,7 @@ import { Quaternion } from 'three/src/math/Quaternion.js';
 import type { Vec2, Vec3 } from './types.ts';
 
 export const SWEEP_SUBDIVISIONS = { low: 4, mid: 8, high: 12 } as const;
-export type SweepMesh = { positions: Float32Array; normals: Float32Array; indices: Uint16Array; edges: Float32Array };
+export type SweepMesh = { positions: Float32Array; normals: Float32Array; indices: Uint16Array; edges: Float32Array; sectionSize: number; wallRings: number };
 const value = (o: object, key: string): unknown => {
   const d = Object.getOwnPropertyDescriptor(o, key);
   return d && 'value' in d ? d.value : undefined;
@@ -183,5 +183,5 @@ export function prepareSweep(outline: unknown, pointsInput: unknown, upInput: un
     if (!(length>0)) return undefined;
     for(const id of ids) if (!(face.dot(n.fromArray(nor,id*3))>length*1e-6)) return undefined;
   }
-  return {positions:pos,normals:nor,indices:ix,edges:new Float32Array(edges)};
+  return {positions:pos,normals:nor,indices:ix,edges:new Float32Array(edges),sectionSize:width,wallRings:rings};
 }
