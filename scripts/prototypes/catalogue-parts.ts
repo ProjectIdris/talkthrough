@@ -80,6 +80,39 @@ const keywords: Record<PartName, string[]> = {
   housing: ['protective', 'case', 'casing', 'enclosure', 'shell', 'cutaway', 'mechanical'],
 };
 
+// Each profile combines independent shape/function/context facts. Alternatives name a
+// concept, not a complete request. All groups in a profile are required on distinct spans.
+const descriptors: Record<PartName, NonNullable<ComponentCard['descriptors']>> = {
+  chip: [[['silicon', 'semiconductor', 'electronic'], ['process', 'compute', 'logic', 'integrated circuit']],
+    [['circuit', 'processor'], ['package', 'encapsulated', 'pins']]],
+  header: [[['pin', 'prong', 'contact'], ['row', 'array', 'exposed'], ['electrical', 'board', 'connector']]],
+  port: [[['cable', 'plug', 'connector'], ['socket', 'receptacle', 'insert', 'receive', 'opening']]],
+  lens: [[['glass', 'transparent', 'optical'], ['focus', 'concentrate', 'refract', 'magnify', 'bend light']]],
+  screen: [[['image', 'pixel', 'picture', 'video'], ['display', 'show', 'rectangular', 'panel']]],
+  button: [[['press', 'push', 'depress'], ['control', 'activate', 'switch', 'start', 'input']]],
+  fan: [[['air', 'airflow', 'ventilation', 'cooling'], ['rotate', 'spin', 'vane', 'blade', 'impeller']]],
+  wheel: [[['rubber', 'tyre', 'tire'], ['roll', 'spoke', 'axle', 'road']],
+    [['spoke'], ['roll', 'vehicle', 'road']]],
+  'cylinder-block': [[['bore', 'chamber', 'cylinder'], ['engine', 'combustion'], ['block', 'body', 'casting', 'fins']]],
+  piston: [[['slide', 'reciprocate', 'back and forth', 'up and down', 'plunger'], ['bore', 'cylinder', 'combustion', 'engine']]],
+  'connecting-rod': [[['link', 'connect', 'join'], ['piston', 'small end'], ['crank', 'big end']],
+    [['rod', 'linkage'], ['two eyes', 'two ends', 'small end']]],
+  crankshaft: [[['shaft', 'rotate', 'spin'], ['offset', 'throw', 'crank pin', 'journal']]],
+  valve: [[['mushroom', 'stem', 'poppet'], ['seal', 'passage', 'gas', 'intake', 'exhaust']]],
+  camshaft: [[['shaft', 'rotate', 'spin'], ['lobe', 'bump', 'eccentric']],
+    [['lobe', 'bump'], ['lift', 'timing', 'valve']]],
+  'spark-plug': [[['electric', 'electrical', 'spark', 'electrode'], ['ignite', 'ignition', 'combustion', 'petrol', 'gasoline', 'fuel']]],
+  gear: [[['tooth', 'teeth', 'serrated', 'toothed'], ['mesh', 'disc', 'transmission', 'engage']],
+    [['cog'], ['rotate', 'transfer', 'motion']]],
+  spring: [[['elastic', 'resilient', 'recover', 'return', 'compress'], ['helix', 'helical', 'coil', 'wound wire']]],
+  bearing: [[['ball', 'roller'], ['ring', 'race', 'friction', 'support']],
+    [['inner ring', 'outer ring'], ['rotate', 'roll', 'friction']]],
+  pipe: [[['hollow', 'tube', 'conduit'], ['straight', 'fluid', 'water', 'liquid', 'plumbing']]],
+  elbow: [[['tube', 'conduit', 'plumbing', 'fluid', 'pipe'], ['bend', 'right angle', 'corner', 'ninety degree']]],
+  housing: [[['protect', 'enclose', 'surround', 'cover'], ['mechanism', 'machinery', 'mechanical', 'internal parts']],
+    [['case', 'shell', 'enclosure'], ['protect', 'cutaway']]],
+};
+
 const fields = VARIANTS.find(v => v.name === 'addPart')!.fields;
 export const partCards: readonly ComponentCard[] = PARTS.map(part => {
   const description = descriptions[part];
@@ -88,6 +121,7 @@ export const partCards: readonly ComponentCard[] = PARTS.map(part => {
     summary: description.summary,
     ...discovery[part],
     keywords: keywords[part],
+    descriptors: descriptors[part],
     parameters: {
       size: fields.size!,
       ...(description.n ? { n: fields.n!, nMeaning: description.n, nNote: 'Validator bounds; individual renderers may use a narrower count range.' } : {}),

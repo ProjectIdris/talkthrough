@@ -14,7 +14,7 @@ const measurements = [21, 1_000, 10_000].map(count => {
   const start = performance.now();
   const index = createCatalogue(cards);
   const initializationMs = performance.now() - start;
-  const queries = { exact: count === 21 ? 'gear' : `item${count - 1}`, broad: 'mechanical', absent: 'ribosome' };
+  const queries = { exact: count === 21 ? 'gear' : `item${count - 1}`, broad: 'mechanical', indirect: 'spinning vanes pushing air', 'repeated-indirect': 'spinning vanes pushing air '.repeat(15), absent: 'ribosome' };
   const lookups = Object.entries(queries).map(([kind, query]) => {
     for (let n = 0; n < warmups; n++) index.search(query);
     const times = Array.from({ length: samples }, () => {

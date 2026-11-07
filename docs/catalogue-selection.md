@@ -100,3 +100,7 @@ The portability repair changes only tests and this explanation. The test now che
 No CLI hash is normalized or replaced, no corpus/label or recorded measurement changes, and no retrieval behavior changes. Corpus, retriever and evaluator file hashes identify the bytes actually read on each run, so checkout newline conversion can legitimately differ from historical LF measurements. Match byte representations before asserting hash equality; do not silently treat a canonical-content hash as exact-byte provenance.
 
 Local repair verification passes 43 combined catalogue/native checks, the full suite with 1,363 passes and the same 13 skips, typecheck, build and whitespace checks. These Linux checks and isolated newline tests do not replace the successor's hosted Windows CI run.
+
+## Later indirect-description experiment
+
+The subsequent [compositional-description experiment](catalogue-indirect.md) adds independently required local shape/function clues and evaluates a new 64-case corpus. It improves indirect recall but worsens precision on that fresh set; absent-case abstention does not improve. Its results and failures are separate from the historical measurements above. Production remains unwired, and this PR remains draft and unmerged.

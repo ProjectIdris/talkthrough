@@ -8,10 +8,10 @@ import type { RelevanceCase } from './catalogue-evaluation.ts';
 import { partCards } from './catalogue-parts.ts';
 import { CATALOGUE_LIMITS, createCatalogue } from './catalogue-retrieval.ts';
 
-const corpora = { regression: 'catalogue-requests.json', 'challenge-v2': 'catalogue-heldout-v2.json', 'validation-v3': 'catalogue-validation-v3.json' };
+const corpora = { regression: 'catalogue-requests.json', 'challenge-v2': 'catalogue-heldout-v2.json', 'validation-v3': 'catalogue-validation-v3.json', 'independent-v4': 'catalogue-indirect-v4.json' };
 const args = process.argv.slice(2);
 if (args.length !== 0 && (args.length !== 2 || args[0] !== '--corpus' || !Object.hasOwn(corpora, args[1]!))) {
-  throw new Error('Usage: node scripts/prototypes/evaluate-catalogue.ts [--corpus regression|challenge-v2|validation-v3]');
+  throw new Error('Usage: node scripts/prototypes/evaluate-catalogue.ts [--corpus regression|challenge-v2|validation-v3|independent-v4]');
 }
 const corpusName = (args[1] ?? 'regression') as keyof typeof corpora;
 const corpusFile = corpora[corpusName];
@@ -37,7 +37,7 @@ times.sort((a, b) => a - b);
 console.log(JSON.stringify({
   scope: {
     description: 'Offline relevance smoke evaluation of 21 existing parts, with independent AI-authored labels. Not user traffic, human judgments, representative accuracy or rendered quality.',
-    tuning: 'All corpora were independently AI-authored without seeing retrieval or its results. The original and v2 corpora became development evidence; v3 was first scored after the successor retriever/cards were frozen. All are now public regression material, not future held-out tests.',
+    tuning: 'All corpora were independently AI-authored without seeing retrieval or its results. The original and v2 corpora became development evidence; v3 was first scored after the successor retriever/cards were frozen. V4 was first read and scored only after the subsequent descriptive candidate was frozen and independently code-reviewed. All are now public regression material, not future held-out tests.',
     liveModelMeasured: false, physicalDisplayMeasured: false, threeSecondTargetVerdict: null,
   },
   provenance: {
