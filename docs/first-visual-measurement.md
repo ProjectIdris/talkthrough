@@ -36,6 +36,8 @@ The fixture's closing step bytes are deliberately withheld until that paint arri
 
 The oracle is intentionally narrow: a new magenta box on a fresh 640×480 scene. It checks that narration and an invalid action produce no matching pixels, then checks the cleared baseline. UI paint activity, a scene object count or the app's first-mark event alone cannot pass it. The saved evidence may be only a short initial stroke, since this measures the beginning of drawing, not a completed box. It does not test retained-scene changes, general visibility, offscreen geometry or 3D/WebGL.
 
+The control waits for the same renderer to finish its narration, then explicitly requests and awaits an offscreen paint. Every paint received during the control must contain zero marker pixels. This avoids relying on a fixed delay or assuming an unchanged frame emits a paint. Missing completion or paint receipts fail with bounded timeouts; none of this preparation is included in the request clock.
+
 The report keeps model first-token/first-output fields and the three-second target verdict `null`. Never add this fixture duration to an assumed model duration or subtract it from three seconds to claim a proven budget. No first-word/audio timing, transcription, screenshot preparation, schema processing, prompt caching, provider queueing or model authoring is measured.
 
 ## Next live measurement

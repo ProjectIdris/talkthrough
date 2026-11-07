@@ -80,14 +80,32 @@ async function run(): Promise<void> {
   const send = (message: SceneMessage) => win.webContents.send(CHANNEL.scene, message);
   win.webContents.send(CHANNEL.display, { id: 1, bounds: { x: 0, y: 0, width: 640, height: 480 }, scaleFactor: 1, silent: true });
 
-  // A real narration/invalid-action control exercises paint activity without qualifying as a mark.
+  // IPC readiness and elapsed time do not prove that the control was rendered.
+  // Wait for this window's real narration to finish, then request a compositor
+  // receipt even when an unchanged frame would not otherwise emit another paint.
+  const controlDone = new Promise<void>((done, fail) => {
+    const timer = setTimeout(() => { ipcMain.off(CHANNEL.done, listener); fail(new Error('negative control completion timed out')); }, 5_000);
+    const listener = (event: Electron.IpcMainEvent) => {
+      if (event.sender !== win.webContents) return;
+      clearTimeout(timer); ipcMain.off(CHANNEL.done, listener); done();
+    };
+    ipcMain.on(CHANNEL.done, listener);
+  });
+  const repaint = () => new Promise<void>((done, fail) => {
+    const timer = setTimeout(() => { win.webContents.off('paint', listener); fail(new Error('no negative control paint within 5 seconds')); }, 5_000);
+    const listener = () => { clearTimeout(timer); win.webContents.off('paint', listener); done(); };
+    win.webContents.on('paint', listener);
+    win.webContents.invalidate();
+  });
+  // Every paint during the full control is checked, including those before done.
   controlPhase = true;
   const control = createVisualProbe(send, () => 0);
   control.push('{"steps":[{"say":"Words only","actions":[{"op":"invalid"}]}]}');
   const controlReport = control.end();
-  await sleep(250);
+  await controlDone;
+  await repaint();
   controlPhase = false;
-  if (controlReport.acceptedActions !== 0 || controlReport.validationIssues === 0 || negativeControlPaints === 0 || negativeControlMaxMarkerPixels !== 0) throw new Error('negative control did not remain drawing-free');
+  if (controlReport.acceptedActions !== 0 || controlReport.validationIssues === 0 || negativeControlPaints === 0 || negativeControlMaxMarkerPixels !== 0) throw new Error(`negative control did not remain drawing-free: ${JSON.stringify({ controlReport, negativeControlPaints, negativeControlMaxMarkerPixels, observedPaints })}`);
   send({ kind: 'clear' });
   const beforeClear = observedPaints;
   win.webContents.invalidate();
