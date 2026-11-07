@@ -1,0 +1,228 @@
+{
+  "steps": [
+    {
+      "say": "One polygon cross-section follows a curved path. The rectangular rail stays angular, the channel keeps its open recess, and the thin band bends through space.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 80,
+          "y": 80,
+          "w": 840,
+          "h": 840
+        },
+        {
+          "op": "add",
+          "shape": "sweep",
+          "id": "rail",
+          "outline": [
+            [
+              -0.28,
+              -0.16
+            ],
+            [
+              0.28,
+              -0.16
+            ],
+            [
+              0.28,
+              0.16
+            ],
+            [
+              -0.28,
+              0.16
+            ]
+          ],
+          "pts": [
+            [
+              -2.8,
+              0,
+              0
+            ],
+            [
+              -1.3,
+              0.5,
+              0
+            ],
+            [
+              0.4,
+              0.7,
+              0.3
+            ],
+            [
+              2.2,
+              0.25,
+              1.1
+            ]
+          ],
+          "pos": [
+            0,
+            2.2,
+            0
+          ],
+          "color": "blue",
+          "material": "metal"
+        },
+        {
+          "op": "add",
+          "shape": "sweep",
+          "id": "channel",
+          "outline": [
+            [
+              -0.42,
+              -0.28
+            ],
+            [
+              0.42,
+              -0.28
+            ],
+            [
+              0.42,
+              0.28
+            ],
+            [
+              0.27,
+              0.28
+            ],
+            [
+              0.27,
+              -0.12
+            ],
+            [
+              -0.27,
+              -0.12
+            ],
+            [
+              -0.27,
+              0.28
+            ],
+            [
+              -0.42,
+              0.28
+            ]
+          ],
+          "pts": [
+            [
+              -2.8,
+              0,
+              0
+            ],
+            [
+              -1.3,
+              0.2,
+              0
+            ],
+            [
+              0.5,
+              0.2,
+              0.4
+            ],
+            [
+              2.2,
+              -0.2,
+              0.9
+            ]
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "color": "orange",
+          "material": "plastic"
+        },
+        {
+          "op": "add",
+          "shape": "sweep",
+          "id": "band",
+          "outline": [
+            [
+              -0.5,
+              -0.05
+            ],
+            [
+              0.5,
+              -0.05
+            ],
+            [
+              0.5,
+              0.05
+            ],
+            [
+              -0.5,
+              0.05
+            ]
+          ],
+          "pts": [
+            [
+              -2.7,
+              0,
+              0
+            ],
+            [
+              -1.2,
+              0.3,
+              0.7
+            ],
+            [
+              0.4,
+              0.45,
+              1
+            ],
+            [
+              2,
+              0.3,
+              0.2
+            ]
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "pos": [
+            0,
+            -2.2,
+            0
+          ],
+          "color": "teal",
+          "material": "rubber"
+        },
+        {
+          "op": "orbit",
+          "az": 18,
+          "el": 18,
+          "dur": 0
+        }
+      ]
+    },
+    {
+      "say": "The solid section is carried with minimum rotation. End caps close each shape while the corners remain sharp.",
+      "actions": [
+        {
+          "op": "orbit",
+          "az": -65,
+          "el": 25,
+          "dur": 1.2
+        }
+      ]
+    },
+    {
+      "say": "An ordinary cut exposes each solid section, including the concave channel.",
+      "actions": [
+        {
+          "op": "cut",
+          "id": "channel",
+          "axis": "x",
+          "to": 0,
+          "dur": 1
+        },
+        {
+          "op": "orbit",
+          "az": 38,
+          "el": 28,
+          "dur": 1
+        }
+      ]
+    }
+  ]
+}

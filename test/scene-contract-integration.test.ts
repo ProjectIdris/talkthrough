@@ -10,6 +10,7 @@ const finish = { roughness: 0.17, metalness: 0.63, clearcoat: 0.82, clearcoatRou
 const square = [[-1,-1],[1,-1],[1,1],[-1,1]];
 const shapes: Record<string, Record<string, unknown>> = {
   patch: { pts: Array.from({ length: 16 }, (_, i) => [i % 4 - 1.5, Math.floor(i / 4) - 1.5, 0.2 * (i % 4 - 1.5) * (Math.floor(i / 4) - 1.5)]) },
+  sweep: { outline: [[-0.3,-0.2],[0.3,-0.2],[0.3,0.2],[-0.3,0.2]], pts: [[0,0,-2],[0,0,2]] },
   hull: { pts: [[-1,-1,-1],[1,-1,-1],[0,1,-1],[0,0,1]] },
 };
 const meshOf = (panel: PanelScene, key: number): Mesh => {

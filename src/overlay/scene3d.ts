@@ -15,6 +15,7 @@ import {
 } from 'three';
 import type { Texture } from 'three';
 import type { AddAction, SurfaceFinish, Vec3 } from '../scene/types.ts';
+import { sweepGeometry, sweepEdges } from './sweep.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
 import { buildHullGeometry } from './hull.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
@@ -237,7 +238,7 @@ export class PanelScene {
       // Stream markers share geometry within this node; own and release it once.
       if (!node.geometries.includes(geo)) node.geometries.push(geo);
       node.materials.push(surface);
-      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'hull' || def.shape === 'torus' || (def.shape === 'lathe' && def.sweep != null);
+      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'hull' || def.shape === 'sweep' || def.shape === 'torus' || (def.shape === 'lathe' && def.sweep != null);
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
       if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.primitiveKey(def), def.shape === 'lathe' && def.sweep != null ? 'sector' : def.shape === 'extrude' && (def.taper != null || def.shift != null) ? 'tapered' : def.shape === 'patch' ? 'patch' : undefined);
       node.pieces.push(piece);
@@ -256,6 +257,11 @@ export class PanelScene {
         node.obj = built.root;
         node.anchors = built.anchors;
         for (const p of built.pieces) this.adoptPiece(node, p);
+        break;
+      }
+      case 'sweep': {
+        const geo = sweepGeometry(def, this.tier);
+        if (geo) node.obj = addMesh(geo, material, def.edges !== false);
         break;
       }
       case 'text': this.buildText(node, o); break;
@@ -291,7 +297,7 @@ export class PanelScene {
       generated.dispose();
       this.sharedEdges.set(key, { geometry: outline, refs: 1 });
       this.edgeKeys.set(outline, key);
-    } else outline = boundary === 'sector' ? latheSectorEdges(geo) : boundary === 'tapered' ? taperedExtrudeEdges(geo) : boundary === 'patch' ? patchEdges(geo, PATCH_SEGMENTS[this.tier]) : creaseGeometry(geo);
+    } else outline = boundary === 'sector' ? latheSectorEdges(geo) : boundary === 'tapered' ? taperedExtrudeEdges(geo) : boundary === 'patch' ? patchEdges(geo, PATCH_SEGMENTS[this.tier]) : geo.userData.sweepEdges instanceof Float32Array ? sweepEdges(geo) : creaseGeometry(geo);
     const lines = new LineSegments(outline, mat);
     mesh.add(lines);
     node.geometries.push(lines.geometry);

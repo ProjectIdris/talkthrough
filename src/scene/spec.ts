@@ -322,6 +322,17 @@ export const VARIANTS: readonly Variant[] = [
     },
   },
   {
+    name: 'addSweep', op: 'add', shapes: ['sweep'], creates: 'solid',
+    doc: 'A closed polygon outline carried along a smooth open 3D path: curved rails, shaped cables and solid bands. Outline x,y are local section offsets; up sets initial +y, projected perpendicular to the path (default +y, or +x for a vertical start). The section follows with minimum rotation. Flat caps, sharp section corners, no bevel or holes. Keep the profile narrow relative to bends; folded or collapsed sampled meshes are rejected.',
+    fields: {
+      shape: { k: 'enum', values: ['sweep'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      outline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
+      pts: { k: 'pts', min: 2, max: 16, lo: WORLD.min, hi: WORLD.max },
+      up: { k: 'vec3', ...WORLD, opt: true, doc: 'nonzero initial section +y direction, not parallel to the starting path' },
+      color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
+    },
+  },
+  {
     name: 'addBlob', op: 'add', shapes: ['blob'], creates: 'solid',
     doc: 'A soft organic form blended from up to 12 ellipsoid lumps, each at a point of pts with its own box size [x,y,z] in sizes (the same count, or the last is repeated): a heart or other organ, a fruit, an animal body or head, a leaf. Lumps that overlap melt into one skin with smooth necks; soft (0.05 to 1, default 0.5) is how far they blend. Build one form per blob and join forms with tube.',
     fields: {

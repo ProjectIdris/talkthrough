@@ -1907,6 +1907,184 @@
       "additionalProperties": false,
       "description": "An open bicubic Bézier sheet: exactly 16 controls [x,y,z], four rows of four in row-major order. Each row runs across u; rows advance v. Corners lie on the sheet; other controls pull its curvature, not interpolation points. Curved panels, canopies, membranes. Two-sided, no thickness or solid cut cap. Use a regular net without folds or collapsed rows."
     },
+    "addSweep": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "sweep"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "outline": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "3 to 24 points [x,y], each -100 to 100"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "2 to 16 points [x,y,z]"
+        },
+        "up": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "nonzero initial section +y direction, not parallel to the starting path; [x,y,z], each -100 to 100"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "dark edge lines (default true)"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "explode",
+        "pos",
+        "rot",
+        "outline",
+        "pts",
+        "up",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A closed polygon outline carried along a smooth open 3D path: curved rails, shaped cables and solid bands. Outline x,y are local section offsets; up sets initial +y, projected perpendicular to the path (default +y, or +x for a vertical start). The section follows with minimum rotation. Flat caps, sharp section corners, no bevel or holes. Keep the profile narrow relative to bends; folded or collapsed sampled meshes are rejected."
+    },
     "addBlob": {
       "type": "object",
       "properties": {
@@ -4313,6 +4491,9 @@
         },
         {
           "$ref": "#/$defs/addPatch"
+        },
+        {
+          "$ref": "#/$defs/addSweep"
         },
         {
           "$ref": "#/$defs/addBlob"

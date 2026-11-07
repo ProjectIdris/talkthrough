@@ -26,6 +26,8 @@ Hand-written scenes in the scene language (`docs/scene-language.md`) for playing
 | `tapered-extrusions.json` | any page with a free central stage | three single-solid tapered, offset and concave profiles, followed by cutaways and a camera orbit; no live model required |
 | `escalate.json` | a settings menu top-left (20,40 to 180,100) | a brief partial answer with a mark, plus an `escalate` reason: the app offers a deeper backend |
 
+| `profile-sweeps.json` | any page with space for a large model | a rectangular curved rail, a concave channel section and a thin spatial band, all made with the same sweep primitive |
+
 
 `samples/pages/` has a 1920x1080 backdrop for each page layout (`bar-chart.svg`, `request-flow.svg`, `earth-layers.svg`, `lock-article.svg`, `wind-power-explainer.svg`; the pages are made up) so the marks can be seen landing on the parts they point at; see `docs/overlay.md` for rendering frames over them.
 

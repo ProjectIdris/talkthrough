@@ -4,7 +4,7 @@
     "steps": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/1r"
+        "$ref": "#/$defs/1s"
       }
     },
     "escalate": {
@@ -188,6 +188,112 @@
         },
         "shape": {
           "enum": [
+            "part"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "parentAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "selfAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/2"
+        },
+        "rot": {
+          "$ref": "#/$defs/2"
+        },
+        "part": {
+          "enum": [
+            "chip",
+            "header",
+            "port",
+            "lens",
+            "screen",
+            "button",
+            "fan",
+            "wheel",
+            "cylinder-block",
+            "piston",
+            "connecting-rod",
+            "crankshaft",
+            "valve",
+            "camshaft",
+            "spark-plug",
+            "gear",
+            "spring",
+            "bearing",
+            "pipe",
+            "elbow",
+            "housing"
+          ]
+        },
+        "variant": {
+          "enum": [
+            "black",
+            "metal",
+            "usb",
+            "usb3",
+            "ethernet",
+            "hdmi",
+            "usbc",
+            "gold",
+            "cutaway",
+            "finned",
+            null
+          ]
+        },
+        "size": {
+          "$ref": "#/$defs/6"
+        },
+        "n": {
+          "$ref": "#/$defs/0"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "parentAnchor",
+        "selfAnchor",
+        "pos",
+        "rot",
+        "part",
+        "variant",
+        "size",
+        "n",
+        "color",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "11": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
             "array"
           ]
         },
@@ -222,7 +328,7 @@
       ],
       "additionalProperties": false
     },
-    "11": {
+    "12": {
       "type": "object",
       "properties": {
         "op": {
@@ -270,7 +376,7 @@
       ],
       "additionalProperties": false
     },
-    "12": {
+    "13": {
       "type": "object",
       "properties": {
         "op": {
@@ -314,7 +420,7 @@
       ],
       "additionalProperties": false
     },
-    "13": {
+    "14": {
       "type": "object",
       "properties": {
         "op": {
@@ -360,7 +466,7 @@
       ],
       "additionalProperties": false
     },
-    "14": {
+    "15": {
       "type": "object",
       "properties": {
         "op": {
@@ -390,7 +496,7 @@
       ],
       "additionalProperties": false
     },
-    "15": {
+    "16": {
       "type": "object",
       "properties": {
         "op": {
@@ -420,7 +526,7 @@
       ],
       "additionalProperties": false
     },
-    "16": {
+    "17": {
       "type": "object",
       "properties": {
         "op": {
@@ -450,7 +556,7 @@
       ],
       "additionalProperties": false
     },
-    "17": {
+    "18": {
       "type": "object",
       "properties": {
         "op": {
@@ -480,42 +586,12 @@
       ],
       "additionalProperties": false
     },
-    "18": {
-      "type": "object",
-      "properties": {
-        "op": {
-          "enum": [
-            "explode"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "to": {
-          "type": "number"
-        },
-        "at": {
-          "$ref": "#/$defs/0"
-        },
-        "dur": {
-          "$ref": "#/$defs/0"
-        }
-      },
-      "required": [
-        "op",
-        "id",
-        "to",
-        "at",
-        "dur"
-      ],
-      "additionalProperties": false
-    },
     "19": {
       "type": "object",
       "properties": {
         "op": {
           "enum": [
-            "reveal"
+            "explode"
           ]
         },
         "id": {
@@ -1633,6 +1709,90 @@
         },
         "shape": {
           "enum": [
+            "sweep"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/2"
+        },
+        "rot": {
+          "$ref": "#/$defs/2"
+        },
+        "outline": {
+          "$ref": "#/$defs/3"
+        },
+        "pts": {
+          "$ref": "#/$defs/3"
+        },
+        "up": {
+          "$ref": "#/$defs/2"
+        },
+        "color": {
+          "$ref": "#/$defs/1"
+        },
+        "material": {
+          "$ref": "#/$defs/5"
+        },
+        "roughness": {
+          "$ref": "#/$defs/0"
+        },
+        "metalness": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoat": {
+          "$ref": "#/$defs/0"
+        },
+        "clearcoatRoughness": {
+          "$ref": "#/$defs/0"
+        },
+        "edges": {
+          "$ref": "#/$defs/4"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "outline",
+        "pts",
+        "up",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "v": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
             "blob"
           ]
         },
@@ -1703,7 +1863,7 @@
       ],
       "additionalProperties": false
     },
-    "v": {
+    "w": {
       "type": "object",
       "properties": {
         "op": {
@@ -1796,7 +1956,7 @@
       ],
       "additionalProperties": false
     },
-    "w": {
+    "x": {
       "type": "object",
       "properties": {
         "op": {
@@ -1845,7 +2005,7 @@
       ],
       "additionalProperties": false
     },
-    "x": {
+    "y": {
       "type": "object",
       "properties": {
         "op": {
@@ -1950,7 +2110,7 @@
       ],
       "additionalProperties": false
     },
-    "y": {
+    "z": {
       "type": "object",
       "properties": {
         "op": {
@@ -2027,113 +2187,37 @@
       ],
       "additionalProperties": false
     },
-    "z": {
+    "1a": {
       "type": "object",
       "properties": {
         "op": {
           "enum": [
-            "add"
-          ]
-        },
-        "shape": {
-          "enum": [
-            "part"
+            "reveal"
           ]
         },
         "id": {
           "type": "string"
         },
-        "parent": {
-          "$ref": "#/$defs/1"
-        },
-        "parentAnchor": {
-          "$ref": "#/$defs/1"
-        },
-        "selfAnchor": {
-          "$ref": "#/$defs/1"
-        },
-        "pos": {
-          "$ref": "#/$defs/2"
-        },
-        "rot": {
-          "$ref": "#/$defs/2"
-        },
-        "part": {
-          "enum": [
-            "chip",
-            "header",
-            "port",
-            "lens",
-            "screen",
-            "button",
-            "fan",
-            "wheel",
-            "cylinder-block",
-            "piston",
-            "connecting-rod",
-            "crankshaft",
-            "valve",
-            "camshaft",
-            "spark-plug",
-            "gear",
-            "spring",
-            "bearing",
-            "pipe",
-            "elbow",
-            "housing"
-          ]
-        },
-        "variant": {
-          "enum": [
-            "black",
-            "metal",
-            "usb",
-            "usb3",
-            "ethernet",
-            "hdmi",
-            "usbc",
-            "gold",
-            "cutaway",
-            "finned",
-            null
-          ]
-        },
-        "size": {
-          "$ref": "#/$defs/6"
-        },
-        "n": {
-          "$ref": "#/$defs/0"
-        },
-        "color": {
-          "$ref": "#/$defs/1"
-        },
-        "opacity": {
-          "$ref": "#/$defs/0"
+        "to": {
+          "type": "number"
         },
         "at": {
+          "$ref": "#/$defs/0"
+        },
+        "dur": {
           "$ref": "#/$defs/0"
         }
       },
       "required": [
         "op",
-        "shape",
         "id",
-        "parent",
-        "parentAnchor",
-        "selfAnchor",
-        "pos",
-        "rot",
-        "part",
-        "variant",
-        "size",
-        "n",
-        "color",
-        "opacity",
-        "at"
+        "to",
+        "at",
+        "dur"
       ],
       "additionalProperties": false
     },
-    "1a": {
+    "1b": {
       "type": "object",
       "properties": {
         "op": {
@@ -2167,7 +2251,7 @@
       ],
       "additionalProperties": false
     },
-    "1b": {
+    "1c": {
       "type": "object",
       "properties": {
         "op": {
@@ -2197,7 +2281,7 @@
       ],
       "additionalProperties": false
     },
-    "1c": {
+    "1d": {
       "type": "object",
       "properties": {
         "op": {
@@ -2248,7 +2332,7 @@
       ],
       "additionalProperties": false
     },
-    "1d": {
+    "1e": {
       "type": "object",
       "properties": {
         "op": {
@@ -2286,7 +2370,7 @@
       ],
       "additionalProperties": false
     },
-    "1e": {
+    "1f": {
       "type": "object",
       "properties": {
         "op": {
@@ -2328,7 +2412,7 @@
       ],
       "additionalProperties": false
     },
-    "1f": {
+    "1g": {
       "type": "object",
       "properties": {
         "op": {
@@ -2366,7 +2450,7 @@
       ],
       "additionalProperties": false
     },
-    "1g": {
+    "1h": {
       "type": "object",
       "properties": {
         "op": {
@@ -2427,7 +2511,7 @@
       ],
       "additionalProperties": false
     },
-    "1h": {
+    "1i": {
       "type": "object",
       "properties": {
         "op": {
@@ -2486,7 +2570,7 @@
       ],
       "additionalProperties": false
     },
-    "1i": {
+    "1j": {
       "type": "object",
       "properties": {
         "op": {
@@ -2528,7 +2612,7 @@
       ],
       "additionalProperties": false
     },
-    "1j": {
+    "1k": {
       "type": "object",
       "properties": {
         "op": {
@@ -2571,7 +2655,7 @@
       ],
       "additionalProperties": false
     },
-    "1k": {
+    "1l": {
       "type": "object",
       "properties": {
         "op": {
@@ -2601,7 +2685,7 @@
       ],
       "additionalProperties": false
     },
-    "1l": {
+    "1m": {
       "type": "object",
       "properties": {
         "op": {
@@ -2627,7 +2711,7 @@
       ],
       "additionalProperties": false
     },
-    "1m": {
+    "1n": {
       "type": "object",
       "properties": {
         "op": {
@@ -2653,7 +2737,7 @@
       ],
       "additionalProperties": false
     },
-    "1n": {
+    "1o": {
       "type": "object",
       "properties": {
         "op": {
@@ -2689,7 +2773,7 @@
       ],
       "additionalProperties": false
     },
-    "1o": {
+    "1p": {
       "type": "object",
       "properties": {
         "op": {
@@ -2729,7 +2813,7 @@
       ],
       "additionalProperties": false
     },
-    "1p": {
+    "1q": {
       "type": "object",
       "properties": {
         "op": {
@@ -2751,7 +2835,7 @@
       ],
       "additionalProperties": false
     },
-    "1q": {
+    "1r": {
       "anyOf": [
         {
           "$ref": "#/$defs/8"
@@ -2914,10 +2998,13 @@
         },
         {
           "$ref": "#/$defs/1p"
+        },
+        {
+          "$ref": "#/$defs/1q"
         }
       ]
     },
-    "1r": {
+    "1s": {
       "type": "object",
       "properties": {
         "say": {
@@ -2926,7 +3013,7 @@
         "actions": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/1q"
+            "$ref": "#/$defs/1r"
           }
         }
       },
