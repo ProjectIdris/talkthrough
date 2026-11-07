@@ -3,13 +3,13 @@
 // It is for the person who asked for it, on their own computer: nothing here is sent anywhere, and nothing is kept past the newest
 // `keep` folders. Writing it must never get in the way of a question: every failure is swallowed (and said once in the log).
 
-import { appendFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** How many question folders are kept; older ones are deleted when a new one begins. */
 export const RECORD_KEEP = 50;
 
-/** The name of a question's folder: local date and time, so the folders sort in the order they were asked. Nothing else in a folder is ever deleted. */
+/** The name of a question's folder: local date and time. Nothing with another name is ever deleted. */
 const FOLDER = /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(-\d+)?$/;
 
 export type RecordedCall = {
@@ -73,18 +73,38 @@ export function folderName(at: Date): string {
   return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}_${pad(at.getHours())}-${pad(at.getMinutes())}-${pad(at.getSeconds())}`;
 }
 
-/** Deletes the folders of the record beyond the newest `keep`; only folders named by `folderName` are looked at. Returns how many it removed. */
+type RecordFolder = { name: string; order: number };
+
+function recordFolders(dir: string): RecordFolder[] {
+  const names = readdirSync(dir).filter((name) => FOLDER.test(name) && statSync(join(dir, name)).isDirectory());
+  return names.map((name) => {
+    let order = 0; // older versions have no order; their date and numeric suffix remain the fallback
+    try {
+      const value: unknown = JSON.parse(readFileSync(join(dir, name, 'report.json'), 'utf8')).recordOrder;
+      if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) order = value;
+    } catch {
+      // A missing or damaged report must not stop the other records being pruned.
+    }
+    return { name, order };
+  });
+}
+
+function pruneFolders(dir: string, folders: RecordFolder[], keep: number): number {
+  folders.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'en', { numeric: true }) || a.name.localeCompare(b.name));
+  const old = folders.slice(0, Math.max(0, folders.length - keep));
+  for (const { name } of old) rmSync(join(dir, name), { recursive: true, force: true });
+  return old.length;
+}
+
+/** Deletes the folders beyond the newest `keep`; only dated question folders are looked at. Returns how many it removed. */
 export function pruneRecord(dir: string, keep: number): number {
-  let names: string[];
+  let folders: RecordFolder[];
   try {
-    names = readdirSync(dir).filter((name) => FOLDER.test(name) && statSync(join(dir, name)).isDirectory());
+    folders = recordFolders(dir);
   } catch {
     return 0;
   }
-  names.sort();
-  const old = names.slice(0, Math.max(0, names.length - keep));
-  for (const name of old) rmSync(join(dir, name), { recursive: true, force: true });
-  return old.length;
+  return pruneFolders(dir, folders, keep);
 }
 
 const EXTENSION: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
@@ -93,7 +113,7 @@ export function createQuestionRecord(options: Options): QuestionRecord {
   const keep = options.keep ?? RECORD_KEEP;
   const clock = options.now ?? (() => new Date());
   let warned = false;
-  let current: { dir: string; startedAt: Date; kind: string; calls: number; steps: unknown[]; open?: { say: string; actions: unknown[] }; report: Record<string, unknown>; voice: string[]; errors: string[] } | undefined;
+  let current: { dir: string; startedAt: Date; recordOrder: number; kind: string; calls: number; steps: unknown[]; open?: { say: string; actions: unknown[] }; report: Record<string, unknown>; voice: string[]; errors: string[] } | undefined;
 
   /** Runs a write; whatever goes wrong is said once and never reaches the question. */
   const safely = (what: () => void): void => {
@@ -115,7 +135,7 @@ export function createQuestionRecord(options: Options): QuestionRecord {
   }
   function writeReport(): void {
     if (!current) return;
-    json('report.json', { startedAt: current.startedAt.toISOString(), kind: current.kind, ...current.report });
+    json('report.json', { startedAt: current.startedAt.toISOString(), kind: current.kind, ...current.report, recordOrder: current.recordOrder });
   }
 
   return {
@@ -123,15 +143,29 @@ export function createQuestionRecord(options: Options): QuestionRecord {
       current = undefined; // a folder that cannot be made must not leave the last question's open for this one
       safely(() => {
         mkdirSync(options.dir, { recursive: true });
+        const folders = recordFolders(options.dir);
+        const lastOrder = folders.reduce((last, folder) => Math.max(last, folder.order), 0);
+        if (lastOrder === Number.MAX_SAFE_INTEGER) throw new Error('the record order is exhausted');
+        const recordOrder = lastOrder + 1; // creation order survives clock changes and app restarts
         const at = clock();
         const base = folderName(at);
         let name = base;
         for (let i = 2; existsSync(join(options.dir, name)); i++) name = `${base}-${i}`;
         const dir = join(options.dir, name);
-        mkdirSync(dir);
-        current = { dir, startedAt: at, kind, calls: 0, steps: [], report: {}, voice: [], errors: [] };
-        writeReport();
-        pruneRecord(options.dir, keep);
+        // Until metadata succeeds, stay outside the dated retention inventory. Even a complete
+        // write followed by an error and failed cleanup must not look like an admitted question.
+        const pending = mkdtempSync(join(options.dir, '.pending-question-'));
+        try {
+          writeFileSync(join(pending, 'report.json'), `${JSON.stringify({ startedAt: at.toISOString(), kind, recordOrder }, null, 2)}\n`);
+          renameSync(pending, dir);
+        } catch (error) {
+          // Only this newly created staging folder is ours to discard. A cleanup failure leaves
+          // it ignored by retention, with no subsequent payloads; preserve the original error.
+          try { rmSync(pending, { recursive: true, force: true }); } catch { /* best effort */ }
+          throw error;
+        }
+        current = { dir, startedAt: at, recordOrder, kind, calls: 0, steps: [], report: {}, voice: [], errors: [] };
+        pruneFolders(options.dir, [...folders, { name, order: recordOrder }], keep);
       });
     },
     line(text) {

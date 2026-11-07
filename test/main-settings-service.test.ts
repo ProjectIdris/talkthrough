@@ -174,6 +174,22 @@ test('a settings file that cannot be read is kept aside before it is replaced', 
   }
 });
 
+test('a broken settings file is not replaced when its backup cannot be written', () => {
+  const original = '{ "customOption": "keep this", unfinished';
+  const t = setup(original);
+  try {
+    mkdirSync(`${t.path}.unreadable`); // a folder blocks the backup on every supported platform
+    const result = t.service.save(withForm(t.service.read(), { codexFast: true }));
+    assert.equal(result.ok, false);
+    assert.ok(!result.ok && result.messages.length > 0, 'the failed save is explained');
+    assert.equal(readFileSync(t.path, 'utf8'), original, 'the original bytes remain recoverable');
+    assert.equal(t.warnings.length, 1);
+    assert.equal(existsSync(`${t.path}.saving`), false, 'no partial replacement is left');
+  } finally {
+    t.done();
+  }
+});
+
 test('saving what is already saved says nothing changed', () => {
   const t = setup({ model: 'claude' });
   try {
@@ -184,10 +200,10 @@ test('saving what is already saved says nothing changed', () => {
   }
 });
 
-test('a save that cannot be finished (the rename fails) says so and leaves no half-written file behind', () => {
+test('a settings path occupied by a folder is reported and leaves no half-written file behind', () => {
   const t = setup();
   try {
-    mkdirSync(t.path); // the settings file's place is taken by a folder, so the final rename cannot succeed
+    mkdirSync(t.path); // a folder cannot be read, backed up or replaced as a settings file
     const result = t.service.save(withForm(t.service.read(), { codexFast: true }));
     assert.equal(result.ok, false);
     assert.ok(!result.ok && /could not be written/.test(result.messages.join(' ')));

@@ -9,7 +9,8 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { shadeExtrusion } from './extrusion-normals.ts';
 import { BLOB_CELLS, SCENE_BLOB_TRIANGLES } from './blob.ts';
-import { catmull } from './timeline.ts';
+import { shadeLatheProfile } from './lathe.ts';
+import { sampleOpenCurve } from './open-curve.ts';
 import type { Vec2, Vec3 } from '../scene/types.ts';
 
 export type Detail = { curve: number; bevel: number; radial: number; tube: number; blob: number; blobTriangles: number };
@@ -26,8 +27,13 @@ export function defaultBevel(size: Vec3): number {
 
 /** A box with rounded edges (a plain box when the rounding is nothing). */
 export function boxGeometry(size: Vec3, bevel: number, detail: Detail): BufferGeometry {
-  const r = Math.min(bevel, Math.min(size[0], size[1], size[2]) / 2 - 1e-4);
-  if (!(r > 0.002)) return new BoxGeometry(size[0], size[1], size[2]);
+  const shortest = Math.min(size[0], size[1], size[2]);
+  // Keep rounding and the small flat seam proportional to the shape. Fixed unit cutoffs
+  // made compact models (and thin panels enlarged by a parent) unexpectedly sharp.
+  const r = Math.min(bevel, shortest * 0.4999);
+  // Positions are Float32: a tiny radius on a wide, thin box can otherwise collapse
+  // rounded triangles or reverse their winding. Base this precision floor on the long side.
+  if (!(r > Math.max(...size) * 1e-6)) return new BoxGeometry(size[0], size[1], size[2]);
   return new RoundedBoxGeometry(size[0], size[1], size[2], detail.bevel, r);
 }
 
@@ -50,8 +56,12 @@ export function extrudeGeometry(outline: readonly Vec2[], depth: number, bevel: 
 /** A profile of [radius, y] points spun round the y axis. */
 export function latheGeometry(profile: readonly Vec2[], sides: number): BufferGeometry {
   const pts = profile.map((p) => new Vector2(Math.abs(p[0]), p[1]));
-  const geo = new LatheGeometry(pts, Math.max(3, Math.round(sides)));
-  return toCreasedNormals(geo, sides <= 8 ? 0.4 : 0.9);
+  const segments = Math.max(3, Math.round(sides));
+  const source = new LatheGeometry(pts, segments);
+  const geo = source.toNonIndexed();
+  source.dispose();
+  shadeLatheProfile(geo, pts, segments);
+  return geo;
 }
 
 /**
@@ -94,20 +104,7 @@ export function shadeByHeight(geo: BufferGeometry): void {
 
 /** Points along the path: smooth (a spline) for tubes, straight between the points for lines. */
 export function samplePath(pts: readonly Vec3[], smooth: boolean, perSegment: number): Vec3[] {
-  const raw = pts.map((p) => [p[0], p[1], p[2]]);
-  const out: Vec3[] = [];
-  const segments = raw.length - 1;
-  for (let i = 0; i < segments; i++) {
-    const n = smooth ? perSegment : 1;
-    for (let k = 0; k < n; k++) {
-      const u = (i + k / n) / segments;
-      const p = smooth ? catmull(raw, u) : (raw[i] as number[]).map((a, c) => a + (((raw[i + 1] as number[])[c] ?? a) - a) * (k / n));
-      out.push([p[0] ?? 0, p[1] ?? 0, p[2] ?? 0]);
-    }
-  }
-  const end = raw[segments] as number[];
-  out.push([end[0] ?? 0, end[1] ?? 0, end[2] ?? 0]);
-  return out;
+  return smooth ? sampleOpenCurve(pts, perSegment) : pts.map(p => [...p]);
 }
 
 const UP = new Vector3(0, 1, 0);
@@ -203,6 +200,28 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
     }
   }
   const row = radial + 1;
+  // Follow the swept skin, including taper and a ribbon's changing orientation.
+  // Radial-only normals make the shoulders of a swollen tube shade like a cylinder.
+  // Keep the analytic direction around each ellipse to avoid radial faceting or a seam.
+  const along = new Vector3(), around = new Vector3(), normal = new Vector3();
+  for (let i = 0; i < rings; i++) {
+    const frame = frames[i]!;
+    const prev = Math.max(0, i - 1), next = Math.min(rings - 1, i + 1);
+    for (let j = 0; j <= radial; j++) {
+      const offset = (i * row + j) * 3;
+      const before = (prev * row + j) * 3, after = (next * row + j) * 3;
+      along.set(pos[after]! - pos[before]!, pos[after + 1]! - pos[before + 1]!, pos[after + 2]! - pos[before + 2]!);
+      const angle = (j / radial) * Math.PI * 2;
+      around.copy(frame.wide).multiplyScalar(-Math.sin(angle)).addScaledVector(frame.thin, flat * Math.cos(angle));
+      normal.crossVectors(along, around);
+      // A repeated point or folded/collapsed span has no usable surface derivative.
+      // Retain the finite outward ellipse normal already assigned to that vertex.
+      if (normal.lengthSq() > 0 && (normal.x * nor[offset]! + normal.y * nor[offset + 1]! + normal.z * nor[offset + 2]!) > 0) {
+        normal.normalize();
+        nor[offset] = normal.x; nor[offset + 1] = normal.y; nor[offset + 2] = normal.z;
+      }
+    }
+  }
   for (let i = 0; i < rings - 1; i++) {
     for (let j = 0; j < radial; j++) {
       const p0 = i * row + j, p1 = p0 + 1, p2 = p0 + row, p3 = p2 + 1;
@@ -230,10 +249,10 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
             frame.centre.y + frame.wide.y * c * r + frame.thin.y * sn * r * flat + frame.tangent.y * lift,
             frame.centre.z + frame.wide.z * c * r + frame.thin.z * sn * r * flat + frame.tangent.z * lift,
           );
-          // Normals of a sphere-like cap: outward from the ring, tilted along the tangent as the cap closes.
-          const nx = frame.wide.x * c * flat * scale + frame.thin.x * sn * scale + frame.tangent.x * Math.sin(th) * dir;
-          const ny = frame.wide.y * c * flat * scale + frame.thin.y * sn * scale + frame.tangent.y * Math.sin(th) * dir;
-          const nz = frame.wide.z * c * flat * scale + frame.thin.z * sn * scale + frame.tangent.z * Math.sin(th) * dir;
+          // Ellipsoid gradient: the thin axis needs the reciprocal flattening, including relative to the tangent.
+          const nx = frame.wide.x * c * flat * scale + frame.thin.x * sn * scale + frame.tangent.x * Math.sin(th) * dir * flat;
+          const ny = frame.wide.y * c * flat * scale + frame.thin.y * sn * scale + frame.tangent.y * Math.sin(th) * dir * flat;
+          const nz = frame.wide.z * c * flat * scale + frame.thin.z * sn * scale + frame.tangent.z * Math.sin(th) * dir * flat;
           const l = Math.hypot(nx, ny, nz) || 1;
           nor.push(nx / l, ny / l, nz / l);
         }

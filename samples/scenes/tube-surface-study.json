@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "One general tube tool can make several kinds of shaped surface. The path sets its bend, the swell sets its width, and flat turns a round section into a ribbon.",
+      "actions": [
+        { "op": "panel", "x": 100, "y": 100, "w": 800, "h": 800 },
+        { "op": "add", "shape": "tube", "id": "bulb", "pts": [[-2.8, -2.4, 0], [-2.8, 0, 0], [-2.8, 2.4, 0]], "radius": 0.9, "swell": [[0, 0.3], [0.4, 1.2], [0.6, 1.2], [1, 0.3]], "color": "#64aadc", "material": "plastic" },
+        { "op": "add", "shape": "tube", "id": "ribbon", "pts": [[0, -2.4, 0], [0.2, -0.7, 0.2], [-0.2, 1, 0.3], [0, 2.4, 0]], "radius": 1, "flat": 0.2, "swell": [[0, 0.2], [0.4, 1], [0.6, 1], [1, 0.1]], "color": "#68b37b", "material": "plastic", "at": 0.3 },
+        { "op": "add", "shape": "tube", "id": "grip", "pts": [[2.8, -2.4, 0], [2.5, -1.2, 0.2], [3.3, 0.4, 0], [2.8, 2.4, 0]], "radius": 0.45, "flat": 0.55, "swell": [[0, 0.6], [0.4, 1.4], [1, 0.35]], "color": "#dd9757", "material": "plastic", "at": 0.6 },
+        { "op": "orbit", "az": 14, "el": 7, "dur": 0 }
+      ]
+    },
+    {
+      "say": "These are reusable forms, not object presets. Their light follows the tapered shoulders and curved skin. A tight bend can still fold over itself, so keep the tube narrower than the bend.",
+      "actions": [
+        { "op": "pin", "id": "bulb-label", "on": "bulb", "text": "Round section" },
+        { "op": "pin", "id": "ribbon-label", "on": "ribbon", "text": "Flattened section" },
+        { "op": "pin", "id": "grip-label", "on": "grip", "text": "Curved section" },
+        { "op": "orbit", "az": -24, "el": 12, "dur": 2 }
+      ]
+    }
+  ]
+}
