@@ -3,6 +3,8 @@
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
 import { extrudeProfileIssue } from './extrude-profile.ts';
+import { prepareSectorRings } from './sector-sweep.ts';
+import { normalizeSectorProfile } from './sector-profile.ts';
 import { nearestPaletteColor } from './colors.ts';
 import { attachTolerance, landOn, mountPosition } from './attach.ts';
 import { resolvePartGeometry } from './part-geometry.ts';
@@ -510,6 +512,38 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
       return null;
     }
   }
+  // Strict sector checks precede all field parsing/binding and any scene-state mutation.
+  let sectorProfile: Vec2[] | undefined;
+  if (variant.name === 'addLathe') {
+    const descriptor = Object.getOwnPropertyDescriptor(raw, 'sweep');
+    const sweep = own(raw, 'sweep');
+    if (descriptor && !('value' in descriptor)) {
+      note(notes, 'dropped', path, 'sweep must be a data value');
+      return null;
+    }
+    if (sweep !== undefined && sweep !== null) {
+      if (typeof sweep !== 'number' || !Number.isFinite(sweep) || sweep < 1 || sweep > 359) {
+        note(notes, 'dropped', path, 'sector sweep must be finite and within 1..359 degrees');
+        return null;
+      }
+      const normalized = normalizeSectorProfile(own(raw, 'profile'));
+      if (!normalized.ok) {
+        note(notes, 'dropped', path, normalized.reason);
+        return null;
+      }
+      const sides = own(raw, 'sides');
+      if (sides !== undefined && sides !== null && (typeof sides !== 'number' || !Number.isFinite(sides))) {
+        note(notes, 'dropped', path, 'sector sides must be a finite number');
+        return null;
+      }
+      const resolutions = typeof sides === 'number' ? [Math.min(64, Math.max(3, Math.round(sides)))] : [20, 36, 64];
+      if (resolutions.some(resolution => prepareSectorRings(normalized.profile, resolution, sweep) === null)) {
+        note(notes, 'dropped', path, 'sector profile loses triangle geometry or orientation after Float32 rotation');
+        return null;
+      }
+      sectorProfile = normalized.profile;
+    }
+  }
   const input = variant.op === 'panel' ? fitStage(raw as Record<string, unknown>, state, path, notes) : raw;
   // Do not let the ordinary outline parser truncate or clamp a perforated profile.
   const rawHoles = variant.name === 'addExtrude' ? own(input, 'holes') : undefined;
@@ -526,6 +560,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   const bound = new Set(bindings?.flatMap((b) => (b.alias === undefined ? [b.field] : [b.field, b.alias])));
   for (const [name, f] of Object.entries(variant.fields)) {
     if (bound.has(name)) continue;
+    if (name === 'profile' && sectorProfile) { out.profile = sectorProfile; continue; }
     const v = own(input, name);
     const optional = 'opt' in f && f.opt === true;
     if (v === undefined || v === null) {

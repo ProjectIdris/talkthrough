@@ -1425,6 +1425,9 @@
         "profile": {
           "$ref": "#/$defs/3"
         },
+        "sweep": {
+          "$ref": "#/$defs/0"
+        },
         "sides": {
           "$ref": "#/$defs/0"
         },
@@ -1452,6 +1455,7 @@
         "pos",
         "rot",
         "profile",
+        "sweep",
         "sides",
         "color",
         "material",
