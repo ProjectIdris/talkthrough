@@ -434,6 +434,23 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', path, variant);
     return null;
   }
+  // A direction cannot be component-clamped without rotating the requested section.
+  // Reject it as a whole before the ordinary vector parser; null still means absent.
+  if (variant.name === 'cut') {
+    const normal = own(raw, 'normal');
+    if (normal !== undefined && normal !== null) {
+      if (own(raw, 'axis') !== undefined && own(raw, 'axis') !== null) {
+        note(notes, 'dropped', path, 'cut needs either axis or normal, not both');
+        return null;
+      }
+      if (!Array.isArray(normal) || normal.length !== 3 ||
+          [0, 1, 2].some(i => typeof normal[i] !== 'number' || !Number.isFinite(normal[i]) || Math.abs(normal[i]) > 100) ||
+          normal.every(n => n === 0)) {
+        note(notes, 'dropped', path, 'cut normal needs 3 finite numbers from -100 to 100, not all zero');
+        return null;
+      }
+    }
+  }
   const input = variant.op === 'panel' ? fitStage(raw as Record<string, unknown>, state, path, notes) : raw;
   const out: Record<string, unknown> = { op: variant.op };
   // Fields that name a part already in the scene are bound in one place (bind.ts) once the others are read.

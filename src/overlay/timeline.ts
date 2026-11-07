@@ -96,6 +96,19 @@ export type MarkFrame = {
   onKey?: number;
 };
 
+type CutDirection = { axis: 0 | 1 | 2; normal?: Vec3 };
+type CutTrack = { direction: CutDirection; changes: Array<{ at: number; direction: CutDirection }>; at: Track };
+
+/** Direction changes are discrete events, independent of the animated plane offset. */
+function cutDirectionAt(cut: CutTrack, t: number): CutDirection {
+  let direction = cut.direction;
+  for (const change of cut.changes) {
+    if (change.at > t) break;
+    direction = change.direction;
+  }
+  return { axis: direction.axis, ...(direction.normal ? { normal: [...direction.normal] as Vec3 } : {}) };
+}
+
 export type ObjectFrame = {
   key: number; id: string; parentKey: number | null;
   /** How it was made: the shape and its parameters. */
@@ -111,8 +124,8 @@ export type ObjectFrame = {
   spread: number;
   /** Where a machine has put it just now (a turning part, a piston, a valve, a glow); drawn in place of pos, rot and opacity. */
   pose?: Pose;
-  /** A plane cutting this object (and what is in it) open: everything beyond `at` along the axis (0 x, 1 y, 2 z) of the object is removed. */
-  cut?: { axis: 0 | 1 | 2; at: number };
+  /** A local plane: remove points beyond `at` along the unit normal, or axis (0 x, 1 y, 2 z). */
+  cut?: CutDirection & { at: number };
 };
 
 export type Frame = {
@@ -215,7 +228,7 @@ type ObjInst = Life & {
   key: number; id: string; parentKey: number | null; def: AddAction;
   pos: Track; rot: Track; scale: Track; color: Track; opacity: Track; draw: Track; spread: Track;
   /** The plane that cuts it open, once a `cut` has named it. */
-  cut?: { axis: 0 | 1 | 2; at: Track };
+  cut?: CutTrack;
 };
 type PanelInst = Life & { rect: Track; frame: boolean };
 type Pulse = { key: number; start: number; dur: number; color: Rgb | undefined };
@@ -296,7 +309,7 @@ export function planStep(base: Frame, step: Step): StepPlan {
       key: o.key, id: o.id, parentKey: o.parentKey, def: o.def, bornAt: NEVER, diedAt: undefined,
       pos: track(o.pos), rot: track(o.rot), scale: track(o.scale), color: track(o.color), opacity: track([o.opacity]),
       draw: track([o.draw]), spread: track([o.spread]),
-      ...(o.cut ? { cut: { axis: o.cut.axis, at: track([o.cut.at]) } } : {}),
+      ...(o.cut ? { cut: { direction: { axis: o.cut.axis, ...(o.cut.normal ? { normal: [...o.cut.normal] as Vec3 } : {}) }, changes: [], at: track([o.cut.at]) } } : {}),
     });
   }
   if (base.panel) {
@@ -505,9 +518,9 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
     case 'cut': {
       const o = lookup(plan.objs, a.id, at);
       if (!o) return;
-      const axis = a.axis === 'x' ? 0 : a.axis === 'y' ? 1 : 2;
-      if (!o.cut) o.cut = { axis, at: track([100]) };
-      else if (a.axis !== undefined) o.cut.axis = axis;
+      if (!o.cut) o.cut = { direction: { axis: 2 }, changes: [], at: track([100]) };
+      if (a.normal !== undefined) o.cut.changes.push({ at, direction: { axis: 2, normal: [...a.normal] } });
+      else if (a.axis !== undefined) o.cut.changes.push({ at, direction: { axis: a.axis === 'x' ? 0 : a.axis === 'y' ? 1 : 2 } });
       tweenTo(o.cut.at, at, dur, [a.to]);
       end(dur);
       return;
@@ -655,7 +668,7 @@ function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number)
   if (!given.pos) fresh.pos = track(valueAt(old.pos, at));
   if (!given.rot) fresh.rot = track(valueAt(old.rot, at));
   fresh.scale = track(valueAt(old.scale, at));
-  if (old.cut && !fresh.cut) fresh.cut = { axis: old.cut.axis, at: track(valueAt(old.cut.at, at)) };
+  if (old.cut && !fresh.cut) fresh.cut = { direction: cutDirectionAt(old.cut, at), changes: [], at: track(valueAt(old.cut.at, at)) };
   // What hung from the old one hangs from the new, except what the new one itself hangs from (an answer can add a part and then
   // its former holder under it): that would make a loop, so it takes the old one's place in the old one's holder.
   const above = new Set<number>();
@@ -892,10 +905,10 @@ export function evaluate(plan: StepPlan, t: number): Frame {
 }
 
 /** The plane cutting an object open at time t, when it is within the world (100 and beyond means no cut). */
-function cutOf(o: ObjInst, t: number): { cut?: { axis: 0 | 1 | 2; at: number } } {
+function cutOf(o: ObjInst, t: number): Pick<ObjectFrame, 'cut'> {
   if (!o.cut) return {};
   const at = valueAt(o.cut.at, t)[0] ?? 100;
-  return at < 99.5 ? { cut: { axis: o.cut.axis, at } } : {};
+  return at < 99.5 ? { cut: { ...cutDirectionAt(o.cut, t), at } } : {};
 }
 
 /** The objects with every parent before its children (a replaced object's children now hang from one made later). Stable otherwise. */

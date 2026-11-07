@@ -2967,6 +2967,15 @@
             null
           ]
         },
+        "normal": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
         "to": {
           "type": "number"
         },
@@ -2987,6 +2996,7 @@
         "op",
         "id",
         "axis",
+        "normal",
         "to",
         "at",
         "dur"
