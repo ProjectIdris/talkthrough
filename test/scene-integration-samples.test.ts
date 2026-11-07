@@ -15,10 +15,11 @@ for (const name of names) {
     assert.equal(checked.scene.steps.reduce((sum, s) => sum + s.actions.length, 0), raw.steps.reduce((sum: number, s: { actions: unknown[] }) => sum + s.actions.length, 0));
     const panel = new PanelScene({ tier: 'mid' }), owned = new Map<BufferGeometry, number>();
     try {
-      const checkpoints = name === 'closed-tube' ? [[0,2],[1,2.1],[2,2.1]] : [[0,2],[1,2.1],[2,0.5],[2,1.5],[2,2.1],[3,2.1]];
+      const checkpoints = name === 'closed-tube' ? [[0,2],[1,2.1],[2,2.1]] : [[0,2],[1,2.1],[2,0.5],[2,1.5],[2,1.9],[2,1.95],[2,2.1],[3,2.1]];
       for (const [step, time] of checkpoints) {
         const frame = frameAt(checked.scene.steps, step!, time!);
-        panel.sync(frame, 1.2);
+        panel.sync(frame, 1.2, { rect: { x: 0, y: 0, w: 1200, h: 1000 }, width: 1200, height: 1000 });
+        assert.ok(panel.screenBounds(1200, 1000), `${name} reaches the production render gate at ${step}:${time}`);
         for (const object of frame.objects) panel.nodeOf(object.key)?.traverse(o => {
           if (!(o instanceof Mesh || o instanceof LineSegments)) return;
           assert.ok(o.geometry.getAttribute('position'));

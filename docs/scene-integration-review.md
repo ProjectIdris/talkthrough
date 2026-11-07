@@ -15,11 +15,11 @@ Portable tests exercise the real scene builder and lifecycle, not Electron/WebGL
 
 The final candidate adds separate `samples/scenes/integration-<feature>-finish.json` scenes for hull, patch, sweep, loft, shell, sector, extrusion-holes, extrusion-taper and closed-tube. Each is a readable matched pair: matte left, polished right, under rotated/nonuniform mounts. It deliberately avoids a crowded all-features diagram.
 
-Use the actual renderer at default native hardware graphics settings, without software-renderer flags, GPU/security overrides or fallback substitutions. Capture final source only, using a temporary isolated app profile and neutral desktop content. Suggested exact grab checkpoints for each non-tube scene: `--steps 0:2,1:2.1,2:0.5,2:1.5,2:2.1,3:2.1 --size 1200x1000 --grab-metadata`. For the closed-tube pair: `--steps 0:2,1:2.1,2:2.1`, plus interactive playback for at least one 4-second bead cycle.
+Use the actual renderer at default native hardware graphics settings, without software-renderer flags, GPU/security overrides or fallback substitutions. Capture final source only, using a temporary isolated app profile and neutral desktop content. Suggested exact grab checkpoints for each non-tube scene: `--steps 0:2,1:2.1,2:0.5,2:1.5,2:1.9,2:1.95,2:2.1,3:2.1 --size 1200x1000 --grab-metadata`. For the closed-tube pair: `--steps 0:2,1:2.1,2:2.1`, plus interactive playback for at least one 4-second bead cycle.
 
 - Step 0: orbit 25/18, unchanged silhouettes, tighter polished highlights, correct holes/cavities/boundaries.
 - Step 1: orbit -35/22, continuous shading and expected creases only. Patch shows both sides without a cap or triangulation lines.
-- Step 2 at 0.5: cut has not started. At 1.5: left-only diagonal cut is underway. At 2.1: cut completed at local offset 0, following the rotated/nonuniform mount. Right peer must remain whole with its own finish.
+- Step 2 at 0.5: cut has not started. At 1.5: the cut plane is still at sentinel offset 50, outside these small shapes. At 1.9 and 1.95: the left-only diagonal plane reaches offsets 0.4 and 0.05, exposing the near-end section. At 2.1: cut completed at local offset 0, following the rotated/nonuniform mount. Right peer must remain whole with its own finish.
 - Step 3 at 2.1: cut restored, rear orbit 145/20, no residual cap or missing face. All shapes must cleanly clear/replay without stale lines or missing meshes.
 - Closed-tube pair: no seam or end-cap disk when complete; beads remain visible through the closing join. Separate original closed-loop sample covers reveal behavior.
 - Repeat finish pairs at low/mid/high. Low disables clearcoat but keeps roughness/metalness differences. Do not mistake a low-tier missing coat for failure.

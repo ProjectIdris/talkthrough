@@ -417,7 +417,9 @@ export class PanelScene {
     node.obj = group;
     let length = 0;
     for (let i = 1; i < sampled.length; i++) length += Math.hypot(sampled[i]![0] - sampled[i - 1]![0], sampled[i]![1] - sampled[i - 1]![1], sampled[i]![2] - sampled[i - 1]![2]);
-    node.path = { geo, sampled, head, body: tube && radius >= 0.04 * length };
+    // Closed loops are model geometry, even when thin; only open trailing cables
+    // may stay outside the camera fit and the bounds that enable rendering.
+    node.path = { geo, sampled, head, body: tube && (def.closed === true || radius >= 0.04 * length) };
   }
 
   private buildText(node: Node, o: ObjectFrame): void {
