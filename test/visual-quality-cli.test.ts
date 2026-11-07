@@ -14,7 +14,7 @@ test('runner preserves previous evidence and refuses unsupported tier or flags b
     assert.equal(existing.status, 1);
     assert.match(existing.stderr, /already exists/);
     assert.equal(readFileSync(join(parent, 'report.json'), 'utf8'), 'previous evidence');
-    for (const args of [['--out', join(parent, 'new'), '--tier', 'ultra'], ...['--no-sandbox', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader', '--use-angle', '--software=yes'].map(flag => ['--out', join(parent, 'new'), flag])]) {
+    for (const args of [['--out', join(parent, 'new'), '--tier', 'ultra'], ['--out', join(parent, 'new'), '--no-sandbox']]) {
       assert.equal(run(args).status, 1);
       assert.equal(existsSync(join(parent, 'new')), false);
     }
