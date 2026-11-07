@@ -1,0 +1,31 @@
+{
+  "steps": [
+    {
+      "say": "The shape and tint match within each pair. Across the top, polished and rough copper differ only in base roughness. The blue housings compare a matte finish with a polished clear coating. The teal tubes show a glossy and a matte base without a coating.",
+      "actions": [
+        { "op": "panel", "x": 90, "y": 80, "w": 820, "h": 820 },
+        { "op": "orbit", "az": 10, "el": 12, "dur": 0 },
+        { "op": "add", "shape": "sphere", "id": "copperPolished", "pos": [-2.2, 3.4, 0], "size": [2.3, 2.3, 2.3], "color": "#c47d52", "material": "metal", "roughness": 0.12, "edges": false },
+        { "op": "add", "shape": "sphere", "id": "copperRough", "pos": [2.2, 3.4, 0], "size": [2.3, 2.3, 2.3], "color": "#c47d52", "material": "metal", "roughness": 0.8, "edges": false },
+        { "op": "add", "shape": "text", "id": "copperPolishedLabel", "pos": [-2.2, 1.8, 0], "text": "Polished metal", "height": 0.3, "color": "#334155" },
+        { "op": "add", "shape": "text", "id": "copperRoughLabel", "pos": [2.2, 1.8, 0], "text": "Rough metal", "height": 0.3, "color": "#334155" },
+        { "op": "add", "shape": "box", "id": "housingMatte", "pos": [-2.2, 0, 0], "size": [2.5, 1.9, 1.7], "bevel": 0.18, "color": "#4b79b0", "material": "plastic", "roughness": 0.85, "metalness": 0, "clearcoat": 0, "edges": false },
+        { "op": "add", "shape": "box", "id": "housingCoated", "pos": [2.2, 0, 0], "size": [2.5, 1.9, 1.7], "bevel": 0.18, "color": "#4b79b0", "material": "plastic", "roughness": 0.85, "metalness": 0, "clearcoat": 1, "clearcoatRoughness": 0.06, "edges": false },
+        { "op": "add", "shape": "text", "id": "housingMatteLabel", "pos": [-2.2, -1.4, 0], "text": "Matte base", "height": 0.3, "color": "#334155" },
+        { "op": "add", "shape": "text", "id": "housingCoatedLabel", "pos": [2.2, -1.4, 0], "text": "Clear-coated base", "height": 0.3, "color": "#334155" },
+        { "op": "add", "shape": "group", "id": "tubeLeft", "pos": [-2.2, -3.3, 0] },
+        { "op": "add", "shape": "tube", "id": "tubeGlossy", "parent": "tubeLeft", "pts": [[-1.1, -0.3, 0], [-0.4, 0.6, 0], [0.4, 0.6, 0], [1.1, -0.3, 0]], "radius": 0.3, "color": "#33968b", "material": "plastic", "roughness": 0.1, "metalness": 0, "clearcoat": 0 },
+        { "op": "add", "shape": "group", "id": "tubeRight", "pos": [2.2, -3.3, 0] },
+        { "op": "add", "shape": "tube", "id": "tubeMatte", "parent": "tubeRight", "pts": [[-1.1, -0.3, 0], [-0.4, 0.6, 0], [0.4, 0.6, 0], [1.1, -0.3, 0]], "radius": 0.3, "color": "#33968b", "material": "plastic", "roughness": 0.95, "metalness": 0, "clearcoat": 0 },
+        { "op": "add", "shape": "text", "id": "tubeGlossyLabel", "pos": [-2.2, -4.4, 0], "text": "Glossy nonmetal", "height": 0.3, "color": "#334155" },
+        { "op": "add", "shape": "text", "id": "tubeMatteLabel", "pos": [2.2, -4.4, 0], "text": "Matte nonmetal", "height": 0.3, "color": "#334155" }
+      ]
+    },
+    {
+      "say": "Changing the view lets the highlights move across the same surfaces. At low quality the clear coating is disabled, so the two blue housings should match. The base roughness and metalness controls still work at every quality tier.",
+      "actions": [
+        { "op": "orbit", "az": -30, "el": 25, "dur": 1 }
+      ]
+    }
+  ]
+}

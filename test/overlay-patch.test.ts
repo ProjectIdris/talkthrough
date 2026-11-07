@@ -1,3 +1,4 @@
+import { variantDefinitions } from './support/json-schema.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DoubleSide, LineSegments, Mesh, Vector3 } from 'three';
@@ -213,7 +214,7 @@ test('patch replacement and reverse playback reconstruct the correct net', () =>
 
 test('both strict schemas and model guidance expose the bounded patch capability', () => {
   for(const schema of [sceneSchema,sceneSchemaLean]) {
-    const defs=(schema as {$defs:Record<string,{properties?:Record<string,unknown>;required?:string[]}>}).$defs;
+    const defs=variantDefinitions(schema);
     assert.ok(defs.addPatch);
     assert.deepEqual(defs.addPatch!.properties!.shape,{enum:['patch']});
     assert.ok(defs.addPatch!.required!.includes('pts'));

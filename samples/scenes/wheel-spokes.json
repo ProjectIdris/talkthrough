@@ -1,0 +1,27 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "Each wheel has a rubber tyre around a metal rim. The spokes connect that rim to the hub, with real open spaces between them.",
+      "actions": [
+        { "op": "panel", "x": 50, "y": 100, "w": 900, "h": 800, "frame": true },
+        { "op": "add", "shape": "part", "id": "five", "part": "wheel", "size": [5, 5, 1.4], "pos": [-3, 0, 0], "n": 5, "color": "#9cbbdf" },
+        { "op": "add", "shape": "part", "id": "eight", "part": "wheel", "size": [5, 5, 1.4], "pos": [3, 0, 0], "n": 8, "color": "#d5ab77", "at": 1 },
+        { "op": "orbit", "az": 15, "el": 10, "dur": 0 }
+      ]
+    },
+    {
+      "say": "The whole wheel turns about its axle. Five or eight spokes change its structure without changing that axis.",
+      "actions": [
+        { "op": "spin", "id": "five", "axis": "z", "rpm": 6 },
+        { "op": "spin", "id": "eight", "axis": "z", "rpm": 6 }
+      ]
+    },
+    {
+      "say": "From the reverse side, the rim, spokes and hub are still solid pieces. These are schematic wheels, not dimensioned mechanical designs.",
+      "actions": [
+        { "op": "orbit", "az": 165, "el": 15, "dur": 3 }
+      ]
+    }
+  ]
+}

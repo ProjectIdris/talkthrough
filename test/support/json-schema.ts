@@ -1,3 +1,4 @@
+import { VARIANTS } from "../../src/scene/spec.ts";
 // A small checker for the JSON Schema subset the scene schema uses, so tests can hold scenes
 // to the schema without a package. It also lints a schema for strict structured-output modes.
 
@@ -92,4 +93,22 @@ export function strictProblems(root: Schema): string[] {
   if (enumValues > 1000) problems.push(`${enumValues} enum values (limit 1000)`);
   if ((root as { type?: unknown }).type !== 'object') problems.push('root is not an object');
   return problems;
+}
+
+/** Expand local references so assertions concern contract meaning, not compact transport names. */
+export function expandedSchema(root: Schema, value: unknown = root): unknown {
+  if (Array.isArray(value)) return value.map(v => expandedSchema(root, v));
+  if (!value || typeof value !== 'object') return value;
+  const object = value as Schema;
+  if (typeof object.$ref === 'string') return expandedSchema(root, resolve(root, object));
+  return Object.fromEntries(Object.entries(object).filter(([name]) => name !== '$defs')
+    .map(([name, child]) => [name, expandedSchema(root, child)]));
+}
+
+/** Variants are offered in spec order in both full and compact schema unions. */
+export function variantDefinitions(root: Schema): Record<string, { properties: Record<string, Schema>; required: string[] }> {
+  const step = resolve(root, ((root.properties as Record<string, Schema>).steps!.items as Schema));
+  const action = resolve(root, ((step.properties as Record<string, Schema>).actions!.items as Schema));
+  return Object.fromEntries(VARIANTS.map((variant, i) => [variant.name,
+    expandedSchema(root, (action.anyOf as Schema[])[i])])) as Record<string, { properties: Record<string, Schema>; required: string[] }>;
 }
