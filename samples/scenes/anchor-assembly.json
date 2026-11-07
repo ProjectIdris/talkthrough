@@ -1,0 +1,33 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "Build a pump-and-pipe layout from named attachment points. The cutaway chamber shows the piston inside.",
+      "actions": [
+        { "op": "panel", "x": 180, "y": 100, "w": 640, "h": 720 },
+        { "op": "add", "shape": "group", "id": "assembly", "rot": [0, -25, 0] },
+        { "op": "add", "shape": "part", "id": "chamber", "part": "cylinder-block", "size": [2, 2, 2], "variant": "cutaway", "parent": "assembly", "color": "gray" },
+        { "op": "add", "shape": "part", "id": "piston", "part": "piston", "size": [1.2, 0.6, 1.2], "parent": "chamber", "selfAnchor": "origin", "pos": [0, -0.4, 0], "color": "blue" }
+      ]
+    },
+    {
+      "say": "The straight pipes meet the chamber sockets. A rotated elbow turns the outlet forward. A mounted group carries a custom gauge plate on the front.",
+      "actions": [
+        { "op": "add", "shape": "part", "id": "intake", "part": "pipe", "size": [0.6, 1.2, 0.6], "parent": "chamber", "parentAnchor": "bore-bottom", "selfAnchor": "top", "color": "teal" },
+        { "op": "add", "shape": "part", "id": "riser", "part": "pipe", "size": [0.6, 1.6, 0.6], "parent": "chamber", "parentAnchor": "bore-top", "selfAnchor": "bottom", "color": "teal" },
+        { "op": "add", "shape": "part", "id": "bend", "part": "elbow", "size": [1.4, 1.4, 0.6], "parent": "riser", "parentAnchor": "top", "selfAnchor": "a", "rot": [0, 90, 0], "color": "teal" },
+        { "op": "add", "shape": "part", "id": "outlet", "part": "pipe", "size": [0.6, 1.8, 0.6], "parent": "bend", "parentAnchor": "b", "selfAnchor": "bottom", "rot": [0, 0, 90], "color": "teal" },
+        { "op": "add", "shape": "group", "id": "gauge", "parent": "chamber", "parentAnchor": "front" },
+        { "op": "add", "shape": "extrude", "id": "gauge-plate", "parent": "gauge", "outline": [[-0.45, 0], [0.45, 0], [0.6, 0.6], [-0.6, 0.6]], "depth": 0.12, "color": "yellow", "material": "metal" }
+      ]
+    },
+    {
+      "say": "Move, turn and scale the parent: its attached pieces travel together. These sockets set visual placement; they do not simulate fluid flow, seals or collisions.",
+      "actions": [
+        { "op": "move", "id": "assembly", "to": [-1, 0.5, 0], "dur": 3 },
+        { "op": "turn", "id": "assembly", "to": [15, 45, 20], "dur": 3 },
+        { "op": "scale", "id": "assembly", "to": [1.25, 0.9, 1.1], "dur": 3 }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6035 @@
+{
+  "scope": "Offline AI-authored smoke comparisons, not representative accuracy, human judgments or live model/rendering measurements. Full query labels/rationales are in each named corpus. Errors are retained. Once scored, every corpus is regression material.",
+  "baseline": {
+    "publicHead": "bdba58dc144f6e13918088d779990f81cab222ae",
+    "tree": "1fe78dda7d072e688fd3021232e70f40065bd26b",
+    "cardsSha256": "d7542ee31dd54af56665584da0e24a28d9b2c91e8036e5513fae86d79971f9c0",
+    "retrieverSha256": "197d4919e8ce66320ef83d3abfd2ba3448f3c8f02f6696e1b9f12673dfd18207"
+  },
+  "candidate": {
+    "retrieverSha256": "d6add77669742d3ed5a48d0650e9027d5946662d85e5c5329898cc2ba1a87a2d",
+    "cardSourceSha256": "a576f4d2aa1fed168d897b662acfa04086f5ffa49dfffbbc5c36e7838ff0f237",
+    "cardsSha256": "6ee850244994f5757d912cb77a8e3f18085f2bede32815f4a7f146b71c55a2b1",
+    "evaluatorSha256": "ea412df84308659dd1c1ce2436710738f94bd0d267f168d280d5fa1774ce4404"
+  },
+  "validationHistory": {
+    "strictCandidateV2": {
+      "retrieverSha256": "b598f5521d9edfe60c96083692f70b898e461f719dc979bd0d880ce85e2d7645",
+      "cardSourceSha256": "bd0ff6e2cbe3496e60d4483bda0f5ac166f71250b98c7563fa40eda48a00fa27",
+      "positiveHits": 28,
+      "positiveCases": 40,
+      "relevantRetrieved": 45,
+      "expectedTargets": 110,
+      "retrievedCards": 56,
+      "correctAbstentions": 4,
+      "absentCases": 8,
+      "rejected": true
+    },
+    "successorBeforeV3": {
+      "retrieverSha256": "cfea95443b88a49091c263de4277bd36403301df312cadc8e964393d2d1880b4",
+      "cardSourceSha256": "a576f4d2aa1fed168d897b662acfa04086f5ffa49dfffbbc5c36e7838ff0f237",
+      "note": "Frozen before first viewing/scoring v3. Reviewer regressions subsequently fixed negative-command reset, category exclusion, universal-prefix matching and conflict scope across coordinated objects. No card data/aliases were changed after v3 exposure; aggregate v3 scores stayed unchanged. Final results here are regression reruns, not a new untouched validation."
+    }
+  },
+  "runs": [
+    {
+      "corpus": "scripts/prototypes/catalogue-requests.json",
+      "corpusSha256": "a7f8a66e46f530c4b8989112f4eb6a740b0c0f7a2ffced9d16db57155e517a23",
+      "cardCapRecallCeiling": 1,
+      "baseline": {
+        "summary": {
+          "cases": 36,
+          "relevantCases": 28,
+          "absentCases": 8,
+          "searchErrors": 0,
+          "hitRate": 0.7857142857142857,
+          "top1Accuracy": 0.7142857142857143,
+          "meanReciprocalRank": 0.7410714285714286,
+          "macroRecall": 0.7857142857142857,
+          "microRecall": 0.8536585365853658,
+          "microPrecision": 0.26515151515151514,
+          "expectedTargets": 41,
+          "retrievedCards": 132,
+          "relevantRetrieved": 35,
+          "correctAbstentions": 0,
+          "falsePositiveCases": 8,
+          "abstentionAccuracy": 0,
+          "emptyRelevantCases": 3,
+          "maxResponseBytes": 1742,
+          "budgetViolations": 0
+        },
+        "byCategory": {
+          "absent": {
+            "cases": 8,
+            "relevantCases": 0,
+            "absentCases": 8,
+            "searchErrors": 0,
+            "hitRate": null,
+            "top1Accuracy": null,
+            "meanReciprocalRank": null,
+            "macroRecall": null,
+            "microRecall": null,
+            "microPrecision": 0,
+            "expectedTargets": 0,
+            "retrievedCards": 32,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 8,
+            "abstentionAccuracy": 0,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1740,
+            "budgetViolations": 0
+          },
+          "direct": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 0.25,
+            "expectedTargets": 8,
+            "retrievedCards": 32,
+            "relevantRetrieved": 8,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1611,
+            "budgetViolations": 0
+          },
+          "multi-part": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 0.65625,
+            "expectedTargets": 21,
+            "retrievedCards": 32,
+            "relevantRetrieved": 21,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1706,
+            "budgetViolations": 0
+          },
+          "negation": {
+            "cases": 4,
+            "relevantCases": 4,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 0.5,
+            "meanReciprocalRank": 0.6875,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 0.25,
+            "expectedTargets": 4,
+            "retrievedCards": 16,
+            "relevantRetrieved": 4,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1667,
+            "budgetViolations": 0
+          },
+          "paraphrase": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0.25,
+            "top1Accuracy": 0.25,
+            "meanReciprocalRank": 0.25,
+            "macroRecall": 0.25,
+            "microRecall": 0.25,
+            "microPrecision": 0.1,
+            "expectedTargets": 8,
+            "retrievedCards": 20,
+            "relevantRetrieved": 2,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 3,
+            "maxResponseBytes": 1742,
+            "budgetViolations": 0
+          }
+        },
+        "byLanguage": {
+          "de": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0,
+            "top1Accuracy": 0,
+            "meanReciprocalRank": 0,
+            "macroRecall": 0,
+            "microRecall": 0,
+            "microPrecision": 0,
+            "expectedTargets": 1,
+            "retrievedCards": 4,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1742,
+            "budgetViolations": 0
+          },
+          "en": {
+            "cases": 32,
+            "relevantCases": 24,
+            "absentCases": 8,
+            "searchErrors": 0,
+            "hitRate": 0.9166666666666666,
+            "top1Accuracy": 0.8333333333333334,
+            "meanReciprocalRank": 0.8645833333333334,
+            "macroRecall": 0.9166666666666666,
+            "microRecall": 0.9459459459459459,
+            "microPrecision": 0.2734375,
+            "expectedTargets": 37,
+            "retrievedCards": 128,
+            "relevantRetrieved": 35,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 8,
+            "abstentionAccuracy": 0,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1740,
+            "budgetViolations": 0
+          },
+          "es": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0,
+            "top1Accuracy": 0,
+            "meanReciprocalRank": 0,
+            "macroRecall": 0,
+            "microRecall": 0,
+            "microPrecision": null,
+            "expectedTargets": 1,
+            "retrievedCards": 0,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 1,
+            "maxResponseBytes": 194,
+            "budgetViolations": 0
+          },
+          "fr": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0,
+            "top1Accuracy": 0,
+            "meanReciprocalRank": 0,
+            "macroRecall": 0,
+            "microRecall": 0,
+            "microPrecision": null,
+            "expectedTargets": 1,
+            "retrievedCards": 0,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 1,
+            "maxResponseBytes": 194,
+            "budgetViolations": 0
+          },
+          "ja": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0,
+            "top1Accuracy": 0,
+            "meanReciprocalRank": 0,
+            "macroRecall": 0,
+            "microRecall": 0,
+            "microPrecision": null,
+            "expectedTargets": 1,
+            "retrievedCards": 0,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 1,
+            "maxResponseBytes": 194,
+            "budgetViolations": 0
+          }
+        }
+      },
+      "candidate": {
+        "summary": {
+          "cases": 36,
+          "relevantCases": 28,
+          "absentCases": 8,
+          "searchErrors": 0,
+          "hitRate": 0.8571428571428571,
+          "top1Accuracy": 0.8571428571428571,
+          "meanReciprocalRank": 0.8571428571428571,
+          "macroRecall": 0.8571428571428571,
+          "microRecall": 0.9024390243902439,
+          "microPrecision": 0.9024390243902439,
+          "expectedTargets": 41,
+          "retrievedCards": 41,
+          "relevantRetrieved": 37,
+          "correctAbstentions": 8,
+          "falsePositiveCases": 0,
+          "abstentionAccuracy": 1,
+          "emptyRelevantCases": 2,
+          "maxResponseBytes": 2240,
+          "budgetViolations": 0
+        },
+        "byCategory": {
+          "absent": {
+            "cases": 8,
+            "relevantCases": 0,
+            "absentCases": 8,
+            "searchErrors": 0,
+            "hitRate": null,
+            "top1Accuracy": null,
+            "meanReciprocalRank": null,
+            "macroRecall": null,
+            "microRecall": null,
+            "microPrecision": null,
+            "expectedTargets": 0,
+            "retrievedCards": 0,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 8,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": 1,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 263,
+            "budgetViolations": 0
+          },
+          "direct": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 1,
+            "expectedTargets": 8,
+            "retrievedCards": 8,
+            "relevantRetrieved": 8,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 954,
+            "budgetViolations": 0
+          },
+          "multi-part": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 1,
+            "expectedTargets": 21,
+            "retrievedCards": 21,
+            "relevantRetrieved": 21,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 2240,
+            "budgetViolations": 0
+          },
+          "negation": {
+            "cases": 4,
+            "relevantCases": 4,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 1,
+            "expectedTargets": 4,
+            "retrievedCards": 4,
+            "relevantRetrieved": 4,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 881,
+            "budgetViolations": 0
+          },
+          "paraphrase": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0.5,
+            "top1Accuracy": 0.5,
+            "meanReciprocalRank": 0.5,
+            "macroRecall": 0.5,
+            "microRecall": 0.5,
+            "microPrecision": 0.5,
+            "expectedTargets": 8,
+            "retrievedCards": 8,
+            "relevantRetrieved": 4,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 2,
+            "maxResponseBytes": 1949,
+            "budgetViolations": 0
+          }
+        },
+        "byLanguage": {
+          "de": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 1,
+            "expectedTargets": 1,
+            "retrievedCards": 1,
+            "relevantRetrieved": 1,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 935,
+            "budgetViolations": 0
+          },
+          "en": {
+            "cases": 32,
+            "relevantCases": 24,
+            "absentCases": 8,
+            "searchErrors": 0,
+            "hitRate": 0.9166666666666666,
+            "top1Accuracy": 0.9166666666666666,
+            "meanReciprocalRank": 0.9166666666666666,
+            "macroRecall": 0.9166666666666666,
+            "microRecall": 0.9459459459459459,
+            "microPrecision": 0.9210526315789473,
+            "expectedTargets": 37,
+            "retrievedCards": 38,
+            "relevantRetrieved": 35,
+            "correctAbstentions": 8,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": 1,
+            "emptyRelevantCases": 1,
+            "maxResponseBytes": 2240,
+            "budgetViolations": 0
+          },
+          "es": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0,
+            "top1Accuracy": 0,
+            "meanReciprocalRank": 0,
+            "macroRecall": 0,
+            "microRecall": 0,
+            "microPrecision": 0,
+            "expectedTargets": 1,
+            "retrievedCards": 1,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 715,
+            "budgetViolations": 0
+          },
+          "fr": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0,
+            "top1Accuracy": 0,
+            "meanReciprocalRank": 0,
+            "macroRecall": 0,
+            "microRecall": 0,
+            "microPrecision": null,
+            "expectedTargets": 1,
+            "retrievedCards": 0,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 1,
+            "maxResponseBytes": 263,
+            "budgetViolations": 0
+          },
+          "ja": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 1,
+            "expectedTargets": 1,
+            "retrievedCards": 1,
+            "relevantRetrieved": 1,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 966,
+            "budgetViolations": 0
+          }
+        }
+      },
+      "results": [
+        {
+          "id": "challenge-01",
+          "baseline": {
+            "id": "challenge-01",
+            "returnedIds": [
+              "chip",
+              "cylinder-block",
+              "connecting-rod",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "connecting-rod",
+              "pipe"
+            ],
+            "responseBytes": 1431,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-01",
+            "returnedIds": [
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 874,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-02",
+          "baseline": {
+            "id": "challenge-02",
+            "returnedIds": [
+              "header",
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "responseBytes": 1555,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-02",
+            "returnedIds": [
+              "header"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 936,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-03",
+          "baseline": {
+            "id": "challenge-03",
+            "returnedIds": [
+              "port",
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1582,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-03",
+            "returnedIds": [
+              "port"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 954,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-04",
+          "baseline": {
+            "id": "challenge-04",
+            "returnedIds": [
+              "lens",
+              "cylinder-block",
+              "pipe",
+              "button"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "pipe",
+              "button"
+            ],
+            "responseBytes": 1298,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-04",
+            "returnedIds": [
+              "lens"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 665,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-05",
+          "baseline": {
+            "id": "challenge-05",
+            "returnedIds": [
+              "screen",
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "responseBytes": 1369,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-05",
+            "returnedIds": [
+              "screen"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 717,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-06",
+          "baseline": {
+            "id": "challenge-06",
+            "returnedIds": [
+              "fan",
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "responseBytes": 1535,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-06",
+            "returnedIds": [
+              "fan"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 907,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-07",
+          "baseline": {
+            "id": "challenge-07",
+            "returnedIds": [
+              "wheel",
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "responseBytes": 1555,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-07",
+            "returnedIds": [
+              "wheel"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 881,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-08",
+          "baseline": {
+            "id": "challenge-08",
+            "returnedIds": [
+              "cylinder-block",
+              "camshaft",
+              "connecting-rod",
+              "crankshaft"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "camshaft",
+              "connecting-rod",
+              "crankshaft"
+            ],
+            "responseBytes": 1611,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-08",
+            "returnedIds": [
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 792,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-09",
+          "baseline": {
+            "id": "challenge-09",
+            "returnedIds": [
+              "cylinder-block",
+              "connecting-rod",
+              "spark-plug",
+              "valve"
+            ],
+            "missingIds": [
+              "piston"
+            ],
+            "unexpectedIds": [
+              "cylinder-block",
+              "connecting-rod",
+              "spark-plug",
+              "valve"
+            ],
+            "responseBytes": 1294,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-09",
+            "returnedIds": [],
+            "missingIds": [
+              "piston"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-10",
+          "baseline": {
+            "id": "challenge-10",
+            "returnedIds": [
+              "connecting-rod",
+              "cylinder-block",
+              "spark-plug",
+              "valve"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "spark-plug",
+              "valve"
+            ],
+            "responseBytes": 1294,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-10",
+            "returnedIds": [
+              "piston",
+              "camshaft",
+              "crankshaft"
+            ],
+            "missingIds": [
+              "connecting-rod"
+            ],
+            "unexpectedIds": [
+              "piston",
+              "camshaft",
+              "crankshaft"
+            ],
+            "responseBytes": 1949,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-11",
+          "baseline": {
+            "id": "challenge-11",
+            "returnedIds": [
+              "connecting-rod",
+              "cylinder-block",
+              "spark-plug",
+              "valve"
+            ],
+            "missingIds": [
+              "crankshaft"
+            ],
+            "unexpectedIds": [
+              "connecting-rod",
+              "cylinder-block",
+              "spark-plug",
+              "valve"
+            ],
+            "responseBytes": 1294,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-11",
+            "returnedIds": [
+              "crankshaft"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 890,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-12",
+          "baseline": {
+            "id": "challenge-12",
+            "returnedIds": [
+              "valve",
+              "cylinder-block",
+              "camshaft",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "camshaft",
+              "connecting-rod"
+            ],
+            "responseBytes": 1451,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-12",
+            "returnedIds": [
+              "valve"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 715,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-13",
+          "baseline": {
+            "id": "challenge-13",
+            "returnedIds": [],
+            "missingIds": [
+              "camshaft"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 194,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-13",
+            "returnedIds": [
+              "valve"
+            ],
+            "missingIds": [
+              "camshaft"
+            ],
+            "unexpectedIds": [
+              "valve"
+            ],
+            "responseBytes": 715,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-14",
+          "baseline": {
+            "id": "challenge-14",
+            "returnedIds": [],
+            "missingIds": [
+              "spark-plug"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 194,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-14",
+            "returnedIds": [],
+            "missingIds": [
+              "spark-plug"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-15",
+          "baseline": {
+            "id": "challenge-15",
+            "returnedIds": [
+              "bearing",
+              "camshaft",
+              "crankshaft",
+              "cylinder-block"
+            ],
+            "missingIds": [
+              "gear"
+            ],
+            "unexpectedIds": [
+              "bearing",
+              "camshaft",
+              "crankshaft",
+              "cylinder-block"
+            ],
+            "responseBytes": 1742,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-15",
+            "returnedIds": [
+              "gear"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 935,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-16",
+          "baseline": {
+            "id": "challenge-16",
+            "returnedIds": [],
+            "missingIds": [
+              "spring"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 194,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-16",
+            "returnedIds": [
+              "spring"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 966,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-17",
+          "baseline": {
+            "id": "challenge-17",
+            "returnedIds": [
+              "bearing",
+              "wheel",
+              "cylinder-block",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "pipe"
+            ],
+            "responseBytes": 1656,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-17",
+            "returnedIds": [
+              "bearing",
+              "wheel"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1510,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-18",
+          "baseline": {
+            "id": "challenge-18",
+            "returnedIds": [
+              "elbow",
+              "pipe",
+              "gear",
+              "header"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "gear",
+              "header"
+            ],
+            "responseBytes": 1625,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-18",
+            "returnedIds": [
+              "elbow",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1270,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-19",
+          "baseline": {
+            "id": "challenge-19",
+            "returnedIds": [
+              "bearing",
+              "gear",
+              "housing",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "connecting-rod"
+            ],
+            "responseBytes": 1621,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-19",
+            "returnedIds": [
+              "bearing",
+              "gear",
+              "housing"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 2125,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-20",
+          "baseline": {
+            "id": "challenge-20",
+            "returnedIds": [
+              "button",
+              "screen",
+              "cylinder-block",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "connecting-rod"
+            ],
+            "responseBytes": 1281,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-20",
+            "returnedIds": [
+              "button",
+              "screen"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1208,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-21",
+          "baseline": {
+            "id": "challenge-21",
+            "returnedIds": [
+              "port",
+              "chip",
+              "header",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block"
+            ],
+            "responseBytes": 1706,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-21",
+            "returnedIds": [
+              "header",
+              "chip",
+              "port"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 2240,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-22",
+          "baseline": {
+            "id": "challenge-22",
+            "returnedIds": [
+              "connecting-rod",
+              "crankshaft",
+              "piston",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe"
+            ],
+            "responseBytes": 1442,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-22",
+            "returnedIds": [
+              "connecting-rod",
+              "crankshaft",
+              "piston"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1807,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-23",
+          "baseline": {
+            "id": "challenge-23",
+            "returnedIds": [
+              "valve",
+              "spring",
+              "camshaft",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block"
+            ],
+            "responseBytes": 1596,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-23",
+            "returnedIds": [
+              "camshaft",
+              "spring",
+              "valve"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 2015,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-24",
+          "baseline": {
+            "id": "challenge-24",
+            "returnedIds": [
+              "cylinder-block",
+              "spark-plug",
+              "piston",
+              "screen"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "screen"
+            ],
+            "responseBytes": 1290,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-24",
+            "returnedIds": [
+              "cylinder-block",
+              "spark-plug",
+              "piston"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1672,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-25",
+          "baseline": {
+            "id": "challenge-25",
+            "returnedIds": [
+              "lens",
+              "button",
+              "screen",
+              "port"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "button",
+              "screen",
+              "port"
+            ],
+            "responseBytes": 1318,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-25",
+            "returnedIds": [
+              "lens"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 665,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-26",
+          "baseline": {
+            "id": "challenge-26",
+            "returnedIds": [
+              "pipe",
+              "elbow",
+              "housing",
+              "valve"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "elbow",
+              "housing",
+              "valve"
+            ],
+            "responseBytes": 1311,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-26",
+            "returnedIds": [
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 773,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-27",
+          "baseline": {
+            "id": "challenge-27",
+            "returnedIds": [
+              "fan",
+              "wheel",
+              "cylinder-block",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "fan",
+              "cylinder-block",
+              "pipe"
+            ],
+            "responseBytes": 1667,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-27",
+            "returnedIds": [
+              "wheel"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 881,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-28",
+          "baseline": {
+            "id": "challenge-28",
+            "returnedIds": [
+              "gear",
+              "connecting-rod",
+              "elbow",
+              "housing"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "gear",
+              "connecting-rod",
+              "elbow"
+            ],
+            "responseBytes": 1474,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-28",
+            "returnedIds": [
+              "housing"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 823,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-29",
+          "baseline": {
+            "id": "challenge-29",
+            "returnedIds": [
+              "port",
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "port",
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "responseBytes": 1544,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-29",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-30",
+          "baseline": {
+            "id": "challenge-30",
+            "returnedIds": [
+              "spring",
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "spring",
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "responseBytes": 1538,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-30",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-31",
+          "baseline": {
+            "id": "challenge-31",
+            "returnedIds": [
+              "elbow",
+              "cylinder-block",
+              "pipe",
+              "wheel"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "elbow",
+              "cylinder-block",
+              "pipe",
+              "wheel"
+            ],
+            "responseBytes": 1509,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-31",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-32",
+          "baseline": {
+            "id": "challenge-32",
+            "returnedIds": [
+              "chip",
+              "cylinder-block",
+              "header",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "chip",
+              "cylinder-block",
+              "header",
+              "pipe"
+            ],
+            "responseBytes": 1593,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-32",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-33",
+          "baseline": {
+            "id": "challenge-33",
+            "returnedIds": [
+              "cylinder-block",
+              "pipe",
+              "chip",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "pipe",
+              "chip",
+              "connecting-rod"
+            ],
+            "responseBytes": 1431,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-33",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-34",
+          "baseline": {
+            "id": "challenge-34",
+            "returnedIds": [
+              "cylinder-block",
+              "valve",
+              "connecting-rod",
+              "spark-plug"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "valve",
+              "connecting-rod",
+              "spark-plug"
+            ],
+            "responseBytes": 1294,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-34",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-35",
+          "baseline": {
+            "id": "challenge-35",
+            "returnedIds": [
+              "wheel",
+              "gear",
+              "cylinder-block",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "wheel",
+              "gear",
+              "cylinder-block",
+              "chip"
+            ],
+            "responseBytes": 1740,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-35",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "challenge-36",
+          "baseline": {
+            "id": "challenge-36",
+            "returnedIds": [
+              "cylinder-block",
+              "pipe",
+              "chip",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "pipe",
+              "chip",
+              "connecting-rod"
+            ],
+            "responseBytes": 1431,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "challenge-36",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        }
+      ]
+    },
+    {
+      "corpus": "scripts/prototypes/catalogue-heldout-v2.json",
+      "corpusSha256": "b9e94cb6f6da2f5be227e05066e4e00e915527a9c9457138b1c877a36775ef53",
+      "cardCapRecallCeiling": 0.7272727272727273,
+      "baseline": {
+        "summary": {
+          "cases": 48,
+          "relevantCases": 40,
+          "absentCases": 8,
+          "searchErrors": 1,
+          "hitRate": 0.825,
+          "top1Accuracy": 0.75,
+          "meanReciprocalRank": 0.7770833333333333,
+          "macroRecall": 0.7122619047619048,
+          "microRecall": 0.5545454545454546,
+          "microPrecision": 0.3407821229050279,
+          "expectedTargets": 110,
+          "retrievedCards": 179,
+          "relevantRetrieved": 61,
+          "correctAbstentions": 0,
+          "falsePositiveCases": 8,
+          "abstentionAccuracy": 0,
+          "emptyRelevantCases": 1,
+          "maxResponseBytes": 1889,
+          "budgetViolations": 0
+        },
+        "byCategory": {
+          "absent/polysemy": {
+            "cases": 8,
+            "relevantCases": 0,
+            "absentCases": 8,
+            "searchErrors": 0,
+            "hitRate": null,
+            "top1Accuracy": null,
+            "meanReciprocalRank": null,
+            "macroRecall": null,
+            "microRecall": null,
+            "microPrecision": 0,
+            "expectedTargets": 0,
+            "retrievedCards": 32,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 8,
+            "abstentionAccuracy": 0,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1686,
+            "budgetViolations": 0
+          },
+          "broad": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 1,
+            "hitRate": 0.875,
+            "top1Accuracy": 0.875,
+            "meanReciprocalRank": 0.875,
+            "macroRecall": 0.5196428571428572,
+            "microRecall": 0.4,
+            "microPrecision": 0.8571428571428571,
+            "expectedTargets": 60,
+            "retrievedCards": 28,
+            "relevantRetrieved": 24,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1889,
+            "budgetViolations": 0
+          },
+          "direct": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 0.875,
+            "meanReciprocalRank": 0.9375,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 0.25,
+            "expectedTargets": 8,
+            "retrievedCards": 32,
+            "relevantRetrieved": 8,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1752,
+            "budgetViolations": 0
+          },
+          "mixed": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 0.59375,
+            "expectedTargets": 19,
+            "retrievedCards": 32,
+            "relevantRetrieved": 19,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1797,
+            "budgetViolations": 0
+          },
+          "negation": {
+            "cases": 4,
+            "relevantCases": 4,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 0.875,
+            "microRecall": 0.8,
+            "microPrecision": 0.25,
+            "expectedTargets": 5,
+            "retrievedCards": 16,
+            "relevantRetrieved": 4,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1786,
+            "budgetViolations": 0
+          },
+          "non-English": {
+            "cases": 4,
+            "relevantCases": 4,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0.5,
+            "top1Accuracy": 0.5,
+            "meanReciprocalRank": 0.5,
+            "macroRecall": 0.20833333333333331,
+            "microRecall": 0.2,
+            "microPrecision": 0.2857142857142857,
+            "expectedTargets": 10,
+            "retrievedCards": 7,
+            "relevantRetrieved": 2,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 1,
+            "maxResponseBytes": 1289,
+            "budgetViolations": 0
+          },
+          "paraphrase": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0.5,
+            "top1Accuracy": 0.25,
+            "meanReciprocalRank": 0.32291666666666663,
+            "macroRecall": 0.5,
+            "microRecall": 0.5,
+            "microPrecision": 0.125,
+            "expectedTargets": 8,
+            "retrievedCards": 32,
+            "relevantRetrieved": 4,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1876,
+            "budgetViolations": 0
+          }
+        },
+        "byLanguage": {
+          "de": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 0.3333333333333333,
+            "microRecall": 0.3333333333333333,
+            "microPrecision": 1,
+            "expectedTargets": 3,
+            "retrievedCards": 1,
+            "relevantRetrieved": 1,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 610,
+            "budgetViolations": 0
+          },
+          "en": {
+            "cases": 44,
+            "relevantCases": 36,
+            "absentCases": 8,
+            "searchErrors": 1,
+            "hitRate": 0.8611111111111112,
+            "top1Accuracy": 0.7777777777777778,
+            "meanReciprocalRank": 0.8078703703703703,
+            "macroRecall": 0.7682539682539683,
+            "microRecall": 0.59,
+            "microPrecision": 0.3430232558139535,
+            "expectedTargets": 100,
+            "retrievedCards": 172,
+            "relevantRetrieved": 59,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 8,
+            "abstentionAccuracy": 0,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1889,
+            "budgetViolations": 0
+          },
+          "es": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0,
+            "top1Accuracy": 0,
+            "meanReciprocalRank": 0,
+            "macroRecall": 0,
+            "microRecall": 0,
+            "microPrecision": 0,
+            "expectedTargets": 3,
+            "retrievedCards": 4,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1289,
+            "budgetViolations": 0
+          },
+          "fr": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 0.5,
+            "microRecall": 0.5,
+            "microPrecision": 0.5,
+            "expectedTargets": 2,
+            "retrievedCards": 2,
+            "relevantRetrieved": 1,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 880,
+            "budgetViolations": 0
+          },
+          "ja": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0,
+            "top1Accuracy": 0,
+            "meanReciprocalRank": 0,
+            "macroRecall": 0,
+            "microRecall": 0,
+            "microPrecision": null,
+            "expectedTargets": 2,
+            "retrievedCards": 0,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 1,
+            "maxResponseBytes": 194,
+            "budgetViolations": 0
+          }
+        }
+      },
+      "candidate": {
+        "summary": {
+          "cases": 48,
+          "relevantCases": 40,
+          "absentCases": 8,
+          "searchErrors": 1,
+          "hitRate": 0.925,
+          "top1Accuracy": 0.875,
+          "meanReciprocalRank": 0.9,
+          "macroRecall": 0.8533333333333335,
+          "microRecall": 0.6454545454545455,
+          "microPrecision": 0.9102564102564102,
+          "expectedTargets": 110,
+          "retrievedCards": 78,
+          "relevantRetrieved": 71,
+          "correctAbstentions": 5,
+          "falsePositiveCases": 3,
+          "abstentionAccuracy": 0.625,
+          "emptyRelevantCases": 2,
+          "maxResponseBytes": 2818,
+          "budgetViolations": 0
+        },
+        "byCategory": {
+          "absent/polysemy": {
+            "cases": 8,
+            "relevantCases": 0,
+            "absentCases": 8,
+            "searchErrors": 0,
+            "hitRate": null,
+            "top1Accuracy": null,
+            "meanReciprocalRank": null,
+            "macroRecall": null,
+            "microRecall": null,
+            "microPrecision": 0,
+            "expectedTargets": 0,
+            "retrievedCards": 3,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 5,
+            "falsePositiveCases": 3,
+            "abstentionAccuracy": 0.625,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 966,
+            "budgetViolations": 0
+          },
+          "broad": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 1,
+            "hitRate": 0.875,
+            "top1Accuracy": 0.875,
+            "meanReciprocalRank": 0.875,
+            "macroRecall": 0.6,
+            "microRecall": 0.43333333333333335,
+            "microPrecision": 1,
+            "expectedTargets": 60,
+            "retrievedCards": 26,
+            "relevantRetrieved": 26,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 2818,
+            "budgetViolations": 0
+          },
+          "direct": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 0.8888888888888888,
+            "expectedTargets": 8,
+            "retrievedCards": 9,
+            "relevantRetrieved": 8,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1270,
+            "budgetViolations": 0
+          },
+          "mixed": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 1,
+            "expectedTargets": 19,
+            "retrievedCards": 19,
+            "relevantRetrieved": 19,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 2235,
+            "budgetViolations": 0
+          },
+          "negation": {
+            "cases": 4,
+            "relevantCases": 4,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 1,
+            "expectedTargets": 5,
+            "retrievedCards": 5,
+            "relevantRetrieved": 5,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1179,
+            "budgetViolations": 0
+          },
+          "non-English": {
+            "cases": 4,
+            "relevantCases": 4,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0.75,
+            "top1Accuracy": 0.75,
+            "meanReciprocalRank": 0.75,
+            "macroRecall": 0.5833333333333333,
+            "microRecall": 0.6,
+            "microPrecision": 1,
+            "expectedTargets": 10,
+            "retrievedCards": 6,
+            "relevantRetrieved": 6,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 1,
+            "maxResponseBytes": 1900,
+            "budgetViolations": 0
+          },
+          "paraphrase": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0.875,
+            "top1Accuracy": 0.625,
+            "meanReciprocalRank": 0.75,
+            "macroRecall": 0.875,
+            "microRecall": 0.875,
+            "microPrecision": 0.7,
+            "expectedTargets": 8,
+            "retrievedCards": 10,
+            "relevantRetrieved": 7,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 1,
+            "maxResponseBytes": 1940,
+            "budgetViolations": 0
+          }
+        },
+        "byLanguage": {
+          "de": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 1,
+            "expectedTargets": 3,
+            "retrievedCards": 3,
+            "relevantRetrieved": 3,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1900,
+            "budgetViolations": 0
+          },
+          "en": {
+            "cases": 44,
+            "relevantCases": 36,
+            "absentCases": 8,
+            "searchErrors": 1,
+            "hitRate": 0.9444444444444444,
+            "top1Accuracy": 0.8888888888888888,
+            "meanReciprocalRank": 0.9166666666666666,
+            "macroRecall": 0.8833333333333334,
+            "microRecall": 0.65,
+            "microPrecision": 0.9027777777777778,
+            "expectedTargets": 100,
+            "retrievedCards": 72,
+            "relevantRetrieved": 65,
+            "correctAbstentions": 5,
+            "falsePositiveCases": 3,
+            "abstentionAccuracy": 0.625,
+            "emptyRelevantCases": 1,
+            "maxResponseBytes": 2818,
+            "budgetViolations": 0
+          },
+          "es": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 0.3333333333333333,
+            "microRecall": 0.3333333333333333,
+            "microPrecision": 1,
+            "expectedTargets": 3,
+            "retrievedCards": 1,
+            "relevantRetrieved": 1,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 823,
+            "budgetViolations": 0
+          },
+          "fr": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 1,
+            "expectedTargets": 2,
+            "retrievedCards": 2,
+            "relevantRetrieved": 2,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1142,
+            "budgetViolations": 0
+          },
+          "ja": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0,
+            "top1Accuracy": 0,
+            "meanReciprocalRank": 0,
+            "macroRecall": 0,
+            "microRecall": 0,
+            "microPrecision": null,
+            "expectedTargets": 2,
+            "retrievedCards": 0,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 1,
+            "maxResponseBytes": 263,
+            "budgetViolations": 0
+          }
+        }
+      },
+      "results": [
+        {
+          "id": "heldout-v2-01",
+          "baseline": {
+            "id": "heldout-v2-01",
+            "returnedIds": [
+              "wheel",
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1593,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-01",
+            "returnedIds": [
+              "wheel"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 881,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-02",
+          "baseline": {
+            "id": "heldout-v2-02",
+            "returnedIds": [
+              "chip",
+              "cylinder-block",
+              "gear",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "gear",
+              "pipe"
+            ],
+            "responseBytes": 1617,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-02",
+            "returnedIds": [
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 874,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-03",
+          "baseline": {
+            "id": "heldout-v2-03",
+            "returnedIds": [
+              "pipe",
+              "elbow",
+              "chip",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1415,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-03",
+            "returnedIds": [
+              "elbow",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe"
+            ],
+            "responseBytes": 1270,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-04",
+          "baseline": {
+            "id": "heldout-v2-04",
+            "returnedIds": [
+              "crankshaft",
+              "cylinder-block",
+              "connecting-rod",
+              "piston"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "connecting-rod",
+              "piston"
+            ],
+            "responseBytes": 1473,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-04",
+            "returnedIds": [
+              "crankshaft"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 890,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-05",
+          "baseline": {
+            "id": "heldout-v2-05",
+            "returnedIds": [
+              "screen",
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1407,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-05",
+            "returnedIds": [
+              "screen"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 717,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-06",
+          "baseline": {
+            "id": "heldout-v2-06",
+            "returnedIds": [
+              "bearing",
+              "pipe",
+              "fan",
+              "gear"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "fan",
+              "gear"
+            ],
+            "responseBytes": 1752,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-06",
+            "returnedIds": [
+              "bearing"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 891,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-07",
+          "baseline": {
+            "id": "heldout-v2-07",
+            "returnedIds": [
+              "spark-plug",
+              "fan",
+              "pipe",
+              "wheel"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "fan",
+              "pipe",
+              "wheel"
+            ],
+            "responseBytes": 1583,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-07",
+            "returnedIds": [
+              "spark-plug"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 679,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-08",
+          "baseline": {
+            "id": "heldout-v2-08",
+            "returnedIds": [
+              "header",
+              "pipe",
+              "port",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "port",
+              "chip"
+            ],
+            "responseBytes": 1675,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-08",
+            "returnedIds": [
+              "header"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 936,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-09",
+          "baseline": {
+            "id": "heldout-v2-09",
+            "returnedIds": [
+              "connecting-rod",
+              "fan",
+              "gear",
+              "spark-plug"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "connecting-rod",
+              "fan",
+              "spark-plug"
+            ],
+            "responseBytes": 1568,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-09",
+            "returnedIds": [
+              "gear"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 935,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-10",
+          "baseline": {
+            "id": "heldout-v2-10",
+            "returnedIds": [
+              "cylinder-block",
+              "pipe",
+              "wheel",
+              "chip"
+            ],
+            "missingIds": [
+              "piston"
+            ],
+            "unexpectedIds": [
+              "cylinder-block",
+              "pipe",
+              "wheel",
+              "chip"
+            ],
+            "responseBytes": 1593,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-10",
+            "returnedIds": [
+              "cylinder-block",
+              "piston"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block"
+            ],
+            "responseBytes": 1255,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-11",
+          "baseline": {
+            "id": "heldout-v2-11",
+            "returnedIds": [
+              "cylinder-block",
+              "connecting-rod",
+              "spark-plug",
+              "valve"
+            ],
+            "missingIds": [
+              "camshaft"
+            ],
+            "unexpectedIds": [
+              "cylinder-block",
+              "connecting-rod",
+              "spark-plug",
+              "valve"
+            ],
+            "responseBytes": 1294,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-11",
+            "returnedIds": [],
+            "missingIds": [
+              "camshaft"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-12",
+          "baseline": {
+            "id": "heldout-v2-12",
+            "returnedIds": [
+              "chip",
+              "cylinder-block",
+              "pipe",
+              "wheel"
+            ],
+            "missingIds": [
+              "spring"
+            ],
+            "unexpectedIds": [
+              "chip",
+              "cylinder-block",
+              "pipe",
+              "wheel"
+            ],
+            "responseBytes": 1593,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-12",
+            "returnedIds": [
+              "spring"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 966,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-13",
+          "baseline": {
+            "id": "heldout-v2-13",
+            "returnedIds": [
+              "lens",
+              "chip",
+              "pipe",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "chip",
+              "pipe",
+              "cylinder-block"
+            ],
+            "responseBytes": 1386,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-13",
+            "returnedIds": [
+              "lens"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 665,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-14",
+          "baseline": {
+            "id": "heldout-v2-14",
+            "returnedIds": [
+              "piston",
+              "cylinder-block",
+              "camshaft",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "piston",
+              "cylinder-block",
+              "camshaft"
+            ],
+            "responseBytes": 1471,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-14",
+            "returnedIds": [
+              "crankshaft",
+              "connecting-rod",
+              "camshaft"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "crankshaft",
+              "camshaft"
+            ],
+            "responseBytes": 1940,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-15",
+          "baseline": {
+            "id": "heldout-v2-15",
+            "returnedIds": [
+              "fan",
+              "gear",
+              "header",
+              "bearing"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "gear",
+              "header",
+              "bearing"
+            ],
+            "responseBytes": 1876,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-15",
+            "returnedIds": [
+              "fan"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 907,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-16",
+          "baseline": {
+            "id": "heldout-v2-16",
+            "returnedIds": [
+              "cylinder-block",
+              "piston",
+              "camshaft",
+              "connecting-rod"
+            ],
+            "missingIds": [
+              "valve"
+            ],
+            "unexpectedIds": [
+              "cylinder-block",
+              "piston",
+              "camshaft",
+              "connecting-rod"
+            ],
+            "responseBytes": 1471,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-16",
+            "returnedIds": [
+              "valve"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 715,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-17",
+          "baseline": {
+            "id": "heldout-v2-17",
+            "returnedIds": [
+              "pipe",
+              "chip",
+              "cylinder-block",
+              "elbow"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1415,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-17",
+            "returnedIds": [
+              "pipe",
+              "elbow"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1270,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-18",
+          "baseline": {
+            "id": "heldout-v2-18",
+            "returnedIds": [
+              "button",
+              "screen",
+              "connecting-rod",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "connecting-rod",
+              "cylinder-block"
+            ],
+            "responseBytes": 1281,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-18",
+            "returnedIds": [
+              "screen",
+              "button"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1208,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-19",
+          "baseline": {
+            "id": "heldout-v2-19",
+            "returnedIds": [
+              "lens",
+              "port",
+              "chip",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1499,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-19",
+            "returnedIds": [
+              "lens",
+              "port"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1357,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-20",
+          "baseline": {
+            "id": "heldout-v2-20",
+            "returnedIds": [
+              "cylinder-block",
+              "piston",
+              "camshaft",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "camshaft"
+            ],
+            "responseBytes": 1471,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-20",
+            "returnedIds": [
+              "piston",
+              "cylinder-block",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1709,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-21",
+          "baseline": {
+            "id": "heldout-v2-21",
+            "returnedIds": [
+              "bearing",
+              "wheel",
+              "pipe",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "chip"
+            ],
+            "responseBytes": 1655,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-21",
+            "returnedIds": [
+              "bearing",
+              "wheel"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1510,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-22",
+          "baseline": {
+            "id": "heldout-v2-22",
+            "returnedIds": [
+              "chip",
+              "housing",
+              "fan",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "connecting-rod"
+            ],
+            "responseBytes": 1515,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-22",
+            "returnedIds": [
+              "chip",
+              "housing",
+              "fan"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 2080,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-23",
+          "baseline": {
+            "id": "heldout-v2-23",
+            "returnedIds": [
+              "spark-plug",
+              "button",
+              "cylinder-block",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "pipe"
+            ],
+            "responseBytes": 1328,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-23",
+            "returnedIds": [
+              "spark-plug",
+              "button"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1170,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-24",
+          "baseline": {
+            "id": "heldout-v2-24",
+            "returnedIds": [
+              "spring",
+              "camshaft",
+              "gear",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block"
+            ],
+            "responseBytes": 1797,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-24",
+            "returnedIds": [
+              "spring",
+              "camshaft",
+              "gear"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 2235,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-25",
+          "baseline": {
+            "id": "heldout-v2-25",
+            "returnedIds": [
+              "spark-plug",
+              "connecting-rod",
+              "crankshaft",
+              "cylinder-block"
+            ],
+            "missingIds": [
+              "piston",
+              "valve",
+              "camshaft"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 1454,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-25",
+            "returnedIds": [
+              "crankshaft",
+              "spark-plug",
+              "connecting-rod",
+              "cylinder-block"
+            ],
+            "missingIds": [
+              "piston",
+              "valve",
+              "camshaft"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 2290,
+            "truncated": true,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-26",
+          "baseline": {
+            "id": "heldout-v2-26",
+            "returnedIds": [
+              "screen",
+              "button",
+              "chip",
+              "header"
+            ],
+            "missingIds": [
+              "port",
+              "fan"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 1442,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-26",
+            "returnedIds": [
+              "port",
+              "screen",
+              "button",
+              "fan"
+            ],
+            "missingIds": [
+              "chip",
+              "header"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 2544,
+            "truncated": true,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-27",
+          "baseline": {
+            "id": "heldout-v2-27",
+            "returnedIds": [
+              "gear",
+              "spring",
+              "pipe",
+              "connecting-rod"
+            ],
+            "missingIds": [
+              "wheel",
+              "bearing",
+              "elbow",
+              "housing"
+            ],
+            "unexpectedIds": [
+              "connecting-rod"
+            ],
+            "responseBytes": 1624,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-27",
+            "returnedIds": [
+              "spring",
+              "wheel",
+              "housing",
+              "gear"
+            ],
+            "missingIds": [
+              "bearing",
+              "pipe",
+              "elbow"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 2818,
+            "truncated": true,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-28",
+          "baseline": {
+            "id": "heldout-v2-28",
+            "returnedIds": [
+              "cylinder-block",
+              "chip",
+              "connecting-rod",
+              "header"
+            ],
+            "missingIds": [
+              "port",
+              "lens",
+              "screen",
+              "button",
+              "fan",
+              "wheel",
+              "piston",
+              "crankshaft",
+              "valve",
+              "camshaft",
+              "spark-plug",
+              "gear",
+              "spring",
+              "bearing",
+              "pipe",
+              "elbow",
+              "housing"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 1555,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-28",
+            "returnedIds": [
+              "bearing",
+              "button",
+              "camshaft",
+              "chip"
+            ],
+            "missingIds": [
+              "header",
+              "port",
+              "lens",
+              "screen",
+              "fan",
+              "wheel",
+              "cylinder-block",
+              "piston",
+              "connecting-rod",
+              "crankshaft",
+              "valve",
+              "spark-plug",
+              "gear",
+              "spring",
+              "pipe",
+              "elbow",
+              "housing"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 2589,
+            "truncated": true,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-29",
+          "baseline": {
+            "id": "heldout-v2-29",
+            "returnedIds": [
+              "pipe",
+              "wheel",
+              "chip",
+              "cylinder-block"
+            ],
+            "missingIds": [
+              "elbow"
+            ],
+            "unexpectedIds": [
+              "wheel",
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1593,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-29",
+            "returnedIds": [
+              "elbow",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1270,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-30",
+          "baseline": {
+            "id": "heldout-v2-30",
+            "returnedIds": [
+              "button",
+              "port",
+              "screen",
+              "lens"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1318,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-30",
+            "returnedIds": [
+              "port",
+              "screen",
+              "button",
+              "lens"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 2303,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-31",
+          "baseline": {
+            "id": "heldout-v2-31",
+            "returnedIds": [
+              "wheel",
+              "camshaft",
+              "crankshaft",
+              "gear"
+            ],
+            "missingIds": [
+              "fan"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 1889,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-31",
+            "returnedIds": [
+              "camshaft",
+              "crankshaft",
+              "wheel",
+              "gear"
+            ],
+            "missingIds": [
+              "fan"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 2777,
+            "truncated": true,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-32",
+          "baseline": {
+            "id": "heldout-v2-32",
+            "returnedIds": [],
+            "missingIds": [
+              "cylinder-block",
+              "piston",
+              "connecting-rod",
+              "crankshaft",
+              "valve",
+              "camshaft",
+              "spark-plug",
+              "housing"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": null,
+            "truncated": null,
+            "error": "Too many catalogue query terms"
+          },
+          "candidate": {
+            "id": "heldout-v2-32",
+            "returnedIds": [],
+            "missingIds": [
+              "cylinder-block",
+              "piston",
+              "connecting-rod",
+              "crankshaft",
+              "valve",
+              "camshaft",
+              "spark-plug",
+              "housing"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": null,
+            "truncated": null,
+            "error": "Too many catalogue query terms"
+          }
+        },
+        {
+          "id": "heldout-v2-33",
+          "baseline": {
+            "id": "heldout-v2-33",
+            "returnedIds": [
+              "fan",
+              "cylinder-block",
+              "pipe",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "fan",
+              "cylinder-block",
+              "pipe",
+              "chip"
+            ],
+            "responseBytes": 1573,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-33",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-34",
+          "baseline": {
+            "id": "heldout-v2-34",
+            "returnedIds": [
+              "spring",
+              "cylinder-block",
+              "pipe",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "spring",
+              "cylinder-block",
+              "pipe",
+              "chip"
+            ],
+            "responseBytes": 1576,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-34",
+            "returnedIds": [
+              "spring"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "spring"
+            ],
+            "responseBytes": 966,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-35",
+          "baseline": {
+            "id": "heldout-v2-35",
+            "returnedIds": [
+              "port",
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "port",
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1582,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-35",
+            "returnedIds": [
+              "port"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "port"
+            ],
+            "responseBytes": 954,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-36",
+          "baseline": {
+            "id": "heldout-v2-36",
+            "returnedIds": [
+              "chip",
+              "pipe",
+              "cylinder-block",
+              "piston"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "chip",
+              "pipe",
+              "cylinder-block",
+              "piston"
+            ],
+            "responseBytes": 1436,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-36",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-37",
+          "baseline": {
+            "id": "heldout-v2-37",
+            "returnedIds": [
+              "bearing",
+              "chip",
+              "cylinder-block",
+              "header"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "bearing",
+              "chip",
+              "cylinder-block",
+              "header"
+            ],
+            "responseBytes": 1686,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-37",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-38",
+          "baseline": {
+            "id": "heldout-v2-38",
+            "returnedIds": [
+              "header",
+              "cylinder-block",
+              "pipe",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "header",
+              "cylinder-block",
+              "pipe",
+              "chip"
+            ],
+            "responseBytes": 1593,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-38",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-39",
+          "baseline": {
+            "id": "heldout-v2-39",
+            "returnedIds": [
+              "housing",
+              "cylinder-block",
+              "header",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "housing",
+              "cylinder-block",
+              "header",
+              "chip"
+            ],
+            "responseBytes": 1604,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-39",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-40",
+          "baseline": {
+            "id": "heldout-v2-40",
+            "returnedIds": [
+              "screen",
+              "pipe",
+              "port",
+              "wheel"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "screen",
+              "pipe",
+              "port",
+              "wheel"
+            ],
+            "responseBytes": 1583,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-40",
+            "returnedIds": [
+              "screen"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "screen"
+            ],
+            "responseBytes": 717,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-41",
+          "baseline": {
+            "id": "heldout-v2-41",
+            "returnedIds": [
+              "spring",
+              "wheel",
+              "gear",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "wheel",
+              "gear",
+              "pipe"
+            ],
+            "responseBytes": 1786,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-41",
+            "returnedIds": [
+              "spring"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 966,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-42",
+          "baseline": {
+            "id": "heldout-v2-42",
+            "returnedIds": [
+              "port",
+              "lens",
+              "screen",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "lens",
+              "screen",
+              "pipe"
+            ],
+            "responseBytes": 1376,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-42",
+            "returnedIds": [
+              "port"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 954,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-43",
+          "baseline": {
+            "id": "heldout-v2-43",
+            "returnedIds": [
+              "connecting-rod",
+              "spark-plug",
+              "cylinder-block",
+              "crankshaft"
+            ],
+            "missingIds": [
+              "piston"
+            ],
+            "unexpectedIds": [
+              "spark-plug",
+              "cylinder-block",
+              "crankshaft"
+            ],
+            "responseBytes": 1454,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-43",
+            "returnedIds": [
+              "connecting-rod",
+              "piston"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1179,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-44",
+          "baseline": {
+            "id": "heldout-v2-44",
+            "returnedIds": [
+              "port",
+              "button",
+              "header",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "button",
+              "header",
+              "pipe"
+            ],
+            "responseBytes": 1587,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-44",
+            "returnedIds": [
+              "port"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 954,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-45",
+          "baseline": {
+            "id": "heldout-v2-45",
+            "returnedIds": [
+              "button",
+              "connecting-rod",
+              "cylinder-block",
+              "elbow"
+            ],
+            "missingIds": [
+              "gear",
+              "spring",
+              "housing"
+            ],
+            "unexpectedIds": [
+              "button",
+              "connecting-rod",
+              "cylinder-block",
+              "elbow"
+            ],
+            "responseBytes": 1289,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-45",
+            "returnedIds": [
+              "housing"
+            ],
+            "missingIds": [
+              "gear",
+              "spring"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 823,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-46",
+          "baseline": {
+            "id": "heldout-v2-46",
+            "returnedIds": [
+              "piston",
+              "port"
+            ],
+            "missingIds": [
+              "spark-plug"
+            ],
+            "unexpectedIds": [
+              "port"
+            ],
+            "responseBytes": 880,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-46",
+            "returnedIds": [
+              "piston",
+              "spark-plug"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1142,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-47",
+          "baseline": {
+            "id": "heldout-v2-47",
+            "returnedIds": [
+              "port"
+            ],
+            "missingIds": [
+              "screen",
+              "button"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 610,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-47",
+            "returnedIds": [
+              "button",
+              "port",
+              "screen"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1900,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "heldout-v2-48",
+          "baseline": {
+            "id": "heldout-v2-48",
+            "returnedIds": [],
+            "missingIds": [
+              "pipe",
+              "elbow"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 194,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "heldout-v2-48",
+            "returnedIds": [],
+            "missingIds": [
+              "pipe",
+              "elbow"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        }
+      ]
+    },
+    {
+      "corpus": "scripts/prototypes/catalogue-validation-v3.json",
+      "corpusSha256": "b48923ba997ed496782a1ce9ccb800261685e9c347c78e5b0aa0485422a2c702",
+      "cardCapRecallCeiling": 0.9506172839506173,
+      "baseline": {
+        "summary": {
+          "cases": 48,
+          "relevantCases": 40,
+          "absentCases": 8,
+          "searchErrors": 0,
+          "hitRate": 0.875,
+          "top1Accuracy": 0.75,
+          "meanReciprocalRank": 0.8083333333333333,
+          "macroRecall": 0.7707142857142857,
+          "microRecall": 0.7283950617283951,
+          "microPrecision": 0.3277777777777778,
+          "expectedTargets": 81,
+          "retrievedCards": 180,
+          "relevantRetrieved": 59,
+          "correctAbstentions": 0,
+          "falsePositiveCases": 8,
+          "abstentionAccuracy": 0,
+          "emptyRelevantCases": 2,
+          "maxResponseBytes": 1772,
+          "budgetViolations": 0
+        },
+        "byCategory": {
+          "absent": {
+            "cases": 8,
+            "relevantCases": 0,
+            "absentCases": 8,
+            "searchErrors": 0,
+            "hitRate": null,
+            "top1Accuracy": null,
+            "meanReciprocalRank": null,
+            "macroRecall": null,
+            "microRecall": null,
+            "microPrecision": 0,
+            "expectedTargets": 0,
+            "retrievedCards": 31,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 8,
+            "abstentionAccuracy": 0,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1717,
+            "budgetViolations": 0
+          },
+          "broad": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 0.875,
+            "meanReciprocalRank": 0.9375,
+            "macroRecall": 0.6869047619047619,
+            "microRecall": 0.6,
+            "microPrecision": 0.46875,
+            "expectedTargets": 25,
+            "retrievedCards": 32,
+            "relevantRetrieved": 15,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1707,
+            "budgetViolations": 0
+          },
+          "direct": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 0.53125,
+            "expectedTargets": 17,
+            "retrievedCards": 32,
+            "relevantRetrieved": 17,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1689,
+            "budgetViolations": 0
+          },
+          "mixed": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 0.9375,
+            "microRecall": 0.9333333333333333,
+            "microPrecision": 0.4375,
+            "expectedTargets": 15,
+            "retrievedCards": 32,
+            "relevantRetrieved": 14,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1772,
+            "budgetViolations": 0
+          },
+          "negation": {
+            "cases": 4,
+            "relevantCases": 4,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 0.5,
+            "meanReciprocalRank": 0.75,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 0.3125,
+            "expectedTargets": 5,
+            "retrievedCards": 16,
+            "relevantRetrieved": 5,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1700,
+            "budgetViolations": 0
+          },
+          "non-English": {
+            "cases": 4,
+            "relevantCases": 4,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0.25,
+            "top1Accuracy": 0.25,
+            "meanReciprocalRank": 0.25,
+            "macroRecall": 0.08333333333333333,
+            "microRecall": 0.1111111111111111,
+            "microPrecision": 0.2,
+            "expectedTargets": 9,
+            "retrievedCards": 5,
+            "relevantRetrieved": 1,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 2,
+            "maxResponseBytes": 1289,
+            "budgetViolations": 0
+          },
+          "paraphrase": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0.75,
+            "top1Accuracy": 0.5,
+            "meanReciprocalRank": 0.6041666666666666,
+            "macroRecall": 0.6875,
+            "microRecall": 0.7,
+            "microPrecision": 0.21875,
+            "expectedTargets": 10,
+            "retrievedCards": 32,
+            "relevantRetrieved": 7,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1594,
+            "budgetViolations": 0
+          }
+        },
+        "byLanguage": {
+          "de": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0,
+            "top1Accuracy": 0,
+            "meanReciprocalRank": 0,
+            "macroRecall": 0,
+            "microRecall": 0,
+            "microPrecision": null,
+            "expectedTargets": 2,
+            "retrievedCards": 0,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 1,
+            "maxResponseBytes": 194,
+            "budgetViolations": 0
+          },
+          "en": {
+            "cases": 44,
+            "relevantCases": 36,
+            "absentCases": 8,
+            "searchErrors": 0,
+            "hitRate": 0.9444444444444444,
+            "top1Accuracy": 0.8055555555555556,
+            "meanReciprocalRank": 0.8703703703703705,
+            "macroRecall": 0.847089947089947,
+            "microRecall": 0.8055555555555556,
+            "microPrecision": 0.3314285714285714,
+            "expectedTargets": 72,
+            "retrievedCards": 175,
+            "relevantRetrieved": 58,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 8,
+            "abstentionAccuracy": 0,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1772,
+            "budgetViolations": 0
+          },
+          "es": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0,
+            "top1Accuracy": 0,
+            "meanReciprocalRank": 0,
+            "macroRecall": 0,
+            "microRecall": 0,
+            "microPrecision": 0,
+            "expectedTargets": 2,
+            "retrievedCards": 4,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1289,
+            "budgetViolations": 0
+          },
+          "fr": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 0.3333333333333333,
+            "microRecall": 0.3333333333333333,
+            "microPrecision": 1,
+            "expectedTargets": 3,
+            "retrievedCards": 1,
+            "relevantRetrieved": 1,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 610,
+            "budgetViolations": 0
+          },
+          "ja": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0,
+            "top1Accuracy": 0,
+            "meanReciprocalRank": 0,
+            "macroRecall": 0,
+            "microRecall": 0,
+            "microPrecision": null,
+            "expectedTargets": 2,
+            "retrievedCards": 0,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 1,
+            "maxResponseBytes": 194,
+            "budgetViolations": 0
+          }
+        }
+      },
+      "candidate": {
+        "summary": {
+          "cases": 48,
+          "relevantCases": 40,
+          "absentCases": 8,
+          "searchErrors": 0,
+          "hitRate": 0.925,
+          "top1Accuracy": 0.85,
+          "meanReciprocalRank": 0.8833333333333332,
+          "macroRecall": 0.8015476190476191,
+          "microRecall": 0.7901234567901234,
+          "microPrecision": 0.8205128205128205,
+          "expectedTargets": 81,
+          "retrievedCards": 78,
+          "relevantRetrieved": 64,
+          "correctAbstentions": 4,
+          "falsePositiveCases": 4,
+          "abstentionAccuracy": 0.5,
+          "emptyRelevantCases": 3,
+          "maxResponseBytes": 2730,
+          "budgetViolations": 0
+        },
+        "byCategory": {
+          "absent": {
+            "cases": 8,
+            "relevantCases": 0,
+            "absentCases": 8,
+            "searchErrors": 0,
+            "hitRate": null,
+            "top1Accuracy": null,
+            "meanReciprocalRank": null,
+            "macroRecall": null,
+            "microRecall": null,
+            "microPrecision": 0,
+            "expectedTargets": 0,
+            "retrievedCards": 4,
+            "relevantRetrieved": 0,
+            "correctAbstentions": 4,
+            "falsePositiveCases": 4,
+            "abstentionAccuracy": 0.5,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 936,
+            "budgetViolations": 0
+          },
+          "broad": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 0.875,
+            "meanReciprocalRank": 0.9375,
+            "macroRecall": 0.674404761904762,
+            "microRecall": 0.64,
+            "microPrecision": 0.8421052631578947,
+            "expectedTargets": 25,
+            "retrievedCards": 19,
+            "relevantRetrieved": 16,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 2730,
+            "budgetViolations": 0
+          },
+          "direct": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 1,
+            "expectedTargets": 17,
+            "retrievedCards": 17,
+            "relevantRetrieved": 17,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 2125,
+            "budgetViolations": 0
+          },
+          "mixed": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 0.9375,
+            "microRecall": 0.9333333333333333,
+            "microPrecision": 1,
+            "expectedTargets": 15,
+            "retrievedCards": 14,
+            "relevantRetrieved": 14,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1585,
+            "budgetViolations": 0
+          },
+          "negation": {
+            "cases": 4,
+            "relevantCases": 4,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 0.75,
+            "meanReciprocalRank": 0.8333333333333333,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 0.625,
+            "expectedTargets": 5,
+            "retrievedCards": 8,
+            "relevantRetrieved": 5,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 2214,
+            "budgetViolations": 0
+          },
+          "non-English": {
+            "cases": 4,
+            "relevantCases": 4,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 0.75,
+            "meanReciprocalRank": 0.875,
+            "macroRecall": 0.6666666666666666,
+            "microRecall": 0.6666666666666666,
+            "microPrecision": 0.8571428571428571,
+            "expectedTargets": 9,
+            "retrievedCards": 7,
+            "relevantRetrieved": 6,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1515,
+            "budgetViolations": 0
+          },
+          "paraphrase": {
+            "cases": 8,
+            "relevantCases": 8,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 0.625,
+            "top1Accuracy": 0.625,
+            "meanReciprocalRank": 0.625,
+            "macroRecall": 0.5625,
+            "microRecall": 0.6,
+            "microPrecision": 0.6666666666666666,
+            "expectedTargets": 10,
+            "retrievedCards": 9,
+            "relevantRetrieved": 6,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 3,
+            "maxResponseBytes": 2469,
+            "budgetViolations": 0
+          }
+        },
+        "byLanguage": {
+          "de": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 0,
+            "meanReciprocalRank": 0.5,
+            "macroRecall": 0.5,
+            "microRecall": 0.5,
+            "microPrecision": 0.5,
+            "expectedTargets": 2,
+            "retrievedCards": 2,
+            "relevantRetrieved": 1,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1353,
+            "budgetViolations": 0
+          },
+          "en": {
+            "cases": 44,
+            "relevantCases": 36,
+            "absentCases": 8,
+            "searchErrors": 0,
+            "hitRate": 0.9166666666666666,
+            "top1Accuracy": 0.8611111111111112,
+            "meanReciprocalRank": 0.8842592592592592,
+            "macroRecall": 0.8165343915343916,
+            "microRecall": 0.8055555555555556,
+            "microPrecision": 0.8169014084507042,
+            "expectedTargets": 72,
+            "retrievedCards": 71,
+            "relevantRetrieved": 58,
+            "correctAbstentions": 4,
+            "falsePositiveCases": 4,
+            "abstentionAccuracy": 0.5,
+            "emptyRelevantCases": 3,
+            "maxResponseBytes": 2730,
+            "budgetViolations": 0
+          },
+          "es": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 0.5,
+            "microRecall": 0.5,
+            "microPrecision": 1,
+            "expectedTargets": 2,
+            "retrievedCards": 1,
+            "relevantRetrieved": 1,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 966,
+            "budgetViolations": 0
+          },
+          "fr": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 0.6666666666666666,
+            "microRecall": 0.6666666666666666,
+            "microPrecision": 1,
+            "expectedTargets": 3,
+            "retrievedCards": 2,
+            "relevantRetrieved": 2,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1515,
+            "budgetViolations": 0
+          },
+          "ja": {
+            "cases": 1,
+            "relevantCases": 1,
+            "absentCases": 0,
+            "searchErrors": 0,
+            "hitRate": 1,
+            "top1Accuracy": 1,
+            "meanReciprocalRank": 1,
+            "macroRecall": 1,
+            "microRecall": 1,
+            "microPrecision": 1,
+            "expectedTargets": 2,
+            "retrievedCards": 2,
+            "relevantRetrieved": 2,
+            "correctAbstentions": 0,
+            "falsePositiveCases": 0,
+            "abstentionAccuracy": null,
+            "emptyRelevantCases": 0,
+            "maxResponseBytes": 1120,
+            "budgetViolations": 0
+          }
+        }
+      },
+      "results": [
+        {
+          "id": "fresh-v3-01",
+          "baseline": {
+            "id": "fresh-v3-01",
+            "returnedIds": [
+              "port",
+              "chip",
+              "pipe",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "cylinder-block"
+            ],
+            "responseBytes": 1582,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-01",
+            "returnedIds": [
+              "chip",
+              "port"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1566,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-02",
+          "baseline": {
+            "id": "fresh-v3-02",
+            "returnedIds": [
+              "lens",
+              "screen",
+              "pipe",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "chip"
+            ],
+            "responseBytes": 1293,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-02",
+            "returnedIds": [
+              "lens",
+              "screen"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1120,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-03",
+          "baseline": {
+            "id": "fresh-v3-03",
+            "returnedIds": [
+              "fan",
+              "button",
+              "cylinder-block",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "chip"
+            ],
+            "responseBytes": 1515,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-03",
+            "returnedIds": [
+              "button",
+              "fan"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1398,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-04",
+          "baseline": {
+            "id": "fresh-v3-04",
+            "returnedIds": [
+              "wheel",
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1593,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-04",
+            "returnedIds": [
+              "wheel"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 881,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-05",
+          "baseline": {
+            "id": "fresh-v3-05",
+            "returnedIds": [
+              "cylinder-block",
+              "piston",
+              "pipe",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "chip"
+            ],
+            "responseBytes": 1435,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-05",
+            "returnedIds": [
+              "cylinder-block",
+              "piston"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1255,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-06",
+          "baseline": {
+            "id": "fresh-v3-06",
+            "returnedIds": [
+              "spark-plug",
+              "connecting-rod",
+              "crankshaft",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "chip"
+            ],
+            "responseBytes": 1453,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-06",
+            "returnedIds": [
+              "connecting-rod",
+              "spark-plug",
+              "crankshaft"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1761,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-07",
+          "baseline": {
+            "id": "fresh-v3-07",
+            "returnedIds": [
+              "camshaft",
+              "valve",
+              "pipe",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "chip"
+            ],
+            "responseBytes": 1488,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-07",
+            "returnedIds": [
+              "camshaft",
+              "valve"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1311,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-08",
+          "baseline": {
+            "id": "fresh-v3-08",
+            "returnedIds": [
+              "bearing",
+              "gear",
+              "housing",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "chip"
+            ],
+            "responseBytes": 1689,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-08",
+            "returnedIds": [
+              "bearing",
+              "gear",
+              "housing"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 2125,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-09",
+          "baseline": {
+            "id": "fresh-v3-09",
+            "returnedIds": [
+              "chip",
+              "header",
+              "cylinder-block",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "chip",
+              "cylinder-block",
+              "pipe"
+            ],
+            "responseBytes": 1594,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-09",
+            "returnedIds": [],
+            "missingIds": [
+              "header"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-10",
+          "baseline": {
+            "id": "fresh-v3-10",
+            "returnedIds": [
+              "spark-plug",
+              "cylinder-block",
+              "pipe",
+              "chip"
+            ],
+            "missingIds": [
+              "port"
+            ],
+            "unexpectedIds": [
+              "spark-plug",
+              "cylinder-block",
+              "pipe",
+              "chip"
+            ],
+            "responseBytes": 1416,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-10",
+            "returnedIds": [],
+            "missingIds": [
+              "port"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-11",
+          "baseline": {
+            "id": "fresh-v3-11",
+            "returnedIds": [
+              "lens",
+              "pipe",
+              "chip",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "chip",
+              "connecting-rod"
+            ],
+            "responseBytes": 1317,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-11",
+            "returnedIds": [
+              "lens"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 665,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-12",
+          "baseline": {
+            "id": "fresh-v3-12",
+            "returnedIds": [
+              "button",
+              "chip",
+              "cylinder-block",
+              "pipe"
+            ],
+            "missingIds": [
+              "housing"
+            ],
+            "unexpectedIds": [
+              "chip",
+              "cylinder-block",
+              "pipe"
+            ],
+            "responseBytes": 1411,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-12",
+            "returnedIds": [
+              "button"
+            ],
+            "missingIds": [
+              "housing"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 753,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-13",
+          "baseline": {
+            "id": "fresh-v3-13",
+            "returnedIds": [
+              "button",
+              "chip",
+              "elbow",
+              "fan"
+            ],
+            "missingIds": [
+              "spring"
+            ],
+            "unexpectedIds": [
+              "button",
+              "chip",
+              "elbow",
+              "fan"
+            ],
+            "responseBytes": 1430,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-13",
+            "returnedIds": [],
+            "missingIds": [
+              "spring"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-14",
+          "baseline": {
+            "id": "fresh-v3-14",
+            "returnedIds": [
+              "bearing",
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1562,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-14",
+            "returnedIds": [
+              "bearing"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 891,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-15",
+          "baseline": {
+            "id": "fresh-v3-15",
+            "returnedIds": [
+              "pipe",
+              "elbow",
+              "connecting-rod",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "connecting-rod",
+              "cylinder-block"
+            ],
+            "responseBytes": 1347,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-15",
+            "returnedIds": [
+              "pipe",
+              "elbow"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1270,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-16",
+          "baseline": {
+            "id": "fresh-v3-16",
+            "returnedIds": [
+              "valve",
+              "cylinder-block",
+              "camshaft",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "valve",
+              "cylinder-block",
+              "connecting-rod"
+            ],
+            "responseBytes": 1451,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-16",
+            "returnedIds": [
+              "camshaft",
+              "crankshaft",
+              "connecting-rod",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "crankshaft",
+              "connecting-rod",
+              "cylinder-block"
+            ],
+            "responseBytes": 2469,
+            "truncated": true,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-17",
+          "baseline": {
+            "id": "fresh-v3-17",
+            "returnedIds": [
+              "screen",
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "missingIds": [
+              "button"
+            ],
+            "unexpectedIds": [
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "responseBytes": 1369,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-17",
+            "returnedIds": [
+              "button",
+              "screen"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1208,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-18",
+          "baseline": {
+            "id": "fresh-v3-18",
+            "returnedIds": [
+              "spring",
+              "wheel",
+              "cylinder-block",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "chip"
+            ],
+            "responseBytes": 1700,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-18",
+            "returnedIds": [
+              "spring",
+              "wheel"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1585,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-19",
+          "baseline": {
+            "id": "fresh-v3-19",
+            "returnedIds": [
+              "spark-plug",
+              "chip",
+              "cylinder-block",
+              "gear"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "chip",
+              "cylinder-block",
+              "gear"
+            ],
+            "responseBytes": 1563,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-19",
+            "returnedIds": [
+              "spark-plug"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 679,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-20",
+          "baseline": {
+            "id": "fresh-v3-20",
+            "returnedIds": [
+              "port",
+              "lens",
+              "cylinder-block",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "chip"
+            ],
+            "responseBytes": 1499,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-20",
+            "returnedIds": [
+              "port"
+            ],
+            "missingIds": [
+              "lens"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 954,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-21",
+          "baseline": {
+            "id": "fresh-v3-21",
+            "returnedIds": [
+              "pipe",
+              "elbow",
+              "chip",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1415,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-21",
+            "returnedIds": [
+              "elbow",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1270,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-22",
+          "baseline": {
+            "id": "fresh-v3-22",
+            "returnedIds": [
+              "header",
+              "chip",
+              "connecting-rod",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "connecting-rod",
+              "cylinder-block"
+            ],
+            "responseBytes": 1555,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-22",
+            "returnedIds": [
+              "header",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1548,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-23",
+          "baseline": {
+            "id": "fresh-v3-23",
+            "returnedIds": [
+              "connecting-rod",
+              "crankshaft",
+              "chip",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1537,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-23",
+            "returnedIds": [
+              "connecting-rod",
+              "crankshaft"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1344,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-24",
+          "baseline": {
+            "id": "fresh-v3-24",
+            "returnedIds": [
+              "gear",
+              "bearing",
+              "pipe",
+              "wheel"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "wheel"
+            ],
+            "responseBytes": 1772,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-24",
+            "returnedIds": [
+              "bearing",
+              "gear"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1564,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-25",
+          "baseline": {
+            "id": "fresh-v3-25",
+            "returnedIds": [
+              "cylinder-block",
+              "piston",
+              "screen",
+              "camshaft"
+            ],
+            "missingIds": [
+              "connecting-rod",
+              "crankshaft",
+              "valve",
+              "spark-plug"
+            ],
+            "unexpectedIds": [
+              "screen"
+            ],
+            "responseBytes": 1447,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-25",
+            "returnedIds": [
+              "screen",
+              "camshaft",
+              "connecting-rod",
+              "crankshaft"
+            ],
+            "missingIds": [
+              "cylinder-block",
+              "piston",
+              "valve",
+              "spark-plug"
+            ],
+            "unexpectedIds": [
+              "screen"
+            ],
+            "responseBytes": 2394,
+            "truncated": true,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-26",
+          "baseline": {
+            "id": "fresh-v3-26",
+            "returnedIds": [
+              "chip",
+              "cylinder-block",
+              "port",
+              "wheel"
+            ],
+            "missingIds": [
+              "header",
+              "screen",
+              "button"
+            ],
+            "unexpectedIds": [
+              "cylinder-block",
+              "wheel"
+            ],
+            "responseBytes": 1707,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-26",
+            "returnedIds": [
+              "button",
+              "chip",
+              "header",
+              "port"
+            ],
+            "missingIds": [
+              "screen"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 2730,
+            "truncated": true,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-27",
+          "baseline": {
+            "id": "fresh-v3-27",
+            "returnedIds": [
+              "pipe",
+              "elbow",
+              "chip",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1415,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-27",
+            "returnedIds": [
+              "pipe"
+            ],
+            "missingIds": [
+              "elbow"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 773,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-28",
+          "baseline": {
+            "id": "fresh-v3-28",
+            "returnedIds": [
+              "header",
+              "pipe",
+              "port",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "pipe",
+              "chip"
+            ],
+            "responseBytes": 1675,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-28",
+            "returnedIds": [
+              "port"
+            ],
+            "missingIds": [
+              "header"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 954,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-29",
+          "baseline": {
+            "id": "fresh-v3-29",
+            "returnedIds": [
+              "valve",
+              "cylinder-block",
+              "camshaft",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "cylinder-block",
+              "connecting-rod"
+            ],
+            "responseBytes": 1451,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-29",
+            "returnedIds": [
+              "valve",
+              "camshaft",
+              "connecting-rod",
+              "crankshaft"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "connecting-rod",
+              "crankshaft"
+            ],
+            "responseBytes": 2392,
+            "truncated": true,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-30",
+          "baseline": {
+            "id": "fresh-v3-30",
+            "returnedIds": [
+              "piston",
+              "cylinder-block",
+              "camshaft",
+              "connecting-rod"
+            ],
+            "missingIds": [
+              "crankshaft"
+            ],
+            "unexpectedIds": [
+              "cylinder-block",
+              "camshaft"
+            ],
+            "responseBytes": 1471,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-30",
+            "returnedIds": [
+              "piston",
+              "connecting-rod"
+            ],
+            "missingIds": [
+              "crankshaft"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 1179,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-31",
+          "baseline": {
+            "id": "fresh-v3-31",
+            "returnedIds": [
+              "lens",
+              "pipe",
+              "wheel",
+              "chip"
+            ],
+            "missingIds": [
+              "screen"
+            ],
+            "unexpectedIds": [
+              "pipe",
+              "wheel",
+              "chip"
+            ],
+            "responseBytes": 1479,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-31",
+            "returnedIds": [
+              "lens"
+            ],
+            "missingIds": [
+              "screen"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 665,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-32",
+          "baseline": {
+            "id": "fresh-v3-32",
+            "returnedIds": [
+              "wheel",
+              "bearing",
+              "elbow",
+              "fan"
+            ],
+            "missingIds": [
+              "gear"
+            ],
+            "unexpectedIds": [
+              "wheel",
+              "elbow",
+              "fan"
+            ],
+            "responseBytes": 1675,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-32",
+            "returnedIds": [
+              "bearing",
+              "gear"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1564,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-33",
+          "baseline": {
+            "id": "fresh-v3-33",
+            "returnedIds": [
+              "chip",
+              "cylinder-block",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "chip",
+              "cylinder-block",
+              "pipe"
+            ],
+            "responseBytes": 1166,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-33",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-34",
+          "baseline": {
+            "id": "fresh-v3-34",
+            "returnedIds": [
+              "wheel",
+              "chip",
+              "cylinder-block",
+              "header"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "wheel",
+              "chip",
+              "cylinder-block",
+              "header"
+            ],
+            "responseBytes": 1717,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-34",
+            "returnedIds": [
+              "wheel"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "wheel"
+            ],
+            "responseBytes": 881,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-35",
+          "baseline": {
+            "id": "fresh-v3-35",
+            "returnedIds": [
+              "spring",
+              "cylinder-block",
+              "chip",
+              "header"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "spring",
+              "cylinder-block",
+              "chip",
+              "header"
+            ],
+            "responseBytes": 1700,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-35",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-36",
+          "baseline": {
+            "id": "fresh-v3-36",
+            "returnedIds": [
+              "header",
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "header",
+              "pipe",
+              "chip",
+              "cylinder-block"
+            ],
+            "responseBytes": 1593,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-36",
+            "returnedIds": [
+              "header"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "header"
+            ],
+            "responseBytes": 936,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-37",
+          "baseline": {
+            "id": "fresh-v3-37",
+            "returnedIds": [
+              "port",
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "port",
+              "cylinder-block",
+              "chip",
+              "connecting-rod"
+            ],
+            "responseBytes": 1544,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-37",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-38",
+          "baseline": {
+            "id": "fresh-v3-38",
+            "returnedIds": [
+              "fan",
+              "elbow",
+              "pipe",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "fan",
+              "elbow",
+              "pipe",
+              "chip"
+            ],
+            "responseBytes": 1488,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-38",
+            "returnedIds": [
+              "fan"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "fan"
+            ],
+            "responseBytes": 907,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-39",
+          "baseline": {
+            "id": "fresh-v3-39",
+            "returnedIds": [
+              "elbow",
+              "chip",
+              "cylinder-block",
+              "gear"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "elbow",
+              "chip",
+              "cylinder-block",
+              "gear"
+            ],
+            "responseBytes": 1562,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-39",
+            "returnedIds": [
+              "elbow"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "elbow"
+            ],
+            "responseBytes": 759,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-40",
+          "baseline": {
+            "id": "fresh-v3-40",
+            "returnedIds": [
+              "valve",
+              "chip",
+              "cylinder-block",
+              "header"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "valve",
+              "chip",
+              "cylinder-block",
+              "header"
+            ],
+            "responseBytes": 1539,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-40",
+            "returnedIds": [],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 263,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-41",
+          "baseline": {
+            "id": "fresh-v3-41",
+            "returnedIds": [
+              "connecting-rod",
+              "crankshaft",
+              "piston",
+              "pipe"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "crankshaft",
+              "piston",
+              "pipe"
+            ],
+            "responseBytes": 1442,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-41",
+            "returnedIds": [
+              "connecting-rod"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 716,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-42",
+          "baseline": {
+            "id": "fresh-v3-42",
+            "returnedIds": [
+              "button",
+              "port",
+              "screen",
+              "gear"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "button",
+              "screen",
+              "gear"
+            ],
+            "responseBytes": 1548,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-42",
+            "returnedIds": [
+              "button",
+              "screen",
+              "port"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "button",
+              "screen"
+            ],
+            "responseBytes": 1900,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-43",
+          "baseline": {
+            "id": "fresh-v3-43",
+            "returnedIds": [
+              "wheel",
+              "bearing",
+              "spring",
+              "elbow"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "spring",
+              "elbow"
+            ],
+            "responseBytes": 1678,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-43",
+            "returnedIds": [
+              "bearing",
+              "spring",
+              "wheel"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "spring"
+            ],
+            "responseBytes": 2214,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-44",
+          "baseline": {
+            "id": "fresh-v3-44",
+            "returnedIds": [
+              "fan",
+              "housing",
+              "gear",
+              "chip"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [
+              "fan",
+              "gear",
+              "chip"
+            ],
+            "responseBytes": 1700,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-44",
+            "returnedIds": [
+              "housing"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 823,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-45",
+          "baseline": {
+            "id": "fresh-v3-45",
+            "returnedIds": [
+              "button",
+              "connecting-rod",
+              "cylinder-block",
+              "elbow"
+            ],
+            "missingIds": [
+              "gear",
+              "spring"
+            ],
+            "unexpectedIds": [
+              "button",
+              "connecting-rod",
+              "cylinder-block",
+              "elbow"
+            ],
+            "responseBytes": 1289,
+            "truncated": true,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-45",
+            "returnedIds": [
+              "spring"
+            ],
+            "missingIds": [
+              "gear"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 966,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-46",
+          "baseline": {
+            "id": "fresh-v3-46",
+            "returnedIds": [
+              "port"
+            ],
+            "missingIds": [
+              "button",
+              "housing"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 610,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-46",
+            "returnedIds": [
+              "housing",
+              "port"
+            ],
+            "missingIds": [
+              "button"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 1515,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-47",
+          "baseline": {
+            "id": "fresh-v3-47",
+            "returnedIds": [],
+            "missingIds": [
+              "piston",
+              "connecting-rod"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 194,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-47",
+            "returnedIds": [
+              "crankshaft",
+              "piston"
+            ],
+            "missingIds": [
+              "connecting-rod"
+            ],
+            "unexpectedIds": [
+              "crankshaft"
+            ],
+            "responseBytes": 1353,
+            "truncated": false,
+            "error": null
+          }
+        },
+        {
+          "id": "fresh-v3-48",
+          "baseline": {
+            "id": "fresh-v3-48",
+            "returnedIds": [],
+            "missingIds": [
+              "lens",
+              "screen"
+            ],
+            "unexpectedIds": [],
+            "responseBytes": 194,
+            "truncated": false,
+            "error": null
+          },
+          "candidate": {
+            "id": "fresh-v3-48",
+            "returnedIds": [
+              "lens",
+              "screen"
+            ],
+            "missingIds": [],
+            "unexpectedIds": [],
+            "responseBytes": 1120,
+            "truncated": false,
+            "error": null
+          }
+        }
+      ]
+    }
+  ]
+}

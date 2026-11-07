@@ -67,9 +67,69 @@ function variantSchema(v: Variant, descriptions: boolean): Schema {
   return descriptions ? { ...out, description: v.doc } : out;
 }
 
+/** Reuse identical fields without dropping anything from the lean contract.
+ * The CLI transports this schema in one Windows argument, so independent shapes
+ * must not duplicate the same arrays/enums until the command exceeds its limit. */
+function shareLeanFields(defs: Record<string, Schema>): void {
+  const repeated = new Map<string, { schema: Schema; uses: Array<{ properties: Record<string, Schema>; name: string }> }>();
+  for (const variant of Object.values(defs)) {
+    const properties = variant.properties as Record<string, Schema>;
+    for (const [name, schema] of Object.entries(properties)) {
+      const key = JSON.stringify(schema);
+      const entry = repeated.get(key) ?? { schema, uses: [] };
+      entry.uses.push({ properties, name });
+      repeated.set(key, entry);
+    }
+  }
+  let index = 0;
+  for (const [key, { schema, uses }] of repeated) {
+    const name = `f${index}`, reference = { $ref: `#/$defs/${name}` };
+    const saved = uses.length * (key.length - JSON.stringify(reference).length);
+    if (saved <= key.length + name.length + 4) continue;
+    defs[name] = schema;
+    for (const use of uses) use.properties[use.name] = reference;
+    index++;
+  }
+}
+
+/** Definition names are transport details; short local names also save the
+ * escaping overhead on Windows without changing the resolved schema. */
+function compactDefinitionNames(schema: Schema): Schema {
+  const definitions = schema.$defs as Record<string, Schema>;
+  const references = new Map<string, number>();
+  const count = (value: unknown): void => {
+    if (Array.isArray(value)) { value.forEach(count); return; }
+    if (!value || typeof value !== 'object') return;
+    for (const [key, child] of Object.entries(value)) {
+      if (key === '$ref' && typeof child === 'string') references.set(child, (references.get(child) ?? 0) + 1);
+      else count(child);
+    }
+  };
+  count(schema);
+  // Give the most reused definitions the single-character names first.
+  const ordered = Object.keys(definitions).sort((a, b) => (references.get(`#/$defs/${b}`) ?? 0) - (references.get(`#/$defs/${a}`) ?? 0));
+  const names = new Map(ordered.map((name, index) => [name, index.toString(36)]));
+  const rewrite = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(rewrite);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => {
+      if (key === '$ref' && typeof child === 'string' && child.startsWith('#/$defs/')) {
+        const name = names.get(child.slice('#/$defs/'.length));
+        if (name === undefined) throw new Error(`Missing local schema definition: ${child}`);
+        return [key, `#/$defs/${name}`];
+      }
+      if (key === '$defs') return [key, Object.fromEntries(Object.entries(child as Record<string, Schema>)
+        .map(([name, definition]) => [names.get(name)!, rewrite(definition)]))];
+      return [key, rewrite(child)];
+    }));
+  };
+  return rewrite(schema) as Schema;
+}
+
 function buildSchema(descriptions: boolean): Schema {
   const defs: Record<string, Schema> = {};
   for (const v of VARIANTS) defs[v.name] = variantSchema(v, descriptions);
+  if (!descriptions) shareLeanFields(defs);
   defs.action = { anyOf: VARIANTS.map((v) => ({ $ref: `#/$defs/${v.name}` })) };
   defs.step = {
     type: 'object',
@@ -100,8 +160,8 @@ function buildSchema(descriptions: boolean): Schema {
 /** The full schema, with a description on every action and field. */
 export const sceneSchema: Schema = buildSchema(true);
 
-/** The same structure without descriptions, for a smaller prompt; pair it with sceneGuide. */
-export const sceneSchemaLean: Schema = buildSchema(false);
+/** The same resolved structure without descriptions, using shared fields and short local definition names. Pair with sceneGuide. */
+export const sceneSchemaLean: Schema = compactDefinitionNames(buildSchema(false));
 
 /**
  * The lean schema with two more fields, for an answer written one step to a call (see adapters/step-by-step.ts): `plan`, the titles of the

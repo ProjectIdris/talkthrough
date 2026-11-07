@@ -96,10 +96,10 @@ test('whole and streamed validation agree on accepted and rejected profiles', as
 
 test('schema requires a nullable nested array for holes in strict and lean modes', async () => {
   const { sceneSchema, sceneSchemaLean } = await import('../src/scene/index.ts');
-  const { check, strictProblems } = await import('./support/json-schema.ts');
+  const { check, strictProblems, variantDefinitions } = await import('./support/json-schema.ts');
   for (const schema of [sceneSchema, sceneSchemaLean]) {
     assert.deepEqual(strictProblems(schema), []);
-    const def = (schema as any).$defs.addExtrude;
+    const def = variantDefinitions(schema).addExtrude!;
     const action: Record<string, unknown> = Object.fromEntries(Object.keys(def.properties).map((k) => [k, null]));
     Object.assign(action, { op: 'add', shape: 'extrude', id: 'x', outline, depth: 1 });
     assert.deepEqual(check(schema, def, action), []);

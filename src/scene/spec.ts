@@ -118,6 +118,8 @@ const TILT: Field = { k: 'num', min: -360, max: 360, opt: true, doc: 'degrees cl
 const COLOR_OPT: Field = { k: 'color', opt: true };
 const OPACITY: Field = { k: 'num', min: 0, max: 1, opt: true };
 const PARENT: Field = { k: 'parent', opt: true, doc: 'id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)' };
+const PARENT_ANCHOR: Field = { k: 'str', min: 1, max: 24, opt: true, doc: 'named local point on parent (requires parent); defaults to origin when selfAnchor is used. pos becomes an offset in the parent frame; rot stays explicit. Resolved at creation with current geometry and inherited base transforms, not a motion constraint' };
+const SELF_ANCHOR: Field = { k: 'str', min: 1, max: 24, opt: true, doc: 'named point on this part to place at parentAnchor, default origin; requires parent. Unknown anchors drop the action with available names' };
 const POS: Field = { k: 'vec3', ...WORLD, opt: true, doc: '[x,y,z], default [0,0,0]' };
 const ROT: Field = { k: 'vec3', min: -3600, max: 3600, opt: true, doc: 'degrees [x,y,z]' };
 const EXPLODE: Field = { k: 'vec3', ...WORLD, opt: true, doc: 'where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it' };
@@ -345,9 +347,9 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addPart', op: 'add', shapes: ['part'], creates: 'group',
-    doc: 'A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Each has good proportions and named anchors for pins.',
+    doc: 'A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Each has good proportions; mechanism anchors and the origin of every part can be used by pins, connectors and parentAnchor/selfAnchor placement.',
     fields: {
-      shape: { k: 'enum', values: ['part'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['part'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       part: { k: 'enum', values: PARTS }, variant: { k: 'enum', values: PART_VARIANTS, opt: true },
       size: { k: 'vec3', min: 0.01, max: 100 }, n: { k: 'num', min: 1, max: LIMITS.maxArray, int: true, opt: true },
       color: COLOR_OPT, opacity: OPACITY, at: AT,
@@ -372,7 +374,7 @@ export const VARIANTS: readonly Variant[] = [
   {
     name: 'addGroup', op: 'add', shapes: ['group'], creates: 'group',
     doc: 'An empty node to move, turn and scale other objects together (attach them with parent).',
-    fields: { shape: { k: 'enum', values: ['group'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT, at: AT },
+    fields: { shape: { k: 'enum', values: ['group'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT, at: AT },
   },
   {
     name: 'pin', op: 'pin', creates: 'pin', attach: 'on',
@@ -490,8 +492,8 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'cut', op: 'cut',
-    doc: 'Cut a 3D object (usually a whole model) open with a plane, so the inside shows: everything beyond the plane is removed and the cut faces are capped. axis is x, y or z (default z, the plane faces the viewer at the front); to is where the plane is along that axis in the object own space (the middle of the object is 0). Move the plane through with another cut; to 100 puts it beyond everything: no cut.',
-    fields: { id: { k: 'ref', of: 'object3d' }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, to: { k: 'num', min: -100, max: 100 }, at: AT, dur: DUR },
+    doc: 'Cut a 3D object and its children open. Choose axis x/y/z or normal [x,y,z], never both. normal is a nonzero local direction with finite components from -100 to 100; magnitude is ignored. to is signed distance along that unit direction from the local origin; the positive side is removed. Omit direction to keep the active cut direction (initially +z). Direction changes at the action start; only to animates. Closed opaque pieces are capped; open surfaces are not. to 100 removes the cut.',
+    fields: { id: { k: 'ref', of: 'object3d' }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, normal: { k: 'vec3', min: -100, max: 100, opt: true, doc: 'nonzero local cut direction; do not combine with axis' }, to: { k: 'num', min: -100, max: 100 }, at: AT, dur: DUR },
   },
   {
     name: 'orbit', op: 'orbit',

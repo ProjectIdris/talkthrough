@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { createSceneState, sceneGuide, sceneGuideExample, sceneSchema, sceneSchemaLean, validateScene, VARIANTS } from '../src/scene/index.ts';
-import { check, strictProblems } from './support/json-schema.ts';
+import { check, strictProblems, expandedSchema, variantDefinitions } from './support/json-schema.ts';
 
 const samplesDir = new URL('../samples/scenes/', import.meta.url);
 const schema = sceneSchema as Record<string, unknown>;
@@ -31,7 +31,10 @@ test('the lean schema is the same structure without descriptions, and just as st
       }
       return [k, strip(x)];
     })) : v;
-  assert.deepEqual(sceneSchemaLean, strip(sceneSchema));
+  // Compare the exact resolved structures; short definition names and shared
+  // fields cannot conceal a changed required field, enum, type or nullability.
+  const stripped = strip(sceneSchema) as Record<string, unknown>;
+  assert.deepEqual(expandedSchema(sceneSchemaLean), expandedSchema(stripped));
   assert.ok(!text.includes('"explode":{"type":["array","null"]'), 'the lean schema does not ask for an explode offset on every part');
   assert.ok(JSON.stringify(sceneSchema).includes('"explode":{"type":["array","null"]'));
 });
@@ -138,8 +141,8 @@ test('what the prompt leaves out (loop pivot) is still in the language: the vali
   assert.deepEqual(actions[2]!.pivot, [0, 1, 0]);
   const full = JSON.stringify(sceneSchema), lean = JSON.stringify(sceneSchemaLean);
   assert.ok(full.includes('"dir":{"type":["array","null"]') && full.includes('"pivot":{"type":["array","null"]'));
-  assert.ok(!/"loop":\{[^]*?"pivot"/.test(JSON.stringify((sceneSchemaLean as { $defs: Record<string, unknown> }).$defs.loop)));
-  assert.ok(JSON.stringify((sceneSchemaLean as { $defs: Record<string, unknown> }).$defs.joint).includes('"dir"'));
+  assert.ok(!/"loop":\{[^]*?"pivot"/.test(JSON.stringify(variantDefinitions(sceneSchemaLean).loop)));
+  assert.ok(JSON.stringify(variantDefinitions(sceneSchemaLean).joint).includes('"dir"'));
   assert.ok(lean.includes('"pivot"'), 'a hinge joint still has its pivot in the lean schema');
   assert.ok(!sceneGuide.includes('- loop {') || !/- loop \{[^}]*pivot/.test(sceneGuide));
   assert.ok(/- joint \{[^}]*dir/.test(sceneGuide));
