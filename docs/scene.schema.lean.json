@@ -1049,6 +1049,130 @@
       ],
       "additionalProperties": false
     },
+    "addShell": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "shell"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "size": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "inner": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "latitude": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "sweep": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ]
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "rot",
+        "size",
+        "inner",
+        "latitude",
+        "sweep",
+        "color",
+        "material",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false
+    },
     "addExtrude": {
       "type": "object",
       "properties": {
@@ -3264,6 +3388,9 @@
         },
         {
           "$ref": "#/$defs/addSolid"
+        },
+        {
+          "$ref": "#/$defs/addShell"
         },
         {
           "$ref": "#/$defs/addExtrude"

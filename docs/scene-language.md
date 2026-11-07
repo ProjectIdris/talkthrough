@@ -43,7 +43,7 @@ Objects stay on screen until cleared. A follow-up question continues the same sc
 
 No screen size is measured along both axes at once: every screen size is a width (`w`) or height (`h`) in its own axis units, so a shape that looks round on a 16:9 screenshot needs `w` smaller than `h` (about 9/16 of it). Text height (`size`) is in y units. A renderer maps each axis separately.
 
-Out-of-range numbers are clamped by the validator, never rejected.
+Out-of-range numbers are normally clamped by the validator. Shell dimensions, ratio and angular ranges instead reject unsafe or out-of-range input so the requested volume is not silently changed.
 
 ## Ids
 
@@ -97,6 +97,7 @@ When the thing to explain is a process, a sequence of events, a how-to or a tren
 | shape | fields | |
 |---|---|---|
 | `box` `sphere` `cylinder` `cone` `torus` `plane` | `size` `pos`? `rot`? `color`? `material`? `bevel`? `edges`? `opacity`? | `size` is the bounding box `[x,y,z]`. A cylinder and a cone stand on `y` (diameter `x`, height `y`, cone apex up). A torus lies flat: outer diameter `x`, tube thickness `y`. A plane faces `+z` and ignores `z`. A sphere is an ellipsoid fitted to the box. A box is slightly rounded by default; `bevel` sets the rounding in units (0 for sharp) |
+| `shell` | `size` `inner`? `latitude`? `sweep`? `pos`? `rot`? `color`? `material`? `edges`? `opacity`? | closed hollow ellipsoid section: full outer diameters `size`, concentric cavity ratio `inner` .01–.99 (default .85), latitude `[south,north]` −90–90 spanning at least 1 degree (default full), angular `sweep` 1–360 from +x toward +z (default full). Radial rims close the material, not the cavity; `inner` is not constant wall thickness. Origin stays at the full ellipsoid centre; rotate to aim the opening. Invalid/unsafe geometry rejects. See [hollow ellipsoid sections](ellipsoid-shells.md) |
 | `extrude` | `outline` `depth` `bevel`? `pos`? `rot`? `color`? `material`? | a flat outline `[[x,y],...]` (3 to 40 points, counter-clockwise, in the x,y plane) pushed out `depth` along `z` and centred on it: wings, fins, plates |
 | `lathe` | `profile` `sides`? `pos`? `rot`? `color`? `material`? | a profile `[[radius,y],...]` spun round the `y` axis: bodies, nozzles, rings, bottles. `sides` (3 to 64, default 48) makes it faceted |
 | `blob` | `pts` `sizes` `soft`? `pos`? `rot`? `color`? `material`? `opacity`? | a soft organic form blended from 1 to 12 ellipsoid lumps: `pts` are the lump centres and `sizes` their boxes `[x,y,z]` (one for each point; a short list repeats its last). Lumps that overlap melt into one smooth skin with necks between them, so a heart chamber, an animal's body or head, a leaf, a fruit is one blob. `soft` (0.05 to 1, default 0.5) is how far they blend: low is nearly a hard union, 1 joins lumps a little apart. A lone lump is exactly its ellipsoid. For several forms (the chambers of an organ) write one blob each. No edge lines; cut tiers use a coarser skin |

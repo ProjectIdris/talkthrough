@@ -267,6 +267,16 @@ export const VARIANTS: readonly Variant[] = [
     },
   },
   {
+    name: 'addShell', op: 'add', shapes: ['shell'], creates: 'solid',
+    doc: 'A closed hollow ellipsoid section: domes, bowls, curved enclosures and opened layers. size is the full outer ellipsoid diameters [x,y,z], not the cropped bounds. inner (default .85) scales its concentric cavity, not a uniform wall thickness. latitude [south,north] degrees -90..90 (default [-90,90], span at least 1); sweep 1..360 (default 360) runs from +x toward +z around y. Radial rims close the material volume. Rotate to aim the opening. Invalid or unsafe geometry rejects.',
+    fields: {
+      shape: { k: 'enum', values: ['shell'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      size: { k: 'vec3', min: 0.01, max: 100 }, inner: { k: 'num', min: 0.01, max: 0.99, opt: true },
+      latitude: { k: 'vec2', min: -90, max: 90, opt: true }, sweep: { k: 'num', min: 1, max: 360, opt: true },
+      color: COLOR_OPT, material: MATERIAL, edges: EDGES, opacity: OPACITY, at: AT,
+    },
+  },
+  {
     name: 'addExtrude', op: 'add', shapes: ['extrude'], creates: 'solid',
     doc: 'A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets.',
     fields: {

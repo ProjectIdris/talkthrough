@@ -2,6 +2,8 @@
 // It reads data and builds fresh objects from known fields. It never evaluates, imports,
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
+import { prepareShell, SHELL_DETAIL } from './shell.ts';
+import type { ShellTier } from './shell.ts';
 import { nearestPaletteColor } from './colors.ts';
 import { attachTolerance, landOn } from './attach.ts';
 import type { Body } from './attach.ts';
@@ -330,7 +332,7 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
     else state.bodies.set(id, { shape: 'group', ...place }); // a cone or a torus is not asked about, but things hang from it
   } else if (name === 'addPart') state.bodies.set(id, { shape: 'box', size: out.size as Vec3, ...place });
   else if (name === 'addBlob') state.bodies.set(id, { shape: 'blob', pts: out.pts as Vec3[], sizes: out.sizes as Vec3[], ...place });
-  else if (name === 'addExtrude' || name === 'addLathe' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
+  else if (name === 'addExtrude' || name === 'addLathe' || name === 'addShell' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addTube' || (name === 'addPath' && shape === 'line')) {
     holdEnds(state, id, out, path, notes);
     return;
@@ -440,6 +442,11 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   const bindings = BINDINGS[variant.name];
   const bound = new Set(bindings?.flatMap((b) => (b.alias === undefined ? [b.field] : [b.field, b.alias])));
   for (const [name, f] of Object.entries(variant.fields)) {
+    // ID/parent checks stay cheap for held references; geometry fields must not be clamped or invoke accessors.
+    if (variant.name === 'addShell' && name === 'size' && !(Object.keys(SHELL_DETAIL) as ShellTier[]).every(tier => prepareShell(own(input, 'size'), own(input, 'inner'), own(input, 'latitude'), own(input, 'sweep'), tier))) {
+      note(notes, 'dropped', path, 'shell needs size .01–100, inner .01–.99, increasing latitude -90–90 spanning at least 1 degree, sweep 1–360, and safe Float32 surfaces at every quality');
+      return null;
+    }
     if (bound.has(name)) continue;
     const v = own(input, name);
     const optional = 'opt' in f && f.opt === true;
