@@ -60,3 +60,7 @@ The benchmark also reports the **unchanged** current guide plus lean schema: 49,
 5. Establish which core guide/schema instructions must remain. Preserve the ordinary primitive path when a catalogue card is missing, inappropriate or too limited. Inspect rendered answers separately from CPU retrieval timing.
 
 A growing reusable library is promising only if its components are worth choosing and its discovery is reliable. This prototype tests the bounded-discovery mechanism without making the model learn a larger production language.
+
+## Follow-up relevance evidence
+
+The [offline relevance check](catalogue-relevance.md) now scores the unchanged retriever on 36 independently AI-authored challenge requests. It exposes false positives, paraphrase misses and multilingual gaps; it does not establish representative quality or live readiness. Its CLI retains every labelled result and separates relevance from local CPU timing. Production routing remains deferred.
