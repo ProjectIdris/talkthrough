@@ -1,0 +1,9 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { inspectionHtml, visualStatus } from '../scripts/prototypes/visual-quality-report.ts';
+import type { Capture } from '../scripts/prototypes/visual-quality-report.ts';
+const capture: Capture = { id: 'solids-front', image: 'solids-front.png', inspect: 'Look at the torus hole.', metadata: null, analysis: { status: 'pass', failures: [], metrics: { changedPixels: 10000, coverage: 0.1, darkFraction: 0.1, meanLuma: 120, edgeFraction: 0, boundaryFraction: 0, centroid: { x: .5, y: .5 }, bounds: null } } };
+test('unsupported WebGL, zero captures and partial captures cannot pass', () => { assert.equal(visualStatus(false, [], 6), 'unsupported'); assert.equal(visualStatus(true, [], 6), 'failed'); assert.equal(visualStatus(true, [capture], 6), 'failed'); });
+test('requires every expected capture and every pixel check to pass', () => { assert.equal(visualStatus(true, [capture], 1), 'passed-smoke-checks'); assert.equal(visualStatus(true, [{ ...capture, analysis: { ...capture.analysis, status: 'fail' } }], 1), 'failed'); });
+test('inspection sheet embeds local images, diagnostic metrics and honest human review scope', () => { const html = inspectionHtml({ status: 'passed-smoke-checks', captures: [capture] }); for (const text of ['solids-front.png', 'Look at the torus hole.', '10000', 'not visual acceptance', 'report.json']) assert.ok(html.includes(text), text); });
+test('inspection sheet escapes report text and refuses nonlocal image paths', () => { const html = inspectionHtml({ status: '<script>bad</script>', captures: [{ ...capture, id: '"<bad>', image: 'https://third-party.invalid/leak', inspect: '<script>bad</script>' }] }); assert.ok(!html.includes('<script>')); assert.ok(!html.includes('src="https:')); assert.ok(html.includes('&lt;script&gt;')); });

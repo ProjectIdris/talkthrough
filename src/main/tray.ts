@@ -28,6 +28,8 @@ function guideItems(g: NonNullable<Parameters<typeof createTray>[0]['guideAction
 export function createTray(handlers: {
   onQuit(): void;
   onPlaySample(): void;
+  /** Browse the offline visual examples. */
+  onVisualTour?(): void;
   onClear(): void;
   /** Opens the settings window. */
   onSettings(): void;
@@ -53,6 +55,7 @@ export function createTray(handlers: {
       { label: 'Open the pins folder', click: handlers.onOpenPins },
       { type: 'separator' },
       ...(handlers.guideActions ? guideItems(handlers.guideActions) : []),
+      ...(handlers.onVisualTour ? [{ label: 'Explore visual examples…', click: handlers.onVisualTour }] : []),
       { label: 'Play a sample scene', click: handlers.onPlaySample },
       { label: 'Clear the overlay', click: handlers.onClear },
       { label: 'Settings…', click: handlers.onSettings },

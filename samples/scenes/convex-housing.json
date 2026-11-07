@@ -1,0 +1,293 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "Shape a solid by its outer corners.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 100,
+          "y": 100,
+          "w": 800,
+          "h": 760
+        }
+      ]
+    },
+    {
+      "say": "The upper corners shift in two directions and sit at different heights. The renderer closes the faces between them.",
+      "actions": [
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "form"
+        },
+        {
+          "op": "add",
+          "shape": "hull",
+          "id": "housing",
+          "parent": "form",
+          "pts": [
+            [
+              -3,
+              -1,
+              -2
+            ],
+            [
+              3,
+              -1,
+              -2
+            ],
+            [
+              3,
+              -1,
+              2
+            ],
+            [
+              -3,
+              -1,
+              2
+            ],
+            [
+              -1.6,
+              1.5,
+              -1.3
+            ],
+            [
+              2,
+              0.8,
+              -1.1
+            ],
+            [
+              2.4,
+              0.5,
+              1.1
+            ],
+            [
+              -1.8,
+              1.2,
+              1.4
+            ],
+            [
+              0,
+              0,
+              0
+            ]
+          ],
+          "material": "metal",
+          "color": "#648fc4"
+        },
+        {
+          "op": "orbit",
+          "az": 28,
+          "el": 18,
+          "dur": 1.2
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "corner-1",
+          "parent": "form",
+          "size": [
+            0.12,
+            0.12,
+            0.12
+          ],
+          "pos": [
+            -3,
+            -1,
+            -2
+          ],
+          "color": "#efb54b",
+          "material": "glow",
+          "edges": false,
+          "at": 0.2
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "corner-2",
+          "parent": "form",
+          "size": [
+            0.12,
+            0.12,
+            0.12
+          ],
+          "pos": [
+            3,
+            -1,
+            -2
+          ],
+          "color": "#efb54b",
+          "material": "glow",
+          "edges": false,
+          "at": 0.42000000000000004
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "corner-3",
+          "parent": "form",
+          "size": [
+            0.12,
+            0.12,
+            0.12
+          ],
+          "pos": [
+            3,
+            -1,
+            2
+          ],
+          "color": "#efb54b",
+          "material": "glow",
+          "edges": false,
+          "at": 0.64
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "corner-4",
+          "parent": "form",
+          "size": [
+            0.12,
+            0.12,
+            0.12
+          ],
+          "pos": [
+            -3,
+            -1,
+            2
+          ],
+          "color": "#efb54b",
+          "material": "glow",
+          "edges": false,
+          "at": 0.8600000000000001
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "corner-5",
+          "parent": "form",
+          "size": [
+            0.12,
+            0.12,
+            0.12
+          ],
+          "pos": [
+            -1.6,
+            1.5,
+            -1.3
+          ],
+          "color": "#efb54b",
+          "material": "glow",
+          "edges": false,
+          "at": 1.08
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "corner-6",
+          "parent": "form",
+          "size": [
+            0.12,
+            0.12,
+            0.12
+          ],
+          "pos": [
+            2,
+            0.8,
+            -1.1
+          ],
+          "color": "#efb54b",
+          "material": "glow",
+          "edges": false,
+          "at": 1.3
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "corner-7",
+          "parent": "form",
+          "size": [
+            0.12,
+            0.12,
+            0.12
+          ],
+          "pos": [
+            2.4,
+            0.5,
+            1.1
+          ],
+          "color": "#efb54b",
+          "material": "glow",
+          "edges": false,
+          "at": 1.52
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "corner-8",
+          "parent": "form",
+          "size": [
+            0.12,
+            0.12,
+            0.12
+          ],
+          "pos": [
+            -1.8,
+            1.2,
+            1.4
+          ],
+          "color": "#efb54b",
+          "material": "glow",
+          "edges": false,
+          "at": 1.74
+        }
+      ]
+    },
+    {
+      "say": "The inner point changes nothing about the surface. A convex hull cannot make a hole or an inward dent.",
+      "actions": [
+        {
+          "op": "style",
+          "id": "housing",
+          "opacity": 0.32,
+          "dur": 1
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "inner-point",
+          "parent": "form",
+          "size": [
+            0.18,
+            0.18,
+            0.18
+          ],
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "color": "#ef785c",
+          "material": "glow",
+          "edges": false,
+          "at": 0.6
+        },
+        {
+          "op": "pin",
+          "id": "inner-label",
+          "on": "inner-point",
+          "text": "Interior point: no cavity",
+          "at": 1.1
+        },
+        {
+          "op": "orbit",
+          "az": -24,
+          "el": 12,
+          "at": 1.8,
+          "dur": 2
+        }
+      ]
+    }
+  ]
+}

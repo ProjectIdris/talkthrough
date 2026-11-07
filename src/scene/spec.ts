@@ -24,8 +24,13 @@ export const LIMITS = {
   /** The reason given with `escalate`. */
   maxEscalate: 160,
   maxPts: 24,
+  /** Maximum number of authored points in a convex hull. */
+  maxHullPoints: 64,
   /** Points of an outline or profile. */
   maxOutline: 40,
+  maxExtrudeHoles: 8,
+  maxHolePoints: 24,
+  maxExtrudePoints: 128,
   /** Corners of a screen polygon, and points of a traced curve. */
   maxPoly: 24,
   maxTrace: 40,
@@ -84,6 +89,8 @@ export type Field =
   | { k: 'vec2'; min: number; max: number; opt?: boolean; doc?: string }
   /** A list of [x,y] points (an outline or a profile). */
   | { k: 'pts2'; min: number; max: number; lo: number; hi: number; opt?: boolean; doc?: string }
+  /** Bounded nested rings for extrusion through-openings. */
+  | { k: 'rings2'; max: number; points: number; lo: number; hi: number; opt?: boolean; doc?: string }
   /** A short list of short texts. */
   | { k: 'strs'; max: number; len: number; opt?: boolean; doc?: string }
   | { k: 'pts'; min: number; max: number; lo: number; hi: number; opt?: boolean; doc?: string }
@@ -105,7 +112,7 @@ export type Variant = {
 
 const SCREEN = { min: 0, max: 1000 } as const;
 const SPAN = { min: 1, max: 1000 } as const;
-const WORLD = { min: -100, max: 100 } as const;
+export const WORLD = { min: -100, max: 100 } as const;
 const AT: Field = { k: 'num', min: 0, max: 60, opt: true, doc: 'seconds after the step starts' };
 const DUR: Field = { k: 'num', min: 0, max: 30, opt: true, doc: 'seconds the change takes (default 0.6)' };
 const COLOR: Field = { k: 'color' };
@@ -113,6 +120,8 @@ const TILT: Field = { k: 'num', min: -360, max: 360, opt: true, doc: 'degrees cl
 const COLOR_OPT: Field = { k: 'color', opt: true };
 const OPACITY: Field = { k: 'num', min: 0, max: 1, opt: true };
 const PARENT: Field = { k: 'parent', opt: true, doc: 'id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)' };
+const PARENT_ANCHOR: Field = { k: 'str', min: 1, max: 24, opt: true, doc: 'named local point on parent (requires parent); defaults to origin when selfAnchor is used. pos becomes an offset in the parent frame; rot stays explicit. Resolved at creation with current geometry and inherited base transforms, not a motion constraint' };
+const SELF_ANCHOR: Field = { k: 'str', min: 1, max: 24, opt: true, doc: 'named point on this part to place at parentAnchor, default origin; requires parent. Unknown anchors drop the action with available names' };
 const POS: Field = { k: 'vec3', ...WORLD, opt: true, doc: '[x,y,z], default [0,0,0]' };
 const ROT: Field = { k: 'vec3', min: -3600, max: 3600, opt: true, doc: 'degrees [x,y,z]' };
 const EXPLODE: Field = { k: 'vec3', ...WORLD, opt: true, doc: 'where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it' };
@@ -268,11 +277,21 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addExtrude', op: 'add', shapes: ['extrude'], creates: 'solid',
-    doc: 'A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets.',
+    doc: 'A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets. holes are disjoint rings strictly inside the outline, cut through the full depth; flat edges only, no bevel.',
     fields: {
       shape: { k: 'enum', values: ['extrude'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: LIMITS.maxOutline, lo: WORLD.min, hi: WORLD.max },
+      holes: { k: 'rings2', max: LIMITS.maxExtrudeHoles, points: LIMITS.maxHolePoints, lo: WORLD.min, hi: WORLD.max, opt: true, doc: 'up to 8 through-openings in outline local XY; 3 to 24 points each, 128 points total including outline; no crossing, touching or nesting; either winding and a single closing point are allowed' },
       depth: { k: 'num', min: 0.01, max: 100 }, color: COLOR_OPT, material: MATERIAL, bevel: BEVEL, edges: EDGES, opacity: OPACITY, at: AT,
+    },
+  },
+  {
+    name: 'addHull', op: 'add', shapes: ['hull'], creates: 'solid',
+    doc: 'A closed convex envelope of 4 to 64 local 3D points. Points are not recentered and must span three dimensions; interior and duplicate points are allowed. No concavities or cavities.',
+    fields: {
+      shape: { k: 'enum', values: ['hull'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      pts: { k: 'pts', min: 4, max: LIMITS.maxHullPoints, lo: WORLD.min, hi: WORLD.max },
+      color: COLOR_OPT, material: MATERIAL, edges: EDGES, opacity: OPACITY, at: AT,
     },
   },
   {
@@ -340,9 +359,9 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addPart', op: 'add', shapes: ['part'], creates: 'group',
-    doc: 'A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Each has good proportions and named anchors for pins.',
+    doc: 'A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Each has good proportions; mechanism anchors and the origin of every part can be used by pins, connectors and parentAnchor/selfAnchor placement.',
     fields: {
-      shape: { k: 'enum', values: ['part'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['part'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       part: { k: 'enum', values: PARTS }, variant: { k: 'enum', values: PART_VARIANTS, opt: true },
       size: { k: 'vec3', min: 0.01, max: 100 }, n: { k: 'num', min: 1, max: LIMITS.maxArray, int: true, opt: true },
       color: COLOR_OPT, opacity: OPACITY, at: AT,
@@ -367,7 +386,7 @@ export const VARIANTS: readonly Variant[] = [
   {
     name: 'addGroup', op: 'add', shapes: ['group'], creates: 'group',
     doc: 'An empty node to move, turn and scale other objects together (attach them with parent).',
-    fields: { shape: { k: 'enum', values: ['group'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT, at: AT },
+    fields: { shape: { k: 'enum', values: ['group'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT, at: AT },
   },
   {
     name: 'pin', op: 'pin', creates: 'pin', attach: 'on',
@@ -485,8 +504,8 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'cut', op: 'cut',
-    doc: 'Cut a 3D object (usually a whole model) open with a plane, so the inside shows: everything beyond the plane is removed and the cut faces are capped. axis is x, y or z (default z, the plane faces the viewer at the front); to is where the plane is along that axis in the object own space (the middle of the object is 0). Move the plane through with another cut; to 100 puts it beyond everything: no cut.',
-    fields: { id: { k: 'ref', of: 'object3d' }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, to: { k: 'num', min: -100, max: 100 }, at: AT, dur: DUR },
+    doc: 'Cut a 3D object and its children open. Choose axis x/y/z or normal [x,y,z], never both. normal is a nonzero local direction with finite components from -100 to 100; magnitude is ignored. to is signed distance along that unit direction from the local origin (not necessarily the center of a hull point cloud); the positive side is removed. Omit direction to keep the active cut direction (initially +z). Direction changes at the action start; only to animates. Closed opaque pieces are capped; open surfaces are not. to 100 removes the cut.',
+    fields: { id: { k: 'ref', of: 'object3d' }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, normal: { k: 'vec3', min: -100, max: 100, opt: true, doc: 'nonzero local cut direction; do not combine with axis' }, to: { k: 'num', min: -100, max: 100 }, at: AT, dur: DUR },
   },
   {
     name: 'orbit', op: 'orbit',
