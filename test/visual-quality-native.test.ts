@@ -1,25 +1,36 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { electronRuntime } from './support/electron-runtime.ts';
 const runtime = electronRuntime({ env: { ...process.env, DISPLAY: process.env.DISPLAY ?? 'headless-probe' } });
-test('native visual harness saves honest unsupported or real-pixel evidence without sandbox bypass', { skip: runtime.reason, timeout: 90_000 }, t => {
+for (const scenario of [
+  { name: 'default', args: [], environment: '0', expected: 'default' },
+  { name: 'software flag', args: ['--software'], environment: '0', expected: 'software' },
+  { name: 'software environment', args: [], environment: '1', expected: 'software' },
+]) test(`native visual harness records ${scenario.name} without changing unsupported or real-pixel evidence`, { skip: runtime.reason, timeout: 90_000 }, t => {
   const parent = mkdtempSync(join(tmpdir(), 'tt-visual-test-'));
   const out = join(parent, 'result');
   try {
-    const child = spawnSync(process.execPath, [resolve('scripts/prototypes/check-visual-quality.ts'), '--out', out], { encoding: 'utf8', timeout: 85_000, maxBuffer: 100_000 });
+    const child = spawnSync(process.execPath, [resolve('scripts/prototypes/check-visual-quality.ts'), '--out', out, ...scenario.args], { env: { ...process.env, TALKTHROUGH_SOFTWARE: scenario.environment, TT_VISUAL_RENDERING_MODE: 'stale-parent-value' }, encoding: 'utf8', timeout: 85_000, maxBuffer: 100_000 });
     assert.ok(child.status === 0 || child.status === 2, child.stderr + child.stdout);
     const report = JSON.parse(readFileSync(join(out, 'report.json'), 'utf8'));
     assert.equal(report.nativeVisualAcceptance, null);
     assert.equal(report.modelCalled, false);
+    assert.equal(report.requestedRenderingMode, scenario.expected);
+    assert.equal(report.execution.requestedRenderingMode, scenario.expected);
+    assert.equal(report.renderer.requestedRenderingMode, scenario.expected);
+    assert.equal(typeof report.renderer.hardwareAccelerationEnabled, 'boolean');
+    if (scenario.expected === 'software') assert.equal(report.renderer.hardwareAccelerationEnabled, false);
     assert.equal(report.blockedRequests, 0);
     assert.equal(report.renderer.browserOnlySubstitute, false);
     assert.ok(existsSync(join(out, 'inspection.html')));
     assert.ok(existsSync(join(out, 'baseline.png')));
     assert.equal(Object.keys(report.sourceHashes).length > 3, true);
+    assert.equal(report.sourceHashes['src/main/args.ts'], createHash('sha256').update(readFileSync(resolve('src/main/args.ts'))).digest('hex'));
     if (report.status === 'unsupported') {
       assert.equal(child.status, 2);
       assert.equal(report.renderer.available, false);

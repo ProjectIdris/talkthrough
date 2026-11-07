@@ -4,9 +4,13 @@ Run this from a development checkout with Node 24+, installed dependencies and E
 
 ```sh
 node scripts/prototypes/check-visual-quality.ts --out /path/to/new-evidence-directory
+# Exercise the app's existing CPU request (also TALKTHROUGH_SOFTWARE=1):
+node scripts/prototypes/check-visual-quality.ts --out /path/to/software-evidence --software
 # Also check the production high-tier finishing pass on a compatible machine:
 node scripts/prototypes/check-visual-quality.ts --out /path/to/another-new-directory --tier high
 ```
+
+By default the harness leaves Electron acceleration enabled, as production does. `--software` or `TALKTHROUGH_SOFTWARE=1` uses the same `app.disableHardwareAcceleration()` route as the app. This requests CPU/software rendering; it does not guarantee a software WebGL2 context. The report records `requestedRenderingMode` separately from `renderer.hardwareAccelerationEnabled`, renderer identity and GPU feature status. No backend or compatibility blocklist is overridden, and `unsupported` remains exit 2 with no visual acceptance.
 
 The output directory must not already exist. Each run is a separate evidence set, so stale screenshots cannot be mistaken for a new success. Open `inspection.html` locally, then inspect each PNG at full size alongside `report.json` and `native.log`. No upload is performed. Do not commit personal captures or machine logs.
 
@@ -24,7 +28,7 @@ The fixtures use current-main scene semantics, not pending geometry extensions. 
 
 Each capture uses an 800 × 600 viewport at scale 1, a fixed scene time of three seconds, an acknowledged empty-scene reset followed by two fixture seek acknowledgements and an additional 150 ms before `capturePage`. The default tier is explicitly `mid`; `--tier low|mid|high` selects another existing production tier. Camera metadata must match the requested view, and seek counts are preserved. The acknowledged reset prevents unrelated fixtures from reusing old geometry under the same numeric object keys. The native compositor is offscreen: these are real Electron renderer pixels, not physical-monitor presentation or a user-desktop screenshot.
 
-The 3D canvas alone is visible over a neutral inspection background. Harness CSS hides all 2D marks, captions, HUD and controls, so they cannot satisfy a 3D check. The baseline is captured before any fixture. The profile is guarded and temporary, permissions/navigation/popups are denied, and requests are restricted to the two local overlay assets. GPU and sandbox security are not relaxed. On Linux without a display, the runner uses headless Ozone; an unavailable WebGL stack is reported, not replaced.
+The 3D canvas alone is visible over a neutral inspection background. Harness CSS hides all 2D marks, captions, HUD and controls, so they cannot satisfy a 3D check. The baseline is captured before any fixture. The profile is guarded and temporary, permissions/navigation/popups are denied, and requests are restricted to the two local overlay assets. GPU compatibility checks and sandbox security are not relaxed. On Linux without a display, the runner uses headless Ozone; an unavailable WebGL stack is reported, not replaced.
 
 ## Diagnostics and exit codes
 
@@ -61,4 +65,4 @@ See `src/main/args.ts` for exact grab/view/time options. `--grab` uses a differe
 
 ## Verification boundary in the development environment
 
-The available Linux cloud runtime ran the actual sandboxed overlay and returned `unsupported`: WebGL and OpenGL were `disabled_off`, and the production fallback hid its unavailable 3D canvas. The neutral baseline and diagnostic report were produced; **no native 3D screenshot, positive-pixel acceptance or human inspection of a rendered model was possible**. No sandbox or GPU override was attempted. Portable tests validate the negative pixel controls, fixtures, report behavior and native unsupported path. Run this on a compatible native Electron graphics stack before treating it as a reviewed visual result.
+Both default mode and the app's existing software mode were checked in the available Linux cloud runtime. Each ran the actual sandboxed overlay and returned `unsupported`: WebGL and OpenGL were `disabled_off`, and the production fallback hid its unavailable 3D canvas. The neutral baseline and diagnostic report were produced; **no native 3D screenshot, positive-pixel acceptance or human inspection of a rendered model was possible**. No sandbox or GPU override was attempted. Portable tests validate the negative pixel controls, fixtures, report behavior and native unsupported path. Run this on a compatible native Electron graphics stack before treating it as a reviewed visual result.

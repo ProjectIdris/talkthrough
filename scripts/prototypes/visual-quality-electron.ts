@@ -9,22 +9,24 @@ import { validateScene } from '../../src/scene/index.ts';
 import { analyseFrame, thresholds } from './visual-quality-pixels.ts';
 import { visualFixtures, visualViews } from './visual-quality-fixtures.ts';
 import { prepareVisualFrame, cameraMatchesView } from './visual-quality-sequence.ts';
+import { applyVisualRenderingMode } from './visual-quality-rendering.ts';
 import { visualStatus } from './visual-quality-report.ts';
 import type { Capture } from './visual-quality-report.ts';
 
 const root = process.env.TT_VISUAL_ROOT!, work = process.env.TT_VISUAL_WORK!;
 const assets = join(work, 'assets'), output = join(work, 'output');
 require(join(root, 'test/support/electron-profile-guard.cjs'))(process.env.TT_TEST_PROFILE, () => {});
+const requestedRenderingMode = applyVisualRenderingMode(app, process.env.TT_VISUAL_RENDERING_MODE);
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
 const width = 800, height = 600;
 const sleep = (ms: number) => new Promise<void>(done => setTimeout(done, ms));
 const report: Record<string, unknown> & { captures: Capture[] } = {
-  status: 'failed', nativeVisualAcceptance: null, modelCalled: false, captures: [], thresholds,
+  status: 'failed', requestedRenderingMode, nativeVisualAcceptance: null, modelCalled: false, captures: [], thresholds,
   runtime: { electron: process.versions.electron, chrome: process.versions.chrome, node: process.version, platform: process.platform, arch: process.arch },
   viewport: { width, height, scaleFactor: 1, tier: process.env.TT_VISUAL_TIER },
   renderer: { available: false, browserOnlySubstitute: false }, blockedRequests: 0,
   boundary: 'Production overlay sought at fixed scene times; native Electron capturePage output after renderer acknowledgement plus 150 ms. Not a physical screen capture.',
-  limits: ['Hand-written fixtures, no live model or catalogue inference.', 'Only the 3D canvas is visible. Captions, 2D marks and controls cannot satisfy these checks.', 'Pixel thresholds are conservative smoke diagnostics, not complete shape, material or aesthetic validation.', 'Native software GPU stacks, if supplied by the environment, are reported as such. No GPU, security or sandbox overrides are applied.', 'No physical desktop, input, voice, latency target or native visual acceptance is established.'],
+  limits: ['Hand-written fixtures, no live model or catalogue inference.', 'Only the 3D canvas is visible. Captions, 2D marks and controls cannot satisfy these checks.', 'Pixel thresholds are conservative smoke diagnostics, not complete shape, material or aesthetic validation.', 'The requested rendering mode is recorded separately from the actual renderer. Software mode uses the app’s existing disableHardwareAcceleration API; it does not guarantee WebGL2. No GPU backend, blocklist, security or sandbox overrides are applied.', 'No physical desktop, input, voice, latency target or native visual acceptance is established.'],
 };
 const logs: string[] = [];
 let window: BrowserWindow | undefined;
@@ -71,7 +73,7 @@ async function run(): Promise<void> {
     const info = gl.getExtension('WEBGL_debug_renderer_info');
     return { available: true, name: String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)), version: String(gl.getParameter(gl.VERSION)) };
   })()`);
-  report.renderer = { ...renderer, browserOnlySubstitute: false, mode: 'native-electron-offscreen', gpuFeatures: app.getGPUFeatureStatus() };
+  report.renderer = { ...renderer, requestedRenderingMode, hardwareAccelerationEnabled: app.isHardwareAccelerationEnabled(), browserOnlySubstitute: false, mode: 'native-electron-offscreen', gpuFeatures: app.getGPUFeatureStatus() };
   let token = 0;
   const seek = (scene: import('../../src/scene/types.ts').Scene, view?: { az: number; el: number; zoom: number }): Promise<CaptureMetadata | undefined> => new Promise((done, fail) => {
     const mine = ++token;
