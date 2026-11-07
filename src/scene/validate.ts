@@ -1,15 +1,25 @@
+import { prepareTaperedExtrusion } from './tapered-extrusion.ts';
 // The scene validator: the only way a scene from a model reaches the renderer.
 // It reads data and builds fresh objects from known fields. It never evaluates, imports,
 // or interprets anything in a scene; strings stay plain text for the renderer to draw as text.
 
+import { extrudeProfileIssue } from './extrude-profile.ts';
+import { prepareSectorRings } from './sector-sweep.ts';
+import { normalizeSectorProfile } from './sector-profile.ts';
+import { PATCH_SEGMENTS, preparePatch, readPatchControls } from './patch.ts';
+import { prepareSweep, SWEEP_SUBDIVISIONS } from './sweep.ts';
+import { LOFT_STRIPS, prepareLoft } from './loft.ts';
+import { prepareShell, SHELL_DETAIL } from './shell.ts';
+import type { ShellTier } from './shell.ts';
 import { nearestPaletteColor } from './colors.ts';
 import { attachTolerance, landOn, mountPosition } from './attach.ts';
 import { resolvePartGeometry } from './part-geometry.ts';
+import { resolveHullPoints } from './hull-points.ts';
 import type { Body } from './attach.ts';
 import { bindParts, bindUnknownId, BINDINGS } from './bind.ts';
 import { DIAGRAM_PARTS, ID_PATTERN, LIMITS, PALETTE, RESERVED_IDS, SCREEN_KINDS, VARIANTS } from './spec.ts';
 import type { DiagramKind, Field, ObjectKind, Variant } from './spec.ts';
-import type { Action, AddPart, AttachEnd, Issue, IssueKind, Scene, Step, Vec3 } from './types.ts';
+import type { Action, AddPart, AttachEnd, Issue, IssueKind, Scene, Step, Vec2, Vec3 } from './types.ts';
 
 /** What the scene holds so far. Keep one per session and pass it to every turn so follow-ups reach earlier ids. */
 export type SceneState = {
@@ -228,6 +238,21 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       }
       return good(out);
     }
+    case 'rings2': {
+      if (!Array.isArray(v) || v.length > f.max) return bad(`expected at most ${f.max} hole rings`);
+      const rings: Vec2[][] = [];
+      for (let h = 0; h < v.length; h++) {
+        const ring: unknown = v[h];
+        if (!Array.isArray(ring) || ring.length < 3 || ring.length > f.points) return bad(`hole ${h}: expected 3 to ${f.points} points`);
+        const points: Vec2[] = [];
+        for (const point of ring) {
+          if (!Array.isArray(point) || point.length !== 2 || [point[0], point[1]].some((n) => typeof n !== 'number' || !Number.isFinite(n) || n < f.lo || n > f.hi)) return bad(`hole ${h}: expected finite coordinates from ${f.lo} to ${f.hi}`);
+          points.push([point[0], point[1]]);
+        }
+        rings.push(points);
+      }
+      return good(rings);
+    }
     case 'strs': {
       if (!Array.isArray(v)) return bad('expected a list of texts');
       const out: string[] = [];
@@ -363,8 +388,9 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
     else state.bodies.set(id, { shape: 'group', ...place }); // a cone or a torus is not asked about, but things hang from it
   } else if (name === 'addPart') state.bodies.set(id, { shape: 'box', ...resolvePartGeometry(out as AddPart), ...place });
   else if (name === 'addBlob') state.bodies.set(id, { shape: 'blob', pts: out.pts as Vec3[], sizes: out.sizes as Vec3[], ...place });
-  else if (name === 'addExtrude' || name === 'addLathe' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
+  else if (name === 'addExtrude' || name === 'addHull' || name === 'addLathe' || name === 'addShell' || name === 'addLoft' || name === 'addSweep' || name === 'addPatch' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addTube' || (name === 'addPath' && shape === 'line')) {
+    if (name === 'addTube' && out.closed === true) return; // A loop has no endpoints to attach.
     holdEnds(state, id, out, path, notes);
     return;
   } else return;
@@ -467,13 +493,130 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', path, variant);
     return null;
   }
+  // A direction cannot be component-clamped without rotating the requested section.
+  // Reject it as a whole before the ordinary vector parser; null still means absent.
+  if (variant.name === 'cut') {
+    const normal = own(raw, 'normal');
+    if (normal !== undefined && normal !== null) {
+      if (own(raw, 'axis') !== undefined && own(raw, 'axis') !== null) {
+        note(notes, 'dropped', path, 'cut needs either axis or normal, not both');
+        return null;
+      }
+      if (!Array.isArray(normal) || normal.length !== 3 ||
+          [0, 1, 2].some(i => typeof normal[i] !== 'number' || !Number.isFinite(normal[i]) || Math.abs(normal[i]) > 100) ||
+          normal.every(n => n === 0)) {
+        note(notes, 'dropped', path, 'cut normal needs 3 finite numbers from -100 to 100, not all zero');
+        return null;
+      }
+    }
+  }
+  // Strict admission precedes the ordinary, deliberately lenient field parser and any state changes.
+  if (variant.name === 'addHull') {
+    const result = resolveHullPoints(own(raw, 'pts'));
+    if (!result.ok) {
+      note(notes, 'dropped', path, `pts: ${result.message}`);
+      return null;
+    }
+  }
+  // Strict sector checks precede all field parsing/binding and any scene-state mutation.
+  let sectorProfile: Vec2[] | undefined;
+  if (variant.name === 'addLathe') {
+    const descriptor = Object.getOwnPropertyDescriptor(raw, 'sweep');
+    const sweep = own(raw, 'sweep');
+    if (descriptor && !('value' in descriptor)) {
+      note(notes, 'dropped', path, 'sweep must be a data value');
+      return null;
+    }
+    if (sweep !== undefined && sweep !== null) {
+      if (typeof sweep !== 'number' || !Number.isFinite(sweep) || sweep < 1 || sweep > 359) {
+        note(notes, 'dropped', path, 'sector sweep must be finite and within 1..359 degrees');
+        return null;
+      }
+      const normalized = normalizeSectorProfile(own(raw, 'profile'));
+      if (!normalized.ok) {
+        note(notes, 'dropped', path, normalized.reason);
+        return null;
+      }
+      const sides = own(raw, 'sides');
+      if (sides !== undefined && sides !== null && (typeof sides !== 'number' || !Number.isFinite(sides))) {
+        note(notes, 'dropped', path, 'sector sides must be a finite number');
+        return null;
+      }
+      const resolutions = typeof sides === 'number' ? [Math.min(64, Math.max(3, Math.round(sides)))] : [20, 36, 64];
+      if (resolutions.some(resolution => prepareSectorRings(normalized.profile, resolution, sweep) === null)) {
+        note(notes, 'dropped', path, 'sector profile loses triangle geometry or orientation after Float32 rotation');
+        return null;
+      }
+      sectorProfile = normalized.profile;
+    }
+  }
+  // Deformed outlines must not be clamped or truncated, nor consume replacement state on rejection.
+  let taperedOutline: Vec2[] | undefined;
+  if (variant.name === 'addExtrude') {
+    const taper = own(raw, 'taper'), shift = own(raw, 'shift');
+    for (const field of ['taper', 'shift']) {
+      const descriptor = Object.getOwnPropertyDescriptor(raw, field);
+      if (descriptor && !('value' in descriptor)) { note(notes, 'dropped', path, `${field} must be a data value`); return null; }
+    }
+    if (taper != null || shift != null) {
+      for (const field of ['outline', 'depth', 'bevel', 'holes']) {
+        const descriptor = Object.getOwnPropertyDescriptor(raw, field);
+        if (descriptor && !('value' in descriptor)) { note(notes, 'dropped', path, `${field} must be a data value`); return null; }
+      }
+      const bevel = own(raw, 'bevel'), holes = own(raw, 'holes');
+      if ((bevel != null && bevel !== 0) || (holes != null && (!Array.isArray(holes) || holes.length !== 0))) {
+        note(notes, 'dropped', path, 'tapered extrusions require zero bevel and no through-holes'); return null;
+      }
+      const prepared = prepareTaperedExtrusion(own(raw, 'outline'), own(raw, 'depth'), taper ?? 1, shift ?? [0, 0]);
+      if (!prepared.ok) { note(notes, 'dropped', path, prepared.reason); return null; }
+      taperedOutline = prepared.value.outline;
+    }
+  }
+  // A fixed control net must not pass through ordinary list trimming or coordinate
+  // clamping. Preflight before identity, hierarchy or replacement state can change.
+  if (variant.name === 'addPatch') {
+    const pts = readPatchControls(own(raw, 'pts'));
+    if (!pts || !Object.values(PATCH_SEGMENTS).every((n) => preparePatch(pts, n))) {
+      note(notes, 'dropped', `${path}.pts`, 'patch needs exactly 16 finite controls in -100..100, with no collapsed, singular or reversed sampled faces at any quality tier');
+      return null;
+    }
+  }
   const input = variant.op === 'panel' ? fitStage(raw as Record<string, unknown>, state, path, notes) : raw;
+  // Do not let the ordinary outline parser truncate or clamp a perforated profile.
+  const rawHoles = variant.name === 'addExtrude' ? own(input, 'holes') : undefined;
+  if (Array.isArray(rawHoles) && rawHoles.length > 0) {
+    const outer = own(input, 'outline');
+    if (!Array.isArray(outer) || outer.length < 3 || outer.length > LIMITS.maxOutline || outer.some((p) => !Array.isArray(p) || p.length !== 2 || [p[0], p[1]].some((n) => typeof n !== 'number' || !Number.isFinite(n) || n < -100 || n > 100))) {
+      note(notes, 'dropped', `${path}.outline`, `perforated outline needs 3 to ${LIMITS.maxOutline} finite points in the world range`);
+      return null;
+    }
+  }
   const out: Record<string, unknown> = { op: variant.op };
   // Fields that name a part already in the scene are bound in one place (bind.ts) once the others are read.
   const bindings = BINDINGS[variant.name];
   const bound = new Set(bindings?.flatMap((b) => (b.alias === undefined ? [b.field] : [b.field, b.alias])));
   for (const [name, f] of Object.entries(variant.fields)) {
+    // Cheap id/parent checks precede expensive geometry. Held forward references
+    // can be retried after every accepted action. Validate raw geometry before any
+    // generic point parser can trim, clamp or read an accessor, and before state changes.
+    if (variant.name === 'addSweep' && name === 'outline' && !Object.values(SWEEP_SUBDIVISIONS).every(n => prepareSweep(own(input, 'outline'), own(input, 'pts'), own(input, 'up'), n))) {
+      note(notes, 'dropped', path, 'sweep needs a simple 3–24 point outline, 2–16 distinct path controls, a usable initial up direction and a nonfolded Float32 mesh at every quality');
+      return null;
+    }
+    // Resolve cheap ID/parent fields first: held references can be retried often.
+    // Check raw profiles before point parsing can trim, clamp or invoke a getter.
+    if (variant.name === 'addLoft' && name === 'outline' && !Object.values(LOFT_STRIPS).every(n => prepareLoft(own(input, 'outline'), own(input, 'endOutline'), own(input, 'depth'), n))) {
+      note(notes, 'dropped', path, 'loft needs matching 3–24 corner convex outlines with the same winding, depth 0.01–100, and safe intermediate sections and Float32 meshes at every quality');
+      return null;
+    }
+    // ID/parent checks stay cheap for held references; geometry fields must not be clamped or invoke accessors.
+    if (variant.name === 'addShell' && name === 'size' && !(Object.keys(SHELL_DETAIL) as ShellTier[]).every(tier => prepareShell(own(input, 'size'), own(input, 'inner'), own(input, 'latitude'), own(input, 'sweep'), tier))) {
+      note(notes, 'dropped', path, 'shell needs size .01–100, inner .01–.99, increasing latitude -90–90 spanning at least 1 degree, sweep 1–360, and safe Float32 surfaces at every quality');
+      return null;
+    }
     if (bound.has(name)) continue;
+    if (name === 'profile' && sectorProfile) { out.profile = sectorProfile; continue; }
+    if (name === 'outline' && taperedOutline) { out.outline = taperedOutline; continue; }
     const v = own(input, name);
     const optional = 'opt' in f && f.opt === true;
     if (v === undefined || v === null) {
@@ -489,6 +632,15 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
       return null;
     }
     out[name] = p.value;
+  }
+  if (variant.name === 'addExtrude' && Array.isArray(out.holes) && out.holes.length > 0) {
+    const issue = extrudeProfileIssue(out.outline as Vec2[], out.holes as Vec2[][]);
+    if (issue) {
+      note(notes, 'dropped', `${path}.${issue.field}`, issue.message);
+      return null;
+    }
+    if (typeof out.bevel === 'number' && out.bevel > 0) note(notes, 'clamped', `${path}.bevel`, 'perforated extrusions use flat edges; bevel reduced to 0');
+    out.bevel = 0;
   }
   if (bindings && !bindParts(bindings, (n) => own(input, n), out, state, path, (kind, at, why) => note(notes, kind, at, why))) return null;
   if (variant.op === 'add' && typeof out.parent === 'string' && (parentFirstAt.get(out.parent) ?? 0) > ((out.at as number | undefined) ?? 0)) {
@@ -551,6 +703,10 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   }
   if (variant.name === 'joint' && !checkJoint(out, state, path, notes)) return null;
   if (variant.name === 'couple' && !checkCouple(out, state, path, notes)) return null;
+  if (variant.name === 'addTube' && out.closed === true && new Set((out.pts as Vec3[]).map((p) => p.join(','))).size < 3) {
+    note(notes, 'dropped', `${path}.pts`, 'a closed tube needs at least three distinct points');
+    return null;
+  }
   if (variant.name === 'addBlob') {
     // One size for each lump: a short list repeats its last, a long one is cut.
     const pts = out.pts as unknown[];

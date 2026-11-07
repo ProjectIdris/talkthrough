@@ -1,0 +1,27 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "Curved shells enclose an empty space. The same shape can make a dome, an open bowl or a cut-open enclosure.",
+      "actions": [
+        { "op": "panel", "x": 80, "y": 120, "w": 840, "h": 700 },
+        { "op": "add", "shape": "shell", "id": "dome", "size": [4, 3.2, 3.5], "inner": 0.88, "latitude": [0, 90], "pos": [-5, 0, 0], "material": "metal", "color": "blue" },
+        { "op": "add", "shape": "shell", "id": "bowl", "size": [4, 3.6, 4], "inner": 0.78, "latitude": [-90, 12], "pos": [0, 0.6, 0], "material": "plastic", "color": "orange", "at": 0.3 },
+        { "op": "add", "shape": "shell", "id": "enclosure", "size": [3.6, 4.6, 3.6], "inner": 0.82, "sweep": 270, "pos": [5, 0.4, 0], "rot": [0, -135, 0], "material": "tissue", "color": "pink", "at": 0.6 },
+        { "op": "orbit", "az": 18, "el": 28, "dur": 0 }
+      ]
+    },
+    {
+      "say": "The inner walls are real surfaces. Each exposed rim joins them to the outer skin, while the centre remains empty.",
+      "actions": [
+        { "op": "orbit", "az": -32, "el": -22, "dur": 2 }
+      ]
+    },
+    {
+      "say": "Change the angular span, not the subject. These bounded shapes can be combined with the same groups, materials, motion and section tools as other solids.",
+      "actions": [
+        { "op": "orbit", "az": 28, "el": 38, "dur": 2 }
+      ]
+    }
+  ]
+}

@@ -1138,6 +1138,34 @@
           ],
           "description": "surface, default plastic"
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
         "bevel": {
           "type": [
             "number",
@@ -1178,6 +1206,10 @@
         "rot",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "bevel",
         "edges",
         "opacity",
@@ -1185,6 +1217,186 @@
       ],
       "additionalProperties": false,
       "description": "A solid. size is its bounding box [x,y,z]: cylinder and cone stand on y with diameter x, torus lies flat with outer diameter x and tube thickness y, plane faces +z and ignores z. A box with a bevel has rounded edges."
+    },
+    "addShell": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "shell"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "size": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], each 0.01 to 100"
+        },
+        "inner": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.01 to 0.99"
+        },
+        "latitude": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y], each -90 to 90"
+        },
+        "sweep": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 360"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "dark edge lines (default true)"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "explode",
+        "pos",
+        "rot",
+        "size",
+        "inner",
+        "latitude",
+        "sweep",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A closed hollow ellipsoid section: domes, bowls, curved enclosures and opened layers. size is the full outer ellipsoid diameters [x,y,z], not the cropped bounds. inner (default .85) scales its concentric cavity, not a uniform wall thickness. latitude [south,north] degrees -90..90 (default [-90,90], span at least 1); sweep 1..360 (default 360) runs from +x toward +z around y. Radial rims close the material volume. Rotate to aim the opening. Invalid or unsafe geometry rejects."
     },
     "addExtrude": {
       "type": "object",
@@ -1249,6 +1461,39 @@
           },
           "description": "3 to 40 points [x,y], each -100 to 100"
         },
+        "taper": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.05 to 20"
+        },
+        "shift": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y], each -100 to 100"
+        },
+        "holes": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "description": "up to 8 through-openings in outline local XY; 3 to 24 points each, 128 points total including outline; no crossing, touching or nesting; either winding and a single closing point are allowed; up to 8 rings, 3 to 24 points [x,y] each, each coordinate -100 to 100"
+        },
         "depth": {
           "type": "number",
           "description": "0.01 to 100"
@@ -1273,6 +1518,34 @@
             null
           ],
           "description": "surface, default plastic"
+        },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
         },
         "bevel": {
           "type": [
@@ -1312,16 +1585,179 @@
         "pos",
         "rot",
         "outline",
+        "taper",
+        "shift",
+        "holes",
         "depth",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "bevel",
         "edges",
         "opacity",
         "at"
       ],
       "additionalProperties": false,
-      "description": "A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets."
+      "description": "A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets. Ordinary extrusions support disjoint through-hole rings strictly inside the outline, with flat edges only. Optional taper or shift makes a sharp closed transition: the negative-z end is the outline, the positive-z end is outline*taper+shift, scaling about the local origin. Defaults in this mode: taper 1, shift [0,0]. taper 0.05..20; both end coordinates -100..100; depth 0.01..100. Requires a simple polygon, 3..40 points, either winding. Invalid or Float32-unsafe geometry rejects, not repairs. Bevel must be omitted/null/0; through-holes are not supported in this mode."
+    },
+    "addHull": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "hull"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "4 to 64 points [x,y,z]"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "dark edge lines (default true)"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "explode",
+        "pos",
+        "rot",
+        "pts",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A closed convex envelope of 4 to 64 local 3D points. Points are not recentered and must span three dimensions; interior and duplicate points are allowed. No concavities or cavities."
     },
     "addLathe": {
       "type": "object",
@@ -1386,6 +1822,13 @@
           },
           "description": "2 to 40 points [x,y], each -100 to 100"
         },
+        "sweep": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 359"
+        },
         "sides": {
           "type": [
             "number",
@@ -1413,6 +1856,34 @@
             null
           ],
           "description": "surface, default plastic"
+        },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
         },
         "edges": {
           "type": [
@@ -1445,15 +1916,526 @@
         "pos",
         "rot",
         "profile",
+        "sweep",
         "sides",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "edges",
         "opacity",
         "at"
       ],
       "additionalProperties": false,
-      "description": "A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides (default 48) makes it faceted."
+      "description": "A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides makes it faceted (default quality tiers: 20/36/64). Optional sweep 1..359 degrees makes a closed sector from +z towards +x about +y; rotate to choose its start. Sector profile: simple closed polygon, 3..40 points (one repeated closing point allowed), radius 0..100, y -100..100. Invalid, touching, intersecting or Float32-unsafe profiles and invalid sweeps are rejected, not repaired. Either winding; exact redundant collinear boundary points are removed. sides is segments per full revolution (sector segments scale proportionally, at most 90 degrees each)."
+    },
+    "addPatch": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "patch"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "exactly 16 finite controls in -100..100; never trimmed or clamped; numerically unsafe sampled nets are rejected; 16 to 16 points [x,y,z]"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "dark edge lines (default true)"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "explode",
+        "pos",
+        "rot",
+        "pts",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "An open bicubic Bézier sheet: exactly 16 controls [x,y,z], four rows of four in row-major order. Each row runs across u; rows advance v. Corners lie on the sheet; other controls pull its curvature, not interpolation points. Curved panels, canopies, membranes. Two-sided, no thickness or solid cut cap. Use a regular net without folds or collapsed rows."
+    },
+    "addSweep": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "sweep"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "outline": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "3 to 24 points [x,y], each -100 to 100"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "2 to 16 points [x,y,z]"
+        },
+        "up": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "nonzero initial section +y direction, not parallel to the starting path; [x,y,z], each -100 to 100"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "dark edge lines (default true)"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "explode",
+        "pos",
+        "rot",
+        "outline",
+        "pts",
+        "up",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A closed polygon outline carried along a smooth open 3D path: curved rails, shaped cables and solid bands. Outline x,y are local section offsets; up sets initial +y, projected perpendicular to the path (default +y, or +x for a vertical start). The section follows with minimum rotation. Flat caps, sharp section corners, no bevel or holes. Keep the profile narrow relative to bends; folded or collapsed sampled meshes are rejected."
+    },
+    "addLoft": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "loft"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "outline": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "3 to 24 points [x,y], each -100 to 100"
+        },
+        "endOutline": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "3 to 24 points [x,y], each -100 to 100"
+        },
+        "depth": {
+          "type": "number",
+          "description": "0.01 to 100"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "material": {
+          "enum": [
+            "plastic",
+            "metal",
+            "rubber",
+            "pcb",
+            "glass",
+            "glow",
+            "paper",
+            "tissue",
+            null
+          ],
+          "description": "surface, default plastic"
+        },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
+        "edges": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "dark edge lines (default true)"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "explode",
+        "pos",
+        "rot",
+        "outline",
+        "endOutline",
+        "depth",
+        "color",
+        "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
+        "edges",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A closed solid joining independently shaped convex end outlines by matching point indices, at z=-depth/2 and +depth/2. Both rings need 3–24 corners, equal counts and the same winding; every interpolated section must stay strictly convex. No closing duplicate, collinear corners, holes or bevel. Use for asymmetric shape-changing transitions; no automatic recentering or point rematching."
     },
     "addBlob": {
       "type": "object",
@@ -1556,6 +2538,34 @@
           ],
           "description": "surface, default plastic"
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
         "opacity": {
           "type": [
             "number",
@@ -1584,6 +2594,10 @@
         "soft",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "opacity",
         "at"
       ],
@@ -1657,6 +2671,13 @@
           },
           "description": "2 to 8 points [x,y], each 0 to 10"
         },
+        "closed": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Join into a smooth loop with no caps; needs three distinct points. The radius at the join uses the start of swell."
+        },
         "color": {
           "type": [
             "string",
@@ -1677,6 +2698,34 @@
             null
           ],
           "description": "surface, default plastic"
+        },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
         },
         "draw": {
           "type": [
@@ -1710,14 +2759,19 @@
         "radius",
         "flat",
         "swell",
+        "closed",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "draw",
         "opacity",
         "at"
       ],
       "additionalProperties": false,
-      "description": "A smooth tube through the points: cables, pipes, vessels, stems, limbs. flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail."
+      "description": "A smooth tube through the points: cables, pipes, vessels, stems, limbs. closed true joins it into a continuous loop (three distinct points minimum, no caps or endpoint attachment). flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail."
     },
     "addPath": {
       "type": "object",
@@ -1917,6 +2971,34 @@
           ],
           "description": "surface, default plastic"
         },
+        "roughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 polished, 1 matte; omitted keeps the material recipe; 0 to 1"
+        },
+        "metalness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe; 0 to 1"
+        },
+        "clearcoat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "clear coating strength; omitted keeps the material recipe; disabled at low quality; 0 to 1"
+        },
+        "clearcoatRoughness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
+        },
         "draw": {
           "type": [
             "number",
@@ -1955,6 +3037,10 @@
         "radius",
         "color",
         "material",
+        "roughness",
+        "metalness",
+        "clearcoat",
+        "clearcoatRoughness",
         "draw",
         "opacity",
         "at"
@@ -3410,6 +4496,16 @@
             null
           ]
         },
+        "normal": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "nonzero local cut direction; do not combine with axis; [x,y,z], each -100 to 100"
+        },
         "to": {
           "type": "number",
           "description": "-100 to 100"
@@ -3433,12 +4529,13 @@
         "op",
         "id",
         "axis",
+        "normal",
         "to",
         "at",
         "dur"
       ],
       "additionalProperties": false,
-      "description": "Cut a 3D object (usually a whole model) open with a plane, so the inside shows: everything beyond the plane is removed and the cut faces are capped. axis is x, y or z (default z, the plane faces the viewer at the front); to is where the plane is along that axis in the object own space (the middle of the object is 0). Move the plane through with another cut; to 100 puts it beyond everything: no cut."
+      "description": "Cut a 3D object and its children open. Choose axis x/y/z or normal [x,y,z], never both. normal is a nonzero local direction with finite components from -100 to 100; magnitude is ignored. to is signed distance along that unit direction from the local origin (not necessarily the center of a hull point cloud); the positive side is removed. Omit direction to keep the active cut direction (initially +z). Direction changes at the action start; only to animates. Closed opaque pieces are capped; open surfaces are not. to 100 removes the cut."
     },
     "orbit": {
       "type": "object",
@@ -3736,10 +4833,25 @@
           "$ref": "#/$defs/addSolid"
         },
         {
+          "$ref": "#/$defs/addShell"
+        },
+        {
           "$ref": "#/$defs/addExtrude"
         },
         {
+          "$ref": "#/$defs/addHull"
+        },
+        {
           "$ref": "#/$defs/addLathe"
+        },
+        {
+          "$ref": "#/$defs/addPatch"
+        },
+        {
+          "$ref": "#/$defs/addSweep"
+        },
+        {
+          "$ref": "#/$defs/addLoft"
         },
         {
           "$ref": "#/$defs/addBlob"

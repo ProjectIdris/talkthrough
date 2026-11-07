@@ -1,0 +1,166 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "shell: matte on the left, polished on the right. Matched shapes sit under rotated, nonuniformly scaled mounts.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 50,
+          "y": 80,
+          "w": 900,
+          "h": 840,
+          "frame": true
+        },
+        {
+          "op": "orbit",
+          "az": 25,
+          "el": 18,
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "matte-mount",
+          "pos": [
+            -2.3,
+            0,
+            0
+          ],
+          "rot": [
+            15,
+            20,
+            8
+          ]
+        },
+        {
+          "op": "scale",
+          "id": "matte-mount",
+          "to": [
+            1,
+            0.8,
+            1.1
+          ],
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "id": "matte",
+          "parent": "matte-mount",
+          "color": "#479bb0",
+          "material": "plastic",
+          "roughness": 0.9,
+          "metalness": 0.25,
+          "clearcoat": 0,
+          "clearcoatRoughness": 0.07,
+          "shape": "shell",
+          "size": [
+            3,
+            2.8,
+            2.5
+          ],
+          "inner": 0.72,
+          "latitude": [
+            -65,
+            75
+          ],
+          "sweep": 250
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "polished-mount",
+          "pos": [
+            2.3,
+            0,
+            0
+          ],
+          "rot": [
+            15,
+            20,
+            8
+          ]
+        },
+        {
+          "op": "scale",
+          "id": "polished-mount",
+          "to": [
+            1,
+            0.8,
+            1.1
+          ],
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "id": "polished",
+          "parent": "polished-mount",
+          "color": "#479bb0",
+          "material": "plastic",
+          "roughness": 0.12,
+          "metalness": 0.25,
+          "clearcoat": 0.9,
+          "clearcoatRoughness": 0.07,
+          "shape": "shell",
+          "size": [
+            3,
+            2.8,
+            2.5
+          ],
+          "inner": 0.72,
+          "latitude": [
+            -65,
+            75
+          ],
+          "sweep": 250
+        }
+      ]
+    },
+    {
+      "say": "The alternate view exposes silhouette, boundaries and moving highlights.",
+      "actions": [
+        {
+          "op": "orbit",
+          "az": -35,
+          "el": 22,
+          "dur": 2
+        }
+      ]
+    },
+    {
+      "say": "Only the left object receives a delayed diagonal local section. The right object must stay whole.",
+      "actions": [
+        {
+          "op": "cut",
+          "id": "matte",
+          "normal": [
+            1,
+            0.3,
+            1
+          ],
+          "to": 0,
+          "at": 1,
+          "dur": 1
+        }
+      ]
+    },
+    {
+      "say": "Restore the left object and look from behind.",
+      "actions": [
+        {
+          "op": "cut",
+          "id": "matte",
+          "to": 100,
+          "at": 1,
+          "dur": 0.5
+        },
+        {
+          "op": "orbit",
+          "az": 145,
+          "el": 20,
+          "dur": 2
+        }
+      ]
+    }
+  ]
+}

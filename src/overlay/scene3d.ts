@@ -1,3 +1,4 @@
+import { taperedExtrudeEdges, taperedExtrudeGeometry } from './tapered-extrusion.ts';
 // The 3D scene: builds objects from a Frame, moves them as the frame changes, lights them, puts a soft
 // shadow under them on the page, and places the camera. It never touches the DOM itself (text sprites
 // and the shadow's gradient ask for a canvas through `makeCanvas`), so it can run and be tested
@@ -10,13 +11,18 @@
 import {
   AmbientLight, Box3, BufferGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight, EdgesGeometry, Euler,
   FrontSide, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Material, Matrix4, Mesh, MeshBasicMaterial, Object3D,
-  PerspectiveCamera, PlaneGeometry, Raycaster, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3,
+  DoubleSide, PerspectiveCamera, PlaneGeometry, Raycaster, Scene, ShadowMaterial, Sphere, SphereGeometry, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3,
 } from 'three';
 import type { Texture } from 'three';
-import type { AddAction, Vec3 } from '../scene/types.ts';
+import type { AddAction, SurfaceFinish, Vec3 } from '../scene/types.ts';
+import { sweepGeometry, sweepEdges } from './sweep.ts';
+import { shellGeometry, shellEdges } from './shell.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
+import { buildHullGeometry } from './hull.ts';
+import { loftEdges, loftGeometry } from './loft.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
+import { closedTubeGeometry } from './closed-tube.ts';
 import { TIERS, applySurface, makeSurface } from './materials.ts';
 import type { Surface, Tier } from './materials.ts';
 import { buildPart } from './parts.ts';
@@ -27,7 +33,10 @@ import type { Piece } from './parts.ts';
 import type { FocusFrame, Frame, ObjectFrame, Rgb } from './timeline.ts';
 import { spreadPosition, userOffsets } from './explode.ts';
 import type { Part } from './explode.ts';
+import { PATCH_SEGMENTS } from '../scene/patch.ts';
+import { patchGeometry, patchEdges } from './patch.ts';
 import { Cutaway } from './cutaway.ts';
+import { latheSectorEdges, latheSectorGeometry } from './lathe-sector.ts';
 import { buildConnector, buildStream, updateAttached, updateConnectors, updateStreams } from './scene3d-flow.ts';
 import type { FlowNode } from './scene3d-flow.ts';
 
@@ -215,28 +224,65 @@ export class PanelScene {
     const settings = TIERS[this.tier];
     const node: Node = { obj: new Group(), pieces: [], geometries: [], materials: [], baseScale: new Vector3(1, 1, 1), alpha: 1, color: [255, 255, 255] };
     const material = 'material' in def ? def.material : undefined;
+    const finish: SurfaceFinish = {
+      roughness: 'roughness' in def ? def.roughness : undefined,
+      metalness: 'metalness' in def ? def.metalness : undefined,
+      clearcoat: 'clearcoat' in def ? def.clearcoat : undefined,
+      clearcoatRoughness: 'clearcoatRoughness' in def ? def.clearcoatRoughness : undefined,
+    };
     const addMesh: AddMesh = (geo, surfaceName, edges) => {
-      const surface = makeSurface(surfaceName, settings);
+      const surface = makeSurface(surfaceName, settings, finish);
+      if (def.shape === 'patch') { surface.side = DoubleSide; surface.forceSinglePass = true; }
       if (geo.getAttribute('color')) surface.vertexColors = true;
       const mesh = new Mesh(geo, surface);
       mesh.castShadow = settings.shadows;
       mesh.receiveShadow = settings.shadows;
-      // Stream markers share geometry within this node; own and release it once.
+      // Stream markers reuse one buffer inside this node, with separate materials.
+      // Record node ownership once, not once per marker, so teardown releases once.
       if (!node.geometries.includes(geo)) node.geometries.push(geo);
       node.materials.push(surface);
-      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'torus';
+      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'hull' || def.shape === 'shell' || def.shape === 'loft' || def.shape === 'sweep' || def.shape === 'torus' || (def.shape === 'lathe' && def.sweep != null);
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
-      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.primitiveKey(def));
+      if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.primitiveKey(def), def.shape === 'lathe' && def.sweep != null ? 'sector' : def.shape === 'extrude' && (def.taper != null || def.shift != null) ? 'tapered' : def.shape === 'patch' ? 'patch' : undefined);
       node.pieces.push(piece);
       return mesh;
     };
     switch (def.shape) {
       case 'group': case 'array': break;
+      case 'hull': {
+        const result = buildHullGeometry(def.pts);
+        if (result.ok) node.obj = addMesh(result.geometry, material, def.edges !== false);
+        else console.warn(`talkthrough: hull ${o.id} could not be built: ${result.message}`);
+        break;
+      }
       case 'part': {
         const built = buildPart(def, this.detail);
         node.obj = built.root;
         node.anchors = built.anchors;
         for (const p of built.pieces) this.adoptPiece(node, p);
+        break;
+      }
+      case 'sweep': {
+        const geo = sweepGeometry(def, this.tier);
+        if (geo) node.obj = addMesh(geo, material, def.edges !== false);
+        break;
+      }
+      case 'loft': {
+        const geo = loftGeometry(def, this.tier);
+        if (geo) node.obj = addMesh(geo, material, def.edges !== false);
+        break;
+      }
+      case 'shell': {
+        const geometry = shellGeometry(def, this.tier);
+        if (!geometry) break;
+        const mesh = addMesh(geometry, material, false);
+        node.obj = mesh;
+        if (def.edges !== false && settings.edges && material !== 'glass' && material !== 'glow' && (geometry.userData.shellEdges as Float32Array).length) {
+          const mat = new LineBasicMaterial({ color: 0x10131a, transparent: true, opacity: 0.5 });
+          const lines = new LineSegments(shellEdges(geometry), mat);
+          mesh.add(lines); node.geometries.push(lines.geometry); node.materials.push(mat);
+          node.pieces[0]!.lines = lines;
+        }
         break;
       }
       case 'text': this.buildText(node, o); break;
@@ -259,7 +305,7 @@ export class PanelScene {
     return JSON.stringify([this.tier, def.shape, solid.size, def.shape === 'box' ? solid.bevel ?? defaultBevel(solid.size) : null]);
   }
 
-  private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string): LineSegments {
+  private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string, boundary?: 'sector' | 'tapered' | 'patch'): LineSegments {
     const mat = new LineBasicMaterial({ color: 0x10131a, transparent: true, opacity: 0.5 });
     let outline: BufferGeometry;
     const existing = key && this.sharedEdges.get(key);
@@ -272,7 +318,7 @@ export class PanelScene {
       generated.dispose();
       this.sharedEdges.set(key, { geometry: outline, refs: 1 });
       this.edgeKeys.set(outline, key);
-    } else outline = creaseGeometry(geo);
+    } else outline = boundary === 'sector' ? latheSectorEdges(geo) : boundary === 'tapered' ? taperedExtrudeEdges(geo) : boundary === 'patch' ? patchEdges(geo, PATCH_SEGMENTS[this.tier]) : geo.userData.sweepEdges instanceof Float32Array ? sweepEdges(geo) : geo.userData.loftEdges instanceof Float32Array ? loftEdges(geo) : creaseGeometry(geo);
     const lines = new LineSegments(outline, mat);
     mesh.add(lines);
     node.geometries.push(lines.geometry);
@@ -329,9 +375,11 @@ export class PanelScene {
         const [sx, sy] = (def as { size: Vec3 }).size;
         return new PlaneGeometry(sx, sy);
       }
+      case 'patch': return patchGeometry(def.pts, PATCH_SEGMENTS[this.tier]);
       case 'extrude': {
-        const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number };
-        return extrudeGeometry(e.outline, e.depth, e.bevel ?? Math.min(0.1, e.depth * 0.2), d);
+        const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number; holes?: Array<Array<[number, number]>>; taper?: number; shift?: [number, number] };
+        if (e.taper != null || e.shift != null) return taperedExtrudeGeometry(e.outline, e.depth, e.taper ?? 1, e.shift ?? [0, 0]);
+        return extrudeGeometry(e.outline, e.depth, e.bevel ?? Math.min(0.1, e.depth * 0.2), d, e.holes);
       }
       case 'blob': {
         const b = def as { pts: Vec3[]; sizes: Vec3[]; soft?: number };
@@ -341,8 +389,8 @@ export class PanelScene {
         return blobGeometry(b.pts, b.sizes, b.soft ?? 0.5, d.blob, Math.max(BLOB_MIN_TRIANGLES, d.blobTriangles - used));
       }
       case 'lathe': {
-        const l = def as { profile: Array<[number, number]>; sides?: number };
-        return latheGeometry(l.profile, l.sides ?? d.curve);
+        const l = def as { profile: Array<[number, number]>; sides?: number; sweep?: number };
+        return l.sweep == null ? latheGeometry(l.profile, l.sides ?? d.curve) : latheSectorGeometry(l.profile, l.sides ?? d.curve, l.sweep);
       }
       default: {
         const b = def as { size: Vec3; bevel?: number };
@@ -352,11 +400,12 @@ export class PanelScene {
   }
 
   private buildPath(node: Node, o: ObjectFrame, addMesh: AddMesh): void {
-    const def = o.def as { shape: string; pts: Vec3[]; radius?: number; flat?: number; swell?: Array<[number, number]>; material?: string };
+    const def = o.def as { shape: string; pts: Vec3[]; radius?: number; flat?: number; swell?: Array<[number, number]>; closed?: boolean; material?: string };
     const tube = def.shape === 'tube';
-    const sampled = samplePath(def.pts, tube, this.detail.tube);
     const radius = tube ? def.radius ?? PATH_RADIUS : PATH_RADIUS;
-    const geo = tubeGeometry(sampled, radius, tube ? def.flat ?? 1 : 1, this.detail.radial, tube ? def.swell : undefined);
+    const loop = tube && def.closed ? closedTubeGeometry(def.pts, radius, def.flat ?? 1, this.detail.radial, this.detail.tube, def.swell) : undefined;
+    const sampled = loop?.sampled ?? samplePath(def.pts, tube, this.detail.tube);
+    const geo = loop?.geo ?? tubeGeometry(sampled, radius, tube ? def.flat ?? 1 : 1, this.detail.radial, tube ? def.swell : undefined);
     const mesh = addMesh(geo, tube ? def.material : 'plastic', false);
     const group = new Group();
     group.add(mesh);

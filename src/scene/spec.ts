@@ -24,8 +24,13 @@ export const LIMITS = {
   /** The reason given with `escalate`. */
   maxEscalate: 160,
   maxPts: 24,
+  /** Maximum number of authored points in a convex hull. */
+  maxHullPoints: 64,
   /** Points of an outline or profile. */
   maxOutline: 40,
+  maxExtrudeHoles: 8,
+  maxHolePoints: 24,
+  maxExtrudePoints: 128,
   /** Corners of a screen polygon, and points of a traced curve. */
   maxPoly: 24,
   maxTrace: 40,
@@ -84,6 +89,8 @@ export type Field =
   | { k: 'vec2'; min: number; max: number; opt?: boolean; doc?: string }
   /** A list of [x,y] points (an outline or a profile). */
   | { k: 'pts2'; min: number; max: number; lo: number; hi: number; opt?: boolean; doc?: string }
+  /** Bounded nested rings for extrusion through-openings. */
+  | { k: 'rings2'; max: number; points: number; lo: number; hi: number; opt?: boolean; doc?: string }
   /** A short list of short texts. */
   | { k: 'strs'; max: number; len: number; opt?: boolean; doc?: string }
   | { k: 'pts'; min: number; max: number; lo: number; hi: number; opt?: boolean; doc?: string }
@@ -105,7 +112,7 @@ export type Variant = {
 
 const SCREEN = { min: 0, max: 1000 } as const;
 const SPAN = { min: 1, max: 1000 } as const;
-const WORLD = { min: -100, max: 100 } as const;
+export const WORLD = { min: -100, max: 100 } as const;
 const AT: Field = { k: 'num', min: 0, max: 60, opt: true, doc: 'seconds after the step starts' };
 const DUR: Field = { k: 'num', min: 0, max: 30, opt: true, doc: 'seconds the change takes (default 0.6)' };
 const COLOR: Field = { k: 'color' };
@@ -123,6 +130,13 @@ const EXPLODE: Field = { k: 'vec3', ...WORLD, opt: true, doc: 'where it moves wh
 export const MATERIALS = ['plastic', 'metal', 'rubber', 'pcb', 'glass', 'glow', 'paper', 'tissue'] as const;
 const SIDE: Field = { k: 'enum', values: ['left', 'right', 'top', 'bottom', 'front', 'back'], opt: true };
 const MATERIAL: Field = { k: 'enum', values: MATERIALS, opt: true, doc: 'surface, default plastic' };
+/** Optional physical finish controls. Keeping these separate from opacity preserves each recipe's transparency. */
+const FINISH: Record<string, Field> = {
+  roughness: { k: 'num', min: 0, max: 1, opt: true, doc: 'base surface: 0 polished, 1 matte; omitted keeps the material recipe' },
+  metalness: { k: 'num', min: 0, max: 1, opt: true, doc: 'base surface: 0 nonmetal, 1 metal; omitted keeps the material recipe' },
+  clearcoat: { k: 'num', min: 0, max: 1, opt: true, doc: 'clear coating strength; omitted keeps the material recipe; disabled at low quality' },
+  clearcoatRoughness: { k: 'num', min: 0, max: 1, opt: true, doc: 'coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe' },
+};
 const BEVEL: Field = { k: 'num', min: 0, max: 20, opt: true, doc: 'rounding of the edges in units (default small)' };
 const EDGES: Field = { k: 'bool', opt: true, doc: 'dark edge lines (default true)' };
 const DRAW: Field = { k: 'num', min: 0, max: 1, opt: true, doc: 'how much is drawn at first, 0 to 1 (default 1); grow it with reveal' };
@@ -265,25 +279,77 @@ export const VARIANTS: readonly Variant[] = [
     doc: 'A solid. size is its bounding box [x,y,z]: cylinder and cone stand on y with diameter x, torus lies flat with outer diameter x and tube thickness y, plane faces +z and ignores z. A box with a bevel has rounded edges.',
     fields: {
       shape: { k: 'enum', values: SOLID_SHAPES }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS,
-      size: { k: 'vec3', min: 0.01, max: 100 }, rot: ROT, color: COLOR_OPT, material: MATERIAL, bevel: BEVEL, edges: EDGES, opacity: OPACITY, at: AT,
+      size: { k: 'vec3', min: 0.01, max: 100 }, rot: ROT, color: COLOR_OPT, material: MATERIAL, ...FINISH, bevel: BEVEL, edges: EDGES, opacity: OPACITY, at: AT,
+    },
+  },
+  {
+    name: 'addShell', op: 'add', shapes: ['shell'], creates: 'solid',
+    doc: 'A closed hollow ellipsoid section: domes, bowls, curved enclosures and opened layers. size is the full outer ellipsoid diameters [x,y,z], not the cropped bounds. inner (default .85) scales its concentric cavity, not a uniform wall thickness. latitude [south,north] degrees -90..90 (default [-90,90], span at least 1); sweep 1..360 (default 360) runs from +x toward +z around y. Radial rims close the material volume. Rotate to aim the opening. Invalid or unsafe geometry rejects.',
+    fields: {
+      shape: { k: 'enum', values: ['shell'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      size: { k: 'vec3', min: 0.01, max: 100 }, inner: { k: 'num', min: 0.01, max: 0.99, opt: true },
+      latitude: { k: 'vec2', min: -90, max: 90, opt: true }, sweep: { k: 'num', min: 1, max: 360, opt: true },
+      color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
     },
   },
   {
     name: 'addExtrude', op: 'add', shapes: ['extrude'], creates: 'solid',
-    doc: 'A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets.',
+    doc: 'A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets. Ordinary extrusions support disjoint through-hole rings strictly inside the outline, with flat edges only. Optional taper or shift makes a sharp closed transition: the negative-z end is the outline, the positive-z end is outline*taper+shift, scaling about the local origin. Defaults in this mode: taper 1, shift [0,0]. taper 0.05..20; both end coordinates -100..100; depth 0.01..100. Requires a simple polygon, 3..40 points, either winding. Invalid or Float32-unsafe geometry rejects, not repairs. Bevel must be omitted/null/0; through-holes are not supported in this mode.',
     fields: {
       shape: { k: 'enum', values: ['extrude'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: LIMITS.maxOutline, lo: WORLD.min, hi: WORLD.max },
-      depth: { k: 'num', min: 0.01, max: 100 }, color: COLOR_OPT, material: MATERIAL, bevel: BEVEL, edges: EDGES, opacity: OPACITY, at: AT,
+      taper: { k: 'num', min: 0.05, max: 20, opt: true }, shift: { k: 'vec2', min: -100, max: 100, opt: true },
+      holes: { k: 'rings2', max: LIMITS.maxExtrudeHoles, points: LIMITS.maxHolePoints, lo: WORLD.min, hi: WORLD.max, opt: true, doc: 'up to 8 through-openings in outline local XY; 3 to 24 points each, 128 points total including outline; no crossing, touching or nesting; either winding and a single closing point are allowed' },
+      depth: { k: 'num', min: 0.01, max: 100 }, color: COLOR_OPT, material: MATERIAL, ...FINISH, bevel: BEVEL, edges: EDGES, opacity: OPACITY, at: AT,
+    },
+  },
+  {
+    name: 'addHull', op: 'add', shapes: ['hull'], creates: 'solid',
+    doc: 'A closed convex envelope of 4 to 64 local 3D points. Points are not recentered and must span three dimensions; interior and duplicate points are allowed. No concavities or cavities.',
+    fields: {
+      shape: { k: 'enum', values: ['hull'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      pts: { k: 'pts', min: 4, max: LIMITS.maxHullPoints, lo: WORLD.min, hi: WORLD.max },
+      color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
     },
   },
   {
     name: 'addLathe', op: 'add', shapes: ['lathe'], creates: 'solid',
-    doc: 'A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides (default 48) makes it faceted.',
+    doc: 'A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides makes it faceted (default quality tiers: 20/36/64). Optional sweep 1..359 degrees makes a closed sector from +z towards +x about +y; rotate to choose its start. Sector profile: simple closed polygon, 3..40 points (one repeated closing point allowed), radius 0..100, y -100..100. Invalid, touching, intersecting or Float32-unsafe profiles and invalid sweeps are rejected, not repaired. Either winding; exact redundant collinear boundary points are removed. sides is segments per full revolution (sector segments scale proportionally, at most 90 degrees each).',
     fields: {
       shape: { k: 'enum', values: ['lathe'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
       profile: { k: 'pts2', min: 2, max: LIMITS.maxOutline, lo: WORLD.min, hi: WORLD.max },
-      sides: { k: 'num', min: 3, max: 64, int: true, opt: true }, color: COLOR_OPT, material: MATERIAL, edges: EDGES, opacity: OPACITY, at: AT,
+      sweep: { k: 'num', min: 1, max: 359, opt: true },
+      sides: { k: 'num', min: 3, max: 64, int: true, opt: true }, color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
+    },
+  },
+  {
+    name: 'addPatch', op: 'add', shapes: ['patch'], creates: 'solid',
+    doc: 'An open bicubic Bézier sheet: exactly 16 controls [x,y,z], four rows of four in row-major order. Each row runs across u; rows advance v. Corners lie on the sheet; other controls pull its curvature, not interpolation points. Curved panels, canopies, membranes. Two-sided, no thickness or solid cut cap. Use a regular net without folds or collapsed rows.',
+    fields: {
+      shape: { k: 'enum', values: ['patch'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      pts: { k: 'pts', min: 16, max: 16, lo: WORLD.min, hi: WORLD.max, doc: 'exactly 16 finite controls in -100..100; never trimmed or clamped; numerically unsafe sampled nets are rejected' },
+      color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
+    },
+  },
+  {
+    name: 'addSweep', op: 'add', shapes: ['sweep'], creates: 'solid',
+    doc: 'A closed polygon outline carried along a smooth open 3D path: curved rails, shaped cables and solid bands. Outline x,y are local section offsets; up sets initial +y, projected perpendicular to the path (default +y, or +x for a vertical start). The section follows with minimum rotation. Flat caps, sharp section corners, no bevel or holes. Keep the profile narrow relative to bends; folded or collapsed sampled meshes are rejected.',
+    fields: {
+      shape: { k: 'enum', values: ['sweep'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      outline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
+      pts: { k: 'pts', min: 2, max: 16, lo: WORLD.min, hi: WORLD.max },
+      up: { k: 'vec3', ...WORLD, opt: true, doc: 'nonzero initial section +y direction, not parallel to the starting path' },
+      color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
+    },
+  },
+  {
+    name: 'addLoft', op: 'add', shapes: ['loft'], creates: 'solid',
+    doc: 'A closed solid joining independently shaped convex end outlines by matching point indices, at z=-depth/2 and +depth/2. Both rings need 3–24 corners, equal counts and the same winding; every interpolated section must stay strictly convex. No closing duplicate, collinear corners, holes or bevel. Use for asymmetric shape-changing transitions; no automatic recentering or point rematching.',
+    fields: {
+      shape: { k: 'enum', values: ['loft'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      outline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
+      endOutline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
+      depth: { k: 'num', min: 0.01, max: 100 }, color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
     },
   },
   {
@@ -293,18 +359,19 @@ export const VARIANTS: readonly Variant[] = [
       shape: { k: 'enum', values: ['blob'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
       pts: { k: 'pts', min: 1, max: LIMITS.maxLumps, lo: WORLD.min, hi: WORLD.max },
       sizes: { k: 'pts', min: 1, max: LIMITS.maxLumps, lo: 0.01, hi: 100 },
-      soft: { k: 'num', min: 0.05, max: 1, opt: true }, color: COLOR_OPT, material: MATERIAL, opacity: OPACITY, at: AT,
+      soft: { k: 'num', min: 0.05, max: 1, opt: true }, color: COLOR_OPT, material: MATERIAL, ...FINISH, opacity: OPACITY, at: AT,
     },
   },
   {
     name: 'addTube', op: 'add', shapes: ['tube'], creates: 'path',
-    doc: 'A smooth tube through the points: cables, pipes, vessels, stems, limbs. flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail.',
+    doc: 'A smooth tube through the points: cables, pipes, vessels, stems, limbs. closed true joins it into a continuous loop (three distinct points minimum, no caps or endpoint attachment). flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail.',
     fields: {
       shape: { k: 'enum', values: ['tube'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE,
       pts: { k: 'pts', min: 2, max: LIMITS.maxPts, lo: WORLD.min, hi: WORLD.max },
       radius: { k: 'num', min: 0.01, max: 20 }, flat: { k: 'num', min: 0.05, max: 1, opt: true },
       swell: { k: 'pts2', min: 2, max: LIMITS.maxSwell, lo: 0, hi: 10, opt: true },
-      color: COLOR_OPT, material: MATERIAL, draw: DRAW, opacity: OPACITY, at: AT,
+      closed: { k: 'bool', opt: true, doc: 'Join into a smooth loop with no caps; needs three distinct points. The radius at the join uses the start of swell.' },
+      color: COLOR_OPT, material: MATERIAL, ...FINISH, draw: DRAW, opacity: OPACITY, at: AT,
     },
   },
   {
@@ -325,7 +392,7 @@ export const VARIANTS: readonly Variant[] = [
       fromSide: SIDE, toSide: SIDE,
       fromAnchor: { k: 'str', min: 1, max: 24, opt: true }, toAnchor: { k: 'str', min: 1, max: 24, opt: true },
       sag: { k: 'num', min: 0, max: 1, opt: true, doc: 'slack: how far it hangs, as a fraction of its length (default 0.2)' },
-      radius: { k: 'num', min: 0.01, max: 2, opt: true }, color: COLOR_OPT, material: MATERIAL, draw: DRAW, opacity: OPACITY, at: AT,
+      radius: { k: 'num', min: 0.01, max: 2, opt: true }, color: COLOR_OPT, material: MATERIAL, ...FINISH, draw: DRAW, opacity: OPACITY, at: AT,
     },
   },
   {
@@ -486,8 +553,8 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'cut', op: 'cut',
-    doc: 'Cut a 3D object (usually a whole model) open with a plane, so the inside shows: everything beyond the plane is removed and the cut faces are capped. axis is x, y or z (default z, the plane faces the viewer at the front); to is where the plane is along that axis in the object own space (the middle of the object is 0). Move the plane through with another cut; to 100 puts it beyond everything: no cut.',
-    fields: { id: { k: 'ref', of: 'object3d' }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, to: { k: 'num', min: -100, max: 100 }, at: AT, dur: DUR },
+    doc: 'Cut a 3D object and its children open. Choose axis x/y/z or normal [x,y,z], never both. normal is a nonzero local direction with finite components from -100 to 100; magnitude is ignored. to is signed distance along that unit direction from the local origin (not necessarily the center of a hull point cloud); the positive side is removed. Omit direction to keep the active cut direction (initially +z). Direction changes at the action start; only to animates. Closed opaque pieces are capped; open surfaces are not. to 100 removes the cut.',
+    fields: { id: { k: 'ref', of: 'object3d' }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, normal: { k: 'vec3', min: -100, max: 100, opt: true, doc: 'nonzero local cut direction; do not combine with axis' }, to: { k: 'num', min: -100, max: 100 }, at: AT, dur: DUR },
   },
   {
     name: 'orbit', op: 'orbit',

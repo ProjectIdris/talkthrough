@@ -1,3 +1,4 @@
+import { variantDefinitions } from './support/json-schema.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Euler, Matrix4, Vector3 } from 'three';
@@ -164,7 +165,7 @@ test('ordinary authored transforms remain unchanged when no mount fields are use
 
 test('full and lean model schemas and compact guide expose the mounting contract', () => {
   for (const schema of [sceneSchema, sceneSchemaLean]) {
-    const defs = (schema as { $defs: Record<string, { properties: Record<string, unknown> }> }).$defs;
+    const defs = variantDefinitions(schema);
     assert.ok(defs.addPart!.properties.parentAnchor);
     assert.ok(defs.addPart!.properties.selfAnchor);
     assert.ok(defs.addGroup!.properties.parentAnchor);
