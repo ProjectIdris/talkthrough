@@ -1,0 +1,24 @@
+{
+  "steps": [
+    {
+      "say": "One outline can now narrow, widen, or shift as it extends. These three forms are each a single closed solid: a tapered transition, an offset support, and a concave fin.",
+      "actions": [
+        { "op": "panel", "x": 80, "y": 150, "w": 840, "h": 680, "frame": true },
+        { "op": "label", "id": "title", "x": 100, "y": 70, "text": "Tapered and offset extrusions", "color": "white" },
+        { "op": "add", "shape": "extrude", "id": "transition", "outline": [[-1.4,-1.1],[1.4,-1.1],[1.4,1.1],[-1.4,1.1]], "depth": 3.6, "taper": 0.45, "pos": [-4,0,0], "rot": [-90,0,0], "color": "teal", "material": "plastic" },
+        { "op": "add", "shape": "extrude", "id": "support", "outline": [[-1,-0.8],[1,-0.8],[1,0.8],[-1,0.8]], "depth": 3.6, "shift": [1.2,0.5], "pos": [0,0,0], "rot": [-90,0,0], "color": "orange", "material": "metal" },
+        { "op": "add", "shape": "extrude", "id": "fin", "outline": [[-1.4,-1.2],[1.4,-1.2],[1.4,-0.4],[-0.5,-0.4],[-0.5,1.2],[-1.4,1.2]], "depth": 3.6, "taper": 0.55, "shift": [0.4,0], "pos": [4,0,0], "rot": [-90,0,0], "color": "blue", "material": "plastic" },
+        { "op": "orbit", "az": 25, "el": 25, "dur": 0 }
+      ]
+    },
+    {
+      "say": "The caps and walls remain closed, including the inward corner. Ordinary cutaways and model controls still work.",
+      "actions": [
+        { "op": "cut", "id": "transition", "axis": "y", "to": 0, "dur": 1.2 },
+        { "op": "cut", "id": "support", "axis": "y", "to": 0, "dur": 1.2 },
+        { "op": "cut", "id": "fin", "axis": "y", "to": 0, "dur": 1.2 },
+        { "op": "orbit", "az": -25, "el": 35, "dur": 3 }
+      ]
+    }
+  ]
+}
