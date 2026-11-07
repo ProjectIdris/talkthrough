@@ -555,3 +555,23 @@ test('render synchronization preserves authored crop and diagram ownership for l
     assert.deepEqual(renewed.homeOf(150,150), {from:authored,to:{...displayed,x:200}});
   }
 });
+
+test('following stage controls protect cards without pushing the stage around on repeated placement', () => {
+  const p = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(240), COLS, ROWS), { aspect: 1100 / 800, height: 800 });
+  const requested = { x: 70, y: 65, w: 860, h: 830 };
+  const model = { x: 210, y: 140, w: 580, h: 600 };
+  const following = { x: 670, y: 85, w: 157, h: 40 };
+  for (let i = 0; i < 16; i++) {
+    p.reset();
+    assert.deepEqual(p.panel(requested), requested);
+    p.syncRenderedStage(model, [following]);
+  }
+  const card = p.card({ x: 680, y: 90, w: 120, h: 80 }, 'note');
+  assert.ok(!overlaps(card, following), 'cards still avoid the visible following controls');
+  assert.ok(!overlaps(card, model), 'cards still avoid the model');
+  p.release('note');
+  p.setControls([{ x: 70, y: 65, w: 860, h: 100 }]);
+  p.reset();
+  const moved = p.panel(requested);
+  assert.ok(!overlaps(moved, { x: 70, y: 65, w: 860, h: 100 }), 'fixed application controls still constrain the stage');
+});
