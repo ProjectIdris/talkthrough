@@ -116,8 +116,9 @@ export function extrudeGeometry(outline: readonly Vec2[], depth: number, bevel: 
     const geo = new ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 8 });
     splitCapEdges(geo, [profile.outline, ...profile.holes]);
     geo.translate(0, 0, -depth / 2);
-    // ExtrudeGeometry's flat face normals preserve sharp walls even when distinct
-    // features are closer than the position buckets used by toCreasedNormals.
+    // Use exact shared corners to smooth curved inner and outer walls without
+    // blending nearby openings, sharp outline corners or the flat cap boundary.
+    shadeExtrusion(geo);
     return geo;
   }
   const shape = new Shape();
