@@ -6,7 +6,8 @@ export const visualFixtures: VisualFixture[] = [
   { id: 'solids', description: 'Box, sphere and torus', inspect: 'All three bodies should be visible, centred and lit. Inspect the torus hole, curved shading and box corners.', scene: scene([
     { op: 'add', id: 'box', shape: 'box', size: [2, 2, 2], pos: [-2.8, 0, 0], color: '#ef6b54', material: 'plastic' },
     { op: 'add', id: 'sphere', shape: 'sphere', size: [2.2, 2.2, 2.2], color: '#4e9fe5', material: 'plastic' },
-    { op: 'add', id: 'torus', shape: 'torus', size: [2.4, 2.4, 0.6], pos: [2.8, 0, 0], color: '#61c28b', material: 'plastic' },
+    // Torus size.y is tube thickness; turn its flat ring towards the inspection cameras.
+    { op: 'add', id: 'torus', shape: 'torus', size: [2.4, 0.6, 2.4], rot: [90, 0, 0], pos: [2.8, 0, 0], color: '#61c28b', material: 'plastic' },
   ]) },
   { id: 'profiles', description: 'Extrusion, lathe and open tube', inspect: 'Inspect the extruded notch, continuous lathe surface, tube ends and bends. Watch for dark seams, missing faces or faceting.', scene: scene([
     { op: 'add', id: 'extrusion', shape: 'extrude', outline: [[-1,-1],[1,-1],[1,0],[0,0],[0,1],[-1,1]], depth: 0.8, pos: [-3,0,0], color: '#ef6b54' },
