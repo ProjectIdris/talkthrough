@@ -8,7 +8,7 @@ import {
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { BLOB_CELLS, SCENE_BLOB_TRIANGLES } from './blob.ts';
-import { catmull } from './timeline.ts';
+import { sampleOpenCurve } from './open-curve.ts';
 import type { Vec2, Vec3 } from '../scene/types.ts';
 
 export type Detail = { curve: number; bevel: number; radial: number; tube: number; blob: number; blobTriangles: number };
@@ -92,20 +92,7 @@ export function shadeByHeight(geo: BufferGeometry): void {
 
 /** Points along the path: smooth (a spline) for tubes, straight between the points for lines. */
 export function samplePath(pts: readonly Vec3[], smooth: boolean, perSegment: number): Vec3[] {
-  const raw = pts.map((p) => [p[0], p[1], p[2]]);
-  const out: Vec3[] = [];
-  const segments = raw.length - 1;
-  for (let i = 0; i < segments; i++) {
-    const n = smooth ? perSegment : 1;
-    for (let k = 0; k < n; k++) {
-      const u = (i + k / n) / segments;
-      const p = smooth ? catmull(raw, u) : (raw[i] as number[]).map((a, c) => a + (((raw[i + 1] as number[])[c] ?? a) - a) * (k / n));
-      out.push([p[0] ?? 0, p[1] ?? 0, p[2] ?? 0]);
-    }
-  }
-  const end = raw[segments] as number[];
-  out.push([end[0] ?? 0, end[1] ?? 0, end[2] ?? 0]);
-  return out;
+  return smooth ? sampleOpenCurve(pts, perSegment) : pts.map(p => [...p]);
 }
 
 const UP = new Vector3(0, 1, 0);
