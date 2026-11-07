@@ -201,6 +201,28 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
     }
   }
   const row = radial + 1;
+  // Follow the swept skin, including taper and a ribbon's changing orientation.
+  // Radial-only normals make the shoulders of a swollen tube shade like a cylinder.
+  // Keep the analytic direction around each ellipse to avoid radial faceting or a seam.
+  const along = new Vector3(), around = new Vector3(), normal = new Vector3();
+  for (let i = 0; i < rings; i++) {
+    const frame = frames[i]!;
+    const prev = Math.max(0, i - 1), next = Math.min(rings - 1, i + 1);
+    for (let j = 0; j <= radial; j++) {
+      const offset = (i * row + j) * 3;
+      const before = (prev * row + j) * 3, after = (next * row + j) * 3;
+      along.set(pos[after]! - pos[before]!, pos[after + 1]! - pos[before + 1]!, pos[after + 2]! - pos[before + 2]!);
+      const angle = (j / radial) * Math.PI * 2;
+      around.copy(frame.wide).multiplyScalar(-Math.sin(angle)).addScaledVector(frame.thin, flat * Math.cos(angle));
+      normal.crossVectors(along, around);
+      // A repeated point or folded/collapsed span has no usable surface derivative.
+      // Retain the finite outward ellipse normal already assigned to that vertex.
+      if (normal.lengthSq() > 0 && (normal.x * nor[offset]! + normal.y * nor[offset + 1]! + normal.z * nor[offset + 2]!) > 0) {
+        normal.normalize();
+        nor[offset] = normal.x; nor[offset + 1] = normal.y; nor[offset + 2] = normal.z;
+      }
+    }
+  }
   for (let i = 0; i < rings - 1; i++) {
     for (let j = 0; j < radial; j++) {
       const p0 = i * row + j, p1 = p0 + 1, p2 = p0 + row, p3 = p2 + 1;
@@ -228,10 +250,10 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
             frame.centre.y + frame.wide.y * c * r + frame.thin.y * sn * r * flat + frame.tangent.y * lift,
             frame.centre.z + frame.wide.z * c * r + frame.thin.z * sn * r * flat + frame.tangent.z * lift,
           );
-          // Normals of a sphere-like cap: outward from the ring, tilted along the tangent as the cap closes.
-          const nx = frame.wide.x * c * flat * scale + frame.thin.x * sn * scale + frame.tangent.x * Math.sin(th) * dir;
-          const ny = frame.wide.y * c * flat * scale + frame.thin.y * sn * scale + frame.tangent.y * Math.sin(th) * dir;
-          const nz = frame.wide.z * c * flat * scale + frame.thin.z * sn * scale + frame.tangent.z * Math.sin(th) * dir;
+          // Ellipsoid gradient: the thin axis needs the reciprocal flattening, including relative to the tangent.
+          const nx = frame.wide.x * c * flat * scale + frame.thin.x * sn * scale + frame.tangent.x * Math.sin(th) * dir * flat;
+          const ny = frame.wide.y * c * flat * scale + frame.thin.y * sn * scale + frame.tangent.y * Math.sin(th) * dir * flat;
+          const nz = frame.wide.z * c * flat * scale + frame.thin.z * sn * scale + frame.tangent.z * Math.sin(th) * dir * flat;
           const l = Math.hypot(nx, ny, nz) || 1;
           nor.push(nx / l, ny / l, nz / l);
         }
