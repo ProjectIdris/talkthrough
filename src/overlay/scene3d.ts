@@ -569,6 +569,63 @@ export class PanelScene {
     // The person's Cut goes through the middle of the model from the side the camera looks from.
     this.cutaway.update(frame, this.nodes, this.scene, this.camera.getWorldDirection(new Vector3()).negate());
     this.placeShadow(frame);
+    this.fitDepth(frame);
+  }
+
+  /** Fit depth to what is drawn, independently of the camera's framing/glide.
+   * Fixed near/far planes can erase compact close-ups or enlarged models that
+   * already fit the stage. Paths and posed parts must count even when they do
+   * not participate in the resting model's framing. */
+  private fitDepth(frame: Frame): void {
+    let nearest = Infinity, positiveNearest = Infinity, furthest = -Infinity;
+    const box = new Box3(), point = new Vector3();
+    const include = (min: number, max: number, shadow: boolean): void => {
+      furthest = Math.max(furthest, max);
+      if (shadow) return; // The oversized receiver is not a surface near the model.
+      nearest = Math.min(nearest, min);
+      if (min > 0) positiveNearest = Math.min(positiveNearest, min);
+    };
+    const measure = (o: Object3D, shadow = false): void => {
+      if (o instanceof Sprite) {
+        // A billboard faces the camera: all its vertices have its centre depth.
+        const depth = -o.getWorldPosition(point).applyMatrix4(this.camera.matrixWorldInverse).z;
+        include(depth, depth, shadow);
+        return;
+      }
+      if (!(o instanceof Mesh || o instanceof LineSegments)) return;
+      if (o instanceof InstancedMesh) {
+        if (!o.boundingBox) o.computeBoundingBox();
+        if (!o.boundingBox) return;
+        box.copy(o.boundingBox);
+      } else {
+        if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        if (!o.geometry.boundingBox) return;
+        box.copy(o.geometry.boundingBox);
+      }
+      if (box.isEmpty()) return;
+      o.updateWorldMatrix(true, false);
+      let min = Infinity, max = -Infinity;
+      // Transform this drawable only, not hidden descendants or stencil caps.
+      for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+        const depth = -point.set(x, y, z).applyMatrix4(o.matrixWorld).applyMatrix4(this.camera.matrixWorldInverse).z;
+        min = Math.min(min, depth); max = Math.max(max, depth);
+      }
+      include(min, max, shadow);
+    };
+    this.content.traverseVisible(measure);
+    if (this.floor.visible) measure(this.floor, true);
+    if (this.blob?.visible) measure(this.blob, true);
+    const usable = Number.isFinite(nearest) && Number.isFinite(furthest) && furthest > 0;
+    // If geometry crosses the camera, some clipping is unavoidable. Use a small
+    // fraction of the viewing distance, not an unrelated distant object's depth;
+    // retain any separate, entirely forward piece closer than that fallback.
+    const distance = this.camera.position.distanceTo(this.focusPoint(frame.camera.focus, point));
+    const near = usable ? Math.max(1e-6, nearest > 0 ? nearest * 0.5 : Math.min(distance * 0.001, positiveNearest * 0.5)) : 0.3;
+    const far = usable ? Math.max(near * 2, furthest * 1.1) : 1500;
+    if (this.camera.near !== near || this.camera.far !== far) {
+      this.camera.near = near; this.camera.far = far;
+      this.camera.updateProjectionMatrix();
+    }
   }
 
   private apply(node: Node, o: ObjectFrame, parentSpread: number, offset?: Vec3, rest = false): void {
@@ -983,8 +1040,7 @@ export class PanelScene {
       }
     }
     const ray = new Raycaster();
-    ray.near = this.camera.near;
-    ray.far = this.camera.far;
+    const forward = this.camera.getWorldDirection(new Vector3());
     const allowed = (hit: { point: Vector3; object: Object3D }): boolean => {
       const material = (hit.object as Mesh).material;
       const mats = Array.isArray(material) ? material : [material];
@@ -1000,6 +1056,11 @@ export class PanelScene {
         return mats.some((m) => m.visible && !(m.clippingPlanes ?? []).some((plane) => plane.distanceToPoint(world) < -1e-6));
       })) continue;
       ray.setFromCamera(new Vector2(ndc.x, ndc.y), this.camera);
+      // Camera clipping is axial depth; Raycaster limits are distance along
+      // this oblique ray, including paths that extend outside the fitted stage.
+      const axial = ray.ray.direction.dot(forward);
+      ray.near = this.camera.near / axial;
+      ray.far = this.camera.far / axial;
       const hit = ray.intersectObjects(target, false).find(allowed);
       if (!hit) continue;
       const blocker = ray.intersectObjects(occluders, false).find(allowed);

@@ -1,0 +1,215 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "The original pieces at ordinary scale. Camera depth must preserve their surfaces, outlines and shadows.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 100,
+          "y": 90,
+          "w": 820,
+          "h": 620
+        },
+        {
+          "op": "orbit",
+          "az": 22,
+          "el": 18,
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "world"
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "assembly",
+          "parent": "world"
+        },
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "body",
+          "parent": "assembly",
+          "size": [
+            1,
+            1,
+            1
+          ],
+          "pos": [
+            -1.5,
+            0,
+            0
+          ],
+          "color": "blue",
+          "material": "plastic"
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "shell",
+          "parent": "assembly",
+          "size": [
+            1,
+            1,
+            1
+          ],
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "color": "teal",
+          "material": "plastic"
+        },
+        {
+          "op": "add",
+          "shape": "torus",
+          "id": "ring",
+          "parent": "assembly",
+          "size": [
+            1,
+            0.3,
+            1
+          ],
+          "pos": [
+            1.5,
+            0,
+            0
+          ],
+          "color": "orange",
+          "material": "plastic"
+        }
+      ]
+    },
+    {
+      "say": "The same pieces are enlarged ten thousand times through two groups. They still fit the view and must remain visible.",
+      "actions": [
+        {
+          "op": "scale",
+          "id": "world",
+          "to": [
+            100,
+            100,
+            100
+          ],
+          "dur": 0
+        },
+        {
+          "op": "scale",
+          "id": "assembly",
+          "to": [
+            100,
+            100,
+            100
+          ],
+          "dur": 0
+        }
+      ]
+    },
+    {
+      "say": "The pieces are now one hundredth of their original size and viewed closely. The old fixed near plane erased them.",
+      "actions": [
+        {
+          "op": "scale",
+          "id": "world",
+          "to": [
+            0.01,
+            0.01,
+            0.01
+          ],
+          "dur": 0
+        },
+        {
+          "op": "scale",
+          "id": "assembly",
+          "to": [
+            1,
+            1,
+            1
+          ],
+          "dur": 0
+        },
+        {
+          "op": "zoom",
+          "to": 5,
+          "dur": 0
+        }
+      ]
+    },
+    {
+      "say": "The enlarged pieces can still be cut. Only the model surfaces, not the oversized stencil helper planes, determine the near clipping distance.",
+      "actions": [
+        {
+          "op": "scale",
+          "id": "world",
+          "to": [
+            100,
+            100,
+            100
+          ],
+          "dur": 0
+        },
+        {
+          "op": "scale",
+          "id": "assembly",
+          "to": [
+            100,
+            100,
+            100
+          ],
+          "dur": 0
+        },
+        {
+          "op": "zoom",
+          "to": 1,
+          "dur": 0
+        },
+        {
+          "op": "cut",
+          "id": "assembly",
+          "normal": [
+            1,
+            0.3,
+            0.8
+          ],
+          "to": 0,
+          "dur": 0
+        }
+      ]
+    },
+    {
+      "say": "Return to the original view with the cut removed. Framing, shape and shading should return with it.",
+      "actions": [
+        {
+          "op": "scale",
+          "id": "world",
+          "to": [
+            1,
+            1,
+            1
+          ],
+          "dur": 0
+        },
+        {
+          "op": "scale",
+          "id": "assembly",
+          "to": [
+            1,
+            1,
+            1
+          ],
+          "dur": 0
+        },
+        {
+          "op": "cut",
+          "id": "assembly",
+          "to": 100,
+          "dur": 0
+        }
+      ]
+    }
+  ]
+}

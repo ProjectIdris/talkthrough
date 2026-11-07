@@ -31,7 +31,10 @@ for (const tier of ['low', 'mid', 'high'] as const) {
       const withCable = frameAt(steps([loop, { op: 'add', shape: 'tube', id: 'cable',
         pts: [[0, 0, 0], [50, 50, 0], [100, 0, 0]], radius: 0.02 }]), 0, 2);
       panel.sync(withCable, view.rect.w / view.rect.h, view);
-      assert.deepEqual(panel.screenBounds(view.width, view.height)!.model, before, 'thin open cables remain outside model framing');
+      const after = panel.screenBounds(view.width, view.height)!.model;
+      // Updating depth planes can change projection arithmetic at machine precision,
+      // but the cable must not change the model's screen framing.
+      for (const key of ['x', 'y', 'w', 'h'] as const) assert.ok(Math.abs(after[key] - before[key]) < 1e-9, 'thin open cables remain outside model framing');
       assert.ok(panel.camera.position.distanceTo(camera) < 1e-8);
     } finally { panel.destroy(); }
   });
