@@ -1798,6 +1798,13 @@
           },
           "description": "2 to 8 points [x,y], each 0 to 10"
         },
+        "closed": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Join into a smooth loop with no caps; needs three distinct points. The radius at the join uses the start of swell."
+        },
         "color": {
           "type": [
             "string",
@@ -1851,6 +1858,7 @@
         "radius",
         "flat",
         "swell",
+        "closed",
         "color",
         "material",
         "draw",
@@ -1858,7 +1866,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A smooth tube through the points: cables, pipes, vessels, stems, limbs. flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail."
+      "description": "A smooth tube through the points: cables, pipes, vessels, stems, limbs. closed true joins it into a continuous loop (three distinct points minimum, no caps or endpoint attachment). flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail."
     },
     "addPath": {
       "type": "object",

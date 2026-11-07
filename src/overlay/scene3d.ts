@@ -18,6 +18,7 @@ import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
 import { buildHullGeometry } from './hull.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
+import { closedTubeGeometry } from './closed-tube.ts';
 import { TIERS, applySurface, makeSurface } from './materials.ts';
 import type { Surface, Tier } from './materials.ts';
 import { buildPart } from './parts.ts';
@@ -359,11 +360,12 @@ export class PanelScene {
   }
 
   private buildPath(node: Node, o: ObjectFrame, addMesh: AddMesh): void {
-    const def = o.def as { shape: string; pts: Vec3[]; radius?: number; flat?: number; swell?: Array<[number, number]>; material?: string };
+    const def = o.def as { shape: string; pts: Vec3[]; radius?: number; flat?: number; swell?: Array<[number, number]>; closed?: boolean; material?: string };
     const tube = def.shape === 'tube';
-    const sampled = samplePath(def.pts, tube, this.detail.tube);
     const radius = tube ? def.radius ?? PATH_RADIUS : PATH_RADIUS;
-    const geo = tubeGeometry(sampled, radius, tube ? def.flat ?? 1 : 1, this.detail.radial, tube ? def.swell : undefined);
+    const loop = tube && def.closed ? closedTubeGeometry(def.pts, radius, def.flat ?? 1, this.detail.radial, this.detail.tube, def.swell) : undefined;
+    const sampled = loop?.sampled ?? samplePath(def.pts, tube, this.detail.tube);
+    const geo = loop?.geo ?? tubeGeometry(sampled, radius, tube ? def.flat ?? 1 : 1, this.detail.radial, tube ? def.swell : undefined);
     const mesh = addMesh(geo, tube ? def.material : 'plastic', false);
     const group = new Group();
     group.add(mesh);
@@ -375,7 +377,9 @@ export class PanelScene {
     node.obj = group;
     let length = 0;
     for (let i = 1; i < sampled.length; i++) length += Math.hypot(sampled[i]![0] - sampled[i - 1]![0], sampled[i]![1] - sampled[i - 1]![1], sampled[i]![2] - sampled[i - 1]![2]);
-    node.path = { geo, sampled, head, body: tube && radius >= 0.04 * length };
+    // Closed loops are model geometry, even when thin; only open trailing cables
+    // may stay outside the camera fit and the bounds that enable rendering.
+    node.path = { geo, sampled, head, body: tube && (def.closed === true || radius >= 0.04 * length) };
   }
 
   private buildText(node: Node, o: ObjectFrame): void {

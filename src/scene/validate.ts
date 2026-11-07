@@ -382,6 +382,7 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
   else if (name === 'addBlob') state.bodies.set(id, { shape: 'blob', pts: out.pts as Vec3[], sizes: out.sizes as Vec3[], ...place });
   else if (name === 'addExtrude' || name === 'addHull' || name === 'addLathe' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addTube' || (name === 'addPath' && shape === 'line')) {
+    if (name === 'addTube' && out.closed === true) return; // A loop has no endpoints to attach.
     holdEnds(state, id, out, path, notes);
     return;
   } else return;
@@ -611,6 +612,10 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   }
   if (variant.name === 'joint' && !checkJoint(out, state, path, notes)) return null;
   if (variant.name === 'couple' && !checkCouple(out, state, path, notes)) return null;
+  if (variant.name === 'addTube' && out.closed === true && new Set((out.pts as Vec3[]).map((p) => p.join(','))).size < 3) {
+    note(notes, 'dropped', `${path}.pts`, 'a closed tube needs at least three distinct points');
+    return null;
+  }
   if (variant.name === 'addBlob') {
     // One size for each lump: a short list repeats its last, a long one is cut.
     const pts = out.pts as unknown[];

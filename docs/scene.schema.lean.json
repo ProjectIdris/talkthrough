@@ -1565,6 +1565,9 @@
             }
           }
         },
+        "closed": {
+          "$ref": "#/$defs/4"
+        },
         "color": {
           "$ref": "#/$defs/1"
         },
@@ -1590,6 +1593,7 @@
         "radius",
         "flat",
         "swell",
+        "closed",
         "color",
         "material",
         "draw",
