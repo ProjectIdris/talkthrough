@@ -81,7 +81,7 @@ test('on a window of our own: a tab is selected, a submenu is opened, an area is
 
     // What the guard allows is done.
     const tab = await guarded(nav, win.centre('tab-beta'), { kind: 'tab' });
-    assert.equal(tab.d.verdict, 'do');
+    assert.equal(tab.d.verdict, 'do', JSON.stringify({ probe: tab.p, decision: tab.d, point: win.centre('tab-beta'), hwnd: win.hwnd, events: win.events }));
     assert.equal(tab.acted, true);
     assert.ok(await win.waitEvent(/^tab 1$/), 'the second tab was selected');
     const again = await guarded(nav, win.centre('tab-beta'), { kind: 'tab' });
