@@ -215,7 +215,8 @@ export class PanelScene {
       const mesh = new Mesh(geo, surface);
       mesh.castShadow = settings.shadows;
       mesh.receiveShadow = settings.shadows;
-      node.geometries.push(geo);
+      // Stream markers share geometry within this node; own and release it once.
+      if (!node.geometries.includes(geo)) node.geometries.push(geo);
       node.materials.push(surface);
       const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'torus';
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };

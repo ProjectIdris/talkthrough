@@ -4,6 +4,7 @@
 
 import { Group, InstancedMesh, Matrix4, Mesh, SphereGeometry, TorusGeometry } from 'three';
 import type { AddPart } from '../scene/types.ts';
+import { resolvePartGeometry } from '../scene/part-geometry.ts';
 import { boxGeometry, defaultBevel } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { buildMechanismPart } from './mechanism-parts.ts';
@@ -130,16 +131,18 @@ function wheel(b: Builder, def: AddPart, d: Detail): void {
 
 export function buildPart(def: AddPart, detail: Detail): BuiltPart {
   const b = new Builder();
-  switch (def.part) {
-    case 'chip': chip(b, def, detail); break;
-    case 'header': header(b, def, detail); break;
-    case 'port': port(b, def, detail); break;
-    case 'lens': lens(b, def, detail); break;
-    case 'screen': screen(b, def, detail); break;
-    case 'button': button(b, def, detail); break;
-    case 'fan': fan(b, def, detail); break;
-    case 'wheel': wheel(b, def, detail); break;
-    default: buildMechanismPart(b, def, detail);
+  if (!buildMechanismPart(b, def, detail)) {
+    Object.assign(b.anchors, resolvePartGeometry(def).anchors);
+    switch (def.part) {
+      case 'chip': chip(b, def, detail); break;
+      case 'header': header(b, def, detail); break;
+      case 'port': port(b, def, detail); break;
+      case 'lens': lens(b, def, detail); break;
+      case 'screen': screen(b, def, detail); break;
+      case 'button': button(b, def, detail); break;
+      case 'fan': fan(b, def, detail); break;
+      case 'wheel': wheel(b, def, detail); break;
+    }
   }
   return { root: b.root, pieces: b.pieces, anchors: b.anchors };
 }
