@@ -2,12 +2,13 @@
 // button, fan, wheel). Each is built from the same generic pieces a model could write itself, fitted
 // to the box size it is given, so a scene says "port, usb3" instead of listing a dozen boxes.
 
-import { Group, InstancedMesh, Matrix4, Mesh, SphereGeometry, TorusGeometry } from 'three';
+import { InstancedMesh, Matrix4, Mesh, SphereGeometry, TorusGeometry } from 'three';
 import type { AddPart } from '../scene/types.ts';
 import { resolvePartGeometry } from '../scene/part-geometry.ts';
 import { boxGeometry, defaultBevel } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { buildMechanismPart } from './mechanism-parts.ts';
+import { buildWheel } from './wheel.ts';
 import { BLACK, Builder, GOLD, cyl } from './parts-base.ts';
 import type { BuiltPart, Piece } from './parts-base.ts';
 import type { Rgb } from './timeline.ts';
@@ -107,28 +108,6 @@ function fan(b: Builder, def: AddPart, d: Detail): void {
   b.pieces.push({ object: ring, surface: 'metal', tint: false, color: [186, 192, 204], edges: false });
 }
 
-function wheel(b: Builder, def: AddPart, d: Detail): void {
-  const [sx, , sz] = def.size;
-  const n = def.n ?? 5;
-  const seg = d.curve;
-  const outer = sx / 2;
-  const tube = Math.min(sz / 2, outer * 0.4);
-  const tire = new Mesh(new TorusGeometry(outer - tube, tube, 14, seg * 2));
-  b.root.add(tire);
-  b.pieces.push({ object: tire, surface: 'rubber', tint: false, color: [32, 34, 40], edges: false });
-  b.add(cyl(outer - tube * 1.5, outer - tube * 1.5, sz * 0.5, seg), 'metal', { tint: true, rot: [90, 0, 0], edges: true });
-  b.add(cyl(outer * 0.16, outer * 0.16, sz * 0.8, seg), 'metal', { color: [150, 156, 168], rot: [90, 0, 0], edges: true });
-  for (let i = 0; i < n; i++) {
-    const hold = new Group();
-    hold.rotation.z = ((360 / n) * i * Math.PI) / 180;
-    b.root.add(hold);
-    const spoke = new Mesh(boxGeometry([outer * 0.74, outer * 0.12, sz * 0.62], 0.01, d));
-    spoke.position.set(outer * 0.4, 0, 0);
-    hold.add(spoke);
-    b.pieces.push({ object: spoke, surface: 'metal', tint: false, color: [214, 218, 226], edges: false });
-  }
-}
-
 export function buildPart(def: AddPart, detail: Detail): BuiltPart {
   const b = new Builder();
   if (!buildMechanismPart(b, def, detail)) {
@@ -141,7 +120,7 @@ export function buildPart(def: AddPart, detail: Detail): BuiltPart {
       case 'screen': screen(b, def, detail); break;
       case 'button': button(b, def, detail); break;
       case 'fan': fan(b, def, detail); break;
-      case 'wheel': wheel(b, def, detail); break;
+      case 'wheel': buildWheel(b, def, detail); break;
     }
   }
   return { root: b.root, pieces: b.pieces, anchors: b.anchors };
