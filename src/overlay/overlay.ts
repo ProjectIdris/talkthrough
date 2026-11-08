@@ -1644,6 +1644,7 @@ function applyScene(message: SceneMessage): void {
         if (p) foreseePoints(p, message.step.actions, view.width / view.height);
       }
       player.pushStep({ ...message.step, actions: message.step.actions.map(placedAction) });
+      void modelStore.ensure(modelsIn({ steps: [message.step] })); // a live answer's steps and actions come one at a time: each asks for the model files it names
       break;
     case 'step-open':
       guideTarget = undefined;
@@ -1656,6 +1657,7 @@ function applyScene(message: SceneMessage): void {
       rememberGuideTarget(message.action);
       if (drawsAction(message.action)) box.drew();
       player.addAction(placedAction(message.action));
+      void modelStore.ensure(modelsIn({ steps: [{ actions: [message.action] }] }));
       break;
     case 'step-close':
       box.stepClosed();
