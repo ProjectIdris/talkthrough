@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { evaluate, inner, BASE } from '../src/scene/kit-expr.ts';
-import { KIT_PARTS, KIT_PRESETS, rowAnchors, rowScope, settingN } from '../src/scene/kit-presets.ts';
+import { kitParts, KIT_PRESETS, rowAnchors, rowScope, settingN } from '../src/scene/kit-presets.ts';
 import type { KitRow } from '../src/scene/kit-presets.ts';
 import { crankThrow, normalSize, pistonPinDrop, resolvePartGeometry, rodEnds } from '../src/scene/part-geometry.ts';
 import { PARTS } from '../src/scene/spec.ts';
@@ -48,9 +48,9 @@ test('formulas read only numbers, names and a short list of functions; nothing e
 });
 
 test('the table holds the thirteen mechanism parts, each a part the scene language names, and every row evaluates', () => {
-  assert.deepEqual(KIT_PARTS, ['cylinder-block', 'piston', 'connecting-rod', 'crankshaft', 'valve', 'camshaft', 'spark-plug', 'gear', 'spring', 'bearing', 'pipe', 'elbow', 'housing']);
-  for (const part of KIT_PARTS) assert.ok(PARTS.includes(part as never), part);
-  for (const part of KIT_PARTS) {
+  assert.deepEqual(kitParts(), ['cylinder-block', 'piston', 'connecting-rod', 'crankshaft', 'valve', 'camshaft', 'spark-plug', 'gear', 'spring', 'bearing', 'pipe', 'elbow', 'housing']);
+  for (const part of kitParts()) assert.ok(PARTS.includes(part as never), part);
+  for (const part of kitParts()) {
     for (const size of [[1, 1, 1], [2, 3, 2.5], [4, 1, 0.5]] as Vec3[]) {
       const { size: fitted, anchors } = resolvePartGeometry({ part, size } as AddPart);
       assert.ok(fitted.every((v) => Number.isFinite(v) && v > 0), `${part} ${size}`);

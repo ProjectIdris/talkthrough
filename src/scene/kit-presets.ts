@@ -284,8 +284,8 @@ export const KIT_PRESETS: Readonly<Record<string, KitRow>> = {
   },
 };
 
-/** The kit parts in the table, in its order. */
-export const KIT_PARTS = Object.keys(KIT_PRESETS);
+/** The kit parts in the table, in its order (read when asked, so a row added to the table is a part). */
+export const kitParts = (): string[] => Object.keys(KIT_PRESETS);
 
 // ---- Reading a row ----------------------------------------------------------------------------------------------------
 

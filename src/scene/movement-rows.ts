@@ -7,8 +7,6 @@
 import { BASE, evaluate, inner, num } from './kit-expr.ts';
 import type { Scope, Value } from './kit-expr.ts';
 
-export type LoopName = 'slide' | 'swing' | 'pulse' | 'gate' | 'float';
-
 export type LoopRow = {
   /** The general motion: a turn about an axis through a pivot (a hinge), a slide along an axis, a swell about the middle, or a bob with a rock. */
   motion: 'turn' | 'slide' | 'scale' | 'bob';
@@ -29,16 +27,20 @@ export type LoopRow = {
   ease?: number;
 };
 
-export const LOOP_ROWS: Readonly<Record<LoopName, LoopRow>> = {
+// The order here is the order the scene language lists the kinds in (the guide and the schema read it from the keys), and `LoopName` is the keys.
+const rows = {
   // The travel is the whole way, so half of it each side of the middle.
   slide: { motion: 'slide', axis: 1, start: 270, amount: [0.01, 100], value: 'cos(a)*amount*fade/2' },
   swing: { motion: 'turn', axis: 2, start: 270, amount: [-180, 180], value: 'cos(a)*amount*fade' },
-  // Open on one half of the cycle, shut on the other: a one-way valve.
-  gate: { motion: 'turn', axis: 2, start: 270, amount: [-170, 170], value: 'max(0, cos(a))*amount' },
   // Starts at its smallest (the cosine is -1).
   pulse: { motion: 'scale', axis: 1, start: 180, amount: [0.1, 5], value: '1 + (amount - 1)*((1 + cos(a))/2)*fade' },
+  // Open on one half of the cycle, shut on the other: a one-way valve.
+  gate: { motion: 'turn', axis: 2, start: 270, amount: [-170, 170], value: 'max(0, cos(a))*amount' },
   float: { motion: 'bob', axis: 1, start: 270, amount: [0.01, 100], value: 'cos(a)*amount*fade*born', rock: 'sin(a)*tilt*fade*born', ease: 180 },
-};
+} satisfies Record<string, LoopRow>;
+
+export type LoopName = keyof typeof rows;
+export const LOOP_ROWS: Readonly<Record<LoopName, LoopRow>> = rows;
 
 /** What a loop of an unnamed or stopped kind takes as an amount. */
 export const DEFAULT_AMOUNT: readonly [number, number] = [0.1, 5];

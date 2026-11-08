@@ -112,9 +112,8 @@ export type AddPath = {
   op: 'add'; shape: 'line' | 'arrow'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; color?: Color; draw?: number; opacity?: number;
   attach?: [AttachEnd | null, AttachEnd | null];
 } & At;
-export type PartKind =
-  | 'chip' | 'header' | 'port' | 'lens' | 'screen' | 'button' | 'fan' | 'wheel'
-  | 'cylinder-block' | 'piston' | 'connecting-rod' | 'crankshaft' | 'valve' | 'camshaft' | 'spark-plug' | 'gear' | 'spring' | 'bearing' | 'pipe' | 'elbow' | 'housing';
+/** A part's name: one of `PARTS` in spec.ts (the other parts and the rows of the kit table), checked when a scene is read. */
+export type PartKind = string;
 export type PartVariant = 'black' | 'metal' | 'usb' | 'usb3' | 'ethernet' | 'hdmi' | 'usbc' | 'gold' | 'cutaway' | 'finned';
 export type AddPart = {
   op: 'add'; shape: 'part'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; part: PartKind; variant?: PartVariant;

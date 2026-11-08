@@ -6,6 +6,7 @@ import { InstancedMesh } from 'three';
 import type { BufferGeometry, Mesh } from 'three';
 import { DETAIL } from '../src/overlay/geometry.ts';
 import { buildPart } from '../src/overlay/parts.ts';
+import { kitParts } from '../src/scene/kit-presets.ts';
 import { PARTS } from '../src/scene/spec.ts';
 import type { AddPart, Vec3 } from '../src/scene/types.ts';
 
@@ -70,8 +71,8 @@ test('the mechanism kit builds exactly what was recorded, part by part', () => {
   assert.deepEqual(bad, [], `${bad.length} of ${Object.keys(all).length} configurations differ`);
 });
 
-test('every part the scene language names is covered by the recording', () => {
-  const mechanism = ['cylinder-block', 'piston', 'connecting-rod', 'crankshaft', 'valve', 'camshaft', 'spark-plug', 'gear', 'spring', 'bearing', 'pipe', 'elbow', 'housing'];
+test('every kit part in the table is a part of the scene language and is covered by the recording', () => {
+  const mechanism = kitParts();
   for (const p of mechanism) assert.ok(PARTS.includes(p as never), `${p} is a part`);
   for (const p of mechanism) assert.ok(sets.some(([label]) => label.startsWith(p)), `${p} is recorded`);
 });
