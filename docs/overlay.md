@@ -34,6 +34,16 @@ The camera's near and far clipping planes follow the current visible pieces, inc
 
 `theme.ts` holds the look of what the overlay draws on the screen. The tags pinned to 3D parts and the image cards are dark glass with a coloured dot or bar and thin light lines. The flat diagrams (flow, timeline, steps, chart) and the note cards wear **Frost**: soft frosted panels with rounded, tinted items, each in its own accent in turn (blue, teal, violet, amber, rose), that follow the page: a light panel over a light page, a dark one over a dark page (`FROST`, `faceFor`). Windows' own fonts (Segoe UI Variable). The scene never chooses either look; it names colours, not faces.
 
+### Crowded panels
+
+Placement first tries to keep readable surfaces apart. When no layout fits, admission uses the actual painted card bounds, including flow growth and entrance motion, and omits whole conflicting panels instead of painting text through text. The stage keeps priority, then panels added or highlighted by the current step (including their diagram items), then older retained panels. Newer panels win ties. A visible count explains omissions; omitted panels and their annotations have no pointer footprint.
+
+Cleared panels may finish fading only where they do not block live panels. Their departure does not count as a crowded omission, and reusing an id removes the old fading instance before measurement. An annotation belongs to the last preceding containing diagram or image and follows that exact surface through placement.
+
+Diagram bounds are prepared without painting, then admitted content is painted once at the same timestamp. Node easing is not reset or advanced twice. The cue measures in an aria-hidden element, caches its size by count bound and viewport width, and changes its live text only when the count changes.
+
+Known limits: an extreme thirteen-panel layout at 480×340 can still evict the stage to make room for the cue. Omitted panels still participate in placement, and diagram-internal clipping is separate from panel overlap. This fallback does not implement stage growth or animation hysteresis; future stage growth should relocate panels through the placer before admission becomes necessary.
+
 ### Where tags go
 
 `labels.ts` places the tag of every `pin` by itself; the scene only says what is pinned to what. It is plain geometry (tested without a window): the page gives it the outline of every part of the model on screen, how busy the page underneath is (edges in the screenshot, so text counts), and the anchor of each pin. A tag is put where it overlaps neither the model, nor another tag, nor (as far as there is room) the page's own text; its leader never crosses another leader or tag, and runs over as little of the model as possible. Placed tags stay put while the model turns; only the leaders follow their parts. When the model moves a long way (a new stage, a big zoom) the tags are laid out again and glide to their new places; a tag whose way would take it through another (two that swap sides) fades out where it is and in at its new place instead, so tags never pass over each other. A scene's `off` is only a hint for the side.

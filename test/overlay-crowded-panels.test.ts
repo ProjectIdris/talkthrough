@@ -75,23 +75,28 @@ function drawWithAdmission(actions: Action[], view: { width: number; height: num
   const p = new Placer(pageGrid(new Uint8Array(192 * 108).fill(240), 192, 108), { aspect: view.width / view.height, height: view.height });
   const placed = usePlacer ? actions.map(a => placeAction(p, a, view.height)) : actions;
   const f = frame(placed);
-  const admission = new SurfaceAdmission(keepOut);
+  let admission = new SurfaceAdmission(keepOut);
   const { ctx, texts } = canvas();
-  const admitSurface = (id: string, b: Box) => admission.admit(id, b);
-  drawMarks(ctx, f.marks, view, { view, project: () => undefined, admitSurface });
-  new DiagramPainter({ admitSurface }).draw(ctx, f.diagrams, view, 0);
-  return { admission, texts, frame: admittedFrame(f, admission, new Map()) };
+  const painter = new DiagramPainter();
+  drawMarks(ctx, f.marks, view, { view, project: () => undefined, admitSurface: (id, box) => { admission.admit(id, box); return false; } });
+  painter.prepare(ctx, f.diagrams, view, 0, (id, box) => { admission.admit(id, box); });
+  admission = admission.prioritize(f);
+  const shown = admittedFrame(f, admission, new Map());
+  const admitSurface = (id: string) => admission.shown.has(id);
+  drawMarks(ctx, shown.marks, view, { view, project: () => undefined, admitSurface });
+  painter.draw(ctx, shown.diagrams, view, 0, admitSurface);
+  return { admission, texts, frame: shown };
 }
 function assertClear(boxes: Box[]) {
   for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++)
     assert.ok(!surfacesOverlap(boxes[i]!, boxes[j]!), `panels ${i} and ${j} overlap: ${JSON.stringify(boxes)}`);
 }
 
-test('the five-panel sheet preserves the note and never draws another panel over its content', () => {
+test('the five-panel sheet preserves the newest chart and never overlaps admitted content', () => {
   const result = drawWithAdmission(sheet, { width: 1920, height: 1080, dpr: 1 });
   assertClear([...result.admission.shown.values()]);
   assert.equal(result.admission.shown.size + result.admission.omitted.size, 5);
-  assert.ok(result.admission.shown.has('note'));
+  assert.ok(result.admission.shown.has('market'));
   assert.ok(result.admission.omitted.size > 0, 'a crowded sheet needs the explicit fallback');
 });
 
@@ -176,7 +181,7 @@ test('an admitted chart keeps its own annotation where an omitted chart overlaps
   assert.deepEqual(shown.marks.map(m => m.id), ['annotation-a']);
 });
 
-import { ownedByDiagram } from '../src/overlay/placement.ts';
+import { ownedByDiagram, followDiagram } from '../src/overlay/placement.ts';
 test('ownership keeps the authored surface identity through overlaps and placer renewal', () => {
   const actions: Action[] = [
     { op: 'diagram', kind: 'chart', id: 'a', x: 100, y: 100, w: 400, h: 400 },
@@ -208,4 +213,129 @@ test('omitting the stage for the cue also releases its existing pin-label rectan
   assert.equal(shown.panel, null);
   assert.deepEqual(shown.marks, []);
   assert.deepEqual(board.shownRects(), [], 'no invisible pin-label region survives the second paint');
+});
+
+import { evaluate } from '../src/overlay/timeline.ts';
+function resolveSurfaces(f: ReturnType<typeof frame>) {
+  const a = new SurfaceAdmission();
+  for (const m of f.marks) if (m.mark.op === 'card' || m.mark.op === 'image') a.admit(m.id, { x: 100, y: 100, w: 400, h: 300 });
+  for (const d of f.diagrams) a.admit(d.id, { x: 100, y: 100, w: 400, h: 300 });
+  return a.prioritize(f);
+}
+const crowdedChart = (id: string): Action => ({ op: 'diagram', kind: 'chart', id, x: 100, y: 100, w: 400, h: 300, title: id });
+test('newest current-step panel wins across cards and diagrams, regardless of paint order', () => {
+  const f = frame([{ op: 'card', id: 'old-note', x: 100, y: 100, w: 400, title: 'Old', rows: ['Before'] }, crowdedChart('new-chart')]);
+  assert.deepEqual([...resolveSurfaces(f).shown.keys()], ['new-chart']);
+});
+test('a highlighted retained panel wins for the whole current step, including after its pulse ends', () => {
+  const base = frame([crowdedChart('earlier'), crowdedChart('later')]);
+  const p = planStep(base, { say: '', actions: [{ op: 'highlight', id: 'earlier', at: 1, dur: 0.2 }] });
+  assert.deepEqual([...resolveSurfaces(evaluate(p, 0.5)).shown.keys()], ['later'], 'future highlight does not take priority early');
+  for (const t of [1, 1.1, 2, Infinity]) assert.deepEqual([...resolveSurfaces(evaluate(p, t)).shown.keys()], ['earlier']);
+});
+test('adding or highlighting a diagram item promotes its containing panel on a follow-up', () => {
+  const base = frame([crowdedChart('earlier'), crowdedChart('later')]);
+  assert.deepEqual([...resolveSurfaces(base).shown.keys()], ['later']);
+  const next = settle(planStep(base, { say: '', actions: [{ op: 'dot', id: 'dot', of: 'earlier', x: 1, y: 1 }] }));
+  assert.deepEqual([...resolveSurfaces(next).shown.keys()], ['earlier']);
+  const highlighted = settle(planStep(next, { say: '', actions: [{ op: 'highlight', id: 'dot' }] }));
+  assert.deepEqual([...resolveSurfaces(highlighted).shown.keys()], ['earlier']);
+});
+test('a leaving panel yields to its arriving replacement without a crowded omission cue', () => {
+  for (const old of [crowdedChart('old'), { op: 'card', id: 'old', x: 100, y: 100, w: 400, title: 'Old', rows: ['Old'] } as Action]) {
+    const p = planStep(frame([old]), { say: '', actions: [{ op: 'clear', target: 'all', at: 0 }, crowdedChart('new')] });
+    for (const t of [0.01, 0.1, 0.2, 0.3, 1]) {
+      const f = evaluate(p, t), a = resolveSurfaces(f);
+      assert.deepEqual([...a.shown.keys()], ['new'], `replacement wins at ${t}`);
+      assert.equal(a.omitted.size, 0, 'a departing panel is not a crowded omission');
+      const shown = admittedFrame(f, a, new Map());
+      assert.ok(!shown.marks.some(m => m.id === 'old') && !shown.diagrams.some(d => d.id === 'old'));
+    }
+  }
+});
+
+test('annotations belong to the last preceding containing diagram, in authored and streamed placement', () => {
+  const a = crowdedChart('a'), b = crowdedChart('b');
+  const point = (id: string): Action => ({ op: 'point', id, x: 250, y: 250, color: 'blue' });
+  const actions = [a, point('on-a'), b, point('on-b')];
+  const owners = new Map<string, string>();
+  ownedByDiagram([{ actions }], 1, 1000, 1, undefined, owners);
+  assert.deepEqual([...owners], [['on-a', 'a'], ['on-b', 'b']]);
+  const p = new Placer(pageGrid(new Uint8Array(192 * 108).fill(240), 192, 108), { aspect: 1 });
+  p.home('a', { x: 100, y: 100, w: 400, h: 300 }, { x: 0, y: 0, w: 400, h: 300 });
+  p.home('b', { x: 100, y: 100, w: 400, h: 300 }, { x: 500, y: 500, w: 400, h: 300 });
+  assert.equal(p.ownerOf(point('streamed')), 'b');
+  assert.deepEqual(followDiagram(p, point('on-a'), 1, false, owners.get('on-a')), { ...point('on-a'), x: 150, y: 150 });
+  assert.deepEqual(followDiagram(p, point('on-b'), 1, false, owners.get('on-b')), { ...point('on-b'), x: 650, y: 650 });
+  const admission = new SurfaceAdmission();
+  admission.admit('a', { x: 100, y: 100, w: 400, h: 300 });
+  admission.admit('b', { x: 100, y: 100, w: 400, h: 300 });
+  assert.deepEqual(admittedFrame(frame(actions), admission, owners).marks.map(m => m.id), ['on-a']);
+});
+
+test('regrowth can retain a soft pointed-at overlap when no extra page coverage is needed', () => {
+  const p = new Placer(pageGrid(new Uint8Array(192 * 108).fill(240), 192, 108), { aspect: 1 });
+  p.reserve({ x: 0, y: 0, w: 1000, h: 1000 });
+  p.diagram({ x: 100, y: 100, w: 300, h: 300 }, 'flow');
+  const grown = p.regrow('flow', { x: 100, y: 100, w: 450, h: 450 });
+  assert.ok(grown, 'pointed-at page space is a weighted preference, not another opaque panel');
+  assert.equal(grown.w, 450);
+});
+
+test('the omission cue measures separately and never rewrites unchanged live text', () => {
+  const writes: string[] = [], measureWrites: string[] = [];
+  let text = '', reads = 0;
+  const live = { get textContent() { return text; }, set textContent(value: string) { text = value; writes.push(value); } };
+  const measure = { set textContent(value: string) { measureWrites.push(value); }, getBoundingClientRect() { reads++; return { width: 320, height: 60 }; } };
+  assert.equal(typeof admissionModule.OmissionCue, 'function', 'the cue needs a cached, non-live measurement');
+  const cue = new admissionModule.OmissionCue(live, measure);
+  for (let i = 0; i < 20; i++) { assert.deepEqual(cue.size(12, 800), { w: 320, h: 60 }); cue.show(1); }
+  assert.deepEqual(writes, ['1 panel hidden to prevent overlap']);
+  assert.equal(reads, 1);
+  assert.equal(measureWrites.length, 1);
+  cue.show(2);
+  assert.deepEqual(writes, ['1 panel hidden to prevent overlap', '2 panels hidden to prevent overlap']);
+  cue.size(12, 500);
+  assert.equal(reads, 2, 'viewport changes invalidate the cached size');
+  assert.equal(writes.length, 2, 'measurement never changes the live announcement');
+});
+
+test('clear and reuse of the same panel id removes the departing instance before measuring', () => {
+  const old = frame([crowdedChart('panel')]);
+  const f = evaluate(planStep(old, { say: '', actions: [
+    { op: 'clear', target: 'all' },
+    { op: 'card', id: 'panel', x: 600, y: 600, w: 200, title: 'Replacement', rows: [] },
+  ] }), 0.1);
+  assert.equal(f.diagrams.length, 1, 'the cleared instance is still fading');
+  const prepared = admissionModule.withoutReplacedSurfaces(f);
+  assert.equal(prepared.diagrams.length, 0, 'the old instance must neither paint nor overwrite replacement bounds');
+  assert.equal(prepared.marks.length, 1);
+});
+
+import { fadeFrame } from '../src/overlay/fade.ts';
+test('global scene dimming does not turn live panels into departing surfaces', () => {
+  const f = fadeFrame(frame([crowdedChart('old'), crowdedChart('new')]), 0.8);
+  const a = resolveSurfaces(f);
+  assert.deepEqual([...a.shown.keys()], ['new']);
+  assert.equal(a.omitted.size, 1, 'a genuinely crowded panel keeps its omission cue during scene fade');
+});
+test('same-id replacement remains exclusive during an Escape fade', () => {
+  const f = evaluate(planStep(frame([crowdedChart('panel')]), { say: '', actions: [
+    { op: 'clear', target: 'all' }, { op: 'card', id: 'panel', x: 600, y: 600, w: 200, title: 'New', rows: [] },
+  ] }), 0.1);
+  const prepared = admissionModule.withoutReplacedSurfaces(fadeFrame(f, 0.9));
+  assert.equal(prepared.diagrams.length, 0);
+  assert.equal(prepared.marks.length, 1);
+});
+
+test('reusing a panel id retires its old annotations but keeps newly written annotations', () => {
+  const oldPoint: Action = { op: 'point', id: 'old-point', x: 250, y: 250, color: 'blue' };
+  const f = evaluate(planStep(frame([crowdedChart('panel'), oldPoint]), { say: '', actions: [
+    { op: 'clear', target: 'all' }, crowdedChart('panel'), { ...oldPoint, id: 'new-point' },
+  ] }), 0.1);
+  const owners = new Map([['old-point', 'panel'], ['new-point', 'panel']]);
+  const prepared = admissionModule.withoutReplacedSurfaces(f, owners);
+  assert.deepEqual(prepared.marks.map(m => m.id), ['new-point']);
+  assert.equal(prepared.diagrams.length, 1);
+  assert.equal(prepared.diagrams[0]!.leaving, false);
 });

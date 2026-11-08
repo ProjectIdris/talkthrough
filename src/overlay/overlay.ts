@@ -20,7 +20,7 @@ import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import type { Env as LabelEnv } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
 import { PageMemory } from './page-memory.ts';
-import { SurfaceAdmission, admittedFrame, omitStageForCue, surfacesOverlap } from './surface-admission.ts';
+import { OmissionCue, SurfaceAdmission, admittedFrame, omitStageForCue, surfacesOverlap, withoutReplacedSurfaces } from './surface-admission.ts';
 import { Placer, cardFootprint, displayBoxesFromPixels, followDiagram, markFootprint, ownedByDiagram, pageGrid, foreseePoints, placeAction, reserveMarks, settleMark, splitOwned } from './placement.ts';
 import { FaceBook, THEME, fontAt } from './theme.ts';
 import { snapToControl } from '../shared/controls.ts';
@@ -69,6 +69,8 @@ const sendFollowupEl = byId<HTMLButtonElement>('send-followup');
 const cancelFollowupEl = byId<HTMLButtonElement>('cancel-followup');
 const noticeEl = byId<HTMLDivElement>('notice');
 const overflowEl = byId<HTMLDivElement>('panel-overflow');
+const overflowMeasureEl = byId<HTMLDivElement>('panel-overflow-measure');
+const omissionCue = new OmissionCue(overflowEl, overflowMeasureEl);
 const explodeEl = byId<HTMLButtonElement>('explode');
 const detailEl = byId<HTMLButtonElement>('detail');
 const cutEl = byId<HTMLButtonElement>('cut');
@@ -315,7 +317,7 @@ let lastSourceFrame: Frame | undefined;
 let paintedSurfaces = new Map<string, ScreenRect>();
 
 function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
-  frame = displayedFrame(frame);
+  frame = withoutReplacedSurfaces(displayedFrame(frame), ownedSurfaces);
   renderer?.setScissorTest(false);
   renderer?.clear();
   const rect = panelRect(frame.panel, view);
@@ -414,7 +416,7 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
           return { ...m, mark: mark.op === 'card' ? { ...mark, x: current.x, y: current.y } : { ...mark, dx: current.x, dy: current.y } };
         }
         if (!ownedMarks.has(m.id)) return m;
-        const moved = followDiagram(p, mark, aspect, true);
+        const moved = followDiagram(p, mark, aspect, true, ownedSurfaces.get(m.id));
         return moved ? { ...m, mark: moved as typeof m.mark } : m;
       }),
       diagrams: frame.diagrams.map((d) => { const current = p.surface(d.id); return current ? { ...d, def: { ...d.def, x: current.x, y: current.y } } : d; }),
@@ -424,9 +426,11 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
   board.keep(new Set(frame.marks.filter((m) => m.mark.op === 'pin').map((m) => m.key)));
   pinGeometry = [];
   let admission = new SurfaceAdmission(modelRect ? [modelRect] : []);
+  const paintTime = labelClock();
+  const admitSurface = (id: string) => admission.shown.has(id);
   const annotator = {
     view,
-    admitSurface: (id: string, bounds: ScreenRect) => admission.admit(id, bounds),
+    admitSurface,
     ...(stageSize ? { stage: stageSize } : {}),
     faceOf: (key: string, rect: { x: number; y: number; w: number; h: number }) => faces.of(key, rect),
     place: (key: number, request: Parameters<typeof board.place>[1]) => board.place(key, request, labelEnvironment),
@@ -437,27 +441,19 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
     },
     ...(cropSource() ? { source: cropSource()! } : {}),
   };
-  // A mark that lies on a flat diagram (a ring on a chart's crossing, an arrow at a bar) is drawn above the diagram's opaque card, or it would be hidden by it.
-  const paintSurfaces = (): Frame => {
-    const { under } = splitOwned(frame.marks, ownedMarks);
-    pinGeometry = [];
-    drawMarks(marksCtx, under, view, annotator, { reduceMotion: reduceMotion.matches });
-    // Admission happens after a flow grows/eases, immediately before its panel is painted.
-    diagramsMoving = diagramPainter.draw(marksCtx, frame.diagrams, view, labelClock(), (id, bounds) => admission.admit(id, bounds));
-    const shown = admittedFrame(frame, admission, ownedSurfaces);
-    const { over } = splitOwned(shown.marks, ownedMarks);
-    if (over.length > 0) drawMarks(marksCtx, over, view, annotator, { reduceMotion: reduceMotion.matches, append: true });
-    return shown;
-  };
-  let shown = paintSurfaces();
+  // Measure surfaces without painting their contents or touching pin-label state. The diagram
+  // painter retains these exact eased card bounds for the one final paint at the same timestamp.
+  drawMarks(marksCtx, frame.marks.filter(m => m.mark.op === 'card' || m.mark.op === 'image'), view,
+    { ...annotator, admitSurface: (id, bounds) => { admission.admit(id, bounds); return false; } },
+    { reduceMotion: reduceMotion.matches });
+  diagramPainter.prepare(marksCtx, frame.diagrams, view, paintTime, (id, bounds) => { admission.admit(id, bounds); });
+  admission = admission.prioritize(frame);
   overflowEl.style.display = admission.omitted.size ? 'block' : 'none';
   if (admission.omitted.size) {
-    // Measure the largest possible count once. The cue keeps this width while its count changes.
-    overflowEl.textContent = `${frame.marks.length + frame.diagrams.length + 1} panels hidden to prevent overlap`;
-    const size = overflowEl.getBoundingClientRect();
+    const size = omissionCue.size(frame.marks.length + frame.diagrams.length + 1, view.width);
     const obstacles = [...admission.shown.values(), ...(modelRect ? [modelRect] : []), ...overlayControlRects()];
-    const at = followupSpot(view, { w: size.width, h: size.height }, obstacles);
-    const cue = { ...at, w: size.width, h: size.height };
+    const at = followupSpot(view, size, obstacles);
+    const cue = { ...at, w: size.w, h: size.h };
     let hiddenStage = 0;
     if (obstacles.some(r => surfacesOverlap(cue, r))) {
       // No gap even for the cue: give it a dedicated slot, omitting intersecting panels too.
@@ -470,14 +466,19 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
         frame = omitStageForCue(frame, board);
         placeExplode(frame);
       }
-      admission = new SurfaceAdmission([cue, ...(modelRect ? [modelRect] : [])]);
-      shown = paintSurfaces();
+      admission = admission.prioritize(frame, [cue, ...(modelRect ? [modelRect] : [])]);
     }
     const count = admission.omitted.size + hiddenStage;
-    overflowEl.textContent = `${count} ${count === 1 ? 'panel' : 'panels'} hidden to prevent overlap`;
+    omissionCue.show(count);
     overflowEl.style.left = `${at.x}px`; overflowEl.style.top = `${at.y}px`;
   }
-  frame = shown;
+  frame = admittedFrame(frame, admission, ownedSurfaces);
+  // Owned marks sit above their admitted panel; every other mark keeps the existing paint order.
+  const { under, over } = splitOwned(frame.marks, ownedMarks);
+  pinGeometry = [];
+  drawMarks(marksCtx, under, view, annotator, { reduceMotion: reduceMotion.matches });
+  diagramsMoving = diagramPainter.draw(marksCtx, frame.diagrams, view, paintTime, admitSurface);
+  if (over.length) drawMarks(marksCtx, over, view, annotator, { reduceMotion: reduceMotion.matches, append: true });
   paintedSurfaces = new Map(admission.shown);
   lastDisplayedFrame = frame;
   drawPen(marksCtx, pen.view(labelClock(), { reduceMotion: reduceMotion.matches }), view);
@@ -1056,7 +1057,7 @@ function loop(): void {
   if (k < 1) frame = fadeFrame(frame, k);
   lastSourceFrame = frame;
   showHud(frame);
-  frame = displayedFrame(frame);
+  frame = withoutReplacedSurfaces(displayedFrame(frame), ownedSurfaces);
   showAnswer();
   showFollowupControls(frame, k);
   syncUndo();
@@ -1449,7 +1450,7 @@ function placedScene(scene: Scene): Scene {
   snapped.forEach((step, i) => reserveMarks(p, step.actions.filter((_, j) => !owned[i]![j]), aspect));
   const placed = snapped.map((step) => ({ ...step, actions: step.actions.map((a) => !renderer && a.op === 'panel' ? a : placeAction(p, a, view.height)) }));
   // The points of a step are known to its names before they are marked (so a name written first finds its point); the next step's are not.
-  return { ...scene, steps: placed.map((step, i) => { foreseePoints(p, step.actions, aspect); return { ...step, actions: step.actions.map((a, j) => settleMark(p, owned[i]![j] ? followDiagram(p, a, aspect) ?? a : a)) }; }) };
+  return { ...scene, steps: placed.map((step, i) => { foreseePoints(p, step.actions, aspect, ownedSurfaces); return { ...step, actions: step.actions.map((a, j) => settleMark(p, owned[i]![j] ? followDiagram(p, a, aspect, false, 'id' in a && typeof a.id === 'string' ? ownedSurfaces.get(a.id) : undefined) ?? a : a)) }; }) };
 }
 
 function placedAction(action: Action): Action {

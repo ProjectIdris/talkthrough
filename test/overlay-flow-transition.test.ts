@@ -155,3 +155,23 @@ test('reordered unchanged edges and a resized card retain ordinary easing', () =
   assert.deepEqual(after.sort(),before.sort(),'edge ordering alone does not reset node identities');
   assert.equal(p.moving,true,'ordinary resize/card movement continues to ease');
 });
+
+test('admission measurement preserves node easing and paints the exact collected card bounds', () => {
+  const direct = new DiagramPainter(), admitted = new DiagramPainter();
+  const plain = canvasGeometry(), measured = canvasGeometry();
+  const view = { width: 1000, height: 800, dpr: 1 };
+  direct.draw(plain.ctx, chain.diagrams, view, 0);
+  admitted.draw(measured.ctx, chain.diagrams, view, 0);
+  const moved = chain.diagrams.map(d => ({ ...d, def: { ...d.def, x: d.def.x + 100 } }));
+  for (let i = 1; i <= 10; i++) {
+    const now = i * 16;
+    plain.clear(); measured.clear();
+    direct.draw(plain.ctx, moved, view, now);
+    const bounds = new Map<string, Px>();
+    if (typeof admitted.prepare === 'function') admitted.prepare(measured.ctx, moved, view, now, (id, box) => { bounds.set(id, box); });
+    else admitted.draw(measured.ctx, moved, view, now, (id, box) => { bounds.set(id, box); return false; });
+    assert.deepEqual(measured.nodes, [], 'measurement must not paint content');
+    admitted.draw(measured.ctx, moved, view, now, (id, box) => { assert.deepEqual(box, bounds.get(id), 'paint must use the admitted geometry'); return true; });
+    assert.deepEqual(measured.nodes, plain.nodes, `priority collection must not reset or double-advance animation at frame ${i}`);
+  }
+});

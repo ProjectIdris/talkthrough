@@ -545,6 +545,7 @@ export class Placer {
       ? this.search(want, [1, 0.88, 0.76, 0.64], keep, [1, 0.8, 0.65, 0.55, 0.5], 150, true, minRatio, DIAGRAM_MIN_SIZE)
       : full;
     this.cards.set(id, placed);
+    this.homes.delete(id);
     this.homes.set(id, { from: asked, to: placed });
     return placed;
   }
@@ -556,10 +557,11 @@ export class Placer {
    */
   regrow(id: string, grown: Box): Box | undefined {
     const was = this.cards.get(id) ?? this.homes.get(id)?.to ?? grown;
-    const keepOut = [...this.reserved, ...this.controls, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...this.stageKeepOut()];
+    const hard = [...this.controls, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...this.stageKeepOut()];
+    const keepOut = [...this.reserved, ...hard];
     const placed = this.search(grown, [1], [...keepOut, ...this.reserved, ...this.reserved], [1], 0, true);
     // A small coverage cost can still mean a whole line of another panel is hidden.
-    if (keepOut.some((r) => overlap(placed, r) > 0)) return undefined;
+    if (hard.some((r) => overlap(placed, r) > 0)) return undefined;
     if (this.coverage(placed, keepOut) > this.coverage(was, keepOut) + GROWTH_COVER_SLACK) return undefined;
     this.cards.set(id, placed);
     const home = this.homes.get(id);
@@ -577,15 +579,16 @@ export class Placer {
   }
 
   /** The flat diagram a point on the screen belongs to (it is inside the rectangle the diagram was asked for), and where it was placed. */
-  homeOf(x: number, y: number): { from: Box; to: Box } | undefined {
-    for (const h of this.homes.values()) if (x >= h.from.x && x <= h.from.x + h.from.w && y >= h.from.y && y <= h.from.y + h.from.h) return h;
+  homeOf(x: number, y: number, owner?: string): { from: Box; to: Box } | undefined {
+    if (owner !== undefined) return this.homes.get(owner);
+    for (const h of [...this.homes.values()].reverse()) if (x >= h.from.x && x <= h.from.x + h.from.w && y >= h.from.y && y <= h.from.y + h.from.h) return h;
     return undefined;
   }
 
   /** Exact surface identity for a newly streamed mark, before placement changes its coordinates. */
   ownerOf(a: Action): string | undefined {
     const c = MARK_OPS.has(a.op) ? markCentre(a as Mark, this.aspect) : undefined;
-    if (c) for (const [id, home] of this.homes) {
+    if (c) for (const [id, home] of [...this.homes].reverse()) {
       const r = home.from;
       if (c.x >= r.x && c.x <= r.x + r.w && c.y >= r.y && c.y <= r.y + r.h) return id;
     }
@@ -603,6 +606,7 @@ export class Placer {
 
   /** A card that marks may be written on (an enlarged crop): marks written inside the rectangle it was asked for go with it to where it was placed. */
   home(id: string, from: Box, to: Box): void {
+    this.homes.delete(id);
     this.homes.set(id, { from, to });
   }
 
@@ -614,8 +618,9 @@ export class Placer {
   }
 
   /** Mapping for marks already placed in the player, not newly streamed marks. */
-  displayedHomeOf(x: number, y: number): { from: Box; to: Box } | undefined {
-    for (const [id] of this.homes) {
+  displayedHomeOf(x: number, y: number, owner?: string): { from: Box; to: Box } | undefined {
+    for (const [id] of [...this.homes].reverse()) {
+      if (owner !== undefined && id !== owner) continue;
       const from = this.sourceBoxes.get(id);
       const to = this.cards.get(id);
       if (from && to && x >= from.x && x <= from.x + from.w && y >= from.y && y <= from.y + from.h)
@@ -824,7 +829,7 @@ export function ownedByDiagram(steps: readonly { actions: readonly Action[] }[],
       seen.push({ id: a.id, x: a.dx, y: a.dy, w: a.dw, h: imageCardHeight(a, screenHeight, aspect, sourceAspect, measureCaption) });
       return false;
     }
-    const owner = seen.find(r => insideAny(a, [r], aspect));
+    const owner = seen.findLast(r => insideAny(a, [r], aspect));
     if (owners && 'id' in a && typeof a.id === 'string') {
       if (owner) owners.set(a.id, owner.id); else owners.delete(a.id);
     }
@@ -839,10 +844,10 @@ const r1 = (v: number): number => Math.round(v * 10) / 10;
  * diagram: when the diagram was placed elsewhere or smaller, the mark goes with it, to the same place in the new rectangle.
  * Nothing when the mark is not inside a diagram's rectangle.
  */
-export function followDiagram(placer: Placer, a: Action, aspect: number, displayed = false): Action | undefined {
+export function followDiagram(placer: Placer, a: Action, aspect: number, displayed = false, owner?: string): Action | undefined {
   if (!MARK_OPS.has(a.op)) return undefined;
   const c = markCentre(a as Mark, aspect);
-  const home = c ? (displayed ? placer.displayedHomeOf(c.x, c.y) : placer.homeOf(c.x, c.y)) : undefined;
+  const home = c ? (displayed ? placer.displayedHomeOf(c.x, c.y, owner) : placer.homeOf(c.x, c.y, owner)) : undefined;
   if (!home) return undefined;
   const { from, to } = home;
   const fx = to.w / from.w, fy = to.h / from.h;
@@ -951,10 +956,10 @@ function besidePoint(placer: Placer, a: Extract<Action, { op: 'label' }>): Actio
 }
 
 /** The points among these marks are made known ahead of their turn, so the names written before them keep off their rings (see Placer.foresee). */
-export function foreseePoints(placer: Placer, actions: readonly Action[], aspect: number): void {
+export function foreseePoints(placer: Placer, actions: readonly Action[], aspect: number, owners?: ReadonlyMap<string, string>): void {
   for (const a of actions) {
     if (a.op !== 'point') continue;
-    const at = (followDiagram(placer, a, aspect) ?? a) as { x: number; y: number };
+    const at = (followDiagram(placer, a, aspect, false, owners?.get(a.id)) ?? a) as { x: number; y: number };
     placer.foresee(a.id, at.x, at.y, a.color);
   }
 }

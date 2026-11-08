@@ -111,6 +111,7 @@ export class DiagramPainter {
     this.options = options;
   }
   private last: number | undefined;
+  private prepared: { now: number; rects: Map<number, Px>; seen: Set<string>; moving: boolean } | undefined;
   moving = false;
 
   /** Reset node easing when an edge change actually moves an existing node to a different graph slot. */
@@ -155,22 +156,44 @@ export class DiagramPainter {
     return next;
   }
 
+  /** Collect actual surface bounds before admission, without painting or pruning content animation state.
+   * The matching draw consumes these card rectangles and advances node easing only once.
+   */
+  prepare(ctx: Ctx, diagrams: readonly DiagramFrame[], view: View, now: number, onBounds: (id: string, box: Px) => void): void {
+    const dt = this.last === undefined ? 0 : Math.min(0.1, (now - this.last) / 1000);
+    const rects = new Map<number, Px>(), seen = new Set<string>();
+    this.moving = false;
+    this.grownLive.clear();
+    for (const d of diagrams) {
+      if (d.opacity * d.fade <= 0.002 || d.appear <= 0) continue;
+      ctx.save();
+      try {
+        const r = this.surface(ctx, d, view, dt, seen);
+        rects.set(d.key, r);
+        onBounds(d.id, { ...r, y: r.y + (1 - d.appear) * 10 });
+      } finally { ctx.restore(); }
+    }
+    this.prepared = { now, rects, seen, moving: this.moving };
+  }
+
   /** Draws every diagram of the frame; `now` is a clock in milliseconds. Returns true while something is still gliding into place. */
   draw(ctx: Ctx, diagrams: readonly DiagramFrame[], view: View, now: number, admitSurface = this.options.admitSurface): boolean {
     const dt = this.last === undefined ? 0 : Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
-    this.moving = false;
-    this.grownLive.clear();
+    const prepared = this.prepared?.now === now ? this.prepared : undefined;
+    this.prepared = undefined;
+    this.moving = prepared?.moving ?? false;
+    if (!prepared) this.grownLive.clear();
     this.flowLive.clear();
     this.timelineLive.clear();
-    const seen = new Set<string>();
+    const seen = prepared?.seen ?? new Set<string>();
     for (const d of diagrams) {
       const alpha = Math.max(0, Math.min(1, d.opacity * d.fade));
       if (alpha <= 0.002 || d.appear <= 0) continue;
       ctx.save();
       ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
       try {
-        this.one(ctx, d, view, alpha, dt, seen, admitSurface);
+        this.one(ctx, d, view, alpha, dt, seen, admitSurface, prepared?.rects.get(d.key));
       } finally {
         ctx.restore();
       }
@@ -220,11 +243,15 @@ export class DiagramPainter {
     return regrow(d.def.id, want) ?? r0;
   }
 
-  private one(ctx: Ctx, d: DiagramFrame, view: View, alpha: number, dt: number, seen: Set<string>, admitSurface?: (id: string, bounds: Px) => boolean): void {
-    const theme = THEME;
+  private surface(ctx: Ctx, d: DiagramFrame, view: View, dt: number, seen: Set<string>): Px {
     const asked = rectOf(d, view);
     // A flow does not go below a readable node size: its card grows (eased, so a late node does not make it jump) until the nodes read.
-    const r = d.def.kind === 'flow' ? this.ease(`${d.key}:card`, this.grownFlow(ctx, d, asked, view), dt, seen) : asked;
+    return d.def.kind === 'flow' ? this.ease(`${d.key}:card`, this.grownFlow(ctx, d, asked, view), dt, seen) : asked;
+  }
+
+  private one(ctx: Ctx, d: DiagramFrame, view: View, alpha: number, dt: number, seen: Set<string>, admitSurface?: (id: string, bounds: Px) => boolean, prepared?: Px): void {
+    const theme = THEME;
+    const r = prepared ?? this.surface(ctx, d, view, dt, seen);
     // Admission uses the grown/eased card and its entrance slide, not the authored rectangle.
     if (admitSurface?.(d.id, { ...r, y: r.y + (1 - d.appear) * 10 }) === false) return;
     this.options.onBounds?.(d.id, r);
