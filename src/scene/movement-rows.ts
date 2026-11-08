@@ -21,11 +21,15 @@ export type LoopRow = {
    * over `ease` degrees from where a loop started; 1 when the row has no `ease`): degrees for a turn, units for a slide, a multiplier for a swell, units up for a bob.
    */
   value: string;
+  /** Names set in order before `value` and `rock` are read, each able to read those before it (the cycle's turns and where in the turn it is, for a stepped motion). */
+  lets?: Lets;
   /** A bob also rocks the part about z by this many degrees. */
   rock?: string;
   /** Degrees of the cycle it takes to come in from rest. */
   ease?: number;
 };
+
+type Lets = ReadonlyArray<readonly [string, Value]>;
 
 // The order here is the order the scene language lists the kinds in (the guide and the schema read it from the keys), and `LoopName` is the keys.
 const rows = {
@@ -37,6 +41,29 @@ const rows = {
   // Open on one half of the cycle, shut on the other: a one-way valve.
   gate: { motion: 'turn', axis: 2, start: 270, amount: [-170, 170], value: 'max(0, cos(a))*amount' },
   float: { motion: 'bob', axis: 1, start: 270, amount: [0.01, 100], value: 'cos(a)*amount*fade*born', rock: 'sin(a)*tilt*fade*born', ease: 180 },
+  // Intermittent: it moves in steps. Each cycle `amount` degrees on, all of it in the first quarter (eased at both ends), then it stands: an escapement tooth, an indexing table.
+  step: {
+    motion: 'turn', axis: 2, start: 0, amount: [-360, 360],
+    lets: [['c', 'a/(2*pi)'], ['k', 'floor(c)'], ['u', 'min(1, 4*(c - k))']],
+    value: 'amount*(k + u*u*(3 - 2*u))',
+  },
+  // The same, with a push stroke: it advances its amount in the first half of each cycle and stands in the second, following a swing of half that amount, same period and
+  // phase, exactly (a ratchet wheel pushed round by a lever's pawl, which then comes back over the teeth).
+  ratchet: {
+    motion: 'turn', axis: 2, start: 270, amount: [-360, 360],
+    lets: [['m', 'a/(2*pi) - 0.5'], ['k', 'floor(m)'], ['f', 'min(1, 2*(m - k))']],
+    value: 'amount*(k - cos(pi*f)/2)',
+  },
+  // A Geneva drive's driven wheel (the outside kind, which turns the opposite way to its driver): a driver pin of one turn a cycle moves a slotted wheel of 360/amount slots on by
+  // one slot (amount degrees) while it is in the slot, and the wheel stands locked the rest of the turn. The slot's angle from the line of centres: tan(phi) = sin(theta)/(C - cos(theta)), C = 1/sin(amount/2), the pin on the slot through its engagement.
+  geneva: {
+    motion: 'turn', axis: 2, start: 180, amount: [20, 120],
+    lets: [
+      ['half', 'amount*deg/2'], ['k', 'floor(a/(2*pi) + 0.5)'], ['t', 'a - 2*pi*k'],
+      ['slot', 'abs(t) < pi/2 - half ? atan2(sin(t), 1/sin(half) - cos(t)) : (t < 0 ? -half : half)'],
+    ],
+    value: '-(amount*(k - 0.5) + slot/deg)',
+  },
 } satisfies Record<string, LoopRow>;
 
 export type LoopName = keyof typeof rows;
@@ -46,8 +73,6 @@ export const LOOP_ROWS: Readonly<Record<LoopName, LoopRow>> = rows;
 export const DEFAULT_AMOUNT: readonly [number, number] = [0.1, 5];
 
 export const loopRow = (kind: string): LoopRow | undefined => (Object.hasOwn(LOOP_ROWS, kind) ? LOOP_ROWS[kind as LoopName] : undefined);
-
-type Lets = ReadonlyArray<readonly [string, Value]>;
 
 /** Names set in order, each able to read those before it. */
 export function bind(scope: Scope, lets: Lets): Scope {

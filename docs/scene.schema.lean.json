@@ -632,7 +632,10 @@
             "planetary",
             "four-bar-linkage",
             "bicycle-drivetrain",
-            "block-and-tackle"
+            "block-and-tackle",
+            "geneva",
+            "escapement",
+            "ratchet"
           ]
         },
         "variant": {
@@ -3479,6 +3482,9 @@
             "pulse",
             "gate",
             "float",
+            "step",
+            "ratchet",
+            "geneva",
             "stop",
             null
           ]
