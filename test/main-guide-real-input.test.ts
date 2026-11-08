@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
 import { uIOhook } from 'uiohook-napi';
 import { createGuide } from '../src/main/guide.ts';
 import type { GuideListener } from '../src/main/guide.ts';
@@ -26,7 +27,7 @@ const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 function turnWheelAt(p: { x: number; y: number }): void {
   const script = `Add-Type -TypeDefinition 'using System.Runtime.InteropServices; public static class In { [DllImport("user32.dll")] public static extern bool SetProcessDPIAware(); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint f, int x, int y, int d, System.UIntPtr e); }'
 [void][In]::SetProcessDPIAware(); [void][In]::SetCursorPos(${Math.round(p.x)}, ${Math.round(p.y)}); Start-Sleep -Milliseconds 30; [In]::mouse_event(0x0800, 0, 0, -120, [System.UIntPtr]::Zero)`;
-  const r = spawnSync(`${process.env.SystemRoot ?? 'C:\Windows'}\System32\WindowsPowerShell\v1.0\powershell.exe`, ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, timeout: 30_000 });
+  const r = spawnSync(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, timeout: 30_000 });
   assert.equal(r.status, 0, String(r.stderr));
 }
 
@@ -77,7 +78,7 @@ async function walk(wheel: boolean): Promise<string[]> {
     await wait(300);
     g.push(tabStep);
     if (wheel) { await wait(150); turnWheelAt(win.centre('scroll')); }
-    await wait(3500); // past the longest beat
+    await wait(8000); // past the probe (about a second) and the longest beat: 2400 + 70 a character + 1500 for the first move, about 4.7 s here
     return [...win.events];
   } finally {
     g.end('superseded');
