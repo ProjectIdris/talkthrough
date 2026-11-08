@@ -15,6 +15,9 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 
+/** How much the finishing does: the high tier does all of it, the mid tier a lighter occlusion (half resolution, fewer samples, two-sample target) with no smoothing pass. */
+export type FinishingLevel = 'light' | 'full';
+
 /** A rectangle in CSS pixels, from the top left of the display. */
 export type PixelRect = { x: number; y: number; w: number; h: number };
 
@@ -33,6 +36,7 @@ export class Finishing {
   private height = 0;
   private renderer: WebGLRenderer;
   private depth: DepthTexture;
+  private level: FinishingLevel;
 
   /** Whether this graphics stack can render to half-float targets (without that the first draw would fail). */
   static supported(renderer: WebGLRenderer): boolean {
@@ -40,19 +44,20 @@ export class Finishing {
     return ext.has('EXT_color_buffer_float') || ext.has('EXT_color_buffer_half_float');
   }
 
-  constructor(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera) {
+  constructor(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, level: FinishingLevel = 'full') {
     if (!Finishing.supported(renderer)) throw new Error('no half-float render targets');
     this.renderer = renderer;
+    this.level = level;
     this.depth = new DepthTexture(1, 1);
     this.depth.format = DepthStencilFormat;
     this.depth.type = UnsignedInt248Type;
     // The stencil is kept: a cut model's caps (cutaway.ts) are drawn with it.
-    this.beauty = new WebGLRenderTarget(1, 1, { type: HalfFloatType, samples: 4, depthBuffer: true, stencilBuffer: true, depthTexture: this.depth });
+    this.beauty = new WebGLRenderTarget(1, 1, { type: HalfFloatType, samples: level === 'full' ? 4 : 2, depthBuffer: true, stencilBuffer: true, depthTexture: this.depth });
     this.occluded = new WebGLRenderTarget(1, 1, { type: HalfFloatType, depthBuffer: false });
     this.toned = new WebGLRenderTarget(1, 1, { type: UnsignedByteType, depthBuffer: false });
     this.gtao = new GTAOPass(scene, camera, 1, 1, { depthTexture: this.depth });
-    this.gtao.updateGtaoMaterial({ radius: 1.2, distanceExponent: 1.2, thickness: 2, scale: 1.4, samples: 16, distanceFallOff: 1, screenSpaceRadius: false });
-    this.gtao.blendIntensity = 0.9;
+    this.gtao.updateGtaoMaterial({ radius: level === 'full' ? 1.2 : 1.1, distanceExponent: 1.2, thickness: 2, scale: 1.4, samples: 16, distanceFallOff: 1, screenSpaceRadius: false });
+    this.gtao.blendIntensity = 0.7;
     // The colour in the target is premultiplied by its alpha: take that out before toning and put it back after.
     const material = this.output.material;
     const start = 'gl_FragColor = texture2D( tDiffuse, vUv );';
@@ -61,7 +66,8 @@ export class Finishing {
     material.fragmentShader = material.fragmentShader
       .replace('gl_FragColor = texture2D( tDiffuse, vUv );', 'gl_FragColor = texture2D( tDiffuse, vUv );\n\t\t\tfloat coverage = gl_FragColor.a;\n\t\t\tgl_FragColor.rgb /= max(coverage, 0.0001);')
       .replace(/}\s*$/, '\tgl_FragColor.rgb *= coverage;\n\t\t}');
-    this.smaa.renderToScreen = true;
+    this.smaa.renderToScreen = level === 'full';
+    this.output.renderToScreen = level !== 'full';
   }
 
   /** Whether a model drawn in this rectangle is finished here (it is not when the targets would be very large). */
@@ -79,7 +85,9 @@ export class Finishing {
     this.beauty.setSize(dw, dh);
     this.occluded.setSize(dw, dh);
     this.toned.setSize(dw, dh);
-    this.gtao.setSize(dw, dh);
+    // The light level works the occlusion out at half the resolution: it is soft by nature, and the depth it reads stays full size.
+    if (this.level === 'full') this.gtao.setSize(dw, dh);
+    else this.gtao.setSize(Math.max(1, dw >> 1), Math.max(1, dh >> 1));
     this.smaa.setSize(dw, dh);
   }
 
@@ -103,6 +111,17 @@ export class Finishing {
     r.clear();
     r.render(scene, camera);
     this.gtao.render(r, this.occluded, this.beauty, 0, false);
+    if (this.level !== 'full') {
+      // Back to the canvas first: the output pass draws straight to it, with no smoothing pass after.
+      if (view) camera.setViewOffset(view.fullWidth, view.fullHeight, view.offsetX, view.offsetY, view.width, view.height);
+      else camera.clearViewOffset();
+      r.setRenderTarget(null);
+      r.setViewport(rect.x, display.height - rect.y - h, w, h);
+      r.setScissorTest(scissor);
+      this.output.render(r, null as unknown as WebGLRenderTarget, this.occluded, 0, false);
+      r.setViewport(viewport);
+      return;
+    }
     this.output.render(r, this.toned, this.occluded, 0, false);
     // Back to the canvas, where the window of the display this stands for is.
     if (view) camera.setViewOffset(view.fullWidth, view.fullHeight, view.offsetX, view.offsetY, view.width, view.height);

@@ -20,11 +20,13 @@ import { sweepGeometry, sweepEdges } from './sweep.ts';
 import { shellGeometry, shellEdges } from './shell.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
 import { buildHullGeometry } from './hull.ts';
+import { applyEdgeSoften, softenEdges } from './edge-soften.ts';
+import { fitBoardPattern } from './surface-micro.ts';
 import { loftEdges, loftGeometry } from './loft.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { closedTubeGeometry } from './closed-tube.ts';
-import { TIERS, applySurface, makeSurface } from './materials.ts';
+import { SURFACE_NAMES, TIERS, applySurface, makeSurface } from './materials.ts';
 import type { Surface, Tier } from './materials.ts';
 import { buildPart } from './parts.ts';
 import { TAG_HEIGHT_FACTOR, tagTextPx } from './theme.ts';
@@ -220,6 +222,28 @@ export class PanelScene {
     this.scene.add(this.camera);
   }
 
+  private warmSurfaces: Surface[] = [];
+
+  /**
+   * One small solid in every surface this tier has, to be drawn once before any answer so the graphics card has built the programs the first model will
+   * use (a program is built on first use, which cost the first model most of a second). The surfaces are kept for good: a program is freed when the
+   * last surface using it is, and the first real model would then build it again. Not part of the model: the caller adds it, draws, and takes it out.
+   */
+  prewarmGroup(): Group {
+    const settings = TIERS[this.tier];
+    const group = new Group();
+    if (this.warmSurfaces.length === 0) this.warmSurfaces = SURFACE_NAMES.map((name) => makeSurface(name, settings));
+    const geometry = new SphereGeometry(0.5, 8, 6);
+    for (const surface of this.warmSurfaces) {
+      const mesh = new Mesh(geometry, surface);
+      mesh.castShadow = settings.shadows;
+      mesh.receiveShadow = settings.shadows;
+      mesh.frustumCulled = false;
+      group.add(mesh);
+    }
+    return group;
+  }
+
   /** The environment the surfaces reflect and are lit by (from the renderer's pre-filtering). */
   setEnvironment(texture: Texture | null, intensity = 1): void {
     this.scene.environment = texture;
@@ -250,6 +274,8 @@ export class PanelScene {
       }
       if (def.shape === 'patch') { surface.side = DoubleSide; surface.forceSinglePass = true; }
       if (geo.getAttribute('color')) surface.vertexColors = true;
+      if (geo.getAttribute('edgeBary')) applyEdgeSoften(surface);
+      fitBoardPattern(surface, geo);
       const mesh = new Mesh(geo, surface);
       mesh.castShadow = settings.shadows;
       mesh.receiveShadow = settings.shadows;
@@ -267,7 +293,7 @@ export class PanelScene {
       case 'group': case 'array': case 'field': break;
       case 'hull': {
         const result = buildHullGeometry(def.pts);
-        if (result.ok) node.obj = addMesh(result.geometry, material, def.edges !== false);
+        if (result.ok) node.obj = addMesh(softenEdges(result.geometry) ?? result.geometry, material, def.edges !== false);
         else console.warn(`talkthrough: hull ${o.id} could not be built: ${result.message}`);
         break;
       }
@@ -399,7 +425,10 @@ export class PanelScene {
       case 'patch': return patchGeometry(def.pts, PATCH_SEGMENTS[this.tier]);
       case 'extrude': {
         const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number; holes?: Array<Array<[number, number]>>; taper?: number; shift?: [number, number] };
-        if (e.taper != null || e.shift != null) return taperedExtrudeGeometry(e.outline, e.depth, e.taper ?? 1, e.shift ?? [0, 0]);
+        if (e.taper != null || e.shift != null) {
+          const tapered = taperedExtrudeGeometry(e.outline, e.depth, e.taper ?? 1, e.shift ?? [0, 0]);
+          return softenEdges(tapered) ?? tapered;
+        }
         return extrudeGeometry(e.outline, e.depth, e.bevel ?? Math.min(0.1, e.depth * 0.2), d, e.holes);
       }
       case 'blob': {
