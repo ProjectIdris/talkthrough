@@ -8,8 +8,8 @@
 import type { BufferGeometry, MeshPhysicalMaterial } from 'three';
 
 /** The patterns a material can wear on its colour. Each is a number between -1 and 1 over the surface, made from the part's own coordinates. */
-export type PatternKind = 'grain' | 'speckle' | 'veins' | 'weave' | 'twill' | 'bricks';
-const PATTERN_ID: Record<PatternKind, number> = { grain: 1, speckle: 2, veins: 3, weave: 4, twill: 5, bricks: 6 };
+export type PatternKind = 'grain' | 'speckle' | 'veins' | 'weave' | 'twill' | 'bricks' | 'mottle' | 'pores' | 'fibre' | 'glitter';
+const PATTERN_ID: Record<PatternKind, number> = { grain: 1, speckle: 2, veins: 3, weave: 4, twill: 5, bricks: 6, mottle: 7, pores: 8, fibre: 9, glitter: 10 };
 
 export type MicroSurface = {
   /** How far roughness swings about its recipe value (0 none, 0.3 a lot): the rest of the layer is one more number each. */
@@ -84,6 +84,32 @@ float patBricks(vec3 q, vec3 n, float fade) {
   // from far the courses blend to their average; the mortar is the light line, so its average is a little above the brick
   return mix(0.15, mix(tone, 1.6, mortar), fade);
 }
+// Soft clouds of lighter and darker: the uneven colour of an organ, a petal or a block of wax.
+float patMottle(vec3 q, float fade) {
+  float n = microNoise(q * 0.8) * 0.6 + microNoise(q * 2.1 + 7.0) * 0.4;
+  return (n - 0.5) * 2.4 * fade;
+}
+// Fine dimples, one in a few cells: the pores of a skin or a rind.
+float patPores(vec3 q, float fade) {
+  vec3 c = q * 4.0;
+  vec3 i = floor(c);
+  vec3 off = (vec3(microHash(i + 1.7), microHash(i + 3.1), microHash(i + 5.3)) - 0.5) * 0.5;
+  float d = length(fract(c) - 0.5 - off);
+  float dimple = (1.0 - smoothstep(0.08, 0.2, d)) * step(0.45, microHash(i));
+  return (-dimple + (microNoise(q * 1.1) - 0.5) * 0.5) * fade;
+}
+// Fine streaks along x: muscle and nerve fibres, the brush marks of a satin metal. Each of its two scales fades on its own.
+float patFibre(vec3 q, float foot) {
+  float a = microNoise(vec3(q.x * 0.15, q.y * 9.0, q.z * 9.0));
+  float b = microNoise(vec3(q.x * 0.3, q.y * 22.0, q.z * 22.0));
+  return (a - 0.5) * 1.4 * (1.0 - smoothstep(0.25, 0.6, foot * 9.0)) + (b - 0.5) * 0.9 * (1.0 - smoothstep(0.25, 0.6, foot * 22.0));
+}
+// Crystals that catch the light one at a time: bright and dark specks (sugar, salt, frost).
+float patGlitter(vec3 q, float fade) {
+  float c = microHash(floor(q * 4.0));
+  float spark = step(0.9, c) - 0.5 * step(c, 0.1);
+  return (spark + (microNoise(q * 4.0) - 0.5) * 0.4) * fade;
+}
 float patternValue(float kind, vec3 q, vec3 n, float foot) {
   float v = 0.0;
   if (kind < 1.5) v = patGrain(q, foot);
@@ -91,7 +117,11 @@ float patternValue(float kind, vec3 q, vec3 n, float foot) {
   else if (kind < 3.5) v = patVeins(q, 1.0 - smoothstep(0.25, 0.7, foot * 1.9));
   else if (kind < 4.5) v = patWeave(q, n, 1.0 - smoothstep(0.2, 0.5, foot * 1.0));
   else if (kind < 5.5) v = patTwill(q, n, 1.0 - smoothstep(0.2, 0.5, foot * 1.0));
-  else v = patBricks(q, n, 1.0 - smoothstep(0.3, 0.8, foot * 0.7));
+  else if (kind < 6.5) v = patBricks(q, n, 1.0 - smoothstep(0.3, 0.8, foot * 0.7));
+  else if (kind < 7.5) v = patMottle(q, 1.0 - smoothstep(0.25, 0.7, foot * 2.1));
+  else if (kind < 8.5) v = patPores(q, 1.0 - smoothstep(0.25, 0.7, foot * 4.0));
+  else if (kind < 9.5) v = patFibre(q, foot);
+  else v = patGlitter(q, 1.0 - smoothstep(0.25, 0.7, foot * 4.0));
   return v;
 }
 `;
@@ -228,7 +258,7 @@ export function applyMicroSurface(material: MeshPhysicalMaterial, o: MicroSurfac
   }
 #endif`);
   };
-  material.customProgramCacheKey = () => `${previousKey}|micro-v3|${defines.replace(/\s+/g, '')}`;
+  material.customProgramCacheKey = () => `${previousKey}|micro-v4|${defines.replace(/\s+/g, '')}`;
 }
 
 /** The pattern of a board is drawn for a board about 6 by 4; this sets its scale from the geometry so a board written at any size carries the same detail. */
