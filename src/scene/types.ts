@@ -159,16 +159,22 @@ export type StyleAction = { op: 'style'; id: string; color?: Color; opacity?: nu
 export type HighlightAction = { op: 'highlight'; id: string; color?: Color } & Timing;
 
 // Machines: parts that keep moving by themselves once started.
-export type SpinAction = { op: 'spin'; id: string; rpm?: number; by?: string; ratio?: number; phase?: number; axis?: 'x' | 'y' | 'z' } & Timing;
+export type SpinAction = { op: 'spin'; id: string; rpm?: number; by?: string; ratio?: number; phase?: number; axis?: 'x' | 'y' | 'z'; onlyAxis?: boolean } & Timing;
 export type CutAction = { op: 'cut'; id: string; axis?: 'x' | 'y' | 'z'; normal?: Vec3; to: number } & Timing;
 export type CrankAction = { op: 'crank'; id: string; shaft: string; rod?: string; pin?: number } & At;
 export type CamAction = { op: 'cam'; id: string; by: string; lift?: number; open?: number; phase?: number } & At;
 /** A repeating motion that is not a full turn, for any object: slide along an axis, swing about a pivot, or pulse in size. Its own period, or locked to a spinning part with by. */
 export type LoopAction = { op: 'loop'; id: string; kind?: 'slide' | 'swing' | 'pulse' | 'stop'; axis?: 'x' | 'y' | 'z'; amount?: number; period?: number; by?: string; ratio?: number; phase?: number; pivot?: Vec3 } & At;
 /** A freedom of an object: a hinge about a pivot, a slide along an axis or a direction, or riding rigidly with another object. It moves nothing until a driver (spin, loop) or a coupling sets its value. */
-export type JointAction = { op: 'joint'; id: string; kind: 'hinge' | 'slide' | 'fixed'; axis?: 'x' | 'y' | 'z'; dir?: Vec3; pivot?: Vec3; min?: number; max?: number; to?: string } & At;
+export type JointAction = { op: 'joint'; id: string; kind: 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball'; axis?: 'x' | 'y' | 'z'; dir?: Vec3; pivot?: Vec3; about?: string; limit?: Vec3; min?: number; max?: number; to?: string } & At;
 /** One joint follows another's value: ratio between two of a kind (gear, belt, lever arm), or pitch between a hinge and a slide (units of travel for a turn: a screw, a rack, a rope on a wheel). stop ends it. */
 export type CoupleAction = { op: 'couple'; id: string; by?: string; ratio?: number; pitch?: number; phase?: number; stop?: boolean } & At;
+/** A beam rocking about a fulcrum, in one op: a hinge at a point of the beam and a swing loop. */
+export type LeverAction = { op: 'lever'; id: string; fulcrum?: string; swing?: number; period?: number; phase?: number; axis?: 'x' | 'y' | 'z' } & At;
+/** A connector that pulls the part it is on: it contracts between its two points and the part's hinge or pivot is turned to make it so. */
+export type MuscleAction = { op: 'muscle'; id: string; pulls: string; contract?: number; period?: number; phase?: number } & At;
+/** A rope over a wheel in one op: the wheel turns and the load slides by the rope laid on it. */
+export type PulleyAction = { op: 'pulley'; id: string; wheel: string; radius?: number; rpm?: number; axis?: 'x' | 'y' | 'z' } & At;
 export type FlashAction = { op: 'flash'; id: string; by: string; angle: number; span: number; cycle?: number } & At;
 
 // Camera, for the 3D panel.
@@ -187,7 +193,7 @@ export type GoAction = { op: 'go'; kind: 'tab' | 'open' | 'scroll'; x: number; y
 export type Action =
   | Mark | PanelAction | AddAction | DiagramThing | TickAction
   | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | AnchorAction | DetachAction | StyleAction | HighlightAction
-  | CutAction | SpinAction | CrankAction | CamAction | FlashAction | LoopAction | JointAction | CoupleAction
+  | CutAction | SpinAction | CrankAction | CamAction | FlashAction | LoopAction | JointAction | CoupleAction | LeverAction | PulleyAction | MuscleAction
   | OrbitAction | ZoomAction | FocusAction | ClearAction | WaitAction | GoAction;
 
 export type Step = { say: string; actions: Action[] };

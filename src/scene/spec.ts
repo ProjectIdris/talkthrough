@@ -510,7 +510,7 @@ export const VARIANTS: readonly Variant[] = [
     fields: {
       id: { k: 'ref', of: 'object3d' }, rpm: { k: 'num', min: -600, max: 600, opt: true },
       by: { k: 'ref', of: 'object3d', opt: true }, ratio: { k: 'num', min: -20, max: 20, opt: true }, phase: { k: 'num', min: -3600, max: 3600, opt: true },
-      axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT, dur: DUR,
+      axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, onlyAxis: { k: 'bool', opt: true, doc: 'with rpm 0: stop only a spin about axis, and leave any other as it is' }, at: AT, dur: DUR,
     },
   },
   {
@@ -554,10 +554,12 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'joint', op: 'joint',
-    doc: 'Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it.',
+    doc: 'Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), pivot (turns about its own long axis, axis y by default, through its own middle: a forearm, a screw, a tap), ball (turns about all three axes about its pivot point, held to limit [x,y,z] degrees each way: a shoulder, a hip; one swing loop or spin per axis drives it), fixed (rides with to). about names the point to turn about (any point of the part: left, top, a named one) instead of pivot. min and max hold its value. It moves when spin, loop or couple drives it.',
     fields: {
-      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['hinge', 'slide', 'fixed'] }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true },
-      dir: { k: 'vec3', ...WORLD, opt: true, doc: 'slide: the direction, [x,y,z]' }, pivot: { k: 'vec3', ...WORLD, opt: true, doc: 'hinge: from the object to the point it turns about' },
+      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['hinge', 'slide', 'fixed', 'pivot', 'ball'] }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true },
+      dir: { k: 'vec3', ...WORLD, opt: true, doc: 'slide: the direction, [x,y,z]' }, pivot: { k: 'vec3', ...WORLD, opt: true, doc: 'hinge or ball: from the object to the point it turns about' },
+      about: { k: 'str', min: 1, max: 24, opt: true, doc: 'hinge or ball: a point of the object by name (built in, a kit part own or one named with anchor) to turn about, instead of pivot' },
+      limit: { k: 'vec3', min: 0, max: 360, opt: true, doc: 'ball: how far each axis may turn each way, degrees [x,y,z]' },
       min: { k: 'num', min: -3600, max: 3600, opt: true }, max: { k: 'num', min: -3600, max: 3600, opt: true },
       to: { k: 'ref', of: 'object3d', opt: true, doc: 'fixed: the object it rides with' }, at: AT,
     },
@@ -568,6 +570,33 @@ export const VARIANTS: readonly Variant[] = [
     fields: {
       id: { k: 'ref', of: 'object3d' }, by: { k: 'ref', of: 'object3d', opt: true }, ratio: { k: 'num', min: -100, max: 100, opt: true }, pitch: { k: 'num', min: -100, max: 100, opt: true },
       phase: { k: 'num', min: -3600, max: 3600, opt: true }, stop: { k: 'bool', opt: true }, at: AT,
+    },
+  },
+  {
+    name: 'lever', op: 'lever',
+    doc: 'A beam that rocks about a fulcrum: a hinge at fulcrum, a point of the beam (center, the default, is a seesaw and the first class; left or right, an end, with the load or the effort between it and the other end, is the second and third class; or a point named with anchor), swinging swing degrees each side every period seconds. Attach the load and the effort at points of the beam (parentAnchor) and they rise and fall with it.',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, fulcrum: { k: 'str', min: 1, max: 24, opt: true },
+      swing: { k: 'num', min: 1, max: 90, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true },
+      phase: { k: 'num', min: -3600, max: 3600, opt: true }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT,
+    },
+  },
+  {
+    name: 'muscle', op: 'muscle',
+    doc: 'A connector that is a muscle: it shortens by contract (a fraction of its relaxed length, 0.02 to 0.9, default 0.2) and lengthens again every period seconds (default 2), and the part it pulls (pulls, the id of one of its two ends, or from or to, with a hinge or pivot joint with min and max to hold it) is turned by it, not beside it. Join the ends with fromPoint and toPoint or fromAnchor and toAnchor; its belly swells as it shortens (swell). id is the connector.',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, pulls: { k: 'str', min: 1, max: 40, doc: 'the id of the part it pulls (an end of the connector), or from or to for that end' },
+      contract: { k: 'num', min: 0.02, max: 0.9, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true },
+      phase: { k: 'num', min: -3600, max: 3600, opt: true }, at: AT,
+    },
+  },
+  {
+    name: 'pulley', op: 'pulley',
+    doc: 'A rope over a wheel: the wheel (wheel) turns rpm turns a minute (default 20, negative the other way) and the load (id) rises by the rope laid on it, 2 x pi x radius for each turn. radius is the rope\'s radius on the wheel, read from the wheel\'s size when left out. A winch, a crane drum and a wheel and axle (give the axle\'s radius) are the same.',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, wheel: { k: 'ref', of: 'object3d' },
+      radius: { k: 'num', min: 0.01, max: 100, opt: true }, rpm: { k: 'num', min: -600, max: 600, opt: true },
+      axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true, doc: 'the axis the wheel turns about: left out, a cylinder turns about its own long axis as it lies and anything else about z' }, at: AT,
     },
   },
   {

@@ -32,9 +32,17 @@ export type SceneState = {
   /** The ready-made part (piston, valve, cylinder-block...) that each id made by `add` part is; ids of anything else are not here. */
   parts: Map<string, string>;
   /** What joint each object has been given (hinge, slide or fixed), what each coupled object follows, and what each fixed object rides with. */
-  joints: Map<string, 'hinge' | 'slide' | 'fixed'>;
+  joints: Map<string, 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball'>;
   follows: Map<string, string>;
   rides: Map<string, string>;
+  /** The axis each object has been set spinning about (a spin of rate zero takes it out): a part inside it turns with it already. */
+  spins: Map<string, 'x' | 'y' | 'z'>;
+  /** The two ends of each connector made so far: a muscle is one of them. */
+  connectors?: Map<string, { from: string; to: string }>;
+  /** The min and max each joint was given: a muscle on a joint with no room to turn cannot move it. */
+  jointRanges?: Map<string, { min?: number; max?: number }>;
+  /** The parts a muscle pulls: a loop or coupling written for one is dropped (the muscle drives it) until a loop stop frees it. */
+  muscled?: Set<string>;
   /** Where each 3D solid and group stands and how big it is, with normalized kit dimensions: what a tube or line that ends on a part is held against (attach.ts). */
   bodies: Map<string, Body>;
   /** Tubes and lines with an end in the air so far: a part that arrives later may be what that end was meant for. */
@@ -68,7 +76,7 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 export function createSceneState(): SceneState {
-  return { ids: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), parts: new Map(), joints: new Map(), follows: new Map(), rides: new Map(), bodies: new Map(), loose: new Map(), after: [], turnSteps: 0, turnActions: 0, copies: 0 };
+  return { ids: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), parts: new Map(), joints: new Map(), follows: new Map(), rides: new Map(), spins: new Map(), bodies: new Map(), loose: new Map(), after: [], turnSteps: 0, turnActions: 0, copies: 0 };
 }
 
 /**
@@ -77,8 +85,8 @@ export function createSceneState(): SceneState {
  */
 export function createDetailState(onScreen: SceneState): SceneState {
   return {
-    ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides),
-    bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [],
+    ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides), spins: new Map(onScreen.spins),
+    bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [], connectors: new Map(onScreen.connectors ?? []), muscled: new Set(onScreen.muscled ?? []), jointRanges: new Map(onScreen.jointRanges ?? []),
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
     ...(onScreen.stage ? { stage: { ...onScreen.stage } } : {}),
   };
@@ -320,6 +328,7 @@ function removeWithDescendants(state: SceneState, id: string): void {
     state.joints.delete(d);
     state.follows.delete(d);
     state.rides.delete(d);
+    state.spins.delete(d);
     state.bodies.delete(d);
     state.loose.delete(d);
   }
@@ -328,7 +337,7 @@ function removeWithDescendants(state: SceneState, id: string): void {
 /** Takes a cleared id (or "all", "marks", "panel") out of what the scene holds; the guide clears the page by id between steps and tells the scene here. */
 export function applyClear(state: SceneState, target: string): void {
   if (target === 'all') {
-    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.joints.clear(); state.follows.clear(); state.rides.clear(); state.bodies.clear(); state.loose.clear(); state.copies = 0;
+    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.joints.clear(); state.follows.clear(); state.rides.clear(); state.spins.clear(); state.bodies.clear(); state.loose.clear(); state.copies = 0;
   } else if (target === 'marks' || target === 'panel') {
     // Marks, pins and flat diagrams are the screen's; the 3D stage is the rest.
     const wantMark = target === 'marks';
@@ -682,12 +691,20 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', path, 'spin needs rpm or by');
     return null;
   }
+  if (variant.name === 'spin' && !checkSpin(out, state, path, notes)) return null;
+  if ((variant.name === 'loop' || variant.name === 'couple') && state.muscled?.has(out.id as string)) {
+    if (variant.name === 'loop' && out.kind === 'stop') state.muscled.delete(out.id as string);
+    else if (!(variant.name === 'couple' && out.stop === true)) {
+      note(notes, 'dropped', path, `a muscle pulls "${out.id as string}" already; write loop with kind stop to free it first`);
+      return null;
+    }
+  }
   if (variant.name === 'loop' && out.kind !== 'stop') {
     // The kind is the object's joint when left out; an amount is a travel, an angle or a size factor by its kind, each in a range that still reads as that motion.
     const joint = state.joints.get(out.id as string);
-    const kind = (out.kind as string | undefined) ?? (joint === 'hinge' ? 'swing' : joint === 'slide' ? 'slide' : undefined);
+    const kind = (out.kind as string | undefined) ?? (joint === 'hinge' || joint === 'pivot' || joint === 'ball' ? 'swing' : joint === 'slide' ? 'slide' : undefined);
     if (kind === undefined) {
-      note(notes, 'dropped', path, 'loop needs a kind, or a hinge or slide joint on the object');
+      note(notes, 'dropped', path, 'loop needs a kind, or a hinge, pivot, ball or slide joint on the object');
       return null;
     }
     const amount = out.amount as number | undefined;
@@ -716,6 +733,9 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   }
   if (variant.name === 'joint' && !checkJoint(out, state, path, notes)) return null;
   if (variant.name === 'couple' && !checkCouple(out, state, path, notes)) return null;
+  if (variant.name === 'lever' && !checkLever(out, state, path, notes)) return null;
+  if (variant.name === 'pulley' && !checkPulley(out, state, path, notes)) return null;
+  if (variant.name === 'muscle' && !checkMuscle(out, state, path, notes)) return null;
   if (variant.name === 'addTube' && out.closed === true && new Set((out.pts as Vec3[]).map((p) => p.join(','))).size < 3) {
     note(notes, 'dropped', `${path}.pts`, 'a closed tube needs at least three distinct points');
     return null;
@@ -769,6 +789,8 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     else state.diagramKinds.delete(id);
     if (variant.name === 'addPart') state.parts.set(id, out.part as string);
     else state.parts.delete(id);
+    if (variant.name === 'addConnector') (state.connectors ??= new Map()).set(id, { from: out.from as string, to: out.to as string });
+    else state.connectors?.delete(id);
     state.parents.set(id, parent);
     state.depth.set(id, parent === undefined ? 1 : (state.depth.get(parent) ?? 0) + 1);
     holdBody(state, variant.name, out, path, notes, mountedPos);
@@ -823,7 +845,52 @@ function checkJoint(out: Record<string, unknown>, state: SceneState, path: strin
     note(notes, 'trimmed', `${path}.min`, 'min was above max; they are swapped');
     [out.min, out.max] = [out.max, out.min];
   }
-  state.joints.set(id, out.kind as 'hinge' | 'slide' | 'fixed');
+  // A point to turn about is named by the part's own points: one that is not there drops the joint, saying which are.
+  if (out.about !== undefined) {
+    const points = state.bodies.get(id)?.anchors ?? { origin: ZERO };
+    if (!Object.hasOwn(points, out.about as string)) {
+      note(notes, 'dropped', `${path}.about`, `unknown point "${String(out.about)}" on "${id}"; available: ${Object.keys(points).join(', ')}`);
+      return false;
+    }
+    delete out.pivot;
+  }
+  if (out.kind !== 'ball') delete out.limit;
+  if (out.kind !== 'hinge' && out.kind !== 'ball') delete out.about;
+  state.joints.set(id, out.kind as 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball');
+  (state.jointRanges ??= new Map()).set(id, { min: out.min as number | undefined, max: out.max as number | undefined });
+  return true;
+}
+
+/**
+ * A spin on a part inside a part that already spins about the same axis: it turns with its holder already, so a spin of its own would add to that and turn it
+ * twice as fast (a bicycle's wheel parented to its spinning rear cog, then spun again). The second spin is dropped, saying which part it already turns with.
+ * The other order is the same fault: a part inside this one already spins about the axis (the wheel was spun first, then its holder). The holder's spin
+ * is the one kept, so the part's own is stopped (a spin of rate zero, written after) with a note.
+ */
+function checkSpin(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const id = out.id as string;
+  const axis = (out.axis as 'x' | 'y' | 'z' | undefined) ?? state.spins.get(id) ?? 'z';
+  if (out.rpm === 0) {
+    // A stop aimed at one axis (the validator's own) leaves the spin it does not name; the record of a spin still running is kept.
+    if (!(out.onlyAxis === true && state.spins.has(id) && state.spins.get(id) !== axis)) state.spins.delete(id);
+    return true;
+  }
+  for (let cur = state.parents.get(id), n = 0; cur !== undefined && n < 32; cur = state.parents.get(cur), n++) {
+    if (state.spins.get(cur) === axis) {
+      note(notes, 'dropped', path, `${id} is inside ${cur}, which already spins about ${axis}: it turns with it, and a spin of its own would turn it twice as fast`);
+      return false;
+    }
+  }
+  for (const [inner, innerAxis] of [...state.spins]) {
+    if (inner === id || innerAxis !== axis) continue;
+    let inside = false;
+    for (let cur = state.parents.get(inner), n = 0; cur !== undefined && n < 32; cur = state.parents.get(cur), n++) if (cur === id) { inside = true; break; }
+    if (!inside) continue;
+    note(notes, 'trimmed', path, `${inner} is inside ${id}, which now spins about ${axis}: it turns with it, so its own spin about ${axis} is stopped (it would turn twice as fast)`);
+    state.spins.delete(inner);
+    state.after.push({ op: 'spin', id: inner, rpm: 0, axis, onlyAxis: true, dur: 0, at: (out.at as number | undefined) ?? 0 } as unknown as Action);
+  }
+  state.spins.set(id, axis);
   return true;
 }
 
@@ -843,13 +910,86 @@ function checkCouple(out: Record<string, unknown>, state: SceneState, path: stri
     note(notes, 'dropped', `${path}.by`, `${id} cannot follow ${by}: that follows ${id} already (a coupling loop)`);
     return false;
   }
-  const mine = state.joints.get(id);
-  const theirs = state.joints.get(by);
+  // A pivot is a hinge about the part's own axis: coupled to one as to a hinge.
+  const kindOf = (k: string | undefined): string | undefined => (k === 'pivot' ? 'hinge' : k);
+  const mine = kindOf(state.joints.get(id));
+  const theirs = kindOf(state.joints.get(by));
+  if (state.joints.get(id) === 'ball' || state.joints.get(by) === 'ball') {
+    note(notes, 'dropped', path, 'a ball joint is driven by a swing loop or spin on each axis, not coupled');
+    return false;
+  }
   if (out.pitch === undefined && mine !== undefined && theirs !== undefined && mine !== 'fixed' && theirs !== 'fixed' && mine !== theirs) {
     note(notes, 'dropped', path, `a ${theirs} and a ${mine} are coupled with pitch (units of travel for a turn), not ratio`);
     return false;
   }
   state.follows.set(id, by);
+  return true;
+}
+
+/** A lever is a hinge at a point of its beam: the point must be there. */
+function checkLever(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const id = out.id as string;
+  const fulcrum = (out.fulcrum as string | undefined) ?? 'center';
+  const points = state.bodies.get(id)?.anchors ?? { origin: ZERO };
+  if (!Object.hasOwn(points, fulcrum)) {
+    note(notes, 'dropped', `${path}.fulcrum`, `unknown point "${fulcrum}" on "${id}"; available: ${Object.keys(points).join(', ')}`);
+    return false;
+  }
+  out.fulcrum = fulcrum;
+  state.joints.set(id, 'hinge');
+  return true;
+}
+
+/** A muscle is a connector with an end on the part it pulls, and that part has a hinge or pivot for it to turn; its other end is on the part's holder or beside it. */
+function checkMuscle(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const id = out.id as string;
+  let pulls = out.pulls as string;
+  const conn = state.connectors?.get(id);
+  if (!conn) {
+    note(notes, 'dropped', path, `muscle needs id to be a connector (add one with shape connector first); "${id}" is not`);
+    return false;
+  }
+  // The end may be said as from or to, the connector's own names for them, when no part has that id.
+  if ((pulls === 'from' || pulls === 'to') && !state.ids.has(pulls)) {
+    pulls = conn[pulls];
+    out.pulls = pulls;
+  }
+  if (!state.ids.has(pulls)) {
+    note(notes, 'dropped', `${path}.pulls`, `unknown id "${pulls}" (the ends of "${id}" are ${conn.from} and ${conn.to})`);
+    return false;
+  }
+  if (conn.from !== pulls && conn.to !== pulls) {
+    note(notes, 'dropped', `${path}.pulls`, `"${pulls}" is not an end of connector "${id}" (it joins ${conn.from} and ${conn.to})`);
+    return false;
+  }
+  const joint = state.joints.get(pulls);
+  if (joint !== 'hinge' && joint !== 'pivot') {
+    note(notes, 'dropped', `${path}.pulls`, `a muscle turns a hinge or pivot joint: give "${pulls}" one first (joint hinge about its end, or pivot) with min and max`);
+    return false;
+  }
+  // Whether the joint can shorten the muscle depends on which way it pulls (the validator does not know), but a joint with no room at all is plain.
+  const range = state.jointRanges?.get(pulls);
+  if (range && range.min !== undefined && range.max !== undefined && range.max - range.min < 2) {
+    note(notes, 'trimmed', `${path}.pulls`, `the joint of "${pulls}" can turn only ${Math.max(0, range.max - range.min)} degrees (min ${range.min}, max ${range.max}): the muscle cannot move it; give it min and max wide enough for the way it pulls (like -120 to 120)`);
+  }
+  (state.muscled ??= new Set()).add(pulls);
+  return true;
+}
+
+/** A pulley's load slides and follows the wheel, which turns by its own spin: neither may be the other. */
+function checkPulley(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const id = out.id as string;
+  const wheel = out.wheel as string;
+  if (wheel === id) {
+    note(notes, 'dropped', path, 'a pulley\'s load and wheel are different parts');
+    return false;
+  }
+  if (comesBack(state.follows, wheel, id)) {
+    note(notes, 'dropped', `${path}.wheel`, `${id} cannot follow ${wheel}: that follows ${id} already (a coupling loop)`);
+    return false;
+  }
+  state.joints.set(id, 'slide');
+  state.follows.set(id, wheel);
   return true;
 }
 

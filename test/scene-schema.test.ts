@@ -16,8 +16,8 @@ test('the lean schema is the same structure without descriptions, and just as st
   const text = JSON.stringify(sceneSchemaLean);
   assert.ok(!text.includes('"description"'));
   assert.ok(text.length < JSON.stringify(sceneSchema).length * 0.7);
-  // The lean schema also leaves out `explode` and `loop.pivot` (see LEAN_OMITS in schema.ts): they are in the full schema and the validator only.
-  const omittedIn: Record<string, string[]> = { loop: ['pivot'] };
+  // The lean schema also leaves out `explode`, `loop.pivot` and `spin.onlyAxis` (see LEAN_OMITS in schema.ts): they are in the full schema and the validator only.
+  const omittedIn: Record<string, string[]> = { loop: ['pivot'], spin: ['onlyAxis'] };
   let omitted = new Set(['explode']);
   const strip = (v: unknown): unknown => Array.isArray(v) ? v.map(strip)
     : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'description').map(([k, x]) => {
@@ -107,6 +107,13 @@ test('the guide asks for a short first step and its example keeps to it', () => 
   assert.ok((steps[0]?.actions.length ?? 99) <= 2, 'the first step of the example has one or two marks');
   assert.ok((steps[0]?.say.length ?? 999) <= 90, 'and one short sentence');
   assert.ok(JSON.stringify(sceneGuideExample).length < 1500, 'the example stays lean (a door attached by its hinge edge was added to teach attaching)');
+});
+
+test('the guide asks for a stage with room (about 60 percent of the screen height) and its example stages are that tall, since a model copies the example and the screen is wider than tall', () => {
+  assert.ok(sceneGuide.includes('about 60 percent of the screen height (h near 600)'), 'the guide says how tall');
+  const panels = (sceneGuideExample as { steps: { actions: Array<{ op: string; w?: number; h?: number }> }[] }).steps.flatMap((s) => s.actions.filter((a) => a.op === 'panel'));
+  assert.ok(panels.length > 0);
+  for (const p of panels) assert.ok((p.h ?? 0) >= 560 && (p.w ?? 1000) < (p.h ?? 0), `the example stage is taller than wide and at least 56 percent of the height: ${p.w}x${p.h}`);
 });
 
 test('the guide says the question sets the task and the page is material, never a subject (no talk of where knowledge comes from), that a figure adds what the page lacks, and that a label starts beside its point', () => {
