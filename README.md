@@ -29,16 +29,16 @@ These are frames from answers a model gave live to questions about made-up fixtu
 
 <table>
   <tr>
-    <td><img src="docs/media/gallery-clock.jpg" alt="The real alarm clock model on an article about alarm clocks, with its gear train and escapement turning beside it and labelled parts." width="100%"><br><strong>A real model and its mechanism</strong> - the alarm clock, with the gears and escapement that drive it beside it.</td>
-    <td><img src="docs/media/gallery-drill.jpg" alt="The real cordless drill model beside a planetary gear set with labelled sun gear, carrier and ring." width="100%"><br><strong>An assembly moving</strong> - the drill, and the planetary gears that slow its motor.</td>
+    <td><img src="docs/media/gallery-clock.jpg" alt="The real alarm clock model on an article about alarm clocks, with its gear train and escapement beside it, labelled." width="100%"><br><strong>A real model and its mechanism</strong> - the alarm clock, with its gear train and escapement beside it.</td>
+    <td><img src="docs/media/gallery-drill.jpg" alt="The real cordless drill model beside a planetary gear set with labelled sun gear, shaft and carrier." width="100%"><br><strong>An assembly moving</strong> - the drill, and the planetary gears that slow its motor.</td>
   </tr>
   <tr>
-    <td><img src="docs/media/gallery-mousetrap.jpg" alt="The real mousetrap model beside its spring, catch, bait pedal and hammer bar, with a box on the article text." width="100%"><br><strong>Parts that work together</strong> - the spring, catch and trigger that snap a mousetrap.</td>
+    <td><img src="docs/media/gallery-mousetrap.jpg" alt="The real mousetrap model beside its spring, catch, bait pedal and hammer bar, labelled, with a box on the article text." width="100%"><br><strong>Parts that work together</strong> - the spring, catch and bait pedal that snap a mousetrap.</td>
     <td><img src="docs/media/gallery-materials.jpg" alt="Four spheres lit as steel, brass, copper and wood, each labelled, with the article text boxed." width="100%"><br><strong>Materials</strong> - steel, brass, copper and wood lit as real surfaces.</td>
   </tr>
   <tr>
     <td><img src="docs/media/gallery-proof.jpg" alt="A tilted-square diagram and three equation labels explaining a proof of the Pythagorean theorem on a web page." width="100%"><br><strong>A page explained on the page</strong> - a proof drawn beside the text it explains.</td>
-    <td><img src="docs/media/gallery-guide.jpg" alt="A settings window with a red box on the Spell check toggle." width="100%"><br><strong>Guide mode</strong> - it marks the next click and waits for yours.</td>
+    <td><img src="docs/media/gallery-guide.jpg" alt="A settings window with a red box on the Spell check toggle." width="100%"><br><strong>Guide mode</strong> - it marks the next click.</td>
   </tr>
 </table>
 
