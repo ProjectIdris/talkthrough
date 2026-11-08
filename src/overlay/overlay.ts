@@ -3,7 +3,7 @@
 // soft shadow on the page); marks, tags pinned to parts, and cards are drawn on a 2D canvas above it.
 // Everything is data-driven by validated scenes (see src/scene).
 
-import { NeutralToneMapping, PMREMGenerator, SRGBColorSpace, VSMShadowMap, WebGLRenderer } from 'three';
+import { Group, NeutralToneMapping, PMREMGenerator, SRGBColorSpace, VSMShadowMap, WebGLRenderer } from 'three';
 import { StudioEnvironment } from './studio.ts';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { DisplayInfo, SceneMessage } from '../shared/ipc.ts';
@@ -1815,31 +1815,41 @@ window.talkthrough.onScene((message) => {
  * (which builds the finishing pass's own) and cleared; if an answer's model has been drawn by then there is nothing left to build and nothing is drawn. The solids are in the scene only while that is being started or drawn, never across a pause.
  */
 let modelFramesDrawn = 0;
+const PREWARM_SLICE = 6;
 async function prewarm(): Promise<void> {
   if (!renderer) return;
   const started = performance.now();
   const drawnBefore = modelFramesDrawn;
   const group = panelScene.prewarmGroup();
+  const solids = [...group.children];
+  const rect = { x: 0, y: 0, w: 64, h: 64 };
   try {
-    panelScene.scene.add(group);
-    const built = renderer.compileAsync(panelScene.scene, panelScene.camera);
-    panelScene.scene.remove(group);
-    await built;
-    const programs = performance.now() - started;
-    // A model drawn in the meantime has built the finishing pass's programs itself, and the clearing below would wipe it off the canvas.
-    if (modelFramesDrawn !== drawnBefore) return;
-    const rect = { x: 0, y: 0, w: 64, h: 64 };
-    panelScene.scene.add(group);
-    renderer.setViewport(0, 0, view.width, view.height);
-    renderer.setScissor(0, Math.max(0, view.height - rect.h), rect.w, rect.h);
-    renderer.setScissorTest(true);
-    if (finishing?.fits(rect)) finishing.render(panelScene.scene, panelScene.camera, rect, view);
-    else renderer.render(panelScene.scene, panelScene.camera);
-    console.info(`talkthrough: prewarm built the surfaces in ${Math.round(programs)} ms and the finishing in ${Math.round(performance.now() - started - programs)} ms`);
+    // A few surfaces at a time, each built and drawn before the next: a card that builds a program on first use, on the page's own thread, is then never
+    // held for more than a few programs before the page runs again (the whole set at once held a software renderer for seconds).
+    for (let i = 0; i < solids.length; i += PREWARM_SLICE) {
+      const slice = new Group();
+      slice.add(...solids.slice(i, i + PREWARM_SLICE));
+      panelScene.scene.add(slice);
+      const built = renderer.compileAsync(panelScene.scene, panelScene.camera);
+      panelScene.scene.remove(slice);
+      await built;
+      // A model drawn in the meantime has built the finishing pass's programs itself, and the clearing below would wipe it off the canvas.
+      if (modelFramesDrawn !== drawnBefore) return;
+      panelScene.scene.add(slice);
+      renderer.setViewport(0, 0, view.width, view.height);
+      renderer.setScissor(0, Math.max(0, view.height - rect.h), rect.w, rect.h);
+      renderer.setScissorTest(true);
+      if (finishing?.fits(rect)) finishing.render(panelScene.scene, panelScene.camera, rect, view);
+      else renderer.render(panelScene.scene, panelScene.camera);
+      panelScene.scene.remove(slice);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    console.info(`talkthrough: prewarm built ${solids.length} surfaces and the finishing in ${Math.round(performance.now() - started)} ms`);
   } catch (error) {
     console.info('talkthrough: prewarm skipped', error);
   } finally {
     panelScene.scene.remove(group);
+    group.add(...solids);
     if (modelFramesDrawn === drawnBefore) {
       renderer.setRenderTarget(null);
       renderer.setScissorTest(false);
