@@ -11,6 +11,9 @@ import { anchorsOf } from '../scene/anchors.ts';
 import { findModel, modelScale } from '../scene/models.ts';
 import { resolvePartGeometry } from '../scene/part-geometry.ts';
 import { JOINT_ROWS, loopRow } from '../scene/movement-rows.ts';
+import { PRESET_ROWS, expandPreset } from '../scene/preset-rows.ts';
+import type { PresetName } from '../scene/preset-rows.ts';
+import type { Scope } from '../scene/kit-expr.ts';
 import { PALETTE_RGB } from '../scene/colors.ts';
 import { MATERIAL_LIBRARY } from '../scene/material-library.ts';
 import { advanceMotion, ballDriver, muscleRest, crankPinKey, crankPinSize, driverOwner, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, restPoint, waveDriver, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
@@ -499,6 +502,69 @@ const v3 = (v: Vec3 | undefined, d: Vec3): Vec3 => (v ? [v[0], v[1], v[2]] : [d[
 type MountPose = { pos: Vec3; rot: Vec3; scale: Vec3 };
 type ActionContext = { mount?: MountPose | null; poseTarget?: ObjInst | null; targets?: Map<Action, ObjInst> };
 
+/**
+ * What each preset has to read from the scene before it can say its steps (the rows are in src/scene/preset-rows.ts): where a rim is, which way a ramp lies, how long a
+ * string hangs, which side a block stands on, which way a cylinder lies. Each gets the action and the fields as the row has them, and answers with names for the row to use,
+ * or nothing when the scene lacks a part the preset needs (and the preset does nothing).
+ */
+type PresetOf<K extends PresetName> = Extract<Action, { op: K }>;
+const PRESET_READERS: { [K in PresetName]: (plan: StepPlan, a: PresetOf<K>, scope: Scope, at: number) => Record<string, unknown> | undefined } = {
+  lever: (plan, a, _scope, at) => (lookup(plan.objs, a.id, at) ? {} : undefined),
+  pulley: (plan, a, _scope, at) => {
+    const load = lookup(plan.objs, a.id, at);
+    const wheel = lookup(plan.objs, a.wheel, at);
+    if (!load || !wheel || load.key === wheel.key) return undefined;
+    let radius = a.radius;
+    if (radius === undefined) {
+      const points = anchorsOf({ ...wheel.def, ...(wheel.points ? { points: wheel.points } : {}) } as object);
+      const scale = asVec(valueAt(wheel.scale, at));
+      radius = Math.abs(((points.rim?.[0] ?? 0) - (points.center?.[0] ?? 0)) * scale[0]);
+      if (!(radius > 0)) radius = 1;
+    }
+    // It turns about its own axis: a cylinder's is its long one, as it lies; a kit wheel or anything else turns as a disc seen from the front, about z.
+    const axis = a.axis ?? (wheel.def.shape === 'cylinder' ? longAxis(wheel, at).axis : undefined);
+    return { radius, turnAxis: axis ?? 'z' };
+  },
+  pendulum: (plan, a, _scope, at) => {
+    const o = lookup(plan.objs, a.id, at);
+    if (!o) return undefined;
+    // Hung from a part, the pivot is that part's middle wherever it is (worked out each frame, through any parents); the string's length, for the period, is read from where both stand now.
+    const holder = a.from !== undefined && !a.pivot ? lookup(plan.objs, a.from, at) : undefined;
+    if (!a.pivot && !holder) return undefined;
+    const reach = a.pivot ? asVec(a.pivot) : (rootPos(plan, holder as ObjInst, at).map((v, i) => v - (rootPos(plan, o, at)[i] as number)) as Vec3);
+    return { hasPivot: Boolean(a.pivot), pivotAt: a.pivot ? asVec(a.pivot) : undefined, length: Math.hypot(reach[0], reach[1], reach[2]) };
+  },
+  oscillate: () => ({}),
+  float: () => ({}),
+  pump: (plan, a, _scope, at) => {
+    if (!lookup(plan.objs, a.id, at)) return undefined;
+    const there = (id: string | undefined): boolean => id !== undefined && lookup(plan.objs, id, at) !== undefined;
+    return { hasOutlet: there(a.outlet), hasInlet: there(a.inlet) };
+  },
+  incline: (plan, a, _scope, at) => {
+    // The load slides along the slope, a tilted slide joint with a loop on it.
+    const load = lookup(plan.objs, a.id, at);
+    const ramp = a.ramp !== undefined ? lookup(plan.objs, a.ramp, at) : undefined;
+    if (!load || (a.ramp !== undefined && (!ramp || ramp.key === load.key))) return undefined;
+    const along: Vec3 = ramp ? restPoint(asVec(valueAt(ramp.rot, at)), [1, 1, 1], [1, 0, 0]) : [Math.cos(((a.angle ?? 0) * Math.PI) / 180), Math.sin(((a.angle ?? 0) * Math.PI) / 180), 0];
+    return { along };
+  },
+  wedge: (plan, a, scope, at) => {
+    const wedge = lookup(plan.objs, a.id, at);
+    const block = lookup(plan.objs, a.drives, at);
+    if (!wedge || !block || wedge.key === block.key) return undefined;
+    const slot = scope.across === 'x' ? 0 : 1;
+    return { side: (asVec(valueAt(block.pos, at))[slot] as number) >= (asVec(valueAt(wedge.pos, at))[slot] as number) ? 1 : -1 };
+  },
+  screw: (plan, a, _scope, at) => {
+    const nut = lookup(plan.objs, a.id, at);
+    const screw = lookup(plan.objs, a.screw, at);
+    if (!nut || !screw || nut.key === screw.key) return undefined;
+    const long = screw.def.shape === 'cylinder' ? longAxis(screw, at) : { axis: 'y' as const, dir: [0, 1, 0] as Vec3 };
+    return { turnAxis: a.axis ?? long.axis, dir: a.axis === undefined ? long.dir : a.axis === 'x' ? [1, 0, 0] : a.axis === 'y' ? [0, 1, 0] : [0, 0, 1] };
+  },
+};
+
 function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: SpinPlan, at: number, length: number) => void, context: ActionContext = {}): void {
   const authoredMount = context.mount;
   const dur = 'dur' in a && a.dur !== undefined ? a.dur : DEFAULT_DUR;
@@ -811,32 +877,10 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       end(0.2);
       return;
     }
-    case 'lever': {
-      // A hinge at the fulcrum and a swing about it, with nothing new in the engine.
-      const o = lookup(plan.objs, a.id, at);
-      if (!o) return;
-      const axis = a.axis ?? 'z';
-      applyAction(plan, { op: 'joint', id: a.id, kind: 'hinge', axis, about: a.fulcrum ?? 'center', at }, at, spinRamp, context);
-      applyAction(plan, { op: 'loop', id: a.id, kind: 'swing', axis, amount: a.swing ?? 20, period: a.period ?? 3, phase: a.phase ?? 0, at }, at, spinRamp, context);
-      return;
-    }
-    case 'pulley': {
-      // The wheel spins; the load slides on y, coupled by the length of rope that comes off a turn.
-      const load = lookup(plan.objs, a.id, at);
-      const wheel = lookup(plan.objs, a.wheel, at);
-      if (!load || !wheel || load.key === wheel.key) return;
-      let radius = a.radius;
-      if (radius === undefined) {
-        const points = anchorsOf({ ...wheel.def, ...(wheel.points ? { points: wheel.points } : {}) } as object);
-        const scale = asVec(valueAt(wheel.scale, at));
-        radius = Math.abs(((points.rim?.[0] ?? 0) - (points.center?.[0] ?? 0)) * scale[0]);
-        if (!(radius > 0)) radius = 1;
-      }
-      // It turns about its own axis: a cylinder's is its long one, as it lies; a kit wheel or anything else turns as a disc seen from the front, about z.
-      const axis = a.axis ?? (wheel.def.shape === 'cylinder' ? longAxis(wheel, at).axis : undefined);
-      applyAction(plan, { op: 'spin', id: a.wheel, rpm: a.rpm ?? 20, axis: axis ?? 'z', at }, at, spinRamp, context);
-      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', axis: 'y', ...(a.min !== undefined ? { min: a.min } : {}), ...(a.max !== undefined ? { max: a.max } : {}), at }, at, spinRamp, context);
-      applyAction(plan, { op: 'couple', id: a.id, by: a.wheel, pitch: 2 * Math.PI * radius, at }, at, spinRamp, context);
+    case 'lever': case 'pulley': case 'pendulum': case 'oscillate': case 'float': case 'pump': case 'incline': case 'wedge': case 'screw': {
+      // A preset is a short list of the general motions (src/scene/preset-rows.ts); what it needs to read from the scene is read here (PRESET_READERS).
+      const read = PRESET_READERS[a.op] as (plan: StepPlan, a: unknown, scope: Scope, at: number) => Record<string, unknown> | undefined;
+      for (const op of expandPreset(PRESET_ROWS[a.op], a as unknown as Record<string, unknown>, at, (scope) => read(plan, a, scope, at)) ?? []) applyAction(plan, op as unknown as Action, at, spinRamp, context);
       return;
     }
     case 'wave': {
@@ -855,27 +899,6 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       end(0.2);
       return;
     }
-    case 'pendulum': {
-      // A swing about the hang point, let go at the far end, with the period a longer string asks for.
-      const o = lookup(plan.objs, a.id, at);
-      if (!o) return;
-      // Hung from a part, the pivot is that part's middle wherever it is (worked out each frame, through any parents); the string's length, for the period, is read from where both stand now.
-      const holder = a.from !== undefined && !a.pivot ? lookup(plan.objs, a.from, at) : undefined;
-      if (!a.pivot && !holder) return;
-      const reach = a.pivot ? asVec(a.pivot) : (rootPos(plan, holder as ObjInst, at).map((v, i) => v - (rootPos(plan, o, at)[i] as number)) as Vec3);
-      const length = Math.hypot(reach[0], reach[1], reach[2]);
-      applyAction(plan, { op: 'loop', id: a.id, kind: 'swing', axis: a.axis ?? 'z', amount: a.swing ?? 25, period: a.period ?? Math.max(0.8, Math.min(6, 1.6 * Math.sqrt(length))), ...(a.pivot ? { pivot: asVec(a.pivot) } : { pivotOn: a.from }), phase: 90, ...(a.damp !== undefined ? { damp: a.damp } : {}), at }, at, spinRamp, context);
-      return;
-    }
-    case 'oscillate': {
-      // A slide let go at the low end; amount is the travel each way, a slide's is the whole.
-      applyAction(plan, { op: 'loop', id: a.id, kind: 'slide', axis: a.axis ?? 'y', amount: 2 * (a.amount ?? 0.5), period: a.period ?? 1.5, phase: 270, ...(a.damp !== undefined ? { damp: a.damp } : {}), at }, at, spinRamp, context);
-      return;
-    }
-    case 'float': {
-      applyAction(plan, { op: 'loop', id: a.id, kind: 'float', amount: a.bob ?? 0.15, tilt: a.tilt ?? 4, period: a.period ?? 3, ...(a.damp !== undefined ? { damp: a.damp } : {}), at }, at, spinRamp, context);
-      return;
-    }
     case 'drop': {
       const o = lookup(plan.objs, a.id, at);
       if (!o || !aliveAt(o, at)) return;
@@ -885,63 +908,6 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       const seconds = 'dur' in a && a.dur !== undefined ? a.dur : fallSeconds((from[1] ?? 0) - a.to, bounce);
       o.pos.segs.push({ start: at, dur: seconds, from, to: [from[0] ?? 0, a.to, from[2] ?? 0], fall: bounce });
       end(seconds);
-      return;
-    }
-    case 'pump': {
-      // The chamber squeezes and refills; the outlet flap opens while it squeezes and the inlet while it refills, all on the one cycle (the same period from the same start).
-      const chamber = lookup(plan.objs, a.id, at);
-      if (!chamber) return;
-      const period = a.period ?? 1.2;
-      const open = a.open ?? 70;
-      const axis = a.axis ?? 'z';
-      applyAction(plan, { op: 'loop', id: a.id, kind: 'pulse', amount: a.squeeze ?? 0.7, period, at }, at, spinRamp, context);
-      const flap = (id: string | undefined, phase: number): void => {
-        if (id === undefined || !lookup(plan.objs, id, at)) return;
-        applyAction(plan, { op: 'joint', id, kind: 'hinge', axis, about: a.hinge ?? 'left', at }, at, spinRamp, context);
-        applyAction(plan, { op: 'loop', id, kind: 'gate', axis, amount: open, period, phase, at }, at, spinRamp, context);
-      };
-      // The chamber's cycle starts at 180 degrees (relaxed) and shrinks to 360; a flap opens on the cosine of its own angle, so the outlet's angle runs a quarter turn ahead
-      // of the chamber's (open while it shrinks) and the inlet's a quarter turn behind (open while it grows back).
-      flap(a.outlet, 0);
-      flap(a.inlet, -180);
-      return;
-    }
-    case 'incline': {
-      // The load slides along the slope, a tilted slide joint with a loop on it.
-      const load = lookup(plan.objs, a.id, at);
-      const ramp = a.ramp !== undefined ? lookup(plan.objs, a.ramp, at) : undefined;
-      if (!load || (a.ramp !== undefined && (!ramp || ramp.key === load.key))) return;
-      const along: Vec3 = ramp ? restPoint(asVec(valueAt(ramp.rot, at)), [1, 1, 1], [1, 0, 0]) : [Math.cos(((a.angle ?? 0) * Math.PI) / 180), Math.sin(((a.angle ?? 0) * Math.PI) / 180), 0];
-      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', dir: along, at }, at, spinRamp, context);
-      applyAction(plan, { op: 'loop', id: a.id, kind: 'slide', amount: a.travel ?? 4, period: a.period ?? 4, at }, at, spinRamp, context);
-      return;
-    }
-    case 'wedge': {
-      // The wedge slides in and out along its axis; the part it drives slides across it by tan(angle) of that, to the side it lies on.
-      const wedge = lookup(plan.objs, a.id, at);
-      const block = lookup(plan.objs, a.drives, at);
-      if (!wedge || !block || wedge.key === block.key) return;
-      const axis = a.axis ?? 'y';
-      const across = axis === 'y' ? 'x' : 'y';
-      const slot = across === 'x' ? 0 : 1;
-      const side = (asVec(valueAt(block.pos, at))[slot] as number) >= (asVec(valueAt(wedge.pos, at))[slot] as number) ? 1 : -1;
-      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', axis, at }, at, spinRamp, context);
-      applyAction(plan, { op: 'loop', id: a.id, kind: 'slide', amount: a.travel ?? 2, period: a.period ?? 3, at }, at, spinRamp, context);
-      applyAction(plan, { op: 'joint', id: a.drives, kind: 'slide', axis: across, at }, at, spinRamp, context);
-      applyAction(plan, { op: 'couple', id: a.drives, by: a.id, ratio: Math.tan(((a.angle ?? 20) * Math.PI) / 180) * side * (axis === 'y' ? -1 : 1), at }, at, spinRamp, context);
-      return;
-    }
-    case 'screw': {
-      // The screw turns about its length; the nut slides along that, by the pitch for each turn.
-      const nut = lookup(plan.objs, a.id, at);
-      const screw = lookup(plan.objs, a.screw, at);
-      if (!nut || !screw || nut.key === screw.key) return;
-      const long = screw.def.shape === 'cylinder' ? longAxis(screw, at) : { axis: 'y' as const, dir: [0, 1, 0] as Vec3 };
-      const axis = a.axis ?? long.axis;
-      const dir: Vec3 = a.axis === undefined ? long.dir : a.axis === 'x' ? [1, 0, 0] : a.axis === 'y' ? [0, 1, 0] : [0, 0, 1];
-      applyAction(plan, { op: 'spin', id: a.screw, rpm: a.rpm ?? 30, axis, at }, at, spinRamp, context);
-      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', dir, ...(a.min !== undefined ? { min: a.min } : {}), ...(a.max !== undefined ? { max: a.max } : {}), at }, at, spinRamp, context);
-      applyAction(plan, { op: 'couple', id: a.id, by: a.screw, pitch: a.pitch ?? 0.5, at }, at, spinRamp, context);
       return;
     }
     case 'muscle': {
