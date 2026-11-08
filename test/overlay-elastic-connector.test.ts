@@ -72,8 +72,8 @@ test('slack uses its full sampled path length rather than its endpoint distance'
   near(radius, 0.18669, 0.0002);
 });
 
-test('near-zero and very long spans keep finite normals and bounded radius', () => {
-  for (const [length, expected] of [[0, 0.8], [0.000001, 0.8], [1000, 0.05]]) {
+test('near-zero and very long spans keep finite normals and bounded radius (a squashed cord keeps its authored radius)', () => {
+  for (const [length, expected] of [[0, 0.2], [0.000001, 0.2], [1000, 0.05]]) {
     const { at } = rig([group('a'), group('b', { pos: [0, length, 0] }), connector({ restLength: 4 })]);
     const { mesh, bounds } = at(1);
     for (const name of ['position', 'normal']) assert.ok(Array.from(mesh.geometry.getAttribute(name).array).every(Number.isFinite));
@@ -102,6 +102,6 @@ test('stream dots stay outside a contracted profiled connector and shrink again 
     const dot = node('flow').children[0] as Mesh;
     assert.ok(dot.visible);
     assert.ok(dot.scale.x * 0.5 > radius, `dot radius ${dot.scale.x * 0.5} must exceed connector radius ${radius}`);
-    near(dot.scale.x * 0.5, time === 5 ? 1.2 : 0.6);
+    near(dot.scale.x * 0.5, time === 5 ? 0.75 : 0.6); // contracted: the belly is bounded by half the span (0.5), and the dot is 3 radii across
   }
 });

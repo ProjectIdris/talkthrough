@@ -2,7 +2,7 @@
 // (connector.ts), rebuilt only when they have moved; a stream is a few markers placed along a path from the stream's lap count (stream.ts).
 // Both are redone on every frame after the scene's matrices are up to date, so they follow the parts they hang on, however those were moved.
 
-import { BufferGeometry, ConeGeometry, CylinderGeometry, Group, Matrix4, Mesh, Quaternion, SphereGeometry, Vector3 } from 'three';
+import { Box3, BufferGeometry, ConeGeometry, CylinderGeometry, Group, Matrix4, Mesh, Quaternion, SphereGeometry, Vector3 } from 'three';
 import type { Object3D } from 'three';
 import type { Rgb } from '../scene/colors.ts';
 import type { AddConnector, AddPath, AddStream, AddTube, Vec3 } from '../scene/types.ts';
@@ -42,6 +42,22 @@ export function buildConnector(node: FlowNode, o: ObjectFrame, addMesh: AddMesh,
   node.obj = group;
   node.path = { geo, sampled, head: undefined, body: false };
   node.connector = { mesh, signature: '' };
+}
+
+const box = new Box3(), boxSize = new Vector3();
+
+/** How wide a part stands across the line from one anchor to the other: the widest of its bounding box's sides that the line does not run along. */
+function partWidth(obj: Object3D, a: Vector3, b: Vector3): number {
+  box.setFromObject(obj);
+  // A part with nothing drawn in it (a bare group) says nothing about width: it bounds nothing.
+  if (box.isEmpty()) return Infinity;
+  box.getSize(boxSize);
+  if (Math.max(boxSize.x, boxSize.y, boxSize.z) < 1e-6) return Infinity;
+  const d = new Vector3().subVectors(b, a);
+  const len = d.length();
+  if (len < 1e-9) return Math.max(boxSize.x, boxSize.y, boxSize.z);
+  d.divideScalar(len);
+  return Math.max(boxSize.x * (1 - Math.abs(d.x)), boxSize.y * (1 - Math.abs(d.y)), boxSize.z * (1 - Math.abs(d.z)));
 }
 
 /** Puts every connector of the frame between its two objects. True when there is one (the matrices need updating again for what hangs on it). */
@@ -91,6 +107,7 @@ export function updateConnectors(nodes: ReadonlyMap<number, FlowNode>, frame: Fr
       return [v.x, v.y, v.z];
     });
     const along = across ? across.clone().transformDirection(inverse) : undefined;
+    let capDepth: number | undefined;
     if (def.restLength !== undefined && def.kind !== 'wrapped') {
       // Use the full local path, not a first-frame measurement or the world chord:
       // slack, parent scale and reverse seeks must all give the same shape.
@@ -99,11 +116,20 @@ export function updateConnectors(nodes: ReadonlyMap<number, FlowNode>, frame: Fr
         const p = local[i]!, prev = local[i - 1]!;
         length += Math.hypot(p[0] - prev[0], p[1] - prev[1], p[2] - prev[2]);
       }
-      radius *= Math.max(0.25, Math.min(4, Math.sqrt(def.restLength / Math.max(length, 1e-9))));
+      const scale = Math.max(0.25, Math.min(4, Math.sqrt(def.restLength / Math.max(length, 1e-9))));
+      radius *= scale;
+      if (scale > 1) {
+        // Thickening is bounded by what the span and the joined parts allow: the widest ring, at the authored look at least, no wider than half the span and
+        // 3/4 of the narrower part. A cord shortened a great deal is squashed, never a ball over what it joins.
+        const peak = def.swell ? Math.max(...local.map((_, i) => swellAt(def.swell!, i / Math.max(1, local.length - 1)))) : 1;
+        const room = Math.min(0.5 * length, 0.75 * Math.min(partWidth(na.obj, a, b), partWidth(nb.obj, a, b)));
+        radius = Math.min(radius, Math.max(thick * peak, room) / peak);
+      }
+      capDepth = 0.25 * length;
     }
     const signature = [radius, flat, ...(along ? [along.x, along.y, along.z] : []), ...local.flat()].map((x) => Math.round(x * 1e5)).join(',');
     if (signature !== node.connector.signature) {
-      const geo = tubeGeometry(local, radius, flat, radial, def.kind === 'wrapped' ? undefined : def.swell, along ? [along.x, along.y, along.z] : undefined);
+      const geo = tubeGeometry(local, radius, flat, radial, def.kind === 'wrapped' ? undefined : def.swell, along ? [along.x, along.y, along.z] : undefined, capDepth);
       const old = node.path.geo;
       node.connector.mesh.geometry = geo;
       const at = node.geometries.indexOf(old);

@@ -217,9 +217,10 @@ const CAP_RINGS = 5;
 /**
  * A tube along the sampled points. `flat` squashes it into a ribbon whose wide side runs across the
  * path (across x for a path going up or along z, across z for a path going along x), so a cable seen from the front shows its width.
+ * `capDepth`, when given, is the most a rounded end may reach past its ring (a squashed end: shallower than it is wide); the end stays round when the tube is long.
  * The index runs ring after ring, so `drawRange` reveals it from the start. `across`, when given, is the way the wide side faces (a belt's width runs along its wheels' axis).
  */
-export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: number, radial: number, swell?: readonly Vec2[], across?: Vec3): BufferGeometry {
+export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: number, radial: number, swell?: readonly Vec2[], across?: Vec3, capDepth?: number): BufferGeometry {
   const rings = path.length;
   const pos: number[] = [];
   const nor: number[] = [];
@@ -321,7 +322,10 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
       for (let k = 1; k <= CAP_RINGS; k++) {
         const th = (k / CAP_RINGS) * (Math.PI / 2);
         const scale = Math.cos(th);
-        const lift = frame.radius * Math.sin(th) * dir;
+        // A flattened cap is an ellipsoid of depth D and radius R: its normal tilts along the tangent by R / D.
+        const depth = capDepth === undefined ? frame.radius : Math.max(1e-6, Math.min(frame.radius, capDepth));
+        const tilt = frame.radius / depth;
+        const lift = depth * Math.sin(th) * dir;
         for (let j = 0; j <= radial; j++) {
           const ang = (j / radial) * Math.PI * 2;
           const c = Math.cos(ang), sn = Math.sin(ang);
@@ -332,9 +336,9 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
             frame.centre.z + frame.wide.z * c * r + frame.thin.z * sn * r * flat + frame.tangent.z * lift,
           );
           // Ellipsoid gradient: the thin axis needs the reciprocal flattening, including relative to the tangent.
-          const nx = frame.wide.x * c * flat * scale + frame.thin.x * sn * scale + frame.tangent.x * Math.sin(th) * dir * flat;
-          const ny = frame.wide.y * c * flat * scale + frame.thin.y * sn * scale + frame.tangent.y * Math.sin(th) * dir * flat;
-          const nz = frame.wide.z * c * flat * scale + frame.thin.z * sn * scale + frame.tangent.z * Math.sin(th) * dir * flat;
+          const nx = frame.wide.x * c * flat * scale + frame.thin.x * sn * scale + frame.tangent.x * Math.sin(th) * dir * flat * tilt;
+          const ny = frame.wide.y * c * flat * scale + frame.thin.y * sn * scale + frame.tangent.y * Math.sin(th) * dir * flat * tilt;
+          const nz = frame.wide.z * c * flat * scale + frame.thin.z * sn * scale + frame.tangent.z * Math.sin(th) * dir * flat * tilt;
           const l = Math.hypot(nx, ny, nz) || 1;
           nor.push(nx / l, ny / l, nz / l);
         }
