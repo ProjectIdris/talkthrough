@@ -45,6 +45,7 @@ These are Windows desktop instructions. A Linux/headless launch is not a substit
 ## It cannot hear a question
 
 **“I couldn't use the microphone.”** Check that Windows permits microphone access for desktop apps, the microphone is connected and not muted, and Settings selects the intended input. Save and restart after a device change.
+The notice now says which it is: **Windows is not letting Talkthrough use the microphone** (Windows Settings, Privacy and security, Microphone, allow desktop apps), **No microphone was found** (plug one in or choose one in Settings), or **The microphone could not be opened** (another app has it; close that app).
 
 **“I didn't hear a question.”** Hold both keys throughout the question and speak before releasing them. Try a short, clear sentence. A working microphone and a working speech recogniser are separate requirements.
 

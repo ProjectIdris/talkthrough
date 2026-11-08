@@ -80,7 +80,7 @@ test('three hundred questions with idle time between: every answer sends the sam
     if (i % 50 === 0) r.sent.length = 0; // the test's own log is not what is measured
   }
   assert.equal(new Set(perAnswer).size, 1, `messages per answer drift: ${[...new Set(perAnswer)].join(', ')}`);
-  assert.ok(perAnswer[0] > 5, 'each answer was really sent');
+  assert.ok((perAnswer[0] ?? 0) > 5, 'each answer was really sent');
   assert.equal(r.counts.startMic, 300);
   assert.equal(r.counts.stopMic, 300);
   assert.equal(r.counts.abortMic, 0);

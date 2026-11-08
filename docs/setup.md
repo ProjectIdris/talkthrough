@@ -114,6 +114,15 @@ Talkthrough sends your screenshot and question to a model you choose. Set `model
 
 For the first two, Talkthrough only starts the tool you already have; it never reads or stores your sign-in. If your Codex setup lists tool servers (MCP), the app switches each one off for the process it starts; the list is read when that process starts, so a server added later is switched off at the next start. **Check your provider's terms for automated use before you pick one.** To use something else, write a `Model` adapter (`src/adapters/model.ts`).
 
+### When the first question does not work
+
+Each of these shows as a one-line notice on the screen, and says what to do next; the same help is in the first-run window and Settings beside the route you chose.
+
+- **Claude Code or Codex "isn't installed, or Talkthrough can't find it".** Install it, or choose another route. If it is installed somewhere unusual, put its full path in `claudeCommand` or `codexCommand` in the settings file.
+- **"isn't signed in".** Open a terminal and run `claude` (or `codex login`), sign in, then ask again. Talkthrough never sees your sign-in.
+- **A microphone notice.** It says whether Windows is blocking desktop apps from the microphone, no microphone was found, or another app has it open. Fix that and ask again.
+- **"The voice server isn't answering, so the system voice is speaking."** You set a voice server address and nothing answered. Start the server, or clear the address in Settings to use the system voice without the notice.
+
 ### Trying one live question from a checkout
 
 `node scripts/live-check.mjs --claude-command <path to the claude executable> --page <screenshot.png> --question "Explain this"` asks one question on a saved screenshot, on the Claude (Haiku) route, in a hidden window with a silent voice. It writes the settings itself and refuses to start unless they read back as the claude route, a Haiku model and an executable that exists (a settings file that does not parse falls back to the default route without a word, and the call would go to the wrong model). Frames, the app's log (with each answer's raw text) and a short summary of what the answer drew are left in `--out`. `--route-only` runs the check and stops.
