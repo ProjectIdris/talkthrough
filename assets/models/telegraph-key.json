@@ -13,7 +13,11 @@
     "id": "CC0-1.0",
     "version": "1.0",
     "statedOn": "https://www.si.edu/object/nmah_1096762",
-    "statement": "Listed as CC0 on its Smithsonian 3D record (seen in a search result on 2026-11-09; the record page itself would not load for us and the Open Access API refused the lookup, so this one is not read from the record directly)."
+    "statement": "Licence unverified: listed as CC0 on its Smithsonian 3D record (seen in a search result on 2026-11-09; the record page itself would not load for us and the Open Access API refused the lookup, so this one is not read from the record directly)."
+  },
+  "release": {
+    "blocked": true,
+    "why": "licence unverified: CC0 seen only in a search snippet, the record itself not read (its page returned 403 and the Open Access API refused the lookup)"
   },
   "source": {
     "name": "Smithsonian Open Access",

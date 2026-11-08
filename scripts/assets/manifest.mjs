@@ -25,6 +25,15 @@ const CONFIDENCE = ['atlas', 'grouped', 'approximate'];
 /** The only hosts a glTF model's files may be fetched from: the original publishers'. Another host is a reviewed code change, never a manifest edit. */
 export const FETCH_HOSTS = ['dl.polyhaven.org', '3d-api.si.edu'];
 
+/** Whether an address may be fetched from: https, on a publisher's own host. Checked before a request and again for where a redirect landed. */
+export function fetchAddressProblem(url) {
+  let u;
+  try { u = new URL(url); } catch { return `${url} is not an address`; }
+  if (u.protocol !== 'https:') return `${url} is not https`;
+  if (!FETCH_HOSTS.includes(u.hostname)) return `${u.hostname} is not an allowed host (${FETCH_HOSTS.join(', ')})`;
+  return undefined;
+}
+
 /** Where a model's source files live in the cache: a folder of its own for a glTF model, the source's folder for an archive's. */
 export const cacheFolder = (m) => join(CACHE_DIR, m.format === 'gltf' ? m.source.cacheFolder : m.source.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
@@ -59,14 +68,13 @@ export function manifestProblems(m) {
   const fileIds = new Set();
   for (const f of m.files ?? []) {
     need(typeof f.entry === 'string' && f.entry.length > 0, 'a file needs an entry');
+    need(typeof f.entry !== 'string' || (!/^[/\\]/.test(f.entry) && !/[:\\]/.test(f.entry) && !f.entry.split('/').includes('..')), `file entry "${f.entry}" must stay inside the model's folder (no absolute path, drive, backslash or ..)`);
     const id = f.id ?? f.entry;
     if (!gltf) need(typeof f.id === 'string', 'a file needs an id and an entry');
     need(!fileIds.has(id), `file ${id} is listed twice`);
     fileIds.add(id);
     if (gltf) {
-      let host;
-      try { const u = new URL(f.url); host = u.protocol === 'https:' ? u.hostname : undefined; } catch { /* not a url */ }
-      need(host !== undefined && FETCH_HOSTS.includes(host), `${f.entry}: url must be https on one of ${FETCH_HOSTS.join(', ')}`);
+      need(fetchAddressProblem(f.url) === undefined, `${f.entry}: url must be https on one of ${FETCH_HOSTS.join(', ')}`);
       need(Number.isInteger(f.bytes) && f.bytes > 0 && typeof f.sha256 === 'string' && /^[0-9a-f]{64}$/.test(f.sha256), `${f.entry}: bytes and sha256 must be pinned`);
     }
   }

@@ -7,7 +7,7 @@ import type { Material, MeshStandardMaterial } from 'three';
 import { makeSurface } from './materials.ts';
 import type { Surface, TierSettings } from './materials.ts';
 
-/** The name a textured surface carries (the renderer leaves its colour alone: a model's texture is its colour). */
+/** The name a textured surface carries. A textured part's colour is white, so its texture shows as it is; a style colour multiplies it (a tint). */
 export const TEXTURED = 'textured';
 
 /** Whether the source meant this material to be seen through. */

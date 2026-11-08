@@ -7,7 +7,7 @@ import type { ModelEntry } from '../src/scene/model-catalogue.ts';
 // @ts-expect-error plain script modules
 import { buildGltfModel, readGlb } from '../scripts/assets/gltf-pass.mjs';
 // @ts-expect-error plain script modules
-import { manifestProblems } from '../scripts/assets/manifest.mjs';
+import { fetchAddressProblem, manifestProblems } from '../scripts/assets/manifest.mjs';
 
 // A glTF made here, small enough to check by hand: one triangle (0,0,0) (1,0,0) (0,1,0) shared by two nodes, one moved by a translation and one turned a quarter about z.
 
@@ -128,4 +128,35 @@ test('the store brings a textured model in: each mesh in the model\'s space, cen
       assert.ok((pieces[0]!.material as { map?: unknown }).map, 'the colour map came through');
     }
   } finally { g.createImageBitmap = before.createImageBitmap; if (before.self === undefined) delete g.self; else g.self = before.self; }
+});
+
+test('a mirrored node is refused, not built inside out', () => {
+  const only = manifest({ parts: [{ key: 'a', name: 'A', confidence: 'atlas', nodes: ['a'] }] });
+  const withScale = (scale: number[]) => source({ scenes: [{ nodes: [0] }], nodes: [{ name: 'a', mesh: 0, scale }, { name: 'b', mesh: 0 }] });
+  assert.throws(() => buildGltfModel(only, reader(withScale([-1, 1, 1]))), /mirrored/);
+  // two mirrors make a turn: not refused
+  assert.doesNotThrow(() => buildGltfModel(only, reader(withScale([-1, -1, 1]))));
+});
+
+test('where a file may come from and go: https on a publisher host only, and entries stay inside the model folder', () => {
+  assert.equal(fetchAddressProblem('https://dl.polyhaven.org/file/x.gltf'), undefined);
+  assert.equal(fetchAddressProblem('https://3d-api.si.edu/content/x.glb'), undefined);
+  assert.match(fetchAddressProblem('http://dl.polyhaven.org/x.gltf') ?? '', /not https/, 'a redirect to http on an allowed host');
+  assert.match(fetchAddressProblem('https://example.com/x.gltf') ?? '', /not an allowed host/);
+  assert.match(fetchAddressProblem('https://dl.polyhaven.org.evil.com/x') ?? '', /not an allowed host/);
+  assert.match(fetchAddressProblem('not a url') ?? '', /not an address/);
+  const sound = {
+    id: 'tri', name: 'Tri', description: 'a triangle', aliases: [], format: 'gltf',
+    licence: { id: 'CC0-1.0', version: '1.0', statement: 'CC0', statedOn: 'https://polyhaven.com/license' },
+    source: { name: 'Poly Haven', url: 'https://polyhaven.com/a/x', cacheFolder: 'ph-x' }, retrieved: '2026-11-08', changes: 'none',
+    orient: { up: 'y+', front: 'z+' }, scale: { unitsToMetres: 1 },
+    files: [{ entry: 'x.gltf', url: 'https://dl.polyhaven.org/file/x.gltf', bytes: 10, sha256: 'a'.repeat(64) }],
+    parts: [{ key: 'whole', name: 'Whole', confidence: 'atlas', nodes: ['x'] }],
+  };
+  for (const entry of ['../../evil.bin', 'C:/evil.bin', '/evil.bin', 'a\\b.bin', 'a/../../b.bin', 'D:evil']) {
+    const m = JSON.parse(JSON.stringify(sound)); m.files.push({ ...m.files[0], entry });
+    assert.match(manifestProblems(m).join(';'), /must stay inside/, entry);
+  }
+  const ok = JSON.parse(JSON.stringify(sound)); ok.files.push({ ...ok.files[0], entry: 'textures/a.b.jpg' });
+  assert.deepEqual(manifestProblems(ok), []);
 });

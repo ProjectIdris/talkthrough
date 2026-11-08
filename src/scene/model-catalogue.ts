@@ -1587,7 +1587,8 @@ export const MODELS: readonly ModelEntry[] = [
       "url": "https://creativecommons.org/publicdomain/zero/1.0/"
     },
     "release": {
-      "blocked": false
+      "blocked": true,
+      "why": "licence unverified: CC0 seen only in a search snippet, the record itself not read (its page returned 403 and the Open Access API refused the lookup)"
     },
     "format": "gltf",
     "single": true,

@@ -7,7 +7,7 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { FETCH_HOSTS, cacheFolder, manifestProblems, readManifests, sha256 } from './manifest.mjs';
+import { cacheFolder, fetchAddressProblem, manifestProblems, readManifests, sha256 } from './manifest.mjs';
 import { httpRange, readDirectory, readEntry } from './zip-range.mjs';
 
 const args = process.argv.slice(2);
@@ -18,9 +18,12 @@ const cachePath = (m, f) => join(cacheFolder(m), f.entry);
 
 /** A glTF model's file, from the publisher's own address the manifest names (https, an allowed host, and still on one after any redirect). */
 async function fromUrl(f) {
+  const refused = fetchAddressProblem(f.url);
+  if (refused) throw new Error(`${refused}; nothing was asked for`);
   const res = await fetch(f.url, { redirect: 'follow' });
   if (!res.ok) throw new Error(`${f.url}: HTTP ${res.status}`);
-  if (!FETCH_HOSTS.includes(new URL(res.url).hostname)) throw new Error(`${f.url} led to ${new URL(res.url).hostname}, which is not an allowed host`);
+  const landed = fetchAddressProblem(res.url);
+  if (landed) throw new Error(`${f.url} led somewhere it may not go: ${landed}`);
   return Buffer.from(await res.arrayBuffer());
 }
 const directories = new Map();

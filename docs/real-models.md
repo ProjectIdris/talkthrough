@@ -28,7 +28,7 @@ A model with one part (`parts.length === 1`, key `whole`) is one object, such as
 
 ## Releases
 
-A manifest can hold its model back (`release: { blocked: true, why }`): the model is for local use. A release build leaves held models out: they are not in the catalogue the app is built with (so the guide, the schema and the validator never offer them and answers use shapes), their files and credits are not shipped, and the build says what it left out. The two anatomy models are held as a prototype until they are cleared for a release; the CC0 objects are carried. Where a source's files still carry an older licence notice than its current grant, the manifest records the older notice (`licence.earlierNotice`) and the credits file keeps it.
+A manifest can hold its model back (`release: { blocked: true, why }`): the model is for local use. A release build leaves held models out: they are not in the catalogue the app is built with (so the guide, the schema and the validator never offer them and answers use shapes), their files and credits are not shipped, and the build says what it left out. The two anatomy models are held as a prototype until they are cleared for a release; the CC0 objects are carried, except the Morse-Vail key, held as "licence unverified" (its CC0 was seen only in a search snippet, the record page returned 403) until the record is read. Where a source's files still carry an older licence notice than its current grant, the manifest records the older notice (`licence.earlierNotice`) and the credits file keeps it.
 
 ## Credits
 

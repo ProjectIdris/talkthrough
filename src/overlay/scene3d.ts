@@ -310,7 +310,7 @@ export class PanelScene {
             mesh.receiveShadow = settings.shadows;
             node.geometries.push(geo);
             node.materials.push(surface);
-            node.pieces.push({ object: mesh, surface, tint: false, color: [255, 255, 255], lines: undefined, closed: false });
+            node.pieces.push({ object: mesh, surface, tint: true, color: undefined, lines: undefined, closed: false });
             group.add(mesh);
           }
           node.obj = group;

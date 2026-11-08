@@ -119,7 +119,8 @@ This file is generated from `assets/models/*.json` (`npm run assets:index`) and 
 
 - Source: Smithsonian Open Access, https://3d-api.si.edu/voyager/3d_package:ed99f44d-3c60-4111-b666-e2908e1b64ef (Morse-Vail Telegraph Key, record edanmdm:nmah_1096762)
 - Licence: CC0 1.0 Universal, version 1.0: https://creativecommons.org/publicdomain/zero/1.0/
-- As the licence is stated at https://www.si.edu/object/nmah_1096762: Listed as CC0 on its Smithsonian 3D record (seen in a search result on 2026-11-09; the record page itself would not load for us and the Open Access API refused the lookup, so this one is not read from the record directly).
+- Held back from releases: licence unverified: CC0 seen only in a search snippet, the record itself not read (its page returned 403 and the Open Access API refused the lookup).
+- As the licence is stated at https://www.si.edu/object/nmah_1096762: Licence unverified: listed as CC0 on its Smithsonian 3D record (seen in a search result on 2026-11-09; the record page itself would not load for us and the Open Access API refused the lookup, so this one is not read from the record directly).
 - Made by: Smithsonian National Museum of American History, Digitization Program Office (no credit is required; named here as a courtesy)
 - Fetched on 2026-11-08 from: https://3d-api.si.edu/content/document/3d_package:ed99f44d-3c60-4111-b666-e2908e1b64ef/resources/morse-telegraph-key-150k-4096.glb
 - Changes: Passed through: the geometry, texture coordinates, material and textures are the museum's own, unchanged. Added: a root that puts the model on the scene's axes, in metres, centred on its own middle, and a tag on the part.

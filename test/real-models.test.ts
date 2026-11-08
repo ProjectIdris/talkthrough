@@ -356,8 +356,12 @@ test('BodyParts3D is credited as its current grant says, the older file notice i
   for (const m of objects) {
     assert.equal(m.licence.id, 'CC0-1.0');
     assert.equal(m.credit, undefined, 'CC0 asks for no credit');
-    assert.equal(m.release.blocked, false);
+    // The Morse key's CC0 is only from a search snippet (its record could not be read): held until it is confirmed.
+    assert.equal(m.release.blocked, m.id === 'telegraph-key', m.id);
   }
+  const key = objects.find((m) => m.id === 'telegraph-key')!;
+  assert.match(key.release.why ?? '', /^licence unverified/);
+  assert.match(out.credits, /Licence unverified: listed as CC0/);
   // an earlier notice must say that it is kept
   const manifest = JSON.parse(JSON.stringify(readManifests().find((x: { manifest: { id: string } }) => x.manifest.id === 'heart').manifest));
   assert.deepEqual(manifestProblems(manifest), []);
@@ -371,11 +375,11 @@ test('a release leaves out what is held (no file, no credits for it, and it says
     mkdirSync(join(dir, 'models'));
     writeFileSync(join(dir, 'models', 'heart.glb'), 'an earlier build');
     const r = shipModels({ strict: true, release: true, out: dir });
-    assert.deepEqual([...r.dropped].sort(), anatomy.map((m) => m.id).sort());
-    assert.deepEqual([...r.shipped].sort(), objects.map((m) => m.id).sort());
+    assert.deepEqual([...r.dropped].sort(), [...anatomy.map((m) => m.id), 'telegraph-key'].sort());
+    assert.deepEqual([...r.shipped].sort(), objects.filter((m) => m.id !== 'telegraph-key').map((m) => m.id).sort());
     assert.ok(!existsSync(join(dir, 'models', 'heart.glb')) && existsSync(join(dir, 'models', 'drill.glb')), 'the held file is removed, the carried one is there');
     const credits = readFileSync(join(dir, 'CREDITS.md'), 'utf8');
-    assert.ok(!credits.includes('BodyParts3D') && credits.includes('Power drill'), 'the credits list only what is carried');
+    assert.ok(!credits.includes('BodyParts3D') && !credits.includes('Morse-Vail') && credits.includes('Power drill'), 'the credits list only what is carried');
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -383,7 +387,7 @@ test('a release builds the app with a catalogue that does not list the held mode
   const { build } = await import('esbuild');
   // @ts-expect-error plain script module
   const { releaseCatalogue, releaseSplit } = await import('../scripts/assets/release.mjs');
-  assert.deepEqual(releaseSplit().kept.map((m: { id: string }) => m.id).sort(), objects.map((m) => m.id).sort(), 'both anatomy models are held, the CC0 objects are carried');
+  assert.deepEqual(releaseSplit().kept.map((m: { id: string }) => m.id).sort(), objects.filter((m) => m.id !== 'telegraph-key').map((m) => m.id).sort(), 'the anatomy and the unverified key are held, the other CC0 objects are carried');
   const dir = mkdtempSync(join(tmpdir(), 'tt-bundle-'));
   try {
     const entry = join(import.meta.dirname, '..', 'src', 'scene', 'index.ts');
@@ -460,4 +464,19 @@ test('the page may read the blobs the model loader makes for a textured model\'s
   const html = readFileSync(join(import.meta.dirname, '..', 'src', 'overlay', 'index.html'), 'utf8');
   const connect = /connect-src ([^"';]+)/.exec(html)![1]!.trim().split(/\s+/);
   assert.deepEqual(connect.sort(), ['blob:', 'file:']);
+});
+
+test('a style colour on a textured model tints its texture (white leaves it as it is)', () => {
+  const frameOf = (actions: unknown[]) => frameAt(validated({ steps: [{ say: 'x', actions: [{ op: 'panel', x: 400, y: 80, w: 500, h: 700 }, { op: 'add', shape: 'model', id: 'd', model: 'drill' }, ...actions] }] }).steps, 0, 5);
+  const store = { ...fakeStore('ready'), pieces: () => [{ geometry: new BoxGeometry(0.02, 0.04, 0.01), material: new MeshStandardMaterial({ map: new Texture() }) }] } as ModelStore;
+  const colourOf = (frame: ReturnType<typeof frameAt>): number[] => {
+    const scene = new PanelScene({ tier: 'mid', models: store });
+    scene.sync(frame, 1);
+    let found: number[] = [];
+    scene.scene.traverse((o) => { const m = (o as { material?: { userData?: { name?: string }; color?: { toArray(): number[] } } }).material; if (m?.userData?.name === 'textured') found = m.color!.toArray(); });
+    return found;
+  };
+  assert.deepEqual(colourOf(frameOf([])).map((v) => Math.round(v * 100)), [100, 100, 100], 'unstyled: the texture as it is');
+  const red = colourOf(frameOf([{ op: 'style', id: 'd', color: 'red' }]));
+  assert.ok(red[0]! > 0.9 && red[1]! < 0.6, `a red style tints it: ${red}`);
 });

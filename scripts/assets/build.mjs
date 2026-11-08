@@ -57,9 +57,9 @@ if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}`) {
     const folder = cacheFolder(m);
     const readFile = (f, as = 'text') => {
       const path = join(folder, f.entry);
-      if (!existsSync(path)) throw new Error(`${f.id} is not in the cache (run assets:fetch)`);
+      if (!existsSync(path)) throw new Error(`${f.id ?? f.entry} is not in the cache (run assets:fetch)`);
       const data = readFileSync(path);
-      if (f.sha256 && sha256(data) !== f.sha256) throw new Error(`${f.id} does not match its pinned hash`);
+      if (f.sha256 && sha256(data) !== f.sha256) throw new Error(`${f.id ?? f.entry} does not match its pinned hash`);
       return as === 'bytes' ? data : data.toString('latin1');
     };
     try {

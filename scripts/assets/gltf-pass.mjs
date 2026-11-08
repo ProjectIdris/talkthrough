@@ -172,6 +172,8 @@ export function buildGltfModel(m, readBytes) {
     const node = json.nodes[i];
     if (node.mesh === undefined) continue;
     const total = multiply(raw0, w);
+    const det = total[0] * (total[5] * total[10] - total[9] * total[6]) - total[4] * (total[1] * total[10] - total[9] * total[2]) + total[8] * (total[1] * total[6] - total[5] * total[2]);
+    if (det < 0) throw new Error(`mesh node ${node.name ?? '#' + i} is mirrored (a negative scale): its faces would be drawn inside out; unmirror it in the source or flip it in the manifest first`);
     const into = measured.get(members.get(i));
     for (const prim of json.meshes[node.mesh].primitives) {
       const pos = readAccessor(json, bin, flat, prim.attributes.POSITION);
