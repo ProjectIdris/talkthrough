@@ -66,7 +66,10 @@ export type UpdaterOptions = {
   startDelayMs?: number;
   intervalMs?: number;
   busyRetryMs?: number;
+  /** How long to wait for the server to start answering (headers only; a long body is not cut by this). */
   timeoutMs?: number;
+  /** How long a download may go without a single byte before it is cut off. */
+  stallMs?: number;
   now?(): number;
 };
 
@@ -120,6 +123,8 @@ export function createUpdater(options: UpdaterOptions) {
   const doFetch = options.fetch ?? globalThis.fetch;
   const now = options.now ?? Date.now;
   const timeoutMs = options.timeoutMs ?? 20_000;
+  const stallMs = options.stallMs ?? 30_000;
+  const controllers = new WeakMap<Response, AbortController>();
   const secure = (url: string): boolean => url.startsWith('https://') || (options.allowInsecure === true && url.startsWith('http://'));
 
   let status: UpdateStatus = { kind: 'idle', current: options.current };
@@ -138,21 +143,70 @@ export function createUpdater(options: UpdaterOptions) {
   async function get(url: string, accept: string): Promise<Response> {
     if (!secure(url)) throw new UpdateError('bad-release', 'The address is not https.');
     let response: Response;
+    const controller = new AbortController();
+    // The wait is for the headers only: once the server has answered the timer is cleared, and the body is held to a stall limit instead (see `chunks`).
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      response = await doFetch(url, { redirect: 'follow', headers: { accept, 'user-agent': `Talkthrough/${options.current}` }, signal: AbortSignal.timeout(timeoutMs) });
+      response = await doFetch(url, { redirect: 'follow', headers: { accept, 'user-agent': `Talkthrough/${options.current}` }, signal: controller.signal });
     } catch (error) {
       throw new UpdateError('offline', 'Could not reach the release page.', { cause: error });
+    } finally {
+      clearTimeout(timer);
     }
-    if (response.url && !secure(response.url)) throw new UpdateError('wrong-file', 'The download was sent somewhere that is not https.');
-    if (response.status === 403 || response.status === 429) throw new UpdateError('rate-limited', 'GitHub is asking for a pause.');
-    if (!response.ok) throw new UpdateError('offline', `The release page answered ${response.status}.`);
+    controllers.set(response, controller);
+    const refuse = (error: UpdateError): never => {
+      controller.abort();
+      throw error;
+    };
+    if (response.url && !secure(response.url)) refuse(new UpdateError('wrong-file', 'The download was sent somewhere that is not https.'));
+    if (response.status === 403 || response.status === 429) refuse(new UpdateError('rate-limited', 'GitHub is asking for a pause.'));
+    if (!response.ok) refuse(new UpdateError('offline', `The release page answered ${response.status}.`));
     return response;
   }
 
+  /** The body, chunk by chunk, cut off if no chunk arrives for `stallMs`. However long the whole body takes, it goes on while bytes keep coming. */
+  async function* chunks(response: Response): AsyncGenerator<Uint8Array> {
+    if (!response.body) return;
+    const reader = response.body.getReader();
+    const controller = controllers.get(response);
+    try {
+      for (;;) {
+        let timer: NodeJS.Timeout | undefined;
+        const stalled = new Promise<never>((_, bad) => {
+          timer = setTimeout(() => {
+            controller?.abort();
+            bad(new Error('The download stopped arriving.'));
+          }, stallMs);
+        });
+        let next: ReadableStreamReadResult<Uint8Array>;
+        try {
+          next = await Promise.race([reader.read(), stalled]);
+        } finally {
+          clearTimeout(timer);
+        }
+        if (next.done) return;
+        yield next.value;
+      }
+    } finally {
+      controller?.abort();
+    }
+  }
+
   async function text(response: Response): Promise<string> {
-    const body = await response.text();
-    if (body.length > MAX_TEXT_BYTES) throw new UpdateError('bad-release', 'The answer was larger than expected.');
-    return body;
+    const decoder = new TextDecoder();
+    let size = 0;
+    let out = '';
+    try {
+      for await (const value of chunks(response)) {
+        size += value.length;
+        if (size > MAX_TEXT_BYTES) throw new UpdateError('bad-release', 'The answer was larger than expected.');
+        out += decoder.decode(value, { stream: true });
+      }
+    } catch (error) {
+      if (error instanceof UpdateError) throw error;
+      throw new UpdateError('offline', 'Could not read the release page.', { cause: error });
+    }
+    return out + decoder.decode();
   }
 
   /** The latest release when it is newer than the running version, or null. Throws UpdateError. */
@@ -235,10 +289,7 @@ export function createUpdater(options: UpdaterOptions) {
     let received = 0;
     const out = createWriteStream(part);
     try {
-      const reader = response.body.getReader();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      for await (const value of chunks(response)) {
         received += value.length;
         if (received > release.bytes) throw new UpdateError('wrong-file', 'The download is bigger than expected, so it was not kept.');
         hash.update(value);

@@ -9,12 +9,12 @@ import { createUpdater, isNewer, parseVersion, readRelease, sumFor, trayLine, vi
 
 // A fake release server on a loopback port: nothing here reaches GitHub.
 type Fake = { server: Server; base: string; hits: string[]; set(over: Partial<Setup>): void; close(): Promise<void> };
-type Setup = { tag: string; installer: Buffer; sums: 'good' | 'bad' | 'missing'; sizeLie: number; api: number; prerelease: boolean; draft: boolean; foreignUrl: boolean; slow: boolean };
+type Setup = { tag: string; installer: Buffer; sums: 'good' | 'bad' | 'missing'; sizeLie: number; api: number; prerelease: boolean; draft: boolean; foreignUrl: boolean; slow: boolean; drip: number; stall: boolean };
 
 const hex = (b: Buffer): string => createHash('sha256').update(b).digest('hex');
 
 async function fake(): Promise<Fake> {
-  const state: Setup = { tag: 'v2.0.0', installer: Buffer.from('MZ pretend installer '.repeat(500)), sums: 'good', sizeLie: 0, api: 200, prerelease: false, draft: false, foreignUrl: false, slow: false };
+  const state: Setup = { tag: 'v2.0.0', installer: Buffer.from('MZ pretend installer '.repeat(500)), sums: 'good', sizeLie: 0, api: 200, prerelease: false, draft: false, foreignUrl: false, slow: false, drip: 0, stall: false };
   const hits: string[] = [];
   const server = createServer((req, res) => {
     const url = req.url ?? '';
@@ -36,6 +36,21 @@ async function fake(): Promise<Fake> {
     if (url === `/download/${name}`) {
       const body = state.installer;
       res.writeHead(200, { 'content-type': 'application/octet-stream' });
+      if (state.stall) { res.write(body.subarray(0, 100)); return; }
+      if (state.drip > 0) {
+        // A body that takes longer in all than the header wait, but never goes quiet for long: ten pieces, `drip` ms apart.
+        const step = Math.ceil(body.length / 10);
+        let at = 0;
+        const send = (): void => {
+          if (res.destroyed) return;
+          if (at >= body.length) { res.end(); return; }
+          res.write(body.subarray(at, at + step));
+          at += step;
+          setTimeout(send, state.drip);
+        };
+        send();
+        return;
+      }
       if (state.slow) { res.write(body.subarray(0, 100)); setTimeout(() => res.end(body.subarray(100)), 150); } else res.end(body);
       return;
     }
@@ -266,6 +281,27 @@ describe('installing', () => {
     assert.equal((await done).kind, 'failed');
     assert.deepEqual(ran, []);
     assert.equal(quits(), 0);
+  });
+  it('lets a download take longer than the wait for the server, while bytes keep arriving', async () => {
+    const { updater, f, ran, quits } = await rig({ timeoutMs: 300, stallMs: 400 });
+    f.set({ drip: 100 });
+    await updater.check();
+    const started = Date.now();
+    assert.equal((await updater.install()).kind, 'installing');
+    assert.ok(Date.now() - started > 600, 'the body took longer than the header timeout');
+    assert.equal(ran.length, 1);
+    assert.equal(quits(), 1);
+  });
+  it('cuts off a download that goes quiet, and keeps nothing', async () => {
+    const { updater, f, dir, ran, quits } = await rig({ timeoutMs: 300, stallMs: 300 });
+    f.set({ stall: true });
+    await updater.check();
+    const s = await updater.install();
+    assert.equal(s.kind, 'failed');
+    assert.match(s.kind === 'failed' ? s.message : '', /cut off/);
+    assert.deepEqual(ran, []);
+    assert.equal(quits(), 0);
+    assert.deepEqual(await readdir(join(dir, 'updates')), []);
   });
   it('offers nothing to install when nothing is offered', async () => {
     const { updater, f, ran } = await rig();
