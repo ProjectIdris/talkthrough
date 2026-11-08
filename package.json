@@ -1,6 +1,6 @@
 {
   "name": "talkthrough",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "An AI that talks you through anything on your screen, and draws as it talks.",
   "keywords": [
     "screen assistant",

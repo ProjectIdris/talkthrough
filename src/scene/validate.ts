@@ -15,6 +15,7 @@ import { nearestPaletteColor } from './colors.ts';
 import { attachTolerance, FACE_NORMALS, landOn, mountPosition, turnToFace } from './attach.ts';
 import { anchorsOf } from './anchors.ts';
 import { partFacing, resolvePartGeometry } from './part-geometry.ts';
+import { DEFAULT_AMOUNT, loopRow } from './movement-rows.ts';
 import { resolveHullPoints } from './hull-points.ts';
 import type { Body } from './attach.ts';
 import { bindParts, bindUnknownId, BINDINGS } from './bind.ts';
@@ -790,7 +791,7 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
       note(notes, 'dropped', path, 'loop needs an amount');
       return null;
     }
-    const [low, high] = kind === 'slide' || kind === 'float' ? [0.01, 100] : kind === 'swing' ? [-180, 180] : kind === 'gate' ? [-170, 170] : [0.1, 5];
+    const [low, high] = loopRow(kind)?.amount ?? DEFAULT_AMOUNT;
     const held = Math.min(high, Math.max(low, amount));
     if (held !== amount) {
       note(notes, 'clamped', `${path}.amount`, `${kind} amount ${amount} held to ${held}`);

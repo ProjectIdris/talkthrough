@@ -6,14 +6,15 @@
 import { BrowserWindow } from 'electron';
 import { ANSWER_SCHEME, answerOf, CARD_WINDOW_OPTIONS } from './consent-card.ts';
 import type { CardWindow } from './consent-card.ts';
+import type { CaptureShield } from './capture-shield.ts';
 
-export function electronCardWindow(options: { hideFromCapture: boolean }): CardWindow {
+export function electronCardWindow(options: { shield: CaptureShield }): CardWindow {
   const window = new BrowserWindow({
     ...CARD_WINDOW_OPTIONS,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, javascript: false },
   });
   window.setAlwaysOnTop(true, 'screen-saver');
-  if (options.hideFromCapture) window.setContentProtection(true);
+  window.on('closed', options.shield.add(window)); // out of our own captures, and only those
   // No click-through setting here, on purpose: this window must take the click.
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   let listener: ((yes: boolean) => void) | null = null;

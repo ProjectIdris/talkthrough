@@ -160,10 +160,11 @@ export function createMedia(options: { preload: string; page: string }) {
       pending = null;
       window?.webContents.send(AUDIO_CHANNEL.abort);
     },
-    /** One frame of a display, scaled so its longer side is at most maxEdge, as PNG bytes in memory. */
-    async capture(display: Display, maxEdge = 1280): Promise<Capture> {
+    /** One frame of a display, scaled so its longer side is at most maxEdge, as PNG bytes in memory. `beforeRead` is waited for just before the frame is asked for. */
+    async capture(display: Display, maxEdge = 1280, beforeRead?: Promise<void>): Promise<Capture> {
       const started = performance.now();
       const [sourceId] = await Promise.all([screenSourceId(display), open()]);
+      await beforeRead; // the windows of ours are out of the picture only after this (capture-shield.ts)
       const id = nextGrab++;
       const request: GrabRequest = {
         id,
