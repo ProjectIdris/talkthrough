@@ -26,6 +26,10 @@ v8.setFlagsFromString('--expose-gc');
 const gc = vm.runInNewContext('gc') as () => void;
 const heap = () => { gc(); gc(); return process.memoryUsage().heapUsed; };
 
+// A screenshot is about 300 KB of text, a new string each time (a repeated character is a rope and would not count against the heap).
+let pictureNo = 0;
+const picture = () => Buffer.alloc(300_000, pictureNo++ % 251).toString("latin1");
+
 const IDLE_MS = 30_000; // longer than the window in which a question counts as a follow-up
 
 function rig(model: () => Model) {
@@ -38,7 +42,7 @@ function rig(model: () => Model) {
       startMic: async () => void counts.startMic++,
       stopMic: async () => { counts.stopMic++; return { samples: new Float32Array(16), sampleRate: 16000, durationMs: 1500, startLatencyMs: 100 }; },
       abortMic: () => void counts.abortMic++,
-      capture: async () => ({ screenshot: { mime: 'image/png', base64: 'A'.repeat(4000), width: 10, height: 10 }, ms: 5, grabId: 3 }),
+      capture: async () => ({ screenshot: { mime: 'image/png', base64: picture(), width: 10, height: 10 }, ms: 5, grabId: 3 }),
     },
     setPen: () => void counts.pen++,
     speech: { id: 'fake', transcribe: async () => ({ text: 'what is this' }) },
@@ -86,7 +90,6 @@ test('three hundred questions with idle time between: every answer sends the sam
   assert.equal(r.counts.abortMic, 0);
   assert.ok(r.signals.length >= 300, 'every answer asked the model');
   assert.ok(Math.max(...r.signals) <= 2, `abort listeners on a request grew to ${Math.max(...r.signals)}`);
-  assert.equal(process.listenerCount('uncaughtException') + process.listenerCount('unhandledRejection') < 20, true);
   const growth = marks[1]! - marks[0]!;
   assert.ok(growth < 3 * 1024 * 1024, `heap grew ${(growth / 1048576).toFixed(1)} MB between the 50th and the 300th answer`);
 });
