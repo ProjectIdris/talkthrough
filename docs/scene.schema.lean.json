@@ -42,12 +42,6 @@
       }
     },
     "3": {
-      "type": [
-        "boolean",
-        "null"
-      ]
-    },
-    "4": {
       "type": "array",
       "items": {
         "type": "array",
@@ -55,6 +49,12 @@
           "type": "number"
         }
       }
+    },
+    "4": {
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
     "5": {
       "enum": [
@@ -138,7 +138,7 @@
           "$ref": "#/$defs/1"
         },
         "pts": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "color": {
           "$ref": "#/$defs/1"
@@ -715,7 +715,7 @@
           "type": "string"
         },
         "pts": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "at": {
           "$ref": "#/$defs/0"
@@ -872,7 +872,7 @@
           "type": "string"
         },
         "pts": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "color": {
           "type": "string"
@@ -940,10 +940,10 @@
           "type": "string"
         },
         "pts": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "head": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "color": {
           "type": "string"
@@ -1297,13 +1297,13 @@
           "type": "string"
         },
         "pts": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "label": {
           "$ref": "#/$defs/1"
         },
         "curve": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "color": {
           "$ref": "#/$defs/1"
@@ -1378,7 +1378,7 @@
           "type": "string"
         },
         "done": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "at": {
           "$ref": "#/$defs/0"
@@ -1413,7 +1413,7 @@
           "type": "number"
         },
         "frame": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "at": {
           "$ref": "#/$defs/0"
@@ -1495,7 +1495,7 @@
           "$ref": "#/$defs/0"
         },
         "edges": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "opacity": {
           "$ref": "#/$defs/0"
@@ -1589,7 +1589,7 @@
           "$ref": "#/$defs/0"
         },
         "edges": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "opacity": {
           "$ref": "#/$defs/0"
@@ -1655,7 +1655,7 @@
           "$ref": "#/$defs/2"
         },
         "outline": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "taper": {
           "$ref": "#/$defs/0"
@@ -1703,7 +1703,7 @@
           "$ref": "#/$defs/0"
         },
         "edges": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "opacity": {
           "$ref": "#/$defs/0"
@@ -1771,7 +1771,7 @@
           "$ref": "#/$defs/2"
         },
         "pts": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "color": {
           "$ref": "#/$defs/1"
@@ -1792,7 +1792,7 @@
           "$ref": "#/$defs/0"
         },
         "edges": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "opacity": {
           "$ref": "#/$defs/0"
@@ -1855,7 +1855,7 @@
           "$ref": "#/$defs/2"
         },
         "profile": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "sweep": {
           "$ref": "#/$defs/0"
@@ -1882,7 +1882,7 @@
           "$ref": "#/$defs/0"
         },
         "edges": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "opacity": {
           "$ref": "#/$defs/0"
@@ -1947,7 +1947,7 @@
           "$ref": "#/$defs/2"
         },
         "pts": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "color": {
           "$ref": "#/$defs/1"
@@ -1968,7 +1968,7 @@
           "$ref": "#/$defs/0"
         },
         "edges": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "opacity": {
           "$ref": "#/$defs/0"
@@ -2031,16 +2031,16 @@
           "$ref": "#/$defs/2"
         },
         "outline": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "pts": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "up": {
           "$ref": "#/$defs/2"
         },
         "smooth": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "color": {
           "$ref": "#/$defs/1"
@@ -2061,7 +2061,7 @@
           "$ref": "#/$defs/0"
         },
         "edges": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "opacity": {
           "$ref": "#/$defs/0"
@@ -2127,13 +2127,13 @@
           "$ref": "#/$defs/2"
         },
         "outline": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "endOutline": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "smooth": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "depth": {
           "type": "number"
@@ -2157,7 +2157,7 @@
           "$ref": "#/$defs/0"
         },
         "edges": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "opacity": {
           "$ref": "#/$defs/0"
@@ -2223,10 +2223,10 @@
           "$ref": "#/$defs/2"
         },
         "pts": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "sizes": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "soft": {
           "$ref": "#/$defs/0"
@@ -2299,7 +2299,7 @@
           "$ref": "#/$defs/1"
         },
         "pts": {
-          "$ref": "#/$defs/4"
+          "$ref": "#/$defs/3"
         },
         "radius": {
           "type": "number"
@@ -2311,7 +2311,7 @@
           "$ref": "#/$defs/8"
         },
         "closed": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "color": {
           "$ref": "#/$defs/1"
@@ -2539,9 +2539,6 @@
         "axis": {
           "$ref": "#/$defs/6"
         },
-        "onlyAxis": {
-          "$ref": "#/$defs/3"
-        },
         "at": {
           "$ref": "#/$defs/0"
         },
@@ -2557,7 +2554,6 @@
         "ratio",
         "phase",
         "axis",
-        "onlyAxis",
         "at",
         "dur"
       ],
@@ -2825,7 +2821,7 @@
           "$ref": "#/$defs/0"
         },
         "stop": {
-          "$ref": "#/$defs/3"
+          "$ref": "#/$defs/4"
         },
         "at": {
           "$ref": "#/$defs/0"

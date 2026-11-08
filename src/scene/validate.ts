@@ -871,7 +871,8 @@ function checkSpin(out: Record<string, unknown>, state: SceneState, path: string
   const id = out.id as string;
   const axis = (out.axis as 'x' | 'y' | 'z' | undefined) ?? state.spins.get(id) ?? 'z';
   if (out.rpm === 0) {
-    state.spins.delete(id);
+    // A stop aimed at one axis (the validator's own) leaves the spin it does not name; the record of a spin still running is kept.
+    if (!(out.onlyAxis === true && state.spins.has(id) && state.spins.get(id) !== axis)) state.spins.delete(id);
     return true;
   }
   for (let cur = state.parents.get(id), n = 0; cur !== undefined && n < 32; cur = state.parents.get(cur), n++) {

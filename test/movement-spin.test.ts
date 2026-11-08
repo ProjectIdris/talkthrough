@@ -68,3 +68,15 @@ test('the stop the validator writes is for the axis it stops: written out of tim
   const zAt = (t: number) => (evaluate(ownPlan, t).objects.find((o) => o.id === 'w')!.pose?.rot ?? [0, 0, 0])[2]!;
   assert.ok(Math.abs(zAt(4) - zAt(3)) < 1e-6, 'an author\'s stop with an axis still stops the spin');
 });
+
+test('a stop aimed at an axis the part is not spinning about does not make the validator forget the spin it has', () => {
+  const r = check([cyl('cog'), cyl('wheel', { parent: 'cog' }),
+    { op: 'spin', id: 'wheel', rpm: 30, axis: 'x', dur: 0 }, { op: 'spin', id: 'wheel', rpm: 0, axis: 'z', onlyAxis: true, dur: 0 }, { op: 'spin', id: 'cog', rpm: 30, axis: 'x', dur: 0 }]);
+  const spins = (r.step?.actions ?? []).filter((a) => a.op === 'spin') as Array<{ id: string; rpm?: number; axis?: string }>;
+  assert.deepEqual(spins.slice(-2).map((s) => [s.id, s.rpm, s.axis]), [['cog', 30, 'x'], ['wheel', 0, 'x']], 'the wheel still spinning about x is stopped when its holder spins about x');
+  // A stop for the axis it does have, or an author's stop with no flag, forgets it as before.
+  const right = check([cyl('cog'), cyl('wheel', { parent: 'cog' }), { op: 'spin', id: 'wheel', rpm: 30, axis: 'x', dur: 0 }, { op: 'spin', id: 'wheel', rpm: 0, axis: 'x', onlyAxis: true, dur: 0 }, { op: 'spin', id: 'cog', rpm: 30, axis: 'x', dur: 0 }]);
+  assert.equal((right.step?.actions ?? []).filter((a) => a.op === 'spin').length, 3, 'no further stop');
+  const own = check([cyl('cog'), cyl('wheel', { parent: 'cog' }), { op: 'spin', id: 'wheel', rpm: 30, axis: 'x', dur: 0 }, { op: 'spin', id: 'wheel', rpm: 0, axis: 'z', dur: 0 }, { op: 'spin', id: 'cog', rpm: 30, axis: 'x', dur: 0 }]);
+  assert.equal((own.step?.actions ?? []).filter((a) => a.op === 'spin').length, 3, 'an author\'s stop is as it was');
+});
