@@ -79,7 +79,7 @@ function parse(text: string): Node {
     if (v[0] === "'" || v[0] === '"') { const str = v.slice(1, -1); return () => str; }
     if (/^[A-Za-z_]/.test(v)) {
       if (peek() === '(') {
-        const fn = FUNCTIONS[v];
+        const fn = Object.hasOwn(FUNCTIONS, v) ? FUNCTIONS[v] : undefined;
         if (!fn) throw new Error(`kit formula "${text}": unknown function ${v}`);
         take('(');
         const args: Node[] = [];
@@ -116,4 +116,5 @@ export const num = (e: Value, scope: Scope): number => evaluate(e, scope) as num
 export const inner = (scope: Scope): Scope => Object.create(scope) as Scope;
 
 /** The constants every formula can use. */
-export const BASE: Scope = { pi: Math.PI, deg: Math.PI / 180 };
+/** (Made with no prototype: a formula can name only what a row gives it, never something every object has.) */
+export const BASE: Scope = Object.assign(Object.create(null) as Scope, { pi: Math.PI, deg: Math.PI / 180 });

@@ -194,6 +194,8 @@ The capability is a closed solid, not a hollow duct or a general multi-section l
 
 ### The mechanism kit
 
+**How the kit is kept.** Each part below is one row of a table (`src/scene/kit-presets.ts`): how its box is fitted, what its `n` counts (default and limits), the values that follow from its size (the crank throw, where a rod's ends sit), its anchors, and the list of shapes it is made of, with numbers as small formulas of its size (`src/scene/kit-expr.ts`). The renderer draws a row with general generators (lathe, cylinder, extruded outline, box, sphere, torus, coil, bolts; `src/overlay/mechanism-parts.ts`), so there is no code per part, and the guide lists the names only. `test/kit-parts-golden.test.ts` holds what every row builds, piece by piece.
+
 Mechanism parts are ready-made `part`s for engines, gearboxes and pumps. Each is built from the same plain shapes a model could write, with good proportions, its own metal and finish (the object's `color` tints the main body), and named **anchors**: a `pin` with `anchor` lands on one by name (an unknown name falls back to the middle of the part). `size` is the box the part fits, centred on `pos`. Cylindrical parts have their axis along y (the crank, cam, gear and bearing along z), so a vertical engine's parts line up with no rotation.
 
 | part | `size` and `n` | anchors |
