@@ -554,10 +554,12 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'joint', op: 'joint',
-    doc: 'Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it.',
+    doc: 'Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), pivot (turns about its own long axis, axis y by default, through its own middle: a forearm, a screw, a tap), ball (turns about all three axes about its pivot point, held to limit [x,y,z] degrees each way: a shoulder, a hip; one swing loop or spin per axis drives it), fixed (rides with to). about names the point to turn about (any point of the part: left, top, a named one) instead of pivot. min and max hold its value. It moves when spin, loop or couple drives it.',
     fields: {
-      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['hinge', 'slide', 'fixed'] }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true },
-      dir: { k: 'vec3', ...WORLD, opt: true, doc: 'slide: the direction, [x,y,z]' }, pivot: { k: 'vec3', ...WORLD, opt: true, doc: 'hinge: from the object to the point it turns about' },
+      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['hinge', 'slide', 'fixed', 'pivot', 'ball'] }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true },
+      dir: { k: 'vec3', ...WORLD, opt: true, doc: 'slide: the direction, [x,y,z]' }, pivot: { k: 'vec3', ...WORLD, opt: true, doc: 'hinge or ball: from the object to the point it turns about' },
+      about: { k: 'str', min: 1, max: 24, opt: true, doc: 'hinge or ball: a point of the object by name (built in, a kit part own or one named with anchor) to turn about, instead of pivot' },
+      limit: { k: 'vec3', min: 0, max: 360, opt: true, doc: 'ball: how far each axis may turn each way, degrees [x,y,z]' },
       min: { k: 'num', min: -3600, max: 3600, opt: true }, max: { k: 'num', min: -3600, max: 3600, opt: true },
       to: { k: 'ref', of: 'object3d', opt: true, doc: 'fixed: the object it rides with' }, at: AT,
     },

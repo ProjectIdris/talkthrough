@@ -166,7 +166,7 @@ export type CamAction = { op: 'cam'; id: string; by: string; lift?: number; open
 /** A repeating motion that is not a full turn, for any object: slide along an axis, swing about a pivot, or pulse in size. Its own period, or locked to a spinning part with by. */
 export type LoopAction = { op: 'loop'; id: string; kind?: 'slide' | 'swing' | 'pulse' | 'stop'; axis?: 'x' | 'y' | 'z'; amount?: number; period?: number; by?: string; ratio?: number; phase?: number; pivot?: Vec3 } & At;
 /** A freedom of an object: a hinge about a pivot, a slide along an axis or a direction, or riding rigidly with another object. It moves nothing until a driver (spin, loop) or a coupling sets its value. */
-export type JointAction = { op: 'joint'; id: string; kind: 'hinge' | 'slide' | 'fixed'; axis?: 'x' | 'y' | 'z'; dir?: Vec3; pivot?: Vec3; min?: number; max?: number; to?: string } & At;
+export type JointAction = { op: 'joint'; id: string; kind: 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball'; axis?: 'x' | 'y' | 'z'; dir?: Vec3; pivot?: Vec3; about?: string; limit?: Vec3; min?: number; max?: number; to?: string } & At;
 /** One joint follows another's value: ratio between two of a kind (gear, belt, lever arm), or pitch between a hinge and a slide (units of travel for a turn: a screw, a rack, a rope on a wheel). stop ends it. */
 export type CoupleAction = { op: 'couple'; id: string; by?: string; ratio?: number; pitch?: number; phase?: number; stop?: boolean } & At;
 export type FlashAction = { op: 'flash'; id: string; by: string; angle: number; span: number; cycle?: number } & At;

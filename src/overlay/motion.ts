@@ -32,16 +32,25 @@ export type LoopKind = 'slide' | 'swing' | 'pulse';
 export type LoopDef = { key: number; kind: LoopKind; axis: Axis; amount: number; pivot: Vec3 };
 /** The key of the angle that drives the loop on object `key`; the same call gives the object back from the driver's key. */
 export const loopDriver = (key: number): number => -1 - key;
+/**
+ * The angle that drives the loop on one axis of a ball joint (which has up to three, one for each axis): its own key range, below every other, and the
+ * owner of any driver key (a loop's or a ball's) comes back from `driverOwner`.
+ */
+const BALL_BASE = -10_000_000;
+export const ballDriver = (key: number, axis: Axis): number => BALL_BASE - key * 3 - axis;
+export const driverOwner = (driver: number): number => (driver <= BALL_BASE ? Math.floor((BALL_BASE - driver) / 3) : -1 - driver);
 /** Where a free loop's angle starts, so it begins at rest: the cosine is 0 for slide and swing, and the pulse is at its smallest. */
 export const loopStart = (kind: LoopKind): number => (kind === 'pulse' ? 180 : 270);
 
 /**
  * Joints and couplings (the mechanism layer). A joint is a freedom an object has: a hinge about `axis` through `pivot`, a slide along `axis` or `dir`,
- * or fixed to ride with `toKey`; `min`/`max` stop its value (it is held at the limit, not turned back). Its value comes from a driver: a spin (the angle), a
+ * a pivot (a turn about the part's own axis through its own middle: a forearm, a screw), a ball (a turn about all three axes of the parent about the
+ * pivot point, each axis driven by its own spin or loop and held to `limit`) or fixed to ride with `toKey`; `min`/`max` stop its value (it is held at the limit, not turned back). Its value comes from a driver: a spin (the angle), a
  * loop (a swing in degrees, a slide in units) or a coupling to another object's value: ratio x that value + phase, or, between a hinge and a slide,
  * `pitch` units of travel for a whole turn. Every value is a function of the angles, so frames, clips and the live page agree.
  */
-export type JointDef = { key: number; kind: 'hinge' | 'slide' | 'fixed'; axis: Axis; dir: Vec3 | null; pivot: Vec3; min: number | undefined; max: number | undefined; toKey: number | null };
+export type JointKind = 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball';
+export type JointDef = { key: number; kind: JointKind; axis: Axis; dir: Vec3 | null; pivot: Vec3; min: number | undefined; max: number | undefined; toKey: number | null; /** ball: how far each axis may turn each way, degrees. */ limit: Vec3 | null };
 export type CoupleDef = { key: number; byKey: number; ratio: number; pitch: number | undefined; phase: number };
 
 export type Motion = { spins: SpinState[]; cranks: CrankDef[]; cams: CamDef[]; flashes: FlashDef[]; loops: LoopDef[]; joints: JointDef[]; couples: CoupleDef[] };
@@ -157,7 +166,8 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
   const jointOf = new Map(motion.joints.map((j) => [j.key, j] as const));
   for (const s of motion.spins) {
     const o = byKey.get(s.key);
-    if (!o || jointOf.get(s.key)?.kind === 'hinge') continue; // a hinge is turned by the joint pass, about its own axis and pivot
+    const jk = jointOf.get(s.key)?.kind;
+    if (!o || jk === 'hinge' || jk === 'pivot' || jk === 'ball') continue; // a joint is turned by the joint pass, about its own axis and pivot
     edit(s.key).rot = turned(o.rot, s.axis, s.angle);
   }
 
@@ -239,7 +249,7 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
   /** The kind of freedom an object has, if it has one (its joint, else what its loop or coupling needs). */
   const kindOf = (key: number, depth = 0): 'hinge' | 'slide' | undefined => {
     const j = jointOf.get(key);
-    if (j) return j.kind === 'fixed' ? undefined : j.kind;
+    if (j) return j.kind === 'fixed' || j.kind === 'ball' ? undefined : j.kind === 'pivot' ? 'hinge' : j.kind;
     const l = loopOf.get(key);
     if (l) return l.kind === 'slide' ? 'slide' : l.kind === 'swing' ? 'hinge' : undefined;
     const c = coupleOf.get(key);
@@ -275,7 +285,7 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
   for (const key of driven) {
     const o = byKey.get(key);
     const joint = jointOf.get(key);
-    if (!o || joint?.kind === 'fixed') continue;
+    if (!o || joint?.kind === 'fixed' || joint?.kind === 'ball') continue;
     const kind = kindOf(key);
     let q = valueOf(key, 0);
     if (kind === undefined || q === undefined) continue;
@@ -289,6 +299,9 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
       const unit: Vec3 = joint?.dir ? unitOf(joint.dir) : axis === 0 ? [1, 0, 0] : axis === 1 ? [0, 1, 0] : [0, 0, 1];
       const p = pose.pos ?? o.pos;
       pose.pos = [p[0] + unit[0] * q, p[1] + unit[1] * q, p[2] + unit[2] * q];
+    } else if (joint?.kind === 'pivot') {
+      // About the part's own axis through its own middle: the turn comes after the rest orientation, not about the parent's axis.
+      pose.rot = turnedLocal(pose.rot ?? o.rot, joint.axis, q);
     } else {
       const axis = joint ? joint.axis : loop ? loop.axis : 2;
       const pivot: Vec3 = joint ? joint.pivot : loop ? loop.pivot : [0, 0, 0];
@@ -300,6 +313,31 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
         const p = pose.pos ?? o.pos;
         pose.pos = [p[0] + px - turned[0], p[1] + py - turned[1], p[2] + pz - turned[2]];
       }
+    }
+  }
+  // A ball joint turns about all three axes of the parent, x first, then y, then z, about its pivot point (its attached point when it names none and
+  // is attached): each axis is a swing loop of its own and/or a spin about that axis, held to the limit on that axis.
+  for (const j of motion.joints) {
+    if (j.kind !== 'ball') continue;
+    const o = byKey.get(j.key);
+    if (!o) continue;
+    const q: Vec3 = [0, 0, 0];
+    for (const l of motion.loops) {
+      if (l.key !== j.key || l.kind !== 'swing') continue;
+      const a = angleOf.get(ballDriver(j.key, l.axis));
+      if (a !== undefined) q[l.axis] += Math.cos(a * DEG) * l.amount;
+    }
+    const sp = spinOf.get(j.key);
+    if (sp) q[sp.axis] += sp.angle;
+    if (j.limit) for (const i of [0, 1, 2] as const) q[i] = Math.max(-j.limit[i], Math.min(j.limit[i], q[i]));
+    const turn = mulM(rotM(2, q[2]), mulM(rotM(1, q[1]), rotM(0, q[0])));
+    const pose = edit(j.key);
+    pose.rot = eulerOf(mulM(turn, matOf(pose.rot ?? o.rot)));
+    const [px, py, pz] = j.pivot;
+    if (px !== 0 || py !== 0 || pz !== 0) {
+      const t = applyM(turn, j.pivot);
+      const p = pose.pos ?? o.pos;
+      pose.pos = [p[0] + px - t[0], p[1] + py - t[1], p[2] + pz - t[2]];
     }
   }
   // A pulse swells the object about its own middle, on top of any scale it has.
@@ -374,9 +412,23 @@ export function turned(rest: Vec3, axis: Axis, deg: number): Vec3 {
     out[axis] += deg;
     return out;
   }
+  return eulerOf(mulM(rotM(axis, deg), matOf(rest)));
+}
+
+/** The rotation of `deg` about an axis (0 x, 1 y, 2 z). */
+function rotM(axis: Axis, deg: number): M3 {
   const c = Math.cos(deg * DEG), s = Math.sin(deg * DEG);
-  const t: M3 = axis === 2 ? [[c, -s, 0], [s, c, 0], [0, 0, 1]] : axis === 0 ? [[1, 0, 0], [0, c, -s], [0, s, c]] : [[c, 0, s], [0, 1, 0], [-s, 0, c]];
-  return eulerOf(mulM(t, matOf(rest)));
+  return axis === 2 ? [[c, -s, 0], [s, c, 0], [0, 0, 1]] : axis === 0 ? [[1, 0, 0], [0, c, -s], [0, s, c]] : [[c, 0, s], [0, 1, 0], [-s, 0, c]];
+}
+
+/** A turn of `deg` about the object's OWN axis, after the rest orientation (a forearm turning on its length, whatever way it is laid). */
+export function turnedLocal(rest: Vec3, axis: Axis, deg: number): Vec3 {
+  return eulerOf(mulM(matOf(rest), rotM(axis, deg)));
+}
+
+/** A point of an object (in its own space, at its own size) as it lies from the object's origin in the parent's space: turned by the rest orientation. */
+export function restPoint(rot: Vec3, scale: Vec3, point: Vec3): Vec3 {
+  return applyM(matOf(rot), [point[0] * scale[0], point[1] * scale[1], point[2] * scale[2]]);
 }
 
 /** The key of the pin a crank draws on a plain-shape crankshaft (below zero, so it never meets an object made by a scene). */

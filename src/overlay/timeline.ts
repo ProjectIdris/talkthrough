@@ -11,7 +11,7 @@ import { anchorsOf } from '../scene/anchors.ts';
 import { resolvePartGeometry } from '../scene/part-geometry.ts';
 import { PALETTE_RGB } from '../scene/colors.ts';
 import { MATERIAL_LIBRARY } from '../scene/material-library.ts';
-import { advanceMotion, crankPinKey, crankPinSize, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
+import { advanceMotion, ballDriver, crankPinKey, crankPinSize, driverOwner, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, restPoint, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
 import type { CamDef, CoupleDef, CrankDef, FlashDef, JointDef, LoopDef, Motion, Pose, SpinPlan } from './motion.ts';
 import { applyDiagramAction, clearDiagrams, diagramPlanFrom, diagramTimes, emptyDiagramPlan, evaluateDiagrams, pulseDiagramThing, styleDiagramThing } from './diagram-plan.ts';
 import type { DiagramFrame, DiagramPlan } from './diagram-plan.ts';
@@ -722,14 +722,15 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       const by = a.by !== undefined ? lookup(plan.objs, a.by, at) : undefined;
       if (a.by !== undefined && (!by || by.key === o.key)) return;
       const joint = plan.joints.find((j) => j.key === o.key);
-      const kind = a.kind ?? (joint?.kind === 'hinge' ? 'swing' : joint?.kind === 'slide' ? 'slide' : undefined);
+      const kind = a.kind ?? (joint?.kind === 'hinge' || joint?.kind === 'pivot' || joint?.kind === 'ball' ? 'swing' : joint?.kind === 'slide' ? 'slide' : undefined);
       if (kind === undefined) return;
-      // One loop to an object: the later one replaces the earlier (and `stop` is only that replacement left empty).
-      const driver = loopDriver(o.key);
-      plan.loops = plan.loops.filter((l) => l.key !== o.key);
+      // One loop to an object: the later one replaces the earlier (and `stop` is only that replacement left empty). A ball joint has one for each axis.
+      const ball = joint?.kind === 'ball';
+      const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : kind === 'swing' ? 2 : 1;
+      const driver = ball ? ballDriver(o.key, axis) : loopDriver(o.key);
+      plan.loops = plan.loops.filter((l) => l.key !== o.key || (ball && l.axis !== axis));
       plan.spins = plan.spins.filter((s) => s.key !== driver);
       if (kind !== 'stop') {
-        const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : kind === 'swing' ? 2 : 1;
         plan.loops.push({ key: o.key, kind, axis, amount: a.amount ?? 1, pivot: a.pivot ? asVec(a.pivot) : [0, 0, 0] });
         const sp = spinPlanFrom({ key: driver, axis: 2, angle: loopStart(kind) + (by ? 0 : a.phase ?? 0), rate: 0 });
         plan.spins.push(sp);
@@ -745,8 +746,14 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       const to = a.kind === 'fixed' && a.to !== undefined ? lookup(plan.objs, a.to, at) : undefined;
       if (a.kind === 'fixed' && (!to || to.key === o.key)) return;
       const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : a.kind === 'hinge' ? 2 : 1;
+      // A pivot point named by `about` is a point of the part (built in, the kit's or one named): it is turned by the part's rest orientation to lie from its origin, in the parent's space.
+      let pivot: Vec3 = a.pivot ? asVec(a.pivot) : [0, 0, 0];
+      if (a.about !== undefined) {
+        const named = anchorsOf({ ...o.def, ...(o.points ? { points: o.points } : {}) } as object)[a.about];
+        if (named) pivot = restPoint(asVec(valueAt(o.rot, at)), asVec(valueAt(o.scale, at)), named);
+      }
       plan.joints = plan.joints.filter((j) => j.key !== o.key);
-      plan.joints.push({ key: o.key, kind: a.kind, axis, dir: a.dir ? asVec(a.dir) : null, pivot: a.pivot ? asVec(a.pivot) : [0, 0, 0], min: a.min, max: a.max, toKey: to ? to.key : null });
+      plan.joints.push({ key: o.key, kind: a.kind, axis, dir: a.dir ? asVec(a.dir) : null, pivot, min: a.min, max: a.max, toKey: to ? to.key : null, limit: a.kind === 'ball' && a.limit ? asVec(a.limit) : null });
       end(0.2);
       return;
     }
@@ -832,6 +839,7 @@ function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number)
   for (const sp of plan.spins) {
     if (sp.key === old.key) sp.key = fresh.key;
     if (sp.key === loopDriver(old.key)) sp.key = loopDriver(fresh.key);
+    for (const axis of [0, 1, 2] as const) if (sp.key === ballDriver(old.key, axis)) sp.key = ballDriver(fresh.key, axis);
     if (sp.lock) sp.lock.byKey = to(sp.lock.byKey);
   }
   plan.cranks = plan.cranks.map((c) => ({ ...c, key: to(c.key), shaftKey: to(c.shaftKey), rodKey: c.rodKey === null ? null : to(c.rodKey) }));
@@ -1103,7 +1111,7 @@ function motionOf(plan: StepPlan, objects: readonly ObjectFrame[], t: number, di
   const alive = new Set(objects.map((o) => o.key));
   for (const d of diagrams) for (const it of d.items) if (it.def.op === 'stream') alive.add(it.key);
   // A loop's angle (under a key below zero) lives as long as the object it moves.
-  const spins = spinsAt(plan.spins, t).filter((s) => alive.has(s.key < 0 ? loopDriver(s.key) : s.key));
+  const spins = spinsAt(plan.spins, t).filter((s) => alive.has(s.key < 0 ? driverOwner(s.key) : s.key));
   const both = (a: number, b: number) => alive.has(a) && alive.has(b);
   return {
     spins,
@@ -1159,6 +1167,8 @@ function holdMount(o: ObjectFrame, pose: Pose, motion: Motion): void {
   const pivot = (p: Vec3): boolean => p[0] !== 0 || p[1] !== 0 || p[2] !== 0;
   if (motion.cranks.some((c) => c.key === o.key || c.rodKey === o.key)) return;
   if (motion.joints.some((j) => j.key === o.key && (j.kind === 'fixed' || pivot(j.pivot)))) return;
+  // A pivot turns a part about its own axis through its own middle: its attached point stays only if that point is on the axis, so it is left to the joint.
+  if (motion.joints.some((j) => j.key === o.key && j.kind === 'pivot')) return;
   if (motion.loops.some((l) => l.key === o.key && pivot(l.pivot))) return;
   const grown: Vec3 = [o.scale[0] * (pose.scale?.[0] ?? 1), o.scale[1] * (pose.scale?.[1] ?? 1), o.scale[2] * (pose.scale?.[2] ?? 1)];
   const shift = heldShift(o.rot, pose.rot ?? o.rot, o.scale, grown, o.mount.self);
