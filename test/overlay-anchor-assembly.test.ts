@@ -62,7 +62,7 @@ test('mounted sockets stay coincident in the CPU renderer through parent transla
   }
 });
 
-test('a later child turn can separate mounted sockets because placement is not a live constraint', () => {
+test('a later child turn keeps the mounted sockets together: the part swings about its point', () => {
   const clean = validated({ steps: [{ say: 'Turn the child independently.', actions: [
     { op: 'add', shape: 'part', id: 'base', part: 'pipe', size: [1, 2, 1] },
     { op: 'add', shape: 'part', id: 'child', part: 'pipe', size: [0.5, 2, 0.5], parent: 'base', parentAnchor: 'top', selfAnchor: 'bottom' },
@@ -75,7 +75,7 @@ test('a later child turn can separate mounted sockets because placement is not a
   const after = frameAt(clean.steps, 0, 2);
   panel.sync(after, 1);
   const gap = worldPoint(panel, after, 'child', [0, -1, 0]).distanceTo(worldPoint(panel, after, 'base', [0, 1, 0]));
-  assert.ok(Math.abs(gap - Math.SQRT2) < 1e-8, `expected an unconstrained gap, got ${gap}`);
+  assert.ok(gap < 1e-8, `the attached point stays on the parent's point through the turn, gap ${gap}`);
 });
 
 test('a mounted detail replacement uses its inherited rotation and nonuniform scale at creation', () => {
@@ -127,7 +127,7 @@ test('a mounted child uses the parent replacement already defined before it', ()
   }
 });
 
-test('raw playback skips a mount when a scheduled parent replacement removes its socket', () => {
+test('raw playback skips a mount when a scheduled parent replacement has no such point', () => {
   const state = createSceneState();
   const initial = validated({ steps: [{ say: 'An existing pipe.', actions: [
     { op: 'add', shape: 'part', id: 'base', part: 'pipe', size: [1, 2, 1] },
@@ -136,7 +136,7 @@ test('raw playback skips a mount when a scheduled parent replacement removes its
   // Defense in depth for raw/internal callers that bypass the validator's source-order guard.
   const detail: Scene = { v: 1, steps: [{ say: 'The later parent has no top socket.', actions: [
     { op: 'add', shape: 'part', id: 'child', part: 'pipe', size: [0.5, 2, 0.5], parent: 'base', parentAnchor: 'top', selfAnchor: 'bottom', at: 2 },
-    { op: 'add', shape: 'part', id: 'base', part: 'housing', size: [2, 2, 2], at: 1 },
+    { op: 'add', shape: 'group', id: 'base', at: 1 },
   ] }] };
   const panel = new PanelScene({ tier: 'low' });
   const plan = planStep(base, detail.steps[0]!);
@@ -144,8 +144,7 @@ test('raw playback skips a mount when a scheduled parent replacement removes its
     const frame = evaluate(plan, time);
     panel.sync(frame, 1);
     assert.deepEqual(frame.objects.map((o) => o.id), ['base'], 'the missing socket never becomes origin placement');
-    assert.equal(frame.objects[0]!.def.shape, 'part');
-    assert.ok('part' in frame.objects[0]!.def && frame.objects[0]!.def.part === 'housing');
+    assert.equal(frame.objects[0]!.def.shape, 'group');
     assert.equal(panel.count(), 1);
   }
 });

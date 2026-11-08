@@ -36,6 +36,7 @@ import type { Part } from './explode.ts';
 import { PATCH_SEGMENTS } from '../scene/patch.ts';
 import { patchGeometry, patchEdges } from './patch.ts';
 import { Cutaway } from './cutaway.ts';
+import { anchorsOf } from '../scene/anchors.ts';
 import { latheSectorEdges, latheSectorGeometry } from './lathe-sector.ts';
 import { buildConnector, buildStream, updateAttached, updateConnectors, updateStreams } from './scene3d-flow.ts';
 import type { FlowNode } from './scene3d-flow.ts';
@@ -103,8 +104,11 @@ type Node = {
   /** How it looks just now (for what a cut needs to know). */
   alpha: number;
   color: Rgb;
-  /** Named points of a ready-made part, in its own space. */
+  /** The points of this object a connector or a part can be attached at, in its own space (built in, a kit part's own, and those the model named). */
   anchors?: Record<string, Vec3>;
+  anchorsFrom?: { def: object; points: object | undefined };
+  /** A faint line from where an attached part sits assembled to where it is pulled to (an exploded view), in its parent's space. */
+  join?: LineSegments;
   /** For tubes, lines and arrows: what is needed to draw them part way. */
   path?: { geo: BufferGeometry; sampled: Vec3[]; head: Mesh | undefined; /** A tube thick for its length (a stem, a vessel, a limb, a pipe): part of the body, not a trailing cable. */ body: boolean };
   /** A connector's tube and what it was last built from; a stream's markers (see scene3d-flow.ts). */
@@ -257,7 +261,6 @@ export class PanelScene {
       case 'part': {
         const built = buildPart(def, this.detail);
         node.obj = built.root;
-        node.anchors = built.anchors;
         for (const p of built.pieces) this.adoptPiece(node, p);
         break;
       }
@@ -477,6 +480,11 @@ export class PanelScene {
   private dispose(node: Node): void {
     this.cutaway.release(node);
     node.obj.removeFromParent();
+    if (node.join) {
+      node.join.removeFromParent();
+      node.join.geometry.dispose();
+      (node.join.material as LineBasicMaterial).dispose();
+    }
     for (const g of node.geometries) {
       const solidKey = this.solidKeys.get(g);
       const solid = solidKey && this.sharedSolids.get(solidKey);
@@ -627,6 +635,32 @@ export class PanelScene {
     }
   }
 
+  /**
+   * An attached part pulled from where it sits assembled (the model's explode, the person's Explode control or a drag) shows a faint line back to the point it
+   * attaches at, in its parent's space; assembled again, or let go with detach, there is none. Its own motion (a slide, a swing) is not a pulling apart.
+   */
+  private joinLine(node: Node, o: ObjectFrame, assembled: Vec3, placed: Vector3, rot: Vec3): void {
+    const parent = o.parentKey !== null ? this.nodes.get(o.parentKey)?.obj : undefined;
+    const apart = o.mount && parent ? Math.hypot(placed.x - assembled[0], placed.y - assembled[1], placed.z - assembled[2]) : 0;
+    if (!o.mount || !parent || apart < 1e-3) {
+      if (node.join) node.join.visible = false;
+      return;
+    }
+    // Its own point, where it would be assembled and where it is now.
+    const self = new Vector3(o.mount.self[0] * o.scale[0], o.mount.self[1] * o.scale[1], o.mount.self[2] * o.scale[2]).applyEuler(new Euler(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'XYZ'));
+    if (!node.join) {
+      const line = new LineSegments(new BufferGeometry(), new LineBasicMaterial({ color: 0x9fb4c8, transparent: true, opacity: 0.45, depthTest: false, toneMapped: false }));
+      line.renderOrder = 998;
+      line.frustumCulled = false;
+      node.join = line;
+    }
+    const line = node.join;
+    if (line.parent !== parent) parent.add(line);
+    line.geometry.setFromPoints([new Vector3(assembled[0], assembled[1], assembled[2]).add(self), placed.clone().add(self)]);
+    (line.material as LineBasicMaterial).opacity = 0.45 * Math.min(1, node.alpha);
+    line.visible = node.obj.visible;
+  }
+
   private apply(node: Node, o: ObjectFrame, parentSpread: number, offset?: Vec3, rest = false): void {
     const pulse = rest ? 0 : o.pulse;
     const pose = rest ? undefined : o.pose;
@@ -638,6 +672,11 @@ export class PanelScene {
     node.obj.rotation.copy(new Euler(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'XYZ'));
     const loop = o.pose?.scale ?? [1, 1, 1]; // a pulse loop swells it on top of its own scale
     node.obj.scale.set(node.baseScale.x * o.scale[0] * loop[0] * grow, node.baseScale.y * o.scale[1] * loop[1] * grow, node.baseScale.z * o.scale[2] * loop[2] * grow);
+    if (!node.anchorsFrom || node.anchorsFrom.def !== o.def || node.anchorsFrom.points !== o.points) {
+      node.anchors = anchorsOf(o.points ? { ...o.def, points: o.points } : o.def);
+      node.anchorsFrom = { def: o.def, points: o.points };
+    }
+    this.joinLine(node, o, pose?.pos ?? o.pos, node.obj.position, rot);
     const alpha = Math.max(0, Math.min(1, (o.pose?.opacity ?? o.opacity) * o.appear * o.fade));
     node.obj.visible = alpha > 0.003;
     node.alpha = alpha;

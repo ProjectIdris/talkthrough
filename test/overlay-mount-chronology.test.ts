@@ -78,17 +78,17 @@ for (const kind of ['pipe', 'housing'] as const) {
   });
 }
 
-test('a future pipe socket cannot validate a mount against the earlier housing', () => {
-  const run = session([pipe('base', { part: 'housing' })]);
+test('a future pipe socket cannot validate a mount against the earlier group', () => {
+  const run = session([{ op: 'add', shape: 'group', id: 'base' }]);
   run.send(pipe('base', { at: 5 }));
   run.send(mount({ at: 2 }));
   const result = run.finish();
   assert.equal(result.step.actions.length, 1);
   assert.equal(run.detail.ids.has('child'), false);
-  assert.ok(result.issues.some((i) => /unknown anchor "top"/.test(i.message) && /front/.test(i.message)));
+  assert.ok(result.issues.some((i) => /unknown anchor "top"/.test(i.message) && /origin/.test(i.message)));
 });
 
-test('a progressively arriving mount retains its authored placement after a parent replacement', () => {
+test('a progressively arriving mount follows the parent replacement: the attachment is live', () => {
   const run = session();
   run.send(pipe('base', { size: [1, 6, 1], at: 3 }));
   assert.deepEqual((last(run.at(5), 'base')?.def as AddPart).size, [1, 6, 1]);
@@ -98,9 +98,9 @@ test('a progressively arriving mount retains its authored placement after a pare
   assert.deepEqual(result.step.actions.map((a) => a.at), [3, 1]);
   const actual = run.at(7), replay = run.replay(result.step, 7);
   assert.deepEqual(pose(actual), pose(replay));
-  assert.deepEqual(last(actual)?.pos, [0, 2, 0]);
-  assert.equal(gap(actual), 2, 'mounting is one-time: the new parent socket is intentionally not refitted');
-  assert.equal(gap(replay), 2);
+  assert.deepEqual(last(actual)?.pos, [0, 4, 0]);
+  assert.ok(gap(actual) < 1e-8, 'the child stays on the replacement parent\'s point');
+  assert.ok(gap(replay) < 1e-8);
 });
 
 test('a replacement parent arriving late still supplies the socket at a later authored child birth', () => {
@@ -128,7 +128,7 @@ test('an authored invalid mount cannot become valid just because it is displayed
   let now = 0;
   const clock: Clock = { now: () => now, after: () => () => {} };
   const player = new Player({ voice: createSilentVoice(clock), clock });
-  const initial: Step = { say: '', actions: [pipe('base', { part: 'housing' })] };
+  const initial: Step = { say: '', actions: [{ op: 'add', shape: 'group', id: 'base' }] };
   player.play({ steps: [initial] }); now = 1000; player.update(); player.beginTurn(true); player.openStep('');
   player.addAction(pipe('base', { at: 3 })); now = 6000; player.update();
   player.addAction(mount({ at: 1 })); player.closeStep(); player.endTurn(); now = 8000;
@@ -158,13 +158,13 @@ test('later independent child motion is not folded into the logical mount birth'
   const run = session();
   run.send(pipe('base', { size: [1, 6, 1], at: 3 }));
   run.send(mount({ at: 1 }), 5);
-  assert.deepEqual(last(run.at(5.8))?.pos, [0, 2, 0]);
+  assert.deepEqual(last(run.at(5.8))?.pos, [0, 4, 0]);
   run.send({ op: 'move', id: 'child', to: [4, 5, 6], at: 2, dur: 1 }, 6);
   const result = run.finish();
   assert.deepEqual(result.issues, []);
-  assert.deepEqual(last(run.at(6))?.pos, [0, 2, 0], 'the birth pose is not the final moved pose');
+  assert.deepEqual(last(run.at(6))?.pos, [0, 4, 0], 'the birth pose is not the final moved pose');
   assert.deepEqual(pose(run.at(8)), pose(run.replay(result.step, 8)));
-  assert.deepEqual(last(run.at(8))?.pos, [4, 5, 6]);
+  assert.deepEqual(last(run.at(8))?.pos, [4, 9, 6], 'a move of an attached part is its offset from the point (the parent top at 3, the pipe bottom at -1)');
 });
 
 test('later-arriving pre-birth transforms replan the authored mount rather than permanently diverging from replay', () => {
