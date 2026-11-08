@@ -16,6 +16,8 @@ import { MATERIAL_FAMILIES, resolveMaterial } from './material-library.ts';
 import { apply, applyInverse, attachTolerance, FACE_NORMALS, landOn, middleHeld, mountPosition, turnToFace, worldOf } from './attach.ts';
 import { AXIS_TOLERANCE_DEG, barOf, bevelFit, lineAngle, meshes, meshFit, rackFit, rimPoint, ropeTangent, roundOf, sameShaft, seatTangent, strandCutsWheel } from './coupling.ts';
 import type { Fit, Round } from './coupling.ts';
+import { resolvePartName } from './part-library.ts';
+import { expandAssembly, isAssembly, maxAssemblyId } from './assembly.ts';
 import { anchorsOf } from './anchors.ts';
 import { partFacing, resolvePartGeometry } from './part-geometry.ts';
 import { MODELS } from './model-catalogue.ts';
@@ -230,6 +232,15 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       return bad('unknown colour');
     case 'enum':
       return typeof v === 'string' && f.values.includes(v) ? good(v) : bad(`expected one of ${f.values.join(', ')}`);
+    case 'part': {
+      // A part by its own name, or another name it is known by, or a slip of one: taken, with a note. Nothing close is refused with the nearest.
+      const m = resolvePartName(v);
+      if (m.name && f.values.includes(m.name)) {
+        if (!m.exact) note(notes, 'trimmed', path, `part "${String(v).slice(0, 40)}" read as ${m.name}`);
+        return good(m.name);
+      }
+      return bad(`unknown part${typeof v === 'string' ? ` "${v.slice(0, 40)}"` : ''}: ${m.near.length ? `the nearest are ${m.near.slice(0, 4).join(', ')}; ` : ''}the parts are ${f.values.join(', ')}`);
+    }
     case 'material': {
       // A material by its own name, or an alias, or the longest name it holds, or a slip of one: taken, with a note. Nothing close is refused with the nearest.
       const m = resolveMaterial(v);
@@ -884,6 +895,7 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
     out.bevel = 0;
   }
   if (bindings && !bindParts(bindings, (n) => own(input, n), out, state, path, (kind, at, why) => note(notes, kind, at, why))) return null;
+  if (variant.name === 'addPart' && isAssembly(out.part)) return takeAssembly(out, state, path, notes, parentFirstAt, mountedChildrenAt, bodies);
   if (variant.op === 'add' && typeof out.parent === 'string' && (parentFirstAt.get(out.parent) ?? 0) > ((out.at as number | undefined) ?? 0)) {
     note(notes, 'dropped', `${path}.parent`, `parent "${out.parent}" starts after this child; schedule the parent no later than the child`);
     return null;
@@ -1416,6 +1428,43 @@ function meetNeighbours(state: SceneState, out: Record<string, unknown>, path: s
       applyFit(state, fit, path, notes, at, `${id} stands against ${other}`, { id, out });
     }
   }
+}
+
+/**
+ * An assembly asked for as a part (src/scene/assembly.ts): its group is this action and its pieces, points and motion are the actions the validator adds after
+ * it, each checked like any the author wrote. Refused whole when an id it would make is taken or the scene could not hold it, so it is never half there.
+ */
+function takeAssembly(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>, mountedChildrenAt: ReadonlyMap<string, number>, bodies: BodyVersions): Action | null {
+  const name = out.part as string;
+  const id = out.id as string;
+  const longest = maxAssemblyId(name);
+  if (id.length > longest) {
+    note(notes, 'dropped', `${path}.id`, `an id for ${name} has ${longest} characters at most (each piece is named <id>-<piece>)`);
+    return null;
+  }
+  const made = expandAssembly(name, out);
+  const taken = made.ids.find((i) => state.ids.has(i) && !state.replaceable?.has(i));
+  if (taken !== undefined) {
+    note(notes, 'dropped', path, `${name} would make ${taken}, but that id is in use: choose another id`);
+    return null;
+  }
+  if (state.ids.size + made.actions.length > LIMITS.maxObjects || state.turnActions + made.actions.length > LIMITS.maxActionsPerTurn) {
+    note(notes, 'dropped', path, `${name} is too big for what is left of the scene (${made.ids.length + 1} objects and ${made.actions.length} actions)`);
+    return null;
+  }
+  for (const m of made.notes) note(notes, 'trimmed', `${path}.n`, m);
+  state.turnActions += made.actions.length - 1;
+  const first = validateAction(made.actions[0], state, path, notes, parentFirstAt, mountedChildrenAt, bodies);
+  if (!first) return null;
+  const rest: Action[] = [];
+  for (const raw of made.actions.slice(1)) {
+    const mark = state.after.length;
+    const a = validateAction(raw, state, `${path}(${name})`, notes, parentFirstAt, mountedChildrenAt, bodies);
+    const extra = state.after.splice(mark);
+    if (a) rest.push(a, ...extra);
+  }
+  state.after.push(...rest);
+  return first;
 }
 
 /** Whether a chain of followers (a follows b follows c...) comes back to `start`. */

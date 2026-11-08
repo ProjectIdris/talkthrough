@@ -7,7 +7,8 @@
 
 import { Box3, Quaternion, Vector3 } from 'three';
 import type { Object3D } from 'three';
-import type { Side, Vec3 } from '../scene/types.ts';
+import type { PartKind, Side, Vec3 } from '../scene/types.ts';
+import { KIT_PRESETS } from '../scene/kit-presets.ts';
 import { resolvePartGeometry } from '../scene/part-geometry.ts';
 
 /** A round object (a wheel, a gear, a disc): where it is, which way its axis points, how wide across and how thick, all in the scene's units. */
@@ -18,17 +19,18 @@ const SIDES: Record<Side, Vec3> = { left: [-1, 0, 0], right: [1, 0, 0], top: [0,
 type Def = { shape?: string; part?: string; size?: unknown };
 const sizeOf = (def: Def): Vec3 | undefined => (Array.isArray(def.size) && def.size.length === 3 ? (def.size as Vec3) : undefined);
 
-/** What makes an object round, and about which of its own axes: a cylinder about y, a wheel, gear or bearing about z, a fan about y, a sphere about z. */
+/** What makes an object round, and about which of its own axes: a cylinder about y, a wheel or any disc part (gear, bearing, pulley...) about z, a fan about y, a sphere about z. */
 export function roundOf(def: Def, obj: Object3D): Round | undefined {
   const written = sizeOf(def);
   if (!written) return undefined;
-  const size = def.shape === 'part' && (def.part === 'gear' || def.part === 'bearing')
-    ? resolvePartGeometry({ part: def.part, size: written }).size
+  const disc = def.shape === 'part' && def.part !== undefined && KIT_PRESETS[def.part]?.disc === true;
+  const size = disc
+    ? resolvePartGeometry({ part: def.part as PartKind, size: written }).size
     : written;
   let axis: Vec3, radius: number, width: number;
   if (def.shape === 'cylinder' || def.shape === 'cone') [axis, radius, width] = [[0, 1, 0], Math.max(size[0], size[2]) / 2, size[1]];
   else if (def.shape === 'sphere') [axis, radius, width] = [[0, 0, 1], size[0] / 2, size[0]];
-  else if (def.shape === 'part' && (def.part === 'wheel' || def.part === 'gear' || def.part === 'bearing')) [axis, radius, width] = [[0, 0, 1], Math.max(size[0], size[1]) / 2, size[2]];
+  else if (def.shape === 'part' && (def.part === 'wheel' || disc)) [axis, radius, width] = [[0, 0, 1], Math.max(size[0], size[1]) / 2, size[2]];
   else if (def.shape === 'part' && def.part === 'fan') [axis, radius, width] = [[0, 1, 0], Math.max(size[0], size[2]) / 2, size[1]];
   else return undefined;
   const centre = obj.getWorldPosition(new Vector3());

@@ -194,9 +194,11 @@ The capability is a closed solid, not a hollow duct or a general multi-section l
 
 ### The mechanism kit
 
-**How the kit is kept.** Each part below is one row of a table (`src/scene/kit-presets.ts`): how its box is fitted, what its `n` counts (default and limits), the values that follow from its size (the crank throw, where a rod's ends sit), its anchors, and the list of shapes it is made of, with numbers as small formulas of its size (`src/scene/kit-expr.ts`). The renderer draws a row with general generators (lathe, cylinder, extruded outline, box, sphere, torus, coil, bolts; `src/overlay/mechanism-parts.ts`), so there is no code per part, and the guide lists the names only. `test/kit-parts-golden.test.ts` holds what every row builds, piece by piece.
+**How the kit is kept.** Each part below is one row of a table (`src/scene/kit-presets.ts`): how its box is fitted, what its `n` counts (default and limits), the values that follow from its size (the crank throw, where a rod's ends sit), its anchors, and the list of shapes it is made of, with numbers as small formulas of its size (`src/scene/kit-expr.ts`). The renderer draws a row with general generators (lathe, cylinder, extruded outline, box, sphere, torus, coil, bolts; `src/overlay/mechanism-parts.ts`), so there is no code per part, and the guide lists the names, with what their `n` or variant means and the anchors they offer, from the rows. A row also holds the part's default colour, the note the guide gives it, the other names it is known by, and whether it is a disc (round about z, so a belt or a connector can wrap it). A part added to the table is a part of the language with nothing else written: the schema, the guide and the validator read the table. `test/kit-parts-golden.test.ts` holds what the first thirteen rows build, piece by piece, and `test/kit-new-parts.test.ts` the twelve added after.
 
-Mechanism parts are ready-made `part`s for engines, gearboxes and pumps. Each is built from the same plain shapes a model could write, with good proportions, its own metal and finish (the object's `color` tints the main body), and named **anchors**: a `pin` with `anchor` lands on one by name (an unknown name falls back to the middle of the part). `size` is the box the part fits, centred on `pos`. Cylindrical parts have their axis along y (the crank, cam, gear and bearing along z), so a vertical engine's parts line up with no rotation.
+**Part names.** A `part` name is read as a material's is: its own name (any case, a space for a hyphen); another name it is known by (`sheave` is `pulley`, `chain wheel` is `sprocket`); or one a slip, a plural or a word away. The last two are kept with a note (`part "sheave" read as pulley`); a name nothing is close to is refused, with the nearest parts and the list of them.
+
+Mechanism parts are ready-made `part`s for engines, gearboxes and pumps. Each is built from the same plain shapes a model could write, with good proportions, its own metal and finish (the object's `color` tints the main body), and named **anchors**: a `pin` with `anchor` lands on one by name (an unknown name falls back to the middle of the part). `size` is the box the part fits, centred on `pos`. Cylindrical parts have their axis along y (the crank, cam, gear, bearing, pulley, sprocket, bevel gear, turbine and shaft along z), so a vertical engine's parts line up with no rotation.
 
 | part | `size` and `n` | anchors |
 |---|---|---|
@@ -213,6 +215,37 @@ Mechanism parts are ready-made `part`s for engines, gearboxes and pumps. Each is
 | `pipe` | `[diameter, length, diameter]`, flanged ends | `top`, `bottom` |
 | `elbow` | `[x, y, z]`: a 90 degree bend whose pipe diameter is z; one end opens downwards at the bottom right, the other to the left at the top | `a`, `b` |
 | `housing` | `[x, y, z]`; variant `cutaway` leaves the front open to show the inside; bolts at the corners | `front`, `back` |
+| `pulley` | `[diameter, diameter, width]`, axis z; a grooved rope wheel on an axle. Variant `block` adds the cheek plates, a stem and an eye above the wheel, so it hangs by its hook | `axis`, `hook` (above the wheel, about two radii up, beyond the box) |
+| `sprocket` | `[diameter, diameter, thickness]`, axis z, `n` pointed teeth (default 16, 6 to 60) for a chain | `axis` |
+| `bevel-gear` | `[diameter, diameter, length]`, axis z, `n` teeth (default 12, 6 to 36) on a cone that narrows towards +z, so two meet at a right angle, as in a differential | `axis` |
+| `rack` | `[length, height, thickness]`, teeth along x on the top edge, `n` teeth (default 10) | `start`, `end`, `teeth` |
+| `shaft` | `[diameter, diameter, length]`, axis z, chamfered ends and `n` collars (default 2) | `axis-front`, `axis-rear` |
+| `frame-plate` | `[width, height, thickness]`, a mounting plate with `n` axle holes (default 3, 1 to 8) in a row along x and bolts at the corners | `front`, `back`, `hole1`, `hole2`... |
+| `turbine` | `[diameter, diameter, length]`, axis z, a hub with a nose cone and `n` twisted blades (default 14); variant `ducted` adds a casing ring | `axis` |
+| `coil` | `[diameter, length, diameter]`, copper wire in `n` turns (default 12) round an iron core between end flanges; the electromagnet | `top`, `bottom` |
+| `magnet` | `[width, length, depth]`, a bar magnet along y, the north half red and up, the south half blue and down | `north`, `south` |
+| `ramp` | `[length, height, width]`, a right-angled wedge low at -x and high at +x; the inclined plane | `foot`, `crest`, `slope` |
+| `fulcrum` | `[width, height, depth]`, a triangular stand with a pivot pin near its apex | `pivot`, `base` |
+| `bolt` | `[head width, length, head width]`, a hex head up and `n` thread ridges (default 8) down the shank | `head`, `tip` |
+
+### Assemblies: working mechanisms as one part
+
+`add part` also takes the name of a working mechanism built from kit parts, already meshed, attached and coupled with the right ratios and directions. It is expanded by the validator into a group (the `add`'s id) and one object for each piece (`<id>-<piece>`), a few named anchors, and the spins, loops, joints and couplings that make it go; each action is validated like one the author wrote, so the author may recolour, label, explode or cut any piece, take over any motion, or build a mechanism of their own instead. The group takes `parent`, `parentAnchor`, `pos`, `rot` and `at` like any group; `color` tints the main piece; `n` sets the count the row names (stages, teeth, planets, lever class), held to its range with a note. An id longer than the piece names allow (31 characters less the longest piece name) is refused. The names are not in the guide's part list (the question text names a matching assembly instead); the rows are in `src/scene/assembly-rows.ts`.
+
+| assembly | default size | `n` | pieces to drive or label | what it does |
+| --- | --- | --- | --- | --- |
+| `gear-train` | `[14,7,4]` | stages 1 to 4 (2) | `pinion0`, `gear1`... | a small gear of 12 teeth driving a gear of 36 on each next shaft: a third of the speed, the other way round, stage after stage |
+| `rack-and-pinion` | `[12,5,2]` | pinion teeth 8 to 24 (12) | `pinion`, `rack` | the pinion rocks (swing loop) and the bar goes the length of the pitch circle that rolls |
+| `crank-slider` | `[4.3,8.3,3.8]` | | `crankshaft`, `piston` | the engine's crank, rod and piston, scaled to the box |
+| `cam-follower` | `[3,8,6]` | | `camshaft`, `valve` | a lobed shaft lifting a valve |
+| `lever` | `[12,5,2.4]` | class 1 to 3 (1) | `beam`, `fulcrum`, `load`, `effort` | the beam rocks about a fulcrum placed for the class |
+| `differential` | `[12,8.7,13]` | | `pinion`, `ring`, `carrier`, `spider-top`, `side-left`, `axle-left` | a pinion of 12 on a ring of 36 at right angles (bevel gears with apexes together), spiders on the carrier, two side gears; the axles turn together as twice the carrier and a little apart (cornering) |
+| `planetary` | `[10,10,2]` | planets 2 to 4 (3) | `sun`, `ring`, `carrier`, `planet0`... | a sun of 12, planets of 12, a fixed ring of 36 (teeth inward): the carrier turns at a quarter of the sun |
+| `four-bar-linkage` | `[10,6,2]` | | `crank-arm`, `coupler`, `rocker`, `ground` | the parallelogram form only: the coupler stays level, the rocker follows the crank turn for turn |
+| `bicycle-drivetrain` | `[18,14,6]` | | `chainring`, `sprocket`, `wheel`, `chain`, `pedal` | 44 teeth driving 16 by a wrapped chain, 2.75 turns for one, the same way, the wheel with the sprocket, the pedal level |
+| `block-and-tackle` | `[7,12,2]` | | `load`, `hand`, `fixed`, `moving` | a fixed and a moving sheave, two strands: the hand goes twice as far as the load rises; each sheave turns by the rope laid on it |
+
+Not made: a clock escapement (its stepping is not a linear spin or coupling), a general four-bar (the rocker's angle comes from solving the loop, not from a ratio), pulley tackles of more than two strands.
 
 ### Assembling at named anchors
 

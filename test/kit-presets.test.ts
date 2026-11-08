@@ -47,8 +47,9 @@ test('formulas read only numbers, names and a short list of functions; nothing e
   assert.equal(evaluate('a', s), 1);
 });
 
-test('the table holds the thirteen mechanism parts, each a part the scene language names, and every row evaluates', () => {
-  assert.deepEqual(kitParts(), ['cylinder-block', 'piston', 'connecting-rod', 'crankshaft', 'valve', 'camshaft', 'spark-plug', 'gear', 'spring', 'bearing', 'pipe', 'elbow', 'housing']);
+test('the table holds the thirteen first mechanism parts and the twelve added as rows, each a part the scene language names, and every row evaluates', () => {
+  assert.deepEqual(kitParts(), ['cylinder-block', 'piston', 'connecting-rod', 'crankshaft', 'valve', 'camshaft', 'spark-plug', 'gear', 'spring', 'bearing', 'pipe', 'elbow', 'housing',
+    'pulley', 'sprocket', 'bevel-gear', 'rack', 'shaft', 'frame-plate', 'turbine', 'coil', 'magnet', 'ramp', 'fulcrum', 'bolt']);
   for (const part of kitParts()) assert.ok(PARTS.includes(part as never), part);
   for (const part of kitParts()) {
     for (const size of [[1, 1, 1], [2, 3, 2.5], [4, 1, 0.5]] as Vec3[]) {

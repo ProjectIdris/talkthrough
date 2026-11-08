@@ -76,8 +76,8 @@ test('an anchor of the parent called right that is not on its right is not read 
 });
 
 test('the guide gives the rule and the facings, and no longer only the port', () => {
-  assert.match(sceneGuide, /turns to face out of it unless you give rot/);
-  assert.match(sceneGuide, /port, lens, screen \+z/);
-  assert.match(sceneGuide, /chip, header, button, fan \+y/);
+  assert.match(sceneGuide, /turns to face out unless rot is given/);
+  assert.match(sceneGuide, /\+z faces: port, lens, screen/);
+  assert.match(sceneGuide, /\+y: chip, header, button, fan/);
   assert.ok(!/opening faces \+z/.test(sceneGuide), 'the old port-only sentence is gone');
 });

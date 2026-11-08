@@ -103,7 +103,7 @@ test('catalogue covers each public built-in once with spec-derived parameter bou
 });
 
 test('every built-in example validates unchanged and remains individually addressable', () => {
-  assert.equal(partCards.length, 21);
+  assert.equal(partCards.length, 33);
   for (const c of partCards) {
     const state = createSceneState();
     const scene = { steps: [{ say: 'An example.', actions: [c.example] }] };
@@ -120,7 +120,7 @@ test('every built-in example validates unchanged and remains individually addres
 
 test('curated aliases find existing parts and do not promise unavailable assemblies', () => {
   const index = createCatalogue(partCards);
-  for (const [query, expected] of [['usb-c', 'port'], ['cog', 'gear'], ['tyre', 'wheel'], ['coil', 'spring'], ['enclosure', 'housing']]) {
+  for (const [query, expected] of [['usb-c', 'port'], ['cog', 'gear'], ['tyre', 'wheel'], ['coil', 'coil'], ['helical spring', 'spring'], ['enclosure', 'housing']]) {
     assert.equal(index.search(query!).cards[0]?.id, expected, query);
   }
   assert.deepEqual(index.search('ribosome').cards, []);

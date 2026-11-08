@@ -25,7 +25,7 @@ test('offline native fixture proves pixels before a complete step without report
     assert.equal(report.renderer.streamedBeforeStepClose, true);
     assert.equal(report.renderer.blockedRequests, 0);
     assert.ok(report.renderer.markerPixels >= 12);
-    assert.equal(report.catalogue.entries, 21);
+    assert.equal(report.catalogue.entries, 33);
     assert.ok(report.catalogue.responseBytes <= 4096);
     assert.equal(report.pipeline.acceptedActions, 1);
     assert.equal(report.pipeline.validationIssues, 0);

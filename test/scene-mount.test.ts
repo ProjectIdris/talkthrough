@@ -177,8 +177,8 @@ test('full and lean model schemas and compact guide expose the mounting contract
   assert.ok(sceneGuide.includes('parentAnchor'));
   assert.ok(sceneGuide.includes('selfAnchor'));
   assert.ok(sceneGuide.includes('stays attached whatever moves'));
-  assert.ok(sceneGuide.includes('pipe: top,bottom'));
-  assert.ok(sceneGuide.includes('pin1 through pinN'));
+  assert.match(sceneGuide, /\bpipe[^;:]*: top,bottom/, 'the pipe is listed with its points');
+  assert.ok(sceneGuide.includes('pin1 to pinN'));
 });
 
 test('anchor field values remain bounded plain data and unsupported values do not make a child', () => {

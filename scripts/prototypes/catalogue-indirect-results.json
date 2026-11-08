@@ -1674,9 +1674,9 @@
           "meanReciprocalRank": 0.8888888888888888,
           "macroRecall": 0.9,
           "microRecall": 0.9230769230769231,
-          "microPrecision": 0.7792207792207793,
+          "microPrecision": 0.7692307692307693,
           "expectedTargets": 65,
-          "retrievedCards": 77,
+          "retrievedCards": 78,
           "relevantRetrieved": 60,
           "correctAbstentions": 15,
           "falsePositiveCases": 4,
@@ -1759,15 +1759,15 @@
             "meanReciprocalRank": 1,
             "macroRecall": 1,
             "microRecall": 1,
-            "microPrecision": 1,
+            "microPrecision": 0.8888888888888888,
             "expectedTargets": 8,
-            "retrievedCards": 8,
+            "retrievedCards": 9,
             "relevantRetrieved": 8,
             "correctAbstentions": 0,
             "falsePositiveCases": 0,
             "abstentionAccuracy": null,
             "emptyRelevantCases": 0,
-            "maxResponseBytes": 1561,
+            "maxResponseBytes": 1758,
             "budgetViolations": 0
           },
           "negation": {
@@ -1803,9 +1803,9 @@
             "meanReciprocalRank": 0.8888888888888888,
             "macroRecall": 0.9,
             "microRecall": 0.9230769230769231,
-            "microPrecision": 0.7792207792207793,
+            "microPrecision": 0.7692307692307693,
             "expectedTargets": 65,
-            "retrievedCards": 77,
+            "retrievedCards": 78,
             "relevantRetrieved": 60,
             "correctAbstentions": 15,
             "falsePositiveCases": 4,
@@ -2994,15 +2994,18 @@
             ],
             "rationale": "The rolling-element support is available; fasteners are not.",
             "returnedIds": [
-              "bearing"
+              "bearing",
+              "bolt"
             ],
             "missingIds": [],
-            "unexpectedIds": [],
-            "precision": 1,
+            "unexpectedIds": [
+              "bolt"
+            ],
+            "precision": 0.5,
             "recall": 1,
             "reciprocalRank": 1,
             "correctAbstention": null,
-            "responseBytes": 1023,
+            "responseBytes": 1758,
             "withinBudget": true,
             "truncated": false,
             "error": null
@@ -11770,6 +11773,7 @@
         "Electron/renderer startup and the negative control occur before the request clock.",
         "Pixel detection and offscreen readback add instrumentation cost; do not treat this as production latency."
       ]
-    }
+    },
+    "keptParts": "The independent-v4 candidate is recorded again after twelve parts joined the catalogue (pulley, sprocket, bevel-gear, rack, shaft, frame-plate, turbine, coil, magnet, ramp, fulcrum, bolt). One case differs from the frozen record because the part now exists: iv4-052 (a threaded bolt is a bolt), where bolt is now returned beside the bearing. Top-1 accuracy is unchanged; the shaft and coil cards carry conflict words so that a lobed shaft stays a camshaft and a helical or elastic coil stays a spring. The baseline and the other corpora are as frozen."
   }
 }

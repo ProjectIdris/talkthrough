@@ -3741,8 +3741,31 @@
             "bearing",
             "pipe",
             "elbow",
-            "housing"
-          ]
+            "housing",
+            "pulley",
+            "sprocket",
+            "bevel-gear",
+            "rack",
+            "shaft",
+            "frame-plate",
+            "turbine",
+            "coil",
+            "magnet",
+            "ramp",
+            "fulcrum",
+            "bolt",
+            "gear-train",
+            "rack-and-pinion",
+            "crank-slider",
+            "cam-follower",
+            "lever",
+            "differential",
+            "planetary",
+            "four-bar-linkage",
+            "bicycle-drivetrain",
+            "block-and-tackle"
+          ],
+          "description": "a part name; another name is taken to the nearest part"
         },
         "variant": {
           "enum": [
@@ -3756,6 +3779,9 @@
             "gold",
             "cutaway",
             "finned",
+            "block",
+            "ducted",
+            "internal",
             null
           ]
         },
@@ -3822,7 +3848,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Their anchors and origin work for pins, connectors and parentAnchor/selfAnchor. Attached by a face of its parent (right, top, front...), a part turns to face out of it unless you give rot; faces: port, lens, screen +z, chip, header, button, fan +y."
+      "description": "A ready-made part fitted to the box size [x,y,z]. Axis y unless marked z. Electronics: chip (variant black or metal), header (n pins per row), port (variant usb, usb3, ethernet, hdmi, usbc), lens, screen, button, fan (n blades), wheel (n spokes, z). Mechanism (anchors): cylinder-block (variant cutaway or finned): bore-top,bore-bottom,front; piston: crown,pin; connecting-rod (small end up): big-end,small-end; crankshaft (n throws, z): pin,axis-front,axis-rear,throw; valve (head down), bolt (n thread ridges, head up): head,tip; camshaft (n lobes, z), shaft (n collars, z): axis-front,axis-rear; spark-plug (tip down): tip,terminal; gear (n teeth, z), bearing (n balls, z), sprocket (n teeth, z), bevel-gear (n teeth, narrows to +z, z), turbine (n blades, variant ducted, z): axis; spring (n coils), pipe, coil (n turns): top,bottom; elbow: a,b; housing (variant cutaway): front,back; pulley (variant block, z): axis,hook; rack (n teeth, along x): start,end,teeth; frame-plate (n holes along x): front,back,hole; magnet: north,south; ramp: foot,crest,slope; fulcrum: pivot,base. Anchors (and origin) serve pins, connectors, attaching; numbered: pin1 to pinN (crankshaft n>1), hole1 to holeN. On a face of its parent (right, top...) a part turns to face out unless rot is given; +z faces: port, lens, screen; +y: chip, header, button, fan."
     },
     "addModel": {
       "type": "object",

@@ -21,6 +21,7 @@ function describe(f: Field): string | undefined {
   if (f.k === 'pts') parts.push(`${f.min} to ${f.max} points [x,y,z]`);
   if (f.k === 'str') parts.push(`up to ${f.max} characters`);
   if (f.k === 'material') parts.push(`a material name (families: ${MATERIAL_FAMILIES.join(', ')}); another name is taken to the nearest material`);
+  if (f.k === 'part') parts.push('a part name; another name is taken to the nearest part');
   if (f.k === 'color') parts.push(`a colour name (${PALETTE.join(', ')}) or hex "#rrggbb"`);
   if (f.k === 'target') parts.push('an id, or "all", "marks" or "panel"');
   return parts.length ? parts.join('; ') : undefined;
@@ -34,7 +35,7 @@ function fieldSchema(f: Field, descriptions: boolean): Schema {
     case 'num': s = { type: nullable('number') }; break;
     case 'str': case 'newId': case 'ref': case 'parent': case 'target': s = { type: nullable('string') }; break;
     case 'color': case 'material': s = { type: nullable('string') }; break;
-    case 'enum': s = { enum: opt ? [...f.values, null] : [...f.values] }; break;
+    case 'enum': case 'part': s = { enum: opt ? [...f.values, null] : [...f.values] }; break;
     case 'bool': s = { type: nullable('boolean') }; break;
     case 'vec2': s = { type: nullable('array'), items: { type: 'number' } }; break;
     case 'pts2': s = { type: nullable('array'), items: { type: 'array', items: { type: 'number' } } }; break;

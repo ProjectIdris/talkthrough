@@ -26,6 +26,18 @@ const descriptions: Record<PartName, Description> = {
   pipe: { summary: 'Straight pipe along y. For a custom curved path, use the ordinary tube primitive instead.' },
   elbow: { summary: 'Pipe elbow oriented from the y axis.' },
   housing: { summary: 'Mechanical housing along y, optionally cut away.', variants: ['cutaway'] },
+  pulley: { summary: 'Grooved rope wheel around z; variant block adds cheek plates and a hook.', variants: ['block'] },
+  sprocket: { summary: 'Chain wheel around z with pointed teeth. n is tooth count.', n: 'teeth' },
+  'bevel-gear': { summary: 'Cone-shaped toothed gear around z, for turning a drive through a right angle. n is tooth count.', n: 'teeth' },
+  rack: { summary: 'Straight toothed bar along x that a pinion drives. n is tooth count.', n: 'teeth' },
+  shaft: { summary: 'Round axle around z with chamfered ends and collars. n is collar count.', n: 'collars' },
+  'frame-plate': { summary: 'Flat mounting plate with a row of axle holes along x and corner bolts. n is hole count.', n: 'holes' },
+  turbine: { summary: 'Bladed disc around z with a hub, nose cone and twisted blades; variant ducted adds a casing ring. n is blade count.', n: 'blades', variants: ['ducted'] },
+  coil: { summary: 'Copper wire winding round an iron core between end flanges along y; the electromagnet. n is turn count.', n: 'turns' },
+  magnet: { summary: 'Bar magnet along y with a red north half up and a blue south half down.' },
+  ramp: { summary: 'Right-angled wedge, low at -x and high at +x; the inclined plane.' },
+  fulcrum: { summary: 'Triangular stand with a pivot pin near its apex, the support a lever turns on.' },
+  bolt: { summary: 'Hex-headed bolt along y with its head up and thread ridges down the shank. n is ridge count.', n: 'ridges' },
 };
 
 // Maintained discovery vocabulary, not learned from user questions. Multiword aliases are
@@ -52,6 +64,18 @@ const discovery: Record<PartName, { tags: string[]; topics: string[]; keywords?:
   pipe: { tags: ['straight pipe', 'straight conduit', 'tuyau', 'Rohr', 'tuberia', 'パイプ'], topics: ['plumbing', 'mechanical'], conflicts: ['smoking', 'tobacco', 'unix', 'shell', 'software'] },
   elbow: { tags: ['pipe elbow', 'pipe bend', 'right angle pipe', 'coude de tuyau', 'Rohrbogen', 'codo de tuberia', 'エルボ管'], topics: ['plumbing', 'mechanical'], conflicts: ['human', 'arm', 'forearm', 'anatomy', 'joint'] },
   housing: { tags: ['casing', 'mechanical casing', 'protective casing', 'enclosure', 'boitier', 'Gehause', 'carcasa', '筐体'], topics: ['mechanical'], conflicts: ['affordable', 'apartment', 'residential', 'city', 'estate'] },
+  pulley: { tags: ['sheave', 'rope wheel', 'block and tackle', 'pulley block', 'poulie', 'Seilrolle', 'polea', '滑車'], topics: ['mechanical', 'simple machines'], conflicts: ['hair', 'ship'] },
+  sprocket: { tags: ['chain wheel', 'chainring', 'bicycle sprocket', 'pignon', 'Kettenrad', 'piñón', 'スプロケット'], topics: ['mechanical', 'transmission'] },
+  'bevel-gear': { tags: ['bevel gear', 'conical gear', 'differential gear', 'miter gear', 'engrenage conique', 'Kegelrad', 'engranaje cónico', '傘歯車'], topics: ['mechanical', 'transmission'] },
+  rack: { tags: ['gear rack', 'rack and pinion', 'toothed bar', 'crémaillère', 'Zahnstange', 'cremallera', 'ラック'], topics: ['mechanical', 'transmission'], conflicts: ['shelf', 'ribs', 'lamb', 'storage', 'server', 'bike', 'luggage', 'roof'] },
+  shaft: { tags: ['drive shaft', 'spindle', 'arbre', 'Welle', 'eje', '軸'], topics: ['mechanical'], conflicts: ['light', 'mine', 'elevator', 'ray', 'engine', 'lobe', 'lobes', 'lobed', 'timing', 'throws', 'balls'] },
+  'frame-plate': { tags: ['mounting plate', 'base plate', 'support plate', 'plaque de montage', 'Montageplatte', 'placa de montaje', '取付板'], topics: ['mechanical'] },
+  turbine: { tags: ['jet engine', 'compressor', 'impeller', 'turbofan', 'turbine blades', 'turbine', 'réacteur', 'Turbine', 'turbina', 'タービン'], topics: ['mechanical', 'aerospace'], conflicts: ['wind', 'water'] },
+  coil: { tags: ['winding', 'electromagnet', 'solenoid', 'inductor', 'bobine', 'Spule', 'bobina', 'コイル'], topics: ['electronics', 'electromagnetism'], conflicts: ['hair', 'snake', 'spring', 'helical', 'return', 'elastic'] },
+  magnet: { tags: ['bar magnet', 'permanent magnet', 'north and south pole', 'aimant', 'Magnet', 'imán', '磁石'], topics: ['magnetism', 'physics'], conflicts: ['fridge', 'person', 'attraction'] },
+  ramp: { tags: ['inclined plane', 'incline', 'slope', 'wedge', 'plan incliné', 'schiefe Ebene', 'plano inclinado', '斜面'], topics: ['physics', 'simple machines'], conflicts: ['wheelchair', 'skate', 'loading', 'access'] },
+  fulcrum: { tags: ['lever support', 'pivot stand', 'lever pivot', 'point d appui', 'Drehpunkt', 'punto de apoyo', '支点'], topics: ['physics', 'simple machines'] },
+  bolt: { tags: ['hex bolt', 'threaded fastener', 'boulon', 'Schraube', 'perno', 'ボルト'], topics: ['mechanical', 'fasteners'], conflicts: ['lightning', 'run', 'dash', 'crossbow'] },
 };
 
 // Explicit descriptive evidence is separate from presentation prose and broad categories.
@@ -78,6 +102,18 @@ const keywords: Record<PartName, string[]> = {
   pipe: ['straight', 'hollow', 'fluid', 'water', 'plumbing', 'conduit', 'pipework'],
   elbow: ['bend', 'bends', 'fitting', 'angle', 'fluid', 'plumbing', 'pipework', 'direction'],
   housing: ['protective', 'case', 'casing', 'enclosure', 'shell', 'cutaway', 'mechanical'],
+  pulley: ['rope', 'groove', 'lift', 'hoist', 'hang', 'wheel', 'axle'],
+  sprocket: ['chain', 'teeth', 'bicycle', 'drive', 'rollers', 'rotation'],
+  'bevel-gear': ['conical', 'differential', 'bevel', 'mesh'],
+  rack: ['linear', 'straight', 'teeth', 'pinion', 'steering', 'slide'],
+  shaft: ['collar', 'spindle', 'driveshaft'],
+  'frame-plate': ['baseplate', 'holes', 'axles', 'bushing', 'bolts'],
+  turbine: ['jet', 'engine', 'blades', 'compressor', 'thrust', 'airflow', 'rotor'],
+  coil: ['copper', 'wire', 'winding', 'magnetic', 'field', 'induction', 'motor'],
+  magnet: ['north', 'south', 'pole', 'poles', 'field', 'attract', 'iron'],
+  ramp: ['incline', 'inclined', 'slope', 'slide', 'roll', 'wedge', 'gradient'],
+  fulcrum: ['lever', 'pivot', 'balance', 'seesaw', 'support', 'stand'],
+  bolt: ['thread', 'threaded', 'fastener', 'hex', 'nut', 'screw', 'tighten'],
 };
 
 // Each profile combines independent shape/function/context facts. Alternatives name a
@@ -111,6 +147,18 @@ const descriptors: Record<PartName, NonNullable<ComponentCard['descriptors']>> =
   elbow: [[['tube', 'conduit', 'plumbing', 'fluid', 'pipe'], ['bend', 'right angle', 'corner', 'ninety degree']]],
   housing: [[['protect', 'enclose', 'surround', 'cover'], ['mechanism', 'machinery', 'mechanical', 'internal parts']],
     [['case', 'shell', 'enclosure'], ['protect', 'cutaway']]],
+  pulley: [[['rope', 'cable', 'cord'], ['groove', 'sheave', 'lift', 'hoist', 'wheel']]],
+  sprocket: [[['chain', 'roller chain'], ['tooth', 'teeth', 'wheel', 'drive']]],
+  'bevel-gear': [[['cone', 'conical', 'bevel'], ['tooth', 'teeth', 'mesh', 'differential']]],
+  rack: [[['straight', 'linear', 'bar'], ['tooth', 'teeth', 'pinion', 'rack']]],
+  shaft: [[['spindle', 'drive shaft', 'driveshaft'], ['rotate', 'carry', 'collar']]],
+  'frame-plate': [[['mounting plate', 'frame plate', 'base plate'], ['hole', 'axle', 'bushing']]],
+  turbine: [[['blade', 'blades', 'vane'], ['jet', 'compressor', 'thrust', 'hub', 'rotor']]],
+  coil: [[['copper', 'wire', 'winding'], ['magnet', 'magnetic', 'induct', 'core']]],
+  magnet: [[['north', 'south', 'pole'], ['magnet', 'magnetic', 'attract', 'field']]],
+  ramp: [[['incline', 'inclined', 'slope'], ['plane', 'ramp', 'roll', 'slide', 'wedge']]],
+  fulcrum: [[['lever', 'seesaw', 'balance'], ['pivot', 'support', 'turn', 'stand']]],
+  bolt: [[['thread', 'threaded', 'screw'], ['fasten', 'tighten', 'hex', 'bolt']]],
 };
 
 const fields = VARIANTS.find(v => v.name === 'addPart')!.fields;

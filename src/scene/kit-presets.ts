@@ -43,6 +43,14 @@ export type Anchor = Flow & { name: string; suffix?: E; at: Triple };
 
 export type Setting = { default: number; min?: number; max?: number };
 export type KitRow = {
+  /** What the guide says of the part beside its name: what n counts, its variants, its axis when it is z. */
+  note?: string;
+  /** Other names the part is known by; a scene that writes one is read as this part, with a note. */
+  aka?: readonly string[];
+  /** The colour (red, green, blue) the part has until a scene gives one. */
+  color?: readonly [number, number, number];
+  /** A part that is a disc turning about its z axis (a rope or belt goes round its rim). */
+  disc?: boolean;
   /** The fitting rules, in order, that turn the size written into the size the part is built to (named in part-geometry.ts). */
   fit?: readonly string[];
   /** `n`: what the author's count means for this part, its default and its limits. */
@@ -59,6 +67,9 @@ const ring = (o: E, i: E) => ({ ring: [o, i] as const });
 const presets = {
   // A block with a bore, optionally cut open to show inside (a hatched section), optionally finned (n fins).
   'cylinder-block': {
+    note: 'variant cutaway or finned',
+    aka: ['engine block'],
+    color: [132, 142, 158],
     settings: { n: { default: 6 } },
     values: [['bore', 'min(sx,sz)*0.36'], ['cut', "variant == 'cutaway'"], ['wall', 'sx/2-bore'], ['m', 'min(sx,sz)*0.11']],
     anchors: [{ name: 'bore-top', at: [0, 'sy/2', 0] }, { name: 'bore-bottom', at: [0, '-sy/2', 0] }, { name: 'front', at: [0, 0, 'sz/2'] }],
@@ -82,6 +93,7 @@ const presets = {
 
   // A crown rounded over, three ring grooves in the land with the rings sitting proud in them, and a wrist pin.
   piston: {
+    color: [200, 206, 216],
     fit: ['roundAboutY'],
     values: [['r', 'sx/2'], ['top', 'sy/2'], ['groove', 'sy*0.045'], ['depth', 'r*0.07'], ['pinDrop', 'sy*0.1']],
     anchors: [{ name: 'crown', at: [0, 'sy/2', 0] }, { name: 'pin', at: [0, '-pinDrop', 0] }],
@@ -101,6 +113,9 @@ const presets = {
 
   // Big end, tapered shaft with a rib down it, small end; the small end is up.
   'connecting-rod': {
+    note: 'small end up',
+    aka: ['conrod'],
+    color: [168, 174, 186],
     fit: ['lengthAlongY'],
     values: [['rb', 'sx/2'], ['rs', 'sx*0.3'], ['big', '-sy/2 + rb'], ['small', 'sy/2 - rs'], ['length', 'small - big']],
     anchors: [{ name: 'big-end', at: [0, 'big', 0] }, { name: 'small-end', at: [0, 'small', 0] }],
@@ -118,6 +133,9 @@ const presets = {
 
   // A main journal along z, and for each of n throws two webs, a counterweight opposite the pin, and the pin. The throws are spread evenly round the turn.
   crankshaft: {
+    note: 'n throws, z',
+    aka: ['crank'],
+    color: [108, 114, 128],
     settings: { n: { default: 1, min: 1, max: 8 } },
     values: [['m', 'min(sx,sy)'], ['throw', 'min(sx,sy)*0.3'], ['rj', 'm*0.11'], ['rp', 'rj*0.92'], ['pitch', 'sz/n'], ['web', 'min(pitch*0.16, sz*0.12)'], ['half', '62*deg']],
     anchors: [
@@ -141,6 +159,8 @@ const presets = {
 
   // A lathe-turned stem and head; the head points down.
   valve: {
+    note: 'head down',
+    color: [190, 196, 206],
     fit: ['lengthAlongY', 'roundAboutY'],
     values: [['rh', 'sx/2'], ['rs', 'sx*0.09'], ['y0', '-sy/2']],
     anchors: [{ name: 'head', at: [0, '-sy/2', 0] }, { name: 'tip', at: [0, 'sy/2', 0] }],
@@ -153,6 +173,9 @@ const presets = {
 
   // A shaft along z with n lobes, each with its nose at +y when the shaft is at angle 0, and a bearing journal near each end.
   camshaft: {
+    note: 'n lobes, z',
+    aka: ['cam shaft'],
+    color: [140, 146, 158],
     fit: ['shaftAboutZ'],
     settings: { n: { default: 4, min: 1, max: 12 } },
     values: [['rs', 'sx*0.15'], ['rBase', 'sx*0.27'], ['rNose', 'sx/2'], ['pitch', 'sz/n'], ['lobeW', 'min(pitch*0.34, sz*0.3)'], ['steps', 72], ['flank', '64*deg']],
@@ -179,6 +202,9 @@ const presets = {
 
   // Thread, hex, ceramic, terminal and the electrode; the tip points down.
   'spark-plug': {
+    note: 'tip down',
+    aka: ['sparkplug'],
+    color: [176, 182, 194],
     fit: ['lengthAlongY', 'roundAboutY'],
     values: [['y0', '-sy/2'], ['shellR', 'sx*0.34'], ['teeth', 9]],
     anchors: [{ name: 'tip', at: [0, '-sy/2', 0] }, { name: 'terminal', at: [0, 'sy/2', 0] }],
@@ -198,12 +224,17 @@ const presets = {
 
   // n teeth round the rim, a bore, lightening holes (from 14 teeth up) and a hub; the axis is z.
   gear: {
+    note: 'n teeth, z',
+    aka: ['cog', 'cogwheel', 'spur gear'],
+    color: [190, 170, 120],
+    disc: true,
     fit: ['discAboutZ'],
     settings: { n: { default: 16, min: 6, max: 120 } },
-    values: [['rOut', 'sx/2'], ['rRoot', 'rOut*(n > 40 ? 0.93 : 0.86)'], ['pitch', 'pi*2/n'], ['holes', 'min(6, floor(n/3))']],
+    values: [['rOut', 'sx/2'], ['rRoot', 'rOut*(n > 40 ? 0.93 : 0.86)'], ['pitch', 'pi*2/n'], ['holes', 'min(6, floor(n/3))'],
+      ['inn', "variant == 'internal'"], ['rv', 'rOut/1.1'], ['rti', 'rv*0.93']],
     anchors: [{ name: 'axis', at: [0, 0, 'sz/2'] }],
     features: [
-      { kind: 'slab', surface: 'metal', tint: true, edges: true, depth: 'sz', bevel: 'min(sz*0.12, 0.05)',
+      { kind: 'slab', when: '!inn', surface: 'metal', tint: true, edges: true, depth: 'sz', bevel: 'min(sz*0.12, 0.05)',
         outline: {
           path: [
             { for: { as: 'i', count: 'n' }, let: [['a', 'i*pitch']],
@@ -213,12 +244,20 @@ const presets = {
           ],
           holes: [{ circle: [0, 0, 'rOut*0.16'] }, { when: 'n >= 14', for: { as: 'i', count: 'holes' }, let: [['a', '(i/holes)*pi*2']], circle: ['cos(a)*rOut*0.5', 'sin(a)*rOut*0.5', 'rOut*0.11'] }],
         } },
-      { kind: 'cylinder', surface: 'metal', color: 'darkSteel', edges: true, axis: 'z', r: 'rOut*0.26', h: 'sz*1.25', sides: 'curve' },
+      { kind: 'cylinder', when: '!inn', surface: 'metal', color: 'darkSteel', edges: true, axis: 'z', r: 'rOut*0.26', h: 'sz*1.25', sides: 'curve' },
+      // The internal variant: a ring gear, teeth pointing inward from the valley radius rv (what an outside gear's tip radius is), outside radius sx/2.
+      { kind: 'slab', when: 'inn', surface: 'metal', tint: true, edges: true, depth: 'sz', bevel: 'min(sz*0.12, 0.05)', outline: ring('rOut', 'rv') },
+      { kind: 'slab', when: 'inn', for: { as: 'i', count: 'n' }, let: [['a', 'i*pitch']], surface: 'metal', tint: true, edges: true, depth: 'sz', bevel: 'min(sz*0.12, 0.05)',
+        outline: { path: [['P', 'cos(a - 0.25*pitch)*rv*1.02', 'sin(a - 0.25*pitch)*rv*1.02'], ['P', 'cos(a - 0.17*pitch)*rti', 'sin(a - 0.17*pitch)*rti'],
+          ['P', 'cos(a + 0.17*pitch)*rti', 'sin(a + 0.17*pitch)*rti'], ['P', 'cos(a + 0.25*pitch)*rv*1.02', 'sin(a + 0.25*pitch)*rv*1.02'], ['Z']] } },
     ],
   },
 
   // A coil of wire along y, n turns, the end coils flat on their seats.
   spring: {
+    note: 'n coils',
+    aka: ['coil spring'],
+    color: [150, 156, 168],
     fit: ['lengthAlongY', 'roundAboutY'],
     settings: { n: { default: 8, min: 2, max: 40 } },
     values: [['wire', 'max(0.01, min(sx*0.07, (sy/n)*0.34))'], ['r', 'sx/2 - wire']],
@@ -228,6 +267,10 @@ const presets = {
 
   // Outer race, inner race, n balls between them and a seal; the axis is z.
   bearing: {
+    note: 'n balls, z',
+    aka: ['ball bearing'],
+    color: [160, 166, 178],
+    disc: true,
     fit: ['discAboutZ'],
     settings: { n: { default: 9, min: 5, max: 16 } },
     values: [['ro', 'sx/2'], ['rb', 'ro*0.1'], ['pitch', 'ro*0.7']],
@@ -242,6 +285,8 @@ const presets = {
 
   // A hollow tube with a flange at each end; the box holds the flanges.
   pipe: {
+    aka: ['tube'],
+    color: [150, 158, 172],
     fit: ['lengthAlongY', 'roundAboutY'],
     values: [['ro', 'sx/2/1.28'], ['ri', 'ro*0.84'], ['h', 'sy/2']],
     anchors: [{ name: 'top', at: [0, 'sy/2', 0] }, { name: 'bottom', at: [0, '-sy/2', 0] }],
@@ -254,6 +299,7 @@ const presets = {
 
   // A quarter bend with a flange at each end; the tube's outside, end to end, is the smaller of the box's two sides.
   elbow: {
+    color: [150, 158, 172],
     fit: ['elbowSize'],
     values: [['r', 'sz/2'], ['bend', 'max(r*1.2, min(sx,sy) - 2*r)'], ['cx', '-bend/2'], ['cy', '-bend/2']],
     anchors: [{ name: 'a', at: ['cx + bend', 'cy', 0] }, { name: 'b', at: ['cx', 'cy + bend', 0] }],
@@ -267,6 +313,9 @@ const presets = {
 
   // A casing with a lip and a bolt in each corner; "cutaway" leaves the front open so the inside shows.
   housing: {
+    note: 'variant cutaway',
+    aka: ['casing', 'case'],
+    color: [112, 124, 144],
     values: [['t', 'min(sx,sy,sz)*0.07'], ['cut', "variant == 'cutaway'"]],
     anchors: [{ name: 'front', at: [0, 0, 'sz/2'] }, { name: 'back', at: [0, 0, '-sz/2'] }],
     features: [
@@ -280,6 +329,219 @@ const presets = {
       { kind: 'box', when: '!cut', surface: 'enamel', tint: true, edges: true, size: ['sx*1.04', 'sy*1.04', 't*0.6'], radius: 't*0.2', pos: [0, 0, 'sz/2 - t*0.3'] },
       { kind: 'bolts', surface: 'metal', r: 't*0.5', h: 't*0.6', axis: 'z',
         at: [{ for: [{ as: 'i', in: [-1, 1] }, { as: 'j', in: [-1, 1] }], p: ['i*(sx/2 - t*1.1)', 'j*(sy/2 - t*1.1)', 'sz/2 - t*0.1'] }] },
+    ],
+  },
+
+  // A grooved wheel: a rim with a rounded groove for the rope, a thin web, a hub and an axle. The block variant adds a cheek plate either side and a hook eye above it.
+  pulley: {
+    note: 'variant block, z',
+    aka: ['sheave', 'pulley wheel', 'pulley block'],
+    color: [168, 174, 186],
+    disc: true,
+    fit: ['discAboutZ'],
+    values: [['ro', 'sx/2'], ['rIn', 'ro*0.7'], ['rg', 'ro*0.88'], ['hs', 'sz*0.3'], ['gw', 'sz*0.12'], ['blk', "variant == 'block'"], ['cheek', 'sz*0.16'], ['axleLen', 'blk ? sz + 2*cheek + sz*0.35 : sz*1.3']],
+    anchors: [{ name: 'axis', at: [0, 0, 'sz/2'] }, { name: 'hook', at: [0, 'ro*2.15', 0] }],
+    features: [
+      { kind: 'lathe', surface: 'metal', tint: true, edges: false, sides: 'curve', crease: 0.7, xf: [['rotateX', 'pi/2']],
+        points: [['rIn', '-sz/2'], ['ro*0.96', '-sz/2'], ['ro', '-sz/2 + sz*0.06'], ['ro', '-hs'], ['rg', '-gw'], ['rg', 'gw'], ['ro', 'hs'], ['ro', 'sz/2 - sz*0.06'], ['ro*0.96', 'sz/2'], ['rIn', 'sz/2'], ['rIn', '-sz/2']] },
+      { kind: 'cylinder', surface: 'metal', tint: true, edges: true, axis: 'z', r: 'rIn*1.002', h: 'sz*0.46', sides: 'curve' },
+      { kind: 'cylinder', surface: 'metal', color: 'darkSteel', edges: true, axis: 'z', r: 'ro*0.24', h: 'sz*0.9', sides: 'curve' },
+      { kind: 'cylinder', surface: 'metal', color: 'bright', edges: true, axis: 'z', r: 'ro*0.09', h: 'axleLen', sides: 'curve' },
+      { kind: 'slab', when: 'blk', for: SIDES, surface: 'metal', tint: true, edges: true, outline: { roundRect: ['ro*0.8', 'ro*2.5', 'ro*0.35'] }, depth: 'cheek', bevel: 'cheek*0.2',
+        xf: [['translate', 0, 'ro*0.55', 'side*(sz/2 + cheek/2 + sz*0.03)']] },
+      { kind: 'cylinder', when: 'blk', surface: 'metal', color: 'darkSteel', r: 'ro*0.07', h: 'ro*0.3', sides: 14, pos: [0, 'ro*1.9', 0] },
+      { kind: 'torus', when: 'blk', surface: 'metal', color: 'bright', edges: true, R: 'ro*0.2', r: 'ro*0.065', radial: 'radial', tubular: 'curve', arc: 'pi*2', crease: 0.8, xf: [['translate', 0, 'ro*2.15', 0]] },
+    ],
+  },
+
+  // A chain wheel: n pointed teeth with wide gaps between them for the rollers, a bore, lightening holes (from 14 teeth up) and a hub; the axis is z.
+  sprocket: {
+    note: 'n teeth, z',
+    aka: ['chain wheel', 'chainring', 'chain ring'],
+    color: [152, 158, 170],
+    disc: true,
+    fit: ['discAboutZ'],
+    settings: { n: { default: 16, min: 6, max: 60 } },
+    values: [['rOut', 'sx/2'], ['rRoot', 'rOut*0.82'], ['pitch', 'pi*2/n'], ['holes', 'min(6, floor(n/3))']],
+    anchors: [{ name: 'axis', at: [0, 0, 'sz/2'] }],
+    features: [
+      { kind: 'slab', surface: 'metal', tint: true, edges: true, depth: 'sz', bevel: 'min(sz*0.12, 0.05)',
+        outline: {
+          path: [
+            { for: { as: 'i', count: 'n' }, let: [['a', 'i*pitch']],
+              ops: [['P', 'cos(a - 0.13*pitch)*rOut', 'sin(a - 0.13*pitch)*rOut'], ['P', 'cos(a + 0.13*pitch)*rOut', 'sin(a + 0.13*pitch)*rOut'],
+                ['P', 'cos(a + 0.4*pitch)*rRoot', 'sin(a + 0.4*pitch)*rRoot'], ['P', 'cos(a + 0.6*pitch)*rRoot', 'sin(a + 0.6*pitch)*rRoot']] },
+            ['Z'],
+          ],
+          holes: [{ circle: [0, 0, 'rOut*0.12'] }, { when: 'n >= 14', for: { as: 'i', count: 'holes' }, let: [['a', '(i/holes)*pi*2']], circle: ['cos(a)*rOut*0.5', 'sin(a)*rOut*0.5', 'rOut*0.1'] }],
+        } },
+      { kind: 'cylinder', surface: 'metal', color: 'darkSteel', edges: true, axis: 'z', r: 'rOut*0.24', h: 'sz*1.3', sides: 'curve' },
+    ],
+  },
+
+  // A cone gear: a toothed cone narrowing towards the front (+z) on a round back plate; each tooth is a tapered slab laid along the cone. The axis is z.
+  'bevel-gear': {
+    note: 'n teeth, narrows to +z, z',
+    aka: ['bevel', 'bevel gear', 'crown gear', 'miter gear'],
+    color: [186, 164, 116],
+    disc: true,
+    fit: ['discAboutZ'],
+    settings: { n: { default: 12, min: 6, max: 36 } },
+    values: [['rb', 'sx/2'], ['rt', 'rb*0.46'], ['z0', '-sz*0.12'], ['z1', 'sz/2'], ['len', 'sqrt((rb-rt)*(rb-rt) + (z1-z0)*(z1-z0))'], ['beta', 'atan2(z1-z0, rb-rt)'],
+      ['pitch', 'pi*2/n'], ['wb', 'rb*pitch*0.5'], ['wt', 'wb*rt/rb'], ['th', 'rb*0.17']],
+    anchors: [{ name: 'axis', at: [0, 0, 'sz/2'] }],
+    features: [
+      { kind: 'lathe', surface: 'metal', tint: true, edges: false, sides: 'curve', crease: 0.7, xf: [['rotateX', 'pi/2']],
+        points: [[0, '-sz/2'], ['rb*0.94', '-sz/2'], ['rb', '-sz/2 + sz*0.05'], ['rb', 'z0'], ['rt', 'z1'], [0, 'z1']] },
+      { kind: 'slab', for: { as: 'i', count: 'n' }, let: [['a', 'i*pitch']], surface: 'metal', tint: true, edges: true, depth: 'th', bevel: 'th*0.1',
+        outline: { path: [['P', '-wb/2', 0], ['P', 'wb/2', 0], ['P', 'wt/2', 'len'], ['P', '-wt/2', 'len'], ['Z']] },
+        xf: [['rotateZ', 'pi/2'], ['rotateY', 'beta'], ['translate', 'rb', 0, 'z0'], ['rotateZ', 'a']] },
+      { kind: 'cylinder', surface: 'metal', color: 'darkSteel', edges: true, axis: 'z', r: 'rb*0.16', h: 'sz*1.25', sides: 'curve' },
+    ],
+  },
+
+  // A straight gear: a bar along x with n teeth up its top, the other half of a pinion.
+  rack: {
+    note: 'n teeth, along x',
+    aka: ['gear rack', 'rack gear', 'toothed bar'],
+    color: [176, 180, 190],
+    settings: { n: { default: 10, min: 3, max: 60 } },
+    values: [['p', 'sx/n'], ['yb', '-sy/2 + sy*0.55'], ['yt', 'sy/2']],
+    anchors: [{ name: 'start', at: ['-sx/2', 0, 0] }, { name: 'end', at: ['sx/2', 0, 0] }, { name: 'teeth', at: [0, 'sy/2', 0] }],
+    features: [
+      { kind: 'slab', surface: 'metal', tint: true, edges: true, depth: 'sz', bevel: 'min(sz*0.06, 0.04)',
+        outline: { path: [
+          ['P', '-sx/2', '-sy/2'], ['P', 'sx/2', '-sy/2'], ['P', 'sx/2', 'yb'],
+          { for: { as: 'i', count: 'n' }, let: [['xc', 'sx/2 - p*(i + 0.5)']], ops: [['P', 'xc + 0.5*p', 'yb'], ['P', 'xc + 0.2*p', 'yt'], ['P', 'xc - 0.2*p', 'yt'], ['P', 'xc - 0.5*p', 'yb']] },
+          ['P', '-sx/2', 'yb'], ['Z'],
+        ] } },
+    ],
+  },
+
+  // A round rod along z with chamfered ends, a key flat and n collars spaced along it.
+  shaft: {
+    note: 'n collars, z',
+    aka: ['axle', 'rod', 'spindle'],
+    color: [150, 156, 168],
+    fit: ['shaftAboutZ'],
+    settings: { n: { default: 2, min: 0, max: 6 } },
+    values: [['rs', 'sx*0.4'], ['rc', 'sx/2']],
+    anchors: [{ name: 'axis-front', at: [0, 0, 'sz/2'] }, { name: 'axis-rear', at: [0, 0, '-sz/2'] }],
+    features: [
+      { kind: 'lathe', surface: 'metal', tint: true, edges: true, sides: 'curve', crease: 0.7, xf: [['rotateX', 'pi/2']],
+        points: [[0, '-sz/2'], ['rs*0.8', '-sz/2'], ['rs', '-sz/2 + rs*0.2'], ['rs', 'sz/2 - rs*0.2'], ['rs*0.8', 'sz/2'], [0, 'sz/2']] },
+      { kind: 'box', surface: 'metal', color: 'darkSteel', size: ['rs*0.5', 'rs*0.3', 'sz*0.18'], radius: 0, pos: [0, 'rs*0.9', 'sz*0.28'] },
+      { kind: 'cylinder', for: { as: 'i', count: 'n' }, let: [['z', '-sz/2 + sz*(i + 1)/(n + 1)']], surface: 'metal', color: 'darkSteel', edges: true, axis: 'z', r: 'rc', h: 'sz*0.035', sides: 'curve', pos: [0, 0, 'z'] },
+    ],
+  },
+
+  // A mounting plate with n axle holes in a row, each with a bushing, and a bolt in each corner; the holes are numbered from the left.
+  'frame-plate': {
+    note: 'n holes along x',
+    aka: ['plate', 'mounting plate', 'bracket', 'base plate'],
+    color: [112, 120, 136],
+    settings: { n: { default: 3, min: 1, max: 8 } },
+    values: [['hr', 'min(sy*0.14, sx/(n + 1)*0.28)'], ['m', 'min(sx,sy)*0.07']],
+    anchors: [{ name: 'front', at: [0, 0, 'sz/2'] }, { name: 'back', at: [0, 0, '-sz/2'] },
+      { for: { as: 'i', count: 'n' }, name: 'hole', suffix: 'i + 1', at: ['-sx/2 + sx*(i + 1)/(n + 1)', 0, 'sz/2'] }],
+    features: [
+      { kind: 'slab', surface: 'cast', tint: true, edges: true, depth: 'sz', bevel: 'min(sz*0.1, 0.04)',
+        outline: { roundRect: ['sx', 'sy', 'min(sx,sy)*0.08'], holes: [{ for: { as: 'i', count: 'n' }, circle: ['-sx/2 + sx*(i + 1)/(n + 1)', 0, 'hr'] }] } },
+      { kind: 'slab', for: { as: 'i', count: 'n' }, surface: 'metal', color: 'bright', edges: true, outline: ring('hr*1.5', 'hr'), depth: 'sz*1.25', bevel: 'sz*0.08', pos: ['-sx/2 + sx*(i + 1)/(n + 1)', 0, 0] },
+      { kind: 'bolts', surface: 'metal', r: 'm*0.42', h: 'm*0.5', axis: 'z',
+        at: [{ for: [{ as: 'i', in: [-1, 1] }, { as: 'j', in: [-1, 1] }], p: ['i*(sx/2 - m*1.4)', 'j*(sy/2 - m*1.4)', 'sz/2'] }] },
+    ],
+  },
+
+  // A disc of n twisted blades round a hub with a nose cone, optionally inside a casing ring; the axis is z.
+  turbine: {
+    note: 'n blades, variant ducted, z',
+    aka: ['jet engine', 'compressor', 'impeller'],
+    color: [140, 148, 162],
+    disc: true,
+    fit: ['discAboutZ'],
+    settings: { n: { default: 14, min: 3, max: 48 } },
+    values: [['ro', 'sx/2'], ['rh', 'ro*0.24'], ['bl', 'ro*0.98 - rh'], ['bw', 'min(ro*0.3, ro*pi*2/n*0.9)'], ['ducted', "variant == 'ducted'"]],
+    anchors: [{ name: 'axis', at: [0, 0, 'sz/2'] }],
+    features: [
+      { kind: 'cylinder', surface: 'metal', color: 'darkSteel', edges: true, axis: 'z', r: 'rh', h: 'sz', sides: 'curve' },
+      { kind: 'lathe', surface: 'metal', tint: true, edges: false, sides: 'curve', crease: 0.7, xf: [['rotateX', 'pi/2']], points: [[0, 'sz/2'], ['rh*0.96', 'sz/2'], ['rh*0.5', 'sz/2 + sz*0.55'], [0, 'sz/2 + sz*0.75']] },
+      { kind: 'slab', for: { as: 'i', count: 'n' }, let: [['a', 'i*pi*2/n']], surface: 'metal', tint: true, edges: true, depth: 'sz*0.12', bevel: 'sz*0.03',
+        outline: { path: [['P', 0, '-bw*0.5'], ['P', 'bl', '-bw*0.32'], ['P', 'bl', 'bw*0.32'], ['P', 0, 'bw*0.5'], ['Z']] },
+        xf: [['rotateX', 0.55], ['translate', 'rh*0.9', 0, 0], ['rotateZ', 'a']] },
+      { kind: 'slab', when: 'ducted', surface: 'metal', color: 'steel', edges: true, outline: ring('ro*1.04', 'ro*0.99'), depth: 'sz*0.9', bevel: 'sz*0.05' },
+    ],
+  },
+
+  // A winding of copper wire (n turns) round an iron core between two end flanges, the electromagnet of a motor or a relay; the axis is y.
+  coil: {
+    note: 'n turns',
+    aka: ['winding', 'electromagnet', 'solenoid', 'inductor'],
+    color: [120, 126, 138],
+    fit: ['lengthAlongY', 'roundAboutY'],
+    settings: { n: { default: 12, min: 2, max: 60 } },
+    values: [['fl', 'sy*0.06'], ['span', 'sy - 2*fl'], ['wire', 'max(0.01, min(sx*0.06, (span/n)*0.46))'], ['rw', 'sx*0.34']],
+    anchors: [{ name: 'top', at: [0, 'sy/2', 0] }, { name: 'bottom', at: [0, '-sy/2', 0] }],
+    features: [
+      { kind: 'cylinder', surface: 'metal', color: 'darkSteel', edges: true, r: 'sx*0.2', h: 'sy', sides: 'curve' },
+      { kind: 'cylinder', for: SIDES, surface: 'plastic', tint: true, edges: true, r: 'sx/2', h: 'fl', sides: 'curve', pos: [0, 'side*(sy/2 - fl/2)', 0] },
+      { kind: 'helix', surface: 'metal', color: 'copper', turns: 'n', per: 14, r: 'rw', y0: '-span/2 + wire', rise: 'span - 2*wire', wire: 'wire', sides: 8, crease: 0.8 },
+    ],
+  },
+
+  // A bar magnet along y, the north half (red) up and the south half (blue) down.
+  magnet: {
+    aka: ['bar magnet'],
+    color: [150, 154, 164],
+    fit: ['lengthAlongY'],
+    values: [['r', 'min(sx,sz)*0.08']],
+    anchors: [{ name: 'north', at: [0, 'sy/2', 0] }, { name: 'south', at: [0, '-sy/2', 0] }],
+    features: [
+      { kind: 'box', surface: 'metal', color: 'north', edges: true, size: ['sx', 'sy/2', 'sz'], radius: 'r', pos: [0, 'sy/4', 0] },
+      { kind: 'box', surface: 'metal', color: 'south', edges: true, size: ['sx', 'sy/2', 'sz'], radius: 'r', pos: [0, '-sy/4', 0] },
+    ],
+  },
+
+  // An inclined plane: a right-angled wedge, low at -x and high at +x, the full width of z.
+  ramp: {
+    aka: ['incline', 'inclined plane', 'slope', 'wedge'],
+    color: [168, 150, 120],
+    values: [['t', 'min(sx,sy)*0.02']],
+    anchors: [{ name: 'foot', at: ['-sx/2', '-sy/2', 0] }, { name: 'crest', at: ['sx/2', 'sy/2', 0] }, { name: 'slope', at: [0, 0, 0] }],
+    features: [
+      { kind: 'slab', surface: 'cast', tint: true, edges: true, depth: 'sz', bevel: 't', outline: { path: [['P', '-sx/2', '-sy/2'], ['P', 'sx/2', '-sy/2'], ['P', 'sx/2', 'sy/2'], ['Z']] } },
+    ],
+  },
+
+  // The support a lever turns on: a triangular stand on a foot plate with a pivot pin near its apex.
+  fulcrum: {
+    aka: ['pivot', 'stand'],
+    color: [134, 140, 154],
+    values: [['foot', 'sy*0.1'], ['pr', 'min(sx,sy)*0.06'], ['py', 'sy/2 - sy*0.1']],
+    anchors: [{ name: 'pivot', at: [0, 'py', 0] }, { name: 'base', at: [0, '-sy/2', 0] }],
+    features: [
+      { kind: 'slab', surface: 'cast', tint: true, edges: true, depth: 'sz*0.8', bevel: 'sz*0.04', outline: { path: [['P', '-sx*0.32', '-sy/2 + foot'], ['P', 'sx*0.32', '-sy/2 + foot'], ['P', 'sx*0.05', 'sy/2'], ['P', '-sx*0.05', 'sy/2'], ['Z']] } },
+      { kind: 'slab', surface: 'cast', tint: true, edges: true, depth: 'sz', bevel: 'foot*0.2', outline: { roundRect: ['sx', 'foot', 'foot*0.3'] }, xf: [['translate', 0, '-sy/2 + foot/2', 0]] },
+      { kind: 'cylinder', surface: 'metal', color: 'bright', edges: true, axis: 'z', r: 'pr', h: 'sz*1.15', sides: 'curve', pos: [0, 'py', 0] },
+    ],
+  },
+
+  // A hex-headed bolt, head up, with n thread ridges down its shank.
+  bolt: {
+    note: 'n thread ridges, head up',
+    aka: ['screw', 'hex bolt', 'cap screw'],
+    color: [176, 182, 194],
+    fit: ['lengthAlongY', 'roundAboutY'],
+    settings: { n: { default: 8, min: 0, max: 30 } },
+    values: [['hh', 'sy*0.12'], ['rs', 'sx*0.3'], ['y0', '-sy/2'], ['y1', 'sy/2 - hh'], ['pit', '(y1 - y0 - rs*0.4)/max(1, n)']],
+    anchors: [{ name: 'head', at: [0, 'sy/2', 0] }, { name: 'tip', at: [0, '-sy/2', 0] }],
+    features: [
+      { kind: 'lathe', surface: 'metal', tint: true, edges: false, sides: 'curve', crease: 0.5,
+        points: [[0, 'y0'], ['rs*0.8', 'y0'], ['rs*0.92', 'y0 + rs*0.2'],
+          { for: { as: 'k', count: 'n' }, let: [['y', 'y0 + rs*0.4 + pit*k']], points: [['rs', 'y + pit*0.2'], ['rs*0.8', 'y + pit*0.5'], ['rs', 'y + pit*0.8']] },
+          ['rs', 'y1'], [0, 'y1']] },
+      { kind: 'cylinder', surface: 'metal', color: 'bright', edges: true, r: 'sx*0.5', h: 'hh', sides: 6, pos: [0, 'sy/2 - hh/2', 0] },
+      { kind: 'cylinder', surface: 'metal', color: 'darkSteel', r: 'sx*0.46', h: 'hh*0.18', sides: 'curve', pos: [0, 'y1 - hh*0.04', 0] },
     ],
   },
 } satisfies Record<string, KitRow>;
