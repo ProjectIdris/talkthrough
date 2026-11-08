@@ -13,10 +13,15 @@ Hold **Right Ctrl + Right Shift**, ask your question, then release. The picture 
 ## What it can do
 
 - **Explain what you point to.** Draw boxes, circles, underlines, arrows, labels, and outlines on text, pictures, and diagrams. Drag to circle an area before sending a question. Press **Escape** to cancel a question or stop an answer.
-- **Draw diagrams as it explains.** Flows, timelines, steps, and charts are placed and revealed with the answer. Guide mode marks where to click, waits for you, checks that the screen changed, and uses a checklist. Optional limited guide navigation is off by default.
-- **Show moving 3D parts.** Models appear directly over the page by default; a frame is optional. Joints, loops, and couplings connect moving parts. Ropes, belts, wires, and pipes can carry moving markers or diagram arrows. You can turn a model with the mouse; **E** opens it up.
+- **Draw diagrams as it explains.** Flows, timelines, steps, and charts are placed and revealed with the answer, in time with the voice.
+- **Show moving 3D parts.** Models appear directly over the page by default; a frame is optional. You can turn a model with the mouse; **E** opens it up.
+  - *Real models:* seven real, freely licensed objects (an alarm clock, bolt cutters, a camera, a drill, an electric motor, a measuring tape and a mousetrap) come with the installer and are drawn with their own textures, with named parts it can label, cut open and pull apart. Their makers and licences are in [CREDITS.md](assets/CREDITS.md); the MIT licence does not cover them.
+  - *Mechanisms:* ready-made assemblies (gear trains, rack and pinion, crank and slider, cam and follower, lever, differential, planetary gears, four-bar linkage, bicycle drivetrain, block and tackle, Geneva drive, escapement, ratchet and pawl) whose parts turn together because they are coupled, not animated by hand. Joints, loops, and couplings connect moving parts; ropes, belts, wires, and pipes can carry moving markers or diagram arrows.
+  - *Materials:* surfaces look like what they are: metal, steel, brass, copper, wood, rubber, glass, water, bone, muscle, skin and more.
+- **Guide you through an app.** Guide mode marks where to click, waits for you, checks that the screen changed, and keeps a checklist. It never clicks for you unless you turn on guide navigation: that is **off by default**, works only in desktop apps (never a browser), and even then only opens a tab or a menu with a submenu, or scrolls, after you say yes, aloud and with every key, click or mouse move stopping it. It never presses a button that changes anything.
 - **Ask a follow-up.** Choose **Ask more** while an explanation is visible. The next question can continue from the same picture. **More detail** is a separate optional pass that rebuilds the scene in greater detail when configured.
 - **Choose voice, text, or both.** Captions can speak each step and show its words, show text only, or speak without captions.
+- **Try it first.** **Explore examples** on the welcome screen runs four built-in explanations offline, with no account, microphone or screen capture.
 
 ## Examples
 
@@ -35,13 +40,15 @@ These are saved answer frames from pages used as examples. The first animation a
 
 ## Get started
 
-1. [Download the latest stable Windows installer](https://github.com/ProjectIdris/talkthrough/releases/latest) and run it. It installs for your Windows account and adds Talkthrough to the Start menu.
-2. Open Talkthrough and choose a model connector. See [Setup](docs/setup.md) for model, speech, caption, privacy, and question-record settings.
+Talkthrough 1.0 is for **Windows 11 only**; Mac and Linux come later.
+
+1. [Download the latest stable Windows installer](https://github.com/ProjectIdris/talkthrough/releases/latest) and run it. It installs for your Windows account and adds Talkthrough to the Start menu. No administrator rights are needed.
+2. Open Talkthrough and choose a model connector. It tells you which of Claude Code and Codex it found, and what to do if one is missing or not signed in. See [Setup](docs/setup.md) for model, speech, caption, privacy, and question-record settings.
 3. Hold the hotkey, ask about the screen, and release. Use **Ask more** to continue while the explanation remains visible.
 
-Windows may show a SmartScreen warning because the installer is not code-signed. The [Setup guide](docs/setup.md) explains first run and how to build from source.
+**Windows will probably warn you.** The installer is not code-signed (a signing certificate costs money and we do not have one yet), so Windows SmartScreen may show "Windows protected your PC". Choose **More info**, then **Run anyway**, only if you downloaded it from this project's [releases page](https://github.com/ProjectIdris/talkthrough/releases/latest). The [Setup guide](docs/setup.md) explains first run and how to build from source, and [Troubleshooting](docs/troubleshooting.md) helps when a first question does not work.
 
-The installed app looks for a newer release at start and once a day, and tells you quietly in the tray; it downloads and installs one (checked against the release's published checksum) only when you say yes. Turn the checks off in Settings. See [Updates](docs/setup.md#updates).
+**Updates.** The installed app looks for a newer release at start and once a day, and tells you quietly in the tray. It downloads and installs one only when you say yes, after checking the installer against the release's published SHA-256 checksum. Turn the checks off in Settings. The trust limit: the checksum file comes from the same release as the installer, so this protects against a damaged or partial download, not against someone who controls the project's GitHub account; there is no separate signature. See [Updates](docs/setup.md#updates).
 
 ## Choose how it runs your model
 
@@ -57,7 +64,7 @@ The selected model receives the screenshot and question. If you hand a question 
 
 ## Current status
 
-Windows is the first platform. Mouse circling and model dragging have reported failures and remain under active correction; source and headless checks do not establish physical desktop behavior. The [experimental branch](https://github.com/ProjectIdris/talkthrough/tree/experimental) explores articulated models and other unfinished work. Its flight motion and live model authoring have not been validated for quality. Use the stable release for the current build.
+Talkthrough 1.0 is Windows only, and unsigned (see above). Mouse circling, model dragging and guide navigation are checked by hand on a real desktop, not by the automated tests, and mouse circling and model dragging have had reported failures; if one misbehaves, [Troubleshooting](docs/troubleshooting.md) says what to collect for a report. Following links in a browser, a whole-task agent mode, a wake word, Mac and Linux support and code signing are planned after 1.0. The [experimental branch](https://github.com/ProjectIdris/talkthrough/tree/experimental) explores articulated models and other unfinished work; use the stable release.
 
 ## Contribute
 
