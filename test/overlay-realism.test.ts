@@ -8,11 +8,12 @@ import { StudioEnvironment, STUDIO_LIGHTS } from '../src/overlay/studio.ts';
 import { fitBoardPattern } from '../src/overlay/surface-micro.ts';
 import { applyEdgeSoften, softenEdges, EDGE_ATTRIBUTES } from '../src/overlay/edge-soften.ts';
 import { Finishing } from '../src/overlay/post.ts';
-import { MATERIAL_NAMES } from '../src/scene/material-library.ts';
+import { MATERIAL_NAMES, materialRow } from '../src/scene/material-library.ts';
 
 (globalThis as { Image?: unknown }).Image ??= class { set src(_v: string) {} addEventListener(): void {} };
 
-const METALS = ['metal', 'steel', 'iron', 'brass', 'copper', 'cast'];
+// Rust is the one metal family member that is only partly metal (a corroded skin over iron).
+const PART_METAL = ['rust'];
 const fakeShader = () => ({
   uniforms: {},
   vertexShader: 'void main() {\n#include <begin_vertex>\n}',
@@ -27,7 +28,8 @@ const compiled = (m: MeshPhysicalMaterial): { vertexShader: string; fragmentShad
 test('every material the library names has a real finish: metals are metal, everything else is not, roughness is never a mirror or chalk by accident', () => {
   for (const name of MATERIAL_NAMES) {
     const m = makeSurface(name, TIERS.high);
-    if (METALS.includes(name)) assert.ok(m.metalness >= 0.9, `${name} reads as metal`);
+    if (PART_METAL.includes(name)) assert.ok(m.metalness > 0 && m.metalness < 0.9, `${name} is part metal`);
+    else if (materialRow(name)!.family === 'metal') assert.ok(m.metalness >= 0.9, `${name} reads as metal`);
     else assert.equal(m.metalness, 0, `${name} is not metal`);
     assert.ok(m.roughness > 0 && m.roughness <= 1, `${name} roughness`);
   }

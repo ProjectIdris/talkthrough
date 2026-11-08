@@ -4,6 +4,7 @@
 // pattern or format keywords. The validator, not the schema, enforces ranges and lengths.
 
 import { LIMITS, PALETTE, VARIANTS } from './spec.ts';
+import { MATERIAL_FAMILIES } from './material-library.ts';
 import type { Field, Variant } from './spec.ts';
 
 type Schema = Record<string, unknown>;
@@ -19,6 +20,7 @@ function describe(f: Field): string | undefined {
   if (f.k === 'strs') parts.push(`up to ${f.max} texts of up to ${f.len} characters`);
   if (f.k === 'pts') parts.push(`${f.min} to ${f.max} points [x,y,z]`);
   if (f.k === 'str') parts.push(`up to ${f.max} characters`);
+  if (f.k === 'material') parts.push(`a material name (families: ${MATERIAL_FAMILIES.join(', ')}); another name is taken to the nearest material`);
   if (f.k === 'color') parts.push(`a colour name (${PALETTE.join(', ')}) or hex "#rrggbb"`);
   if (f.k === 'target') parts.push('an id, or "all", "marks" or "panel"');
   return parts.length ? parts.join('; ') : undefined;
@@ -31,7 +33,7 @@ function fieldSchema(f: Field, descriptions: boolean): Schema {
   switch (f.k) {
     case 'num': s = { type: nullable('number') }; break;
     case 'str': case 'newId': case 'ref': case 'parent': case 'target': s = { type: nullable('string') }; break;
-    case 'color': s = { type: nullable('string') }; break;
+    case 'color': case 'material': s = { type: nullable('string') }; break;
     case 'enum': s = { enum: opt ? [...f.values, null] : [...f.values] }; break;
     case 'bool': s = { type: nullable('boolean') }; break;
     case 'vec2': s = { type: nullable('array'), items: { type: 'number' } }; break;

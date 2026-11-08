@@ -6,6 +6,7 @@ import { Color, DoubleSide, MeshPhysicalMaterial } from 'three';
 import type { Material } from 'three';
 import type { SurfaceFinish } from '../scene/types.ts';
 import { applyMicroSurface } from './surface-micro.ts';
+import type { PatternKind } from './surface-micro.ts';
 import { fitTint } from '../scene/material-library.ts';
 import type { MaterialName } from '../scene/material-library.ts';
 import type { Rgb } from './timeline.ts';
@@ -53,6 +54,12 @@ type Recipe = {
   micro?: { rough: number; grain: number; bump: number };
   /** The surface is a circuit board's (solder mask, traces, pads, silkscreen). */
   board?: boolean;
+  /** How strongly the surface bends light (glass 1.5 is the default): ice 1.31, water 1.33, a gem 2.4. Changes how bright its reflections are. */
+  ior?: number;
+  /** How rough the soft edge light is (cloth 0.5; velvet, which glows right at its edge, less). */
+  sheenRoughness?: number;
+  /** A pattern drawn on the colour from the part's own coordinates (wood grain, stone speckle, marble veins, weave, brick courses): its kind, cycles to a unit, and strength. */
+  pattern?: { kind: PatternKind; scale: number; amount: number };
 };
 
 const RECIPES: Record<SurfaceName, Recipe> = {
@@ -80,6 +87,103 @@ const RECIPES: Record<SurfaceName, Recipe> = {
   wood: { roughness: 0.75, metalness: 0, clearcoat: 0.12, clearcoatRoughness: 0.7, micro: { rough: 0.14, grain: 22, bump: 0.6 } },
   rope: { roughness: 0.95, metalness: 0, sheen: 0.4 },
   water: { roughness: 0.05, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, opacity: 0.58, envMapIntensity: 1.3, doubleSided: true },
+  // The wider library (see material-library.ts for the names, families and aliases). Metals: smooth to cast, each with the fine unevenness of its finish.
+  stainless: { roughness: 0.22, metalness: 1, envMapIntensity: 1.1, micro: { rough: 0.1, grain: 80, bump: 0.15 } },
+  aluminium: { roughness: 0.36, metalness: 1, envMapIntensity: 1.1, micro: { rough: 0.1, grain: 60, bump: 0.3 } },
+  'cast-iron': { roughness: 0.62, metalness: 0.92, envMapIntensity: 0.95, micro: { rough: 0.2, grain: 28, bump: 1 } },
+  bronze: { roughness: 0.32, metalness: 1, envMapIntensity: 1.1, micro: { rough: 0.1, grain: 62, bump: 0.3 } },
+  gold: { roughness: 0.2, metalness: 1, envMapIntensity: 1.2, micro: { rough: 0.08, grain: 80, bump: 0.12 } },
+  silver: { roughness: 0.14, metalness: 1, envMapIntensity: 1.2, micro: { rough: 0.08, grain: 90, bump: 0.1 } },
+  chrome: { roughness: 0.05, metalness: 1, envMapIntensity: 1.35, micro: { rough: 0.03, grain: 90, bump: 0 } },
+  rust: { roughness: 0.9, metalness: 0.35, envMapIntensity: 0.7, micro: { rough: 0.28, grain: 20, bump: 1.2 }, pattern: { kind: 'speckle', scale: 6, amount: 0.5 } },
+  titanium: { roughness: 0.4, metalness: 1, envMapIntensity: 1.1, micro: { rough: 0.1, grain: 70, bump: 0.2 } },
+  lead: { roughness: 0.55, metalness: 0.95, micro: { rough: 0.18, grain: 26, bump: 0.8 } },
+  mirror: { roughness: 0.02, metalness: 1, envMapIntensity: 1.5 },
+  // Woods: a varnish where the wood is finished, and the grain along the part.
+  'light-wood': { roughness: 0.7, metalness: 0, clearcoat: 0.12, clearcoatRoughness: 0.65, micro: { rough: 0.12, grain: 22, bump: 0.5 }, pattern: { kind: 'grain', scale: 5, amount: 0.22 } },
+  'dark-wood': { roughness: 0.62, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.5, micro: { rough: 0.12, grain: 22, bump: 0.5 }, pattern: { kind: 'grain', scale: 5, amount: 0.25 } },
+  oak: { roughness: 0.72, metalness: 0, clearcoat: 0.1, clearcoatRoughness: 0.7, micro: { rough: 0.12, grain: 22, bump: 0.5 }, pattern: { kind: 'grain', scale: 4, amount: 0.25 } },
+  pine: { roughness: 0.78, metalness: 0, clearcoat: 0.08, clearcoatRoughness: 0.7, micro: { rough: 0.12, grain: 22, bump: 0.5 }, pattern: { kind: 'grain', scale: 6, amount: 0.28 } },
+  walnut: { roughness: 0.55, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.45, micro: { rough: 0.12, grain: 22, bump: 0.5 }, pattern: { kind: 'grain', scale: 4, amount: 0.22 } },
+  birch: { roughness: 0.72, metalness: 0, clearcoat: 0.1, clearcoatRoughness: 0.7, micro: { rough: 0.12, grain: 22, bump: 0.5 }, pattern: { kind: 'grain', scale: 7, amount: 0.15 } },
+  plywood: { roughness: 0.8, metalness: 0, clearcoat: 0, clearcoatRoughness: 0, micro: { rough: 0.12, grain: 22, bump: 0.5 }, pattern: { kind: 'grain', scale: 8, amount: 0.2 } },
+  bamboo: { roughness: 0.6, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.5, micro: { rough: 0.12, grain: 22, bump: 0.5 }, pattern: { kind: 'grain', scale: 3, amount: 0.25 } },
+  // Plastics and rubbers.
+  'glossy-plastic': { roughness: 0.12, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.08, micro: { rough: 0.04, grain: 26, bump: 0.2 } },
+  'matte-plastic': { roughness: 0.8, metalness: 0, micro: { rough: 0.12, grain: 26, bump: 0.6 } },
+  'clear-plastic': { roughness: 0.08, metalness: 0, clearcoat: 0.9, clearcoatRoughness: 0.06, opacity: 0.45, envMapIntensity: 1.4, doubleSided: true },
+  abs: { roughness: 0.42, metalness: 0, clearcoat: 0.12, clearcoatRoughness: 0.4, micro: { rough: 0.1, grain: 40, bump: 0.4 } },
+  nylon: { roughness: 0.5, metalness: 0, sheen: 0.15, micro: { rough: 0.1, grain: 30, bump: 0.4 } },
+  foam: { roughness: 1, metalness: 0, micro: { rough: 0.2, grain: 16, bump: 1.4 }, pattern: { kind: 'speckle', scale: 10, amount: 0.12 } },
+  acrylic: { roughness: 0.05, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, opacity: 0.4, envMapIntensity: 1.4, doubleSided: true },
+  silicone: { roughness: 0.5, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.5, sheen: 0.3, micro: { rough: 0.05, grain: 14, bump: 0.15 } },
+  // Glass: see-through (not refractive), clear to frosted to tinted, and the stones that are cut from it.
+  'frosted-glass': { roughness: 0.55, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.5, opacity: 0.62, envMapIntensity: 1.1, doubleSided: true },
+  'tinted-glass': { roughness: 0.04, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, opacity: 0.52, envMapIntensity: 1.5, doubleSided: true },
+  crystal: { roughness: 0.02, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, opacity: 0.42, envMapIntensity: 1.6, doubleSided: true, ior: 1.55 },
+  gem: { roughness: 0.02, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, opacity: 0.8, envMapIntensity: 1.7, doubleSided: true, ior: 2.4 },
+  // Ceramics, stone and earth.
+  ceramic: { roughness: 0.22, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.1, micro: { rough: 0.04, grain: 20, bump: 0.15 } },
+  porcelain: { roughness: 0.12, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06 },
+  terracotta: { roughness: 0.86, metalness: 0, micro: { rough: 0.16, grain: 22, bump: 0.9 }, pattern: { kind: 'speckle', scale: 8, amount: 0.12 } },
+  stone: { roughness: 0.86, metalness: 0, micro: { rough: 0.15, grain: 14, bump: 1.2 }, pattern: { kind: 'speckle', scale: 5, amount: 0.28 } },
+  granite: { roughness: 0.42, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.4, micro: { rough: 0.1, grain: 20, bump: 0.5 }, pattern: { kind: 'speckle', scale: 7, amount: 0.4 } },
+  slate: { roughness: 0.7, metalness: 0, micro: { rough: 0.12, grain: 18, bump: 0.9 }, pattern: { kind: 'speckle', scale: 3, amount: 0.18 } },
+  marble: { roughness: 0.16, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.2, micro: { rough: 0.04, grain: 12, bump: 0.1 }, pattern: { kind: 'veins', scale: 3, amount: 0.5 } },
+  concrete: { roughness: 0.94, metalness: 0, micro: { rough: 0.16, grain: 16, bump: 1.4 }, pattern: { kind: 'speckle', scale: 6, amount: 0.22 } },
+  brick: { roughness: 0.9, metalness: 0, micro: { rough: 0.14, grain: 18, bump: 1 }, pattern: { kind: 'bricks', scale: 4, amount: 0.55 } },
+  sand: { roughness: 1, metalness: 0, micro: { rough: 0.2, grain: 36, bump: 1.2 }, pattern: { kind: 'speckle', scale: 14, amount: 0.3 } },
+  soil: { roughness: 1, metalness: 0, micro: { rough: 0.2, grain: 26, bump: 1.6 }, pattern: { kind: 'speckle', scale: 9, amount: 0.45 } },
+  clay: { roughness: 0.72, metalness: 0, clearcoat: 0.08, clearcoatRoughness: 0.6, micro: { rough: 0.1, grain: 16, bump: 0.5 } },
+  asphalt: { roughness: 0.95, metalness: 0, micro: { rough: 0.2, grain: 30, bump: 1.4 }, pattern: { kind: 'speckle', scale: 10, amount: 0.4 } },
+  // Fabrics: the soft edge light of cloth, and the weave.
+  cotton: { roughness: 0.98, metalness: 0, sheen: 0.5, doubleSided: true, micro: { rough: 0.08, grain: 40, bump: 0.5 }, pattern: { kind: 'weave', scale: 24, amount: 0.1 } },
+  denim: { roughness: 0.95, metalness: 0, sheen: 0.3, doubleSided: true, pattern: { kind: 'twill', scale: 30, amount: 0.22 } },
+  leather: { roughness: 0.5, metalness: 0, clearcoat: 0.18, clearcoatRoughness: 0.5, sheen: 0.25, micro: { rough: 0.14, grain: 20, bump: 1 } },
+  wool: { roughness: 1, metalness: 0, sheen: 0.8, micro: { rough: 0.2, grain: 30, bump: 1.6 } },
+  canvas: { roughness: 0.96, metalness: 0, sheen: 0.2, doubleSided: true, pattern: { kind: 'weave', scale: 16, amount: 0.18 } },
+  silk: { roughness: 0.28, metalness: 0, clearcoat: 0.15, clearcoatRoughness: 0.3, sheen: 1, sheenRoughness: 0.35, doubleSided: true },
+  felt: { roughness: 1, metalness: 0, sheen: 0.3, micro: { rough: 0.25, grain: 40, bump: 1.4 } },
+  velvet: { roughness: 1, metalness: 0, sheen: 1, sheenRoughness: 0.25, doubleSided: true },
+  // Other solids that explanations meet.
+  cardboard: { roughness: 0.96, metalness: 0, doubleSided: true, micro: { rough: 0.1, grain: 26, bump: 0.6 }, pattern: { kind: 'grain', scale: 12, amount: 0.1 } },
+  cork: { roughness: 0.92, metalness: 0, micro: { rough: 0.2, grain: 22, bump: 1.4 }, pattern: { kind: 'speckle', scale: 10, amount: 0.35 } },
+  sponge: { roughness: 1, metalness: 0, micro: { rough: 0.3, grain: 14, bump: 2 }, pattern: { kind: 'speckle', scale: 6, amount: 0.3 } },
+  hair: { roughness: 0.42, metalness: 0, clearcoat: 0.1, clearcoatRoughness: 0.4, sheen: 0.7 },
+  wax: { roughness: 0.38, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.35, sheen: 0.3 },
+  // Liquids: wet and clear, from thin to thick.
+  oil: { roughness: 0.06, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, opacity: 0.62, envMapIntensity: 1.3, doubleSided: true },
+  blood: { roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, opacity: 0.88, envMapIntensity: 1.2, doubleSided: true },
+  milk: { roughness: 0.2, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.25 },
+  honey: { roughness: 0.05, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, opacity: 0.78, envMapIntensity: 1.2, doubleSided: true },
+  // The body: matte to wet, each with the sheen of living tissue.
+  cartilage: { roughness: 0.45, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.4, sheen: 0.3, micro: { rough: 0.05, grain: 12, bump: 0.1 } },
+  fat: { roughness: 0.5, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.5, sheen: 0.5 },
+  organ: { roughness: 0.42, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.35, sheen: 0.55, micro: { rough: 0.06, grain: 12, bump: 0.15 } },
+  nerve: { roughness: 0.4, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.35, sheen: 0.3 },
+  vessel: { roughness: 0.38, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.3, sheen: 0.3 },
+  tooth: { roughness: 0.12, metalness: 0, clearcoat: 0.9, clearcoatRoughness: 0.08 },
+  mucosa: { roughness: 0.2, metalness: 0, clearcoat: 0.9, clearcoatRoughness: 0.15, sheen: 0.4 },
+  // Plants.
+  leaf: { roughness: 0.55, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.5, sheen: 0.3, doubleSided: true },
+  bark: { roughness: 1, metalness: 0, micro: { rough: 0.25, grain: 12, bump: 2 }, pattern: { kind: 'grain', scale: 6, amount: 0.3 } },
+  petal: { roughness: 0.6, metalness: 0, sheen: 0.7, doubleSided: true },
+  fruit: { roughness: 0.32, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.2, sheen: 0.2 },
+  grass: { roughness: 0.85, metalness: 0, sheen: 0.3, doubleSided: true, micro: { rough: 0.2, grain: 40, bump: 1 } },
+  // Foods.
+  bread: { roughness: 0.96, metalness: 0, micro: { rough: 0.25, grain: 18, bump: 1.8 }, pattern: { kind: 'speckle', scale: 8, amount: 0.3 } },
+  cheese: { roughness: 0.5, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.5, micro: { rough: 0.05, grain: 14, bump: 0.3 }, pattern: { kind: 'speckle', scale: 5, amount: 0.1 } },
+  chocolate: { roughness: 0.28, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.2 },
+  sugar: { roughness: 0.5, metalness: 0, micro: { rough: 0.2, grain: 60, bump: 1 }, pattern: { kind: 'speckle', scale: 40, amount: 0.2 } },
+  butter: { roughness: 0.35, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.4, sheen: 0.2 },
+  // Ice, snow, carbon fibre; and what gives light.
+  ice: { roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, opacity: 0.62, envMapIntensity: 1.4, doubleSided: true, ior: 1.31 },
+  snow: { roughness: 1, metalness: 0, sheen: 0.5, micro: { rough: 0.25, grain: 40, bump: 1.4 } },
+  'carbon-fibre': { roughness: 0.26, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, micro: { rough: 0.04, grain: 10, bump: 0 }, pattern: { kind: 'twill', scale: 18, amount: 0.8 } },
+  led: { roughness: 0.22, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.08, emissive: 1.6 },
+  neon: { roughness: 0.3, metalness: 0, emissive: 1.9 },
+  screen: { roughness: 0.15, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.06, emissive: 0.9 },
+  ember: { roughness: 0.9, metalness: 0, emissive: 1.4 },
   // Painted metal: a little of the metal under the paint shows in the shine, and the lacquer over it is glassy.
   enamel: { roughness: 0.34, metalness: 0.55, clearcoat: 1, clearcoatRoughness: 0.12, envMapIntensity: 1.1, micro: { rough: 0.06, grain: 30, bump: 0.2 } },
   // Sand-cast metal: rough and even, with no mirror in it.
@@ -103,15 +207,16 @@ export function makeSurface(name: string | undefined, tier: TierSettings, finish
   }) as Surface;
   if (r.sheen) {
     m.sheen = r.sheen;
-    m.sheenRoughness = 0.5;
+    m.sheenRoughness = r.sheenRoughness ?? 0.5;
     m.sheenColor.setRGB(1, 0.9, 0.88);
   }
+  if (r.ior !== undefined) m.ior = r.ior;
   m.userData = { base: r.opacity ?? 1, glow: r.emissive ?? 0, name };
   m.opacity = m.userData.base;
   m.depthWrite = !m.transparent;
   if (name === 'section') hatched(m);
-  else if ((tier.micro > 0 && r.micro) || (tier.board > 0 && r.board)) {
-    if ((r.opacity ?? 1) >= 1 && !r.emissive) applyMicroSurface(m, { rough: tier.micro > 0 && r.micro ? r.micro.rough : 0, grain: r.micro?.grain ?? 30, bump: tier.micro > 1 && r.micro ? r.micro.bump : 0, board: r.board ? tier.board : 0 });
+  else if ((tier.micro > 0 && (r.micro || r.pattern)) || (tier.board > 0 && r.board)) {
+    if ((r.opacity ?? 1) >= 1 && !r.emissive) applyMicroSurface(m, { rough: tier.micro > 0 && r.micro ? r.micro.rough : 0, grain: r.micro?.grain ?? 30, bump: tier.micro > 1 && r.micro ? r.micro.bump : 0, board: r.board ? tier.board : 0, ...(tier.micro > 0 && r.pattern ? { pattern: r.pattern } : {}) });
   }
   return m;
 }

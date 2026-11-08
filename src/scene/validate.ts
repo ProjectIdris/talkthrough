@@ -12,6 +12,7 @@ import { LOFT_STRIPS, prepareLoft } from './loft.ts';
 import { prepareShell, SHELL_DETAIL } from './shell.ts';
 import type { ShellTier } from './shell.ts';
 import { nearestPaletteColor } from './colors.ts';
+import { MATERIAL_FAMILIES, resolveMaterial } from './material-library.ts';
 import { attachTolerance, FACE_NORMALS, landOn, mountPosition, turnToFace } from './attach.ts';
 import { anchorsOf } from './anchors.ts';
 import { partFacing, resolvePartGeometry } from './part-geometry.ts';
@@ -216,6 +217,15 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       return bad('unknown colour');
     case 'enum':
       return typeof v === 'string' && f.values.includes(v) ? good(v) : bad(`expected one of ${f.values.join(', ')}`);
+    case 'material': {
+      // A material by its own name, or an alias, or the longest name it holds, or a slip of one: taken, with a note. Nothing close is refused with the nearest.
+      const m = resolveMaterial(v);
+      if (m.name) {
+        if (!m.exact) note(notes, 'trimmed', path, `material "${String(v).slice(0, 40)}" read as ${m.name}`);
+        return good(m.name);
+      }
+      return bad(`unknown material${typeof v === 'string' ? ` "${v.slice(0, 40)}"` : ''}: ${m.near.length ? `the nearest are ${m.near.join(', ')}; ` : ''}the families are ${MATERIAL_FAMILIES.join(', ')}`);
+    }
     case 'newId':
       if (typeof v !== 'string' || !ID_PATTERN.test(v)) return bad('not a valid id');
       if ((RESERVED_IDS as readonly string[]).includes(v)) return bad(`"${v}" is reserved`);

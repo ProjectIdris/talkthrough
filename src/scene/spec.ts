@@ -101,7 +101,9 @@ export type Field =
   /** A short list of short texts. */
   | { k: 'strs'; max: number; len: number; opt?: boolean; doc?: string }
   | { k: 'pts'; min: number; max: number; lo: number; hi: number; opt?: boolean; doc?: string }
-  | { k: 'enum'; values: readonly string[]; opt?: boolean; doc?: string };
+  | { k: 'enum'; values: readonly string[]; opt?: boolean; doc?: string }
+  /** A material by name: its own, an alias or a close name is taken to the material meant (material-library.ts), so the schema holds a plain text and the guide the families. */
+  | { k: 'material'; opt?: boolean; doc?: string };
 
 export type Variant = {
   /** Unique name of this variant. */
@@ -136,7 +138,7 @@ const EXPLODE: Field = { k: 'vec3', ...WORLD, opt: true, doc: 'where it moves wh
 /** The surfaces a 3D object can be made of; the colour tints them. */
 export const MATERIALS = MATERIAL_NAMES;
 const SIDE: Field = { k: 'enum', values: ['left', 'right', 'top', 'bottom', 'front', 'back'], opt: true };
-const MATERIAL: Field = { k: 'enum', values: MATERIALS, opt: true, doc: 'named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic' };
+const MATERIAL: Field = { k: 'material', opt: true, doc: 'named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic' };
 /** Optional physical finish controls. Keeping these separate from opacity preserves each recipe's transparency. */
 const FINISH: Record<string, Field> = {
   roughness: { k: 'num', min: 0, max: 1, opt: true, doc: 'base surface: 0 polished, 1 matte; omitted keeps the material recipe' },

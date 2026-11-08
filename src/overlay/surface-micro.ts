@@ -1,10 +1,15 @@
 // The finest surface of a material, made in the shader from the object's own coordinates (no image, no UV, so it does not stretch with a part's size
 // and costs no memory): a faint variation of roughness and a fine bump, which is what keeps a surface from looking computer-perfect (a machined
-// metal catches the light unevenly, a moulded plastic has a grain), and, for a circuit board, the board itself: solder mask over copper traces, pads
+// metal catches the light unevenly, a moulded plastic has a grain), a pattern on the colour where a material has one (the grain of wood, the speckle of stone, the veins
+// of marble, a weave, the courses of a brick wall), and, for a circuit board, the board itself: solder mask over copper traces, pads
 // and silkscreen, drawn on the faces that look up and down. Each layer is a few arithmetic steps per pixel; a tier that does not ask for a layer
 // compiles without it.
 
 import type { BufferGeometry, MeshPhysicalMaterial } from 'three';
+
+/** The patterns a material can wear on its colour. Each is a number between -1 and 1 over the surface, made from the part's own coordinates. */
+export type PatternKind = 'grain' | 'speckle' | 'veins' | 'weave' | 'twill' | 'bricks';
+const PATTERN_ID: Record<PatternKind, number> = { grain: 1, speckle: 2, veins: 3, weave: 4, twill: 5, bricks: 6 };
 
 export type MicroSurface = {
   /** How far roughness swings about its recipe value (0 none, 0.3 a lot): the rest of the layer is one more number each. */
@@ -15,6 +20,8 @@ export type MicroSurface = {
   bump: number;
   /** 0 nothing, 1 traces and pads, 2 traces, pads and silkscreen. */
   board: 0 | 1 | 2;
+  /** A pattern drawn on the colour: its kind, how many cycles to a unit of the object, and how strongly (0.3: the colour varies by about a third). */
+  pattern?: { kind: PatternKind; scale: number; amount: number };
 };
 
 const COMMON = `
@@ -25,6 +32,66 @@ float microNoise(vec3 p) {
              mix(mix(microHash(i + vec3(0,0,1)), microHash(i + vec3(1,0,1)), f.x), mix(microHash(i + vec3(0,1,1)), microHash(i + vec3(1,1,1)), f.x), f.y), f.z);
 }
 float microHash2(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+`;
+
+/**
+ * The patterns, each a value from about -1 (darker) to 1 (lighter) for a point of the object. `q` is the point in cycles, `n` the surface normal (a flat pattern is
+ * laid on the two axes across it), `fade` how much of the pattern the pixels can still tell apart (a surface seen from far has its average colour, not a crawl).
+ */
+const PATTERNS = `
+vec2 patPlane(vec3 q, vec3 n) {
+  vec3 a = abs(n);
+  return a.x > a.y && a.x > a.z ? q.zy : (a.y > a.z ? q.xz : q.xy);
+}
+float patGrain(vec3 q, float foot) {
+  // streaks along x: noise that varies quickly across the part and slowly along it, with dark lines where the noise crosses a level; each scale of it
+  // fades out on its own when the pixels can no longer tell it apart (a surface seen from far has its average colour, not a crawl)
+  float g1 = microNoise(vec3(q.x * 0.25, q.y * 1.2, q.z * 1.2));
+  float g2 = microNoise(vec3(q.x * 0.4, q.y * 5.0, q.z * 5.0));
+  float line = 1.0 - smoothstep(0.0, 0.25, abs(fract(g1 * 5.0) - 0.5) * 2.0);
+  float tone = (g1 - 0.5) * 3.0 * (1.0 - smoothstep(0.25, 0.5, foot * 1.2));
+  float fine = (g2 - 0.5) * 2.0 * (1.0 - smoothstep(0.25, 0.5, foot * 5.0));
+  return clamp(tone * 0.6 + fine * 0.5 - 0.9 * line * (1.0 - smoothstep(0.25, 0.5, foot * 6.0)), -1.0, 1.0);
+}
+float patSpeckle(vec3 q, float fade) {
+  float c = microHash(floor(q * 3.0));
+  return ((microNoise(q * 3.0) - 0.5) * 1.2 + (c - 0.5) * 0.8) * fade;
+}
+float patVeins(vec3 q, float fade) {
+  float w = microNoise(q * 0.7) * 4.0 + microNoise(q * 1.9);
+  float v = abs(sin(q.x * 0.8 + q.y * 0.5 + w * 1.6));
+  float line = 1.0 - smoothstep(0.0, 0.1, v);
+  return (-line + (microNoise(q * 0.9) - 0.5) * 0.3) * fade;
+}
+float patWeave(vec3 q, vec3 n, float fade) {
+  vec2 uv = patPlane(q, n);
+  float f = 0.3 * (sin(uv.x * 6.2832) + sin(uv.y * 6.2832)) + (microHash2(floor(uv)) - 0.5) * 0.4;
+  return f * fade;
+}
+float patTwill(vec3 q, vec3 n, float fade) {
+  vec2 uv = patPlane(q, n);
+  float f = 0.5 * sin((uv.x + uv.y) * 6.2832) + 0.3 * sin((uv.x - uv.y) * 3.1416);
+  return f * fade;
+}
+float patBricks(vec3 q, vec3 n, float fade) {
+  vec2 uv = patPlane(q, n);
+  vec2 b = vec2(uv.x * 0.5 + 0.5 * mod(floor(uv.y), 2.0), uv.y);
+  vec2 fr = fract(b);
+  float mx = min(fr.x, 1.0 - fr.x) * 2.0;
+  float my = min(fr.y, 1.0 - fr.y);
+  float mortar = 1.0 - smoothstep(0.04, 0.07, min(mx, my));
+  float tone = (microHash2(floor(b)) - 0.5) * 0.5 + (microNoise(q * 6.0) - 0.5) * 0.4;
+  // from far the courses blend to their average; the mortar is the light line, so its average is a little above the brick
+  return mix(0.15, mix(tone, 1.6, mortar), fade);
+}
+float patternValue(float kind, vec3 q, vec3 n, float foot) {
+  if (kind < 1.5) return patGrain(q, foot);
+  if (kind < 2.5) return patSpeckle(q, 1.0 - smoothstep(0.25, 0.7, foot * 3.0));
+  if (kind < 3.5) return patVeins(q, 1.0 - smoothstep(0.25, 0.7, foot * 1.9));
+  if (kind < 4.5) return patWeave(q, n, 1.0 - smoothstep(0.2, 0.5, foot * 1.0));
+  if (kind < 5.5) return patTwill(q, n, 1.0 - smoothstep(0.2, 0.5, foot * 1.0));
+  return patBricks(q, n, 1.0 - smoothstep(0.3, 0.8, foot * 0.7));
+}
 `;
 
 /**
@@ -63,14 +130,14 @@ void boardLayers(vec2 q, float aa, out float trace, out float pad, out float hol
 `;
 
 export function applyMicroSurface(material: MeshPhysicalMaterial, o: MicroSurface): void {
-  if (o.rough <= 0 && o.bump <= 0 && o.board === 0) return;
+  if (o.rough <= 0 && o.bump <= 0 && o.board === 0 && !o.pattern) return;
   const unit = { value: 1 };
   material.userData.boardUnit = unit;
   const previous = material.onBeforeCompile;
   const previousKey = material.customProgramCacheKey();
-  const defines = [o.rough > 0 ? '#define MICRO_ROUGH' : '', o.bump > 0 ? '#define MICRO_BUMP' : '', o.board > 0 ? '#define MICRO_BOARD' : '', o.board > 1 ? '#define MICRO_SILK' : ''].join('\n');
+  const defines = [o.rough > 0 ? '#define MICRO_ROUGH' : '', o.bump > 0 ? '#define MICRO_BUMP' : '', o.board > 0 ? '#define MICRO_BOARD' : '', o.board > 1 ? '#define MICRO_SILK' : '', o.pattern ? '#define MICRO_PATTERN' : ''].join('\n');
   // The numbers go in as uniforms, not into the program: every material of a tier then shares one program (steel, iron, brass and cast differ only in three floats).
-  const own = { microGrain: { value: o.grain }, microRoughAmt: { value: o.rough }, microBumpAmt: { value: o.bump }, boardUnit: unit };
+  const own = { microGrain: { value: o.grain }, microRoughAmt: { value: o.rough }, microBumpAmt: { value: o.bump }, boardUnit: unit, patKind: { value: o.pattern ? PATTERN_ID[o.pattern.kind] : 0 }, patScale: { value: o.pattern?.scale ?? 1 }, patAmt: { value: o.pattern?.amount ?? 0 } };
   material.onBeforeCompile = function (shader, renderer) {
     previous.call(this, shader, renderer);
     Object.assign(shader.uniforms, own);
@@ -78,7 +145,7 @@ export function applyMicroSurface(material: MeshPhysicalMaterial, o: MicroSurfac
       .replace('void main() {', 'varying vec3 vMicroP;\nvarying vec3 vMicroN;\nvoid main() {')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vMicroP = position;\n  vMicroN = normal;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('void main() {', `${defines}\nuniform float microGrain;\nuniform float microRoughAmt;\nuniform float microBumpAmt;\nuniform float boardUnit;\nvarying vec3 vMicroP;\nvarying vec3 vMicroN;\n${COMMON}\n#ifdef MICRO_BOARD\n${BOARD}\n#endif\nvoid main() {
+      .replace('void main() {', `${defines}\nuniform float microGrain;\nuniform float microRoughAmt;\nuniform float microBumpAmt;\nuniform float boardUnit;\nuniform float patKind;\nuniform float patScale;\nuniform float patAmt;\nvarying vec3 vMicroP;\nvarying vec3 vMicroN;\n${COMMON}\n#ifdef MICRO_PATTERN\n${PATTERNS}\n#endif\n#ifdef MICRO_BOARD\n${BOARD}\n#endif\nvoid main() {
   float microRough = 1.0;
   float microHeight = 0.0;
   float boardMetal = 0.0;
@@ -98,6 +165,13 @@ export function applyMicroSurface(material: MeshPhysicalMaterial, o: MicroSurfac
   }
 #endif`)
       .replace('#include <color_fragment>', `#include <color_fragment>
+#ifdef MICRO_PATTERN
+  {
+    float patFoot = max(length(dFdx(vMicroP)), length(dFdy(vMicroP))) * patScale;
+    float pv = patternValue(patKind, vMicroP * patScale, normalize(vMicroN), patFoot);
+    diffuseColor.rgb *= max(vec3(0.0), vec3(1.0 + patAmt * pv));
+  }
+#endif
 #ifdef MICRO_BOARD
   {
     float up = abs(vMicroN.y);
@@ -152,7 +226,7 @@ export function applyMicroSurface(material: MeshPhysicalMaterial, o: MicroSurfac
   }
 #endif`);
   };
-  material.customProgramCacheKey = () => `${previousKey}|micro-v2|${defines.replace(/\s+/g, '')}`;
+  material.customProgramCacheKey = () => `${previousKey}|micro-v3|${defines.replace(/\s+/g, '')}`;
 }
 
 /** The pattern of a board is drawn for a board about 6 by 4; this sets its scale from the geometry so a board written at any size carries the same detail. */

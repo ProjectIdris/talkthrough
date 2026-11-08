@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MATERIAL_LIBRARY, MATERIAL_NAMES, fitTint, luminance, materialRow } from '../src/scene/material-library.ts';
+import { MATERIAL_GUIDE_ROWS, MATERIAL_LIBRARY, MATERIAL_NAMES, fitTint, luminance, materialRow } from '../src/scene/material-library.ts';
 import { MATERIALS, sceneGuide, sceneSchemaLean, createSceneState, validateStep } from '../src/scene/index.ts';
 import { makeSurface, applySurface, TIERS } from '../src/overlay/materials.ts';
 import { treatmentOf } from '../src/overlay/surface-treatment.ts';
@@ -9,15 +9,16 @@ import type { AddAction } from '../src/scene/index.ts';
 
 const banded = MATERIAL_LIBRARY.filter((m) => 'band' in m);
 
-test('the library is one list: the schema enum, the default colours and the guide all carry every name', () => {
+test('the library is one list: the default colours and the recipes carry every name, and the guide gives the families and real names from them', () => {
   assert.deepEqual([...MATERIALS], [...MATERIAL_NAMES]);
   for (const name of ['bone', 'muscle', 'tendon', 'skin', 'steel', 'iron', 'brass', 'copper', 'wood', 'rope', 'water', 'plastic', 'rubber', 'glass']) assert.ok(MATERIAL_NAMES.includes(name as never), name);
-  const schema = JSON.stringify(sceneSchemaLean);
-  for (const m of MATERIAL_LIBRARY) {
-    assert.ok(schema.includes(`"${m.name}"`), `${m.name} is in the schema`);
-    assert.ok(sceneGuide.includes(m.name), `${m.name} is in the guide`);
-    assert.deepEqual(MATERIAL_COLOR[m.name], [...m.color], `${m.name} has its default colour`);
-  }
+  for (const m of MATERIAL_LIBRARY) assert.deepEqual(MATERIAL_COLOR[m.name], [...m.color], `${m.name} has its default colour`);
+  // The guide names the families with a few names of each, not every name: it is held to the guide's size, and any other name is taken to the nearest.
+  const named = MATERIAL_GUIDE_ROWS.flatMap(([, names]) => names);
+  for (const name of named) assert.ok(MATERIAL_NAMES.includes(name), `the guide's ${name} is a material`);
+  for (const [family] of MATERIAL_GUIDE_ROWS) assert.ok(sceneGuide.includes(family), `the guide names ${family}`);
+  for (const f of new Set(MATERIAL_LIBRARY.map((m) => m.family))) assert.ok(MATERIAL_LIBRARY.some((m) => m.family === f && named.includes(m.name as never)) || f === 'rubber' || f === 'electronics', `the guide reaches the family ${f}`);
+  assert.ok(!sceneGuide.includes('light-wood'), 'not every name is listed');
   assert.deepEqual(defaultColor({ op: 'add', shape: 'sphere', id: 'a', size: [1, 1, 1], material: 'bone' } as AddAction), [...(materialRow('bone')!.color)]);
 });
 

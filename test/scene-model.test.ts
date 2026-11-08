@@ -26,7 +26,7 @@ test('the new shapes are accepted with their own fields, and a colour is optiona
 
 test('a surface or part that is not in the vocabulary is dropped, not guessed at', () => {
   const r = run([
-    { op: 'add', shape: 'box', id: 'a', size: [1, 1, 1], material: 'lava' },
+    { op: 'add', shape: 'box', id: 'a', size: [1, 1, 1], material: 'unobtainium' },
     { op: 'add', shape: 'part', id: 'p', part: 'nuke', size: [1, 1, 1] },
     { op: 'add', shape: 'part', id: 'q', part: 'port', variant: 'wormhole', size: [1, 1, 1] },
     { op: 'add', shape: 'extrude', id: 'e', outline: [[0, 0], [1, 1]], depth: 1 },
