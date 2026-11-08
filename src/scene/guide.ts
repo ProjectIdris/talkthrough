@@ -37,7 +37,7 @@ const EXAMPLE = {
     {
       say: 'Two meshed gears: the small one turns the big one more slowly, and the other way round.',
       actions: [
-        { op: 'panel', x: 560, y: 200, w: 420, h: 460 },
+        { op: 'panel', x: 560, y: 150, w: 380, h: 620 },
         { op: 'add', shape: 'group', id: 'train' },
         { op: 'add', shape: 'part', part: 'gear', id: 'small', parent: 'train', size: [3, 3, 0.8], n: 12, pos: [-1.6, 0, 0] },
         { op: 'add', shape: 'part', part: 'gear', id: 'big', parent: 'train', size: [4.5, 4.5, 0.8], n: 18, pos: [2, 0, 0], at: 0.4 },
@@ -49,7 +49,7 @@ const EXAMPLE = {
     {
       say: 'A door swings on its hinge edge.',
       actions: [
-        { op: 'panel', x: 560, y: 200, w: 420, h: 460 },
+        { op: 'panel', x: 560, y: 150, w: 380, h: 620 },
         { op: 'add', shape: 'box', id: 'frame', size: [4, 5, 0.4] },
         { op: 'add', shape: 'box', id: 'door', parent: 'frame', parentAnchor: 'left', selfAnchor: 'left', size: [3.6, 4.6, 0.2], pos: [0.2, 0, 0.3], at: 0.4 },
         { op: 'loop', id: 'door', kind: 'swing', axis: 'y', amount: 60, at: 0.8 },
@@ -68,7 +68,7 @@ const lines: string[] = [
   '- State as fact only what a picture clearly shows (a pose, a position, a word you can read); where it does not show something (a hand, a tool, a contact, an angle), teach the general point without pinning it on the photo. Never quote an angle, size or distance you cannot measure: show a direction by drawing along a real edge or line in the picture, and give a number only if the page says it.',
   `- Screen coordinates run 0 to 1000 across the screenshot (x right, y down). Each size is along its own axis, so a round shape on a 16:9 screen has w about 9/16 of h.`,
   '- Mark shapes: rot tilts a box or circle; poly takes a point on each corner; point marks one exact spot (a crossing, a tip, a place on a map); trace follows a curve or path through points set along it (head true ends it in an arrowhead); an arrow ends with its tip on what it points at. Put each mark exactly on the thing: the overlay may nudge it a few percent onto the lines and corners of the page itself, so do not count on that.',
-  '- 3D: units x right, y up, z toward the viewer. Size-based solids are centred on their pos; hull points stay in their authored local coordinates. The panel is the rectangle the model is fitted to; the model floats over the page with a shadow. The camera frames the whole model to the panel, so only proportions matter, not the units you draw in: zoom 1 shows all of it, a higher zoom comes in closer on the focused part. Angles are degrees. Never zoom past about 1.6 on one part if the rest should stay legible.',
+  '- 3D: units x right, y up, z toward the viewer. Size-based solids are centred on their pos; hull points stay in their authored local coordinates. The panel is the rectangle the model is fitted to; the model floats over the page with a shadow. Give it room: about 60 percent of the screen height (h near 600), and narrower than tall for a tall or compact model, since the screen is wider than tall and a panel as wide as it is tall is a wide slab. The camera frames the whole model to the panel, so only proportions matter, not the units you draw in: zoom 1 shows all of it, a higher zoom comes in closer on the focused part. Angles are degrees. Never zoom past about 1.6 on one part if the rest should stay legible.',
   '- Build models from parts, not primitives alone: box with a bevel for housings, material for the surface (' + MATERIAL_NAMES.join(' ') + '; name what it is made of: bone, muscle, tendon, skin for a body, steel, iron, brass, copper for machines, wood, rope, water; leave color out unless it should differ, since a tint gives the material a hue but keeps it within its own lightness, so bone stays bone on a white page, never write white for bone), part for ready-made electronics and machine parts (the part action below lists them, with sizes, axes and anchors), array for repeats (one blade, count 9, turn 40; add the object an array copies before the array), extrude for wings and plates, hull for irregular convex solids from 4 to 64 3D corners, lathe for round bodies, tube for cables, patch for shaped open sheets (16 Bézier controls in four rows; use a regular net, not sixteen points to interpolate).',
   '- Extrude holes are through-openings in the outline local XY plane: use up to 8 separate rings strictly inside the outline, no touching, crossing or nesting. Each ring has 3 to 24 points; all rings and the outline total at most 128 points. Either winding and one repeated closing point are accepted. Openings use flat edges (bevel 0).',
   '- For a closed cutaway of a round body, use lathe with sweep 1..359 degrees and a simple closed profile of 3..40 [radius,y] points (radius 0..100, y -100..100). It starts at +z towards +x around +y; rotate to choose the opening. Axis contact is allowed; avoid thin, touching or crossing boundaries. Omit sweep for the original full lathe.',
