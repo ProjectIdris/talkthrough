@@ -20,6 +20,7 @@ import { sweepGeometry, sweepEdges } from './sweep.ts';
 import { shellGeometry, shellEdges } from './shell.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
 import { buildHullGeometry } from './hull.ts';
+import { applyEdgeSoften, softenEdges } from './edge-soften.ts';
 import { loftEdges, loftGeometry } from './loft.ts';
 import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
@@ -250,6 +251,7 @@ export class PanelScene {
       }
       if (def.shape === 'patch') { surface.side = DoubleSide; surface.forceSinglePass = true; }
       if (geo.getAttribute('color')) surface.vertexColors = true;
+      if (geo.getAttribute('edgeBary')) applyEdgeSoften(surface);
       const mesh = new Mesh(geo, surface);
       mesh.castShadow = settings.shadows;
       mesh.receiveShadow = settings.shadows;
@@ -267,7 +269,7 @@ export class PanelScene {
       case 'group': case 'array': case 'field': break;
       case 'hull': {
         const result = buildHullGeometry(def.pts);
-        if (result.ok) node.obj = addMesh(result.geometry, material, def.edges !== false);
+        if (result.ok) node.obj = addMesh(softenEdges(result.geometry) ?? result.geometry, material, def.edges !== false);
         else console.warn(`talkthrough: hull ${o.id} could not be built: ${result.message}`);
         break;
       }
@@ -399,7 +401,10 @@ export class PanelScene {
       case 'patch': return patchGeometry(def.pts, PATCH_SEGMENTS[this.tier]);
       case 'extrude': {
         const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number; holes?: Array<Array<[number, number]>>; taper?: number; shift?: [number, number] };
-        if (e.taper != null || e.shift != null) return taperedExtrudeGeometry(e.outline, e.depth, e.taper ?? 1, e.shift ?? [0, 0]);
+        if (e.taper != null || e.shift != null) {
+          const tapered = taperedExtrudeGeometry(e.outline, e.depth, e.taper ?? 1, e.shift ?? [0, 0]);
+          return softenEdges(tapered) ?? tapered;
+        }
         return extrudeGeometry(e.outline, e.depth, e.bevel ?? Math.min(0.1, e.depth * 0.2), d, e.holes);
       }
       case 'blob': {

@@ -4,7 +4,7 @@
 // Everything is data-driven by validated scenes (see src/scene).
 
 import { NeutralToneMapping, PMREMGenerator, SRGBColorSpace, VSMShadowMap, WebGLRenderer } from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { StudioEnvironment } from './studio.ts';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { DisplayInfo, SceneMessage } from '../shared/ipc.ts';
 import type { Action, Mark, Scene } from '../scene/types.ts';
@@ -147,9 +147,9 @@ function createRenderer(): WebGLRenderer | undefined {
     candidate.shadowMap.enabled = settings.shadows;
     candidate.shadowMap.type = VSMShadowMap;
     const pmrem = new PMREMGenerator(candidate);
-    const room = new RoomEnvironment();
+    const room = new StudioEnvironment();
     try {
-      panelScene.setEnvironment(pmrem.fromScene(room, 0.04).texture, 0.8);
+      panelScene.setEnvironment(pmrem.fromScene(room, 0.04).texture, 1.0);
     } finally {
       room.dispose();
       pmrem.dispose();
@@ -165,15 +165,15 @@ function createRenderer(): WebGLRenderer | undefined {
 }
 const renderer = createRenderer();
 
-/** The high tier's occlusion and smoothing; absent on the others, and if the graphics stack will not run it. */
+/** The occlusion (and, on the high tier, the smoothing): full on high, lighter on mid, absent on low, and if the graphics stack will not run it. */
 let finishing: Finishing | undefined;
-if (renderer && tier === 'high') {
+if (renderer && tier !== 'low') {
   try {
-    finishing = new Finishing(renderer, panelScene.scene, panelScene.camera);
-    console.info('talkthrough: high tier finishing pass on');
+    finishing = new Finishing(renderer, panelScene.scene, panelScene.camera, tier === 'high' ? 'full' : 'light');
+    console.info(`talkthrough: ${tier} tier finishing pass on`);
   } catch {
     finishing = undefined; // the plain render is the fallback
-    console.info('talkthrough: high tier finishing pass unavailable, drawing plainly');
+    console.info(`talkthrough: ${tier} tier finishing pass unavailable, drawing plainly`);
   }
 }
 
