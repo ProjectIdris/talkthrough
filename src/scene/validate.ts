@@ -697,6 +697,10 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', path, 'a connector joins two different objects (from and to are the same)');
     return null;
   }
+  if (variant.name === 'addConnector' && out.kind === 'wrapped' && ['fromPoint', 'toPoint', 'swell', 'restLength'].some(k => out[k] !== undefined)) {
+    note(notes, 'dropped', path, 'local endpoint points, swell and restLength require a straight or slack connector, not a wrapped belt');
+    return null;
+  }
   if (variant.name === 'addStream' && out.period === 0) {
     delete out.period;
     note(notes, 'trimmed', `${path}.period`, 'period 0 would not move; the default is used');

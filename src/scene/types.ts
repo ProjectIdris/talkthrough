@@ -128,6 +128,7 @@ export type Side = 'left' | 'right' | 'top' | 'bottom' | 'front' | 'back';
 export type AddConnector = {
   op: 'add'; shape: 'connector'; id: string; parent?: string; from: string; to: string; kind?: 'straight' | 'slack' | 'wrapped';
   fromSide?: Side; toSide?: Side; fromAnchor?: string; toAnchor?: string; sag?: number; radius?: number; draw?: number;
+  fromPoint?: Vec3; toPoint?: Vec3; swell?: Vec2[]; restLength?: number;
 } & Surface & At;
 /** Markers that travel along a path, a connector, or an edge of a flow diagram. */
 export type StreamMark = 'dot' | 'dash' | 'arrow';

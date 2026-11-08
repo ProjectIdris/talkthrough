@@ -38,7 +38,8 @@ export function roundOf(def: Def, obj: Object3D): Round | undefined {
 }
 
 /** Where an end of a connector meets an object, in world space. */
-export function endPoint(obj: Object3D, def: Def, side: Side | undefined, anchor: string | undefined, anchors: Record<string, Vec3> | undefined, out = new Vector3()): Vector3 {
+export function endPoint(obj: Object3D, def: Def, side: Side | undefined, anchor: string | undefined, anchors: Record<string, Vec3> | undefined, out = new Vector3(), point?: Vec3): Vector3 {
+  if (point) return obj.localToWorld(out.set(...point));
   const named = anchor !== undefined && anchors && Object.hasOwn(anchors, anchor) ? anchors[anchor] : undefined;
   if (named) return obj.localToWorld(out.set(named[0], named[1], named[2]));
   if (side === undefined) return obj.getWorldPosition(out);

@@ -102,13 +102,32 @@ export function expandedSchema(root: Schema, value: unknown = root): unknown {
   const object = value as Schema;
   if (typeof object.$ref === 'string') return expandedSchema(root, resolve(root, object));
   return Object.fromEntries(Object.entries(object).filter(([name]) => name !== '$defs')
-    .map(([name, child]) => [name, expandedSchema(root, child)]));
+    .map(([name, child]) => {
+      const expanded = expandedSchema(root, child);
+      if (name !== 'anyOf' || !Array.isArray(expanded)) return [name, expanded];
+      // Split equivalent operation enums before comparing accepted contracts.
+      // Sorting removes union order, not any field, required entry or type.
+      const branches = expanded.flatMap((branch: Schema) => {
+        const props = branch.properties as Record<string, Schema> | undefined;
+        const ops = props?.op?.enum;
+        return Array.isArray(ops) ? ops.map(op => ({ ...branch, properties: { ...props, op: { enum: [op] } } })) : [branch];
+      });
+      return [name, branches.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))];
+    }));
 }
 
-/** Variants are offered in spec order in both full and compact schema unions. */
+/** Resolve variants by their discriminators, including shared operation enums. */
 export function variantDefinitions(root: Schema): Record<string, { properties: Record<string, Schema>; required: string[] }> {
   const step = resolve(root, ((root.properties as Record<string, Schema>).steps!.items as Schema));
   const action = resolve(root, ((step.properties as Record<string, Schema>).actions!.items as Schema));
-  return Object.fromEntries(VARIANTS.map((variant, i) => [variant.name,
-    expandedSchema(root, (action.anyOf as Schema[])[i])])) as Record<string, { properties: Record<string, Schema>; required: string[] }>;
+  const branches = (action.anyOf as Schema[]).map(branch => expandedSchema(root, branch) as Schema);
+  return Object.fromEntries(VARIANTS.map(variant => {
+    const branch = branches.find(branch => {
+      const props = branch.properties as Record<string, Schema>;
+      return (props.op!.enum as string[]).includes(variant.op) &&
+        (!variant.shapes || variant.shapes.every(shape => (props.shape?.enum as string[] | undefined)?.includes(shape)));
+    });
+    if (!branch) throw new Error(`Missing schema variant ${variant.name}`);
+    return [variant.name, { ...branch, required: branch.required as string[], properties: { ...branch.properties as Record<string, Schema>, op: { enum: [variant.op] } } }];
+  })) as Record<string, { properties: Record<string, Schema>; required: string[] }>;
 }
