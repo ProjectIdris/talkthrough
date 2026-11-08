@@ -334,20 +334,54 @@ const MAX_RAW_CHARS = 200_000;
  */
 export function createOutputStream(pieces = false, onRaw?: (text: string) => void): OutputStream {
   const seen: StepPiece[] = [];
-  const stream = createStepStream({ onPiece: (p) => seen.push(p) });
+  let steps = 0;
+  const onPiece = (p: StepPiece): void => {
+    if (p.type === 'step') steps++;
+    seen.push(p);
+  };
+  let stream = createStepStream({ onPiece });
   let raw = '';
   let reported = false;
+  let unwrapped = false;
   const report = (): void => {
     if (reported || !onRaw) return;
     reported = true;
     onRaw(raw);
   };
+  /** The scene of an answer wrapped as {"inputs": "<the scene as a JSON string>"} (or with the scene itself as the value), else undefined. */
+  const innerOfWrapped = (): string | undefined => {
+    const from = raw.indexOf('{');
+    const to = raw.lastIndexOf('}');
+    if (from < 0 || to < from) return undefined;
+    try {
+      const whole: unknown = JSON.parse(raw.slice(from, to + 1));
+      if (typeof whole !== 'object' || whole === null || Array.isArray(whole)) return undefined;
+      const keys = Object.keys(whole);
+      const value = (whole as { inputs?: unknown }).inputs;
+      if (keys.length !== 1 || keys[0] !== 'inputs') return undefined;
+      const text = typeof value === 'string' ? value : JSON.stringify(value);
+      const scene: unknown = typeof value === 'string' ? JSON.parse(value) : value; // only a scene (an object with its steps) is read; anything else stays as it was
+      return typeof scene === 'object' && scene !== null && !Array.isArray(scene) && 'steps' in scene ? text : undefined;
+    } catch {
+      return undefined;
+    }
+  };
   const out: OutputStream = {
     pieces,
     push(chunk) {
-      if (onRaw && raw.length < MAX_RAW_CHARS) raw += chunk.slice(0, MAX_RAW_CHARS - raw.length);
+      if (raw.length < MAX_RAW_CHARS) raw += chunk.slice(0, MAX_RAW_CHARS - raw.length);
       try {
         stream.push(chunk);
+        // The tool sometimes puts the whole answer in a lone "inputs" value (once in about twenty calls on Sonnet): the stream saw one object with
+        // no step in it. Read the answer that is inside, as if it had come whole.
+        if (!unwrapped && steps === 0 && stream.complete) {
+          const inside = innerOfWrapped();
+          if (inside !== undefined) {
+            unwrapped = true;
+            stream = createStepStream({ onPiece });
+            stream.push(inside);
+          }
+        }
       } catch (error) {
         report();
         throw error;
