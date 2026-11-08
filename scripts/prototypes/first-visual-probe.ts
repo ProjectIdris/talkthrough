@@ -15,9 +15,10 @@ export function createVisualProbe(send: (message: SceneMessage) => void, elapsed
     if (!begun) { send({ kind: 'begin', turn: 1 }); begun = true; }
     return live ??= beginLiveStep(state, {
       open: say => send({ kind: 'step-open', say }),
-      action: action => {
+      // An action the validator derives (the shaft it puts through a gear) is not one the fixture wrote.
+      action: (action, derived) => {
         result.firstValidatedActionMs ??= elapsed();
-        result.acceptedActions++;
+        if (!derived) result.acceptedActions++;
         send({ kind: 'action', action });
         result.firstSentActionMs ??= elapsed();
       },

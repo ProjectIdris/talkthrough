@@ -144,14 +144,14 @@ test('a gear that arrives beside another in the same plane, a near miss from mes
 });
 
 test('a rope that runs in through the wheel it leaves from leaves along the tangent instead; one that leaves along it is left', () => {
-  const wheel = { op: 'add', shape: 'cylinder', id: 'w', pos: [0, 0, 0], rot: [90, 0, 0], size: [2, 0.4, 2], at: 0.5 };
+  const wheel = { op: 'add', shape: 'part', part: 'wheel', id: 'w', pos: [0, 0, 0], size: [2, 2, 0.4], at: 0.5 };
   const weight = { op: 'add', shape: 'box', id: 'load', pos: [-3, -4, 0], size: [1, 1, 1], at: 0.5 };
   // From the top of the wheel straight down-left to a weight: in through the disc.
   const bad = run([wheel, weight, { op: 'add', shape: 'connector', id: 'rope', from: 'w', to: 'load', fromSide: 'top', toSide: 'top', radius: 0.05, at: 1 }]);
   const rope = bad.find('rope');
   assert.equal(rope.fromSide, undefined);
   const pt = rope.fromPoint as number[];
-  assert.ok(Math.abs(Math.hypot(pt[0]!, pt[2]!) - 1) < 0.01 && Math.abs(pt[1]!) < 0.01, 'on the rim (the wheel is turned to stand its axis along z, so its own plane is x and z)');
+  assert.ok(Math.abs(Math.hypot(pt[0]!, pt[1]!) - 1) < 0.01 && Math.abs(pt[2]!) < 0.01, 'on the rim (a wheel part stands with its axis along z, so its own plane is x and y)');
   assert.ok(bad.repairs.some((n) => n.includes('tangent point')), bad.notes.join('\n'));
   // Down the left side: a vertical rope is a tangent there.
   const good = run([wheel, { ...weight, pos: [-1, -4, 0] }, { op: 'add', shape: 'connector', id: 'rope', from: 'w', to: 'load', fromSide: 'left', toSide: 'top', radius: 0.05, at: 1 }]);
@@ -160,6 +160,10 @@ test('a rope that runs in through the wheel it leaves from leaves along the tang
   // A wheel that turns keeps the rim end it was given: a point fixed to it would travel round.
   const turning = run([wheel, weight, { op: 'spin', id: 'w', rpm: 10, at: 0.6 }, { op: 'add', shape: 'connector', id: 'rope', from: 'w', to: 'load', fromSide: 'top', toSide: 'top', radius: 0.05, at: 1 }]);
   assert.equal(turning.find('rope').fromSide, 'top');
+  // A plain disc (a cylinder the model draws, not a pulley wheel) keeps the end it was given.
+  const disc = run([{ ...wheel, shape: 'cylinder', part: undefined, rot: [90, 0, 0], size: [2, 0.4, 2] }, weight, { op: 'add', shape: 'connector', id: 'rope', from: 'w', to: 'load', fromSide: 'top', toSide: 'top', radius: 0.05, at: 1 }]);
+  assert.equal(disc.find('rope').fromSide, 'top');
+  assert.deepEqual(disc.repairs, []);
 });
 
 test('parts placed by a face of their holder are not moved (their place is an offset, not known by the words)', () => {

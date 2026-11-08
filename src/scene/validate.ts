@@ -1280,18 +1280,18 @@ function fitConnector(out: Record<string, unknown>, state: SceneState, path: str
     const side = out[`${end}Side`] as string | undefined;
     const wheel = end === 'from' ? a : b;
     if (!wheel || out[`${end}Point`] !== undefined || out[`${end}Anchor`] !== undefined || spinsAnywhere(state, wheelId)) continue;
+    // Only a pulley has its rope run to the tangent: a wheel part, or a short cylinder that a rope already leaves from a side or a point. A plain disc (a bob, a seat, a plate, a drum a rope is wound on) keeps the end as written.
+    const body = state.bodies.get(wheelId);
+    const roped = [...(state.connectors?.values() ?? [])].some((c) => c.sided?.includes(wheelId));
+    if (!(body?.part === 'wheel' || (flatDisc(body) && roped))) continue;
     if (side === undefined) {
       // A rope that ends on a pulley wheel with no side would run to its axle through the wheel: it is seated in the rim, where it leaves along the tangent.
-      // Only a pulley: a wheel part, or a short cylinder that a rope already leaves from a side or a point (a plain disc is a bob, a seat or a plate, and a rope to its middle is meant). Never a rope to another disc, and never a rope that
+      // Never a rope to another disc, and never a rope that
       // hangs the wheel from above (a moving pulley is tied by its axle).
-      const flatDisc = (b: ReturnType<typeof state.bodies.get>): boolean => b?.shape === 'cylinder' && !!b.size && b.size[1] <= 0.5 * Math.max(b.size[0], b.size[2]);
-      const body = state.bodies.get(wheelId);
-      const roped = [...(state.connectors?.values() ?? [])].some((c) => c.sided?.includes(wheelId));
-      const pulley = body?.part === 'wheel' || (flatDisc(body) && roped);
       const farId = out[far] as string, farBody = state.bodies.get(farId);
       const farEnd = endWorld(state, farId, out[`${far}Side`] as string | undefined, out[`${far}Anchor`] as string | undefined, out[`${far}Point`] as Vec3 | undefined);
       const hangs = farEnd !== undefined && farEnd[1] - wheel.c[1] > wheel.rp;
-      const seat = pulley && farEnd && farBody?.part !== 'wheel' && !flatDisc(farBody) && !hangs ? seatTangent(wheel, farEnd) : undefined;
+      const seat = farEnd && farBody?.part !== 'wheel' && !flatDisc(farBody) && !hangs ? seatTangent(wheel, farEnd) : undefined;
       if (!seat) continue;
       const p = applyInverse(worldOf(state.bodies, wheelId), seat).map((v) => Math.round(v * 1000) / 1000) as Vec3;
       out[`${end}Point`] = p;
@@ -1311,6 +1311,9 @@ function fitConnector(out: Record<string, unknown>, state: SceneState, path: str
   }
   return true;
 }
+
+/** A short cylinder: a disc (a plate, a seat, a bob, a pulley), not a post. */
+const flatDisc = (b: Body | undefined): boolean => b?.shape === 'cylinder' && !!b.size && b.size[1] <= 0.5 * Math.max(b.size[0], b.size[2]);
 
 /** Whether a belt, chain or rope has an end on each of the two parts. */
 function belted(state: SceneState, a: string, b: string): boolean {
