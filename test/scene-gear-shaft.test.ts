@@ -60,3 +60,11 @@ test('a shaft the scene writes under the name of an added one replaces it, with 
   const third = validateStep({ say: 'z', actions: [{ ...own, size: [0.2, 4, 0.2] }] }, state);
   assert.equal(third.issues.some((i) => i.kind === 'dropped'), true, 'and is in use like any id, written a third time it is refused');
 });
+
+test('a shaft the scene writes in the same step as the gears that got one replaces the added one: the step holds one add of that id, and a later gear is unaffected', () => {
+  const own = { op: 'add', shape: 'cylinder', id: 'g1-shaft', parent: 'g1', rot: [90, 0, 0], size: [0.3, 4, 0.3], color: 'red', at: 0.5 };
+  const r = run([gear('g1', [-1, 0, 0]), gear('g2', [1, 0, 0]), own]);
+  assert.deepEqual(r.shafts.map((s) => s.id).sort(), ['g1-shaft', 'g2-shaft'], 'one of each');
+  assert.equal(r.shafts.find((s) => s.id === 'g1-shaft')!.material, undefined, 'and the g1 one is the scene\'s own, not the steel one');
+  assert.deepEqual(r.issues.map((i) => [i.kind, i.message]), [['trimmed', 'repaired: "g1-shaft" is the shaft added through gear "g1"; this replaces it']]);
+});
