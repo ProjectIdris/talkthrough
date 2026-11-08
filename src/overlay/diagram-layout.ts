@@ -333,6 +333,8 @@ export type TimelineLayout = {
   overflow: boolean;
   /** True when two labels still overlap (a layout that overflows but has no overlap is better than one that has). */
   overlap: boolean;
+  /** How far the labels run past the area, in pixels (0 when they fit); the caller takes the least when nothing fits. */
+  overrun: number;
 };
 
 /** Where each event falls along the axis, 0 to 1: by its pos when all have one, else evenly in the order written. */
@@ -398,7 +400,7 @@ export function timelineLayout(events: readonly TimelineEvent[], area: Px, pad: 
       slot.dot = { x: slot.dot.x, y: slot.dot.y + shift };
       slot.rect = { ...slot.rect, y: slot.rect.y + shift };
     }
-    return { horizontal, axis: { a: { x: inner.x, y: y + shift }, b: { x: inner.x + inner.w, y: y + shift } }, events: out, overflow: unresolved || bottom - top > inner.h + 0.5, overlap: unresolved };
+    return { horizontal, axis: { a: { x: inner.x, y: y + shift }, b: { x: inner.x + inner.w, y: y + shift } }, events: out, overflow: unresolved || bottom - top > inner.h + 0.5, overlap: unresolved, overrun: Math.max(0, bottom - top - inner.h) };
   }
   const x = inner.x + Math.min(34, inner.w * 0.14);
   const room = Math.max(40, inner.x + inner.w - x - stem - 6);
@@ -416,7 +418,7 @@ export function timelineLayout(events: readonly TimelineEvent[], area: Px, pad: 
   for (const r of rows) out.set(r.e.id, { dot: { x, y: inner.y + f[r.i]! * inner.h }, f: f[r.i]!, rect: { x: x + stem + 6, y: r.y, w: r.w, h: r.h }, side: 1 });
   const lastRow = rows[rows.length - 1];
   const used = lastRow ? lastRow.y + lastRow.h - (rows[0]?.y ?? 0) : 0;
-  return { horizontal, axis: { a: { x, y: inner.y }, b: { x, y: inner.y + inner.h } }, events: out, overflow: used > inner.h + 0.5, overlap: false };
+  return { horizontal, axis: { a: { x, y: inner.y }, b: { x, y: inner.y + inner.h } }, events: out, overflow: used > inner.h + 0.5, overlap: false, overrun: Math.max(0, used - inner.h) };
 }
 
 // ---- Steps ---------------------------------------------------------------------------------------

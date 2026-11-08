@@ -255,6 +255,18 @@ test('no two timeline chips overlap, on either face, at any panel size, from fou
   assert.ok(cases >= 100);
 });
 
+test('when no layout fits, the one that runs least past the panel is taken (not the largest): the words stay inside the panel foot, in a wide panel and in a vertical one', () => {
+  const many = (n: number): Action[] => Array.from({ length: n }, (_, i) => ({ op: 'node', id: 'e' + i, of: 't', when: `${10 + i} Oct`, text: `A long event title number ${i}`, note: 'A longer note that wraps a few times over', pos: 100 + i * 20 }) as Action);
+  // (The first attempt that does not overlap was 412 px past the foot in the wide panel: the least overrun is 31 px, the smallest text with no note.)
+  for (const [w, h, n, limit, what] of [[260, 320, 8, 40, 'eight long events in a wide panel too small for them'], [150, 200, 5, 10, 'five long events down a narrow panel too short for them']] as Array<[number, number, number, number, string]>) {
+    const { chips } = timelineChips([{ op: 'diagram', id: 't', kind: 'timeline', x: 30, y: 600, w, h, title: 'Autumn 1066' } as Action, ...many(n)], 'dark', 0.6);
+    const foot = ((600 + h) / 1000) * 1080;
+    const past = Math.max(...chips.map((c) => c.y + c.h)) - foot;
+    assert.equal(chips.length, n);
+    assert.ok(past <= limit, `${what}: the chips end ${past.toFixed(0)} px below the panel's foot`);
+  }
+});
+
 test('the face changes only the colours: the same panel is laid out the same on both faces', () => {
   const events: Action[] = [
     { op: 'diagram', id: 't', kind: 'timeline', x: 30, y: 600, w: 600, h: 290, title: 'Autumn 1066' } as Action,

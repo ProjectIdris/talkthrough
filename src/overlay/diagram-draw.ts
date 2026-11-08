@@ -590,10 +590,13 @@ function drawTimeline(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Se
   env.painter.timelineLive.add(d.key);
   let index = remembered && remembered.signature === signature ? remembered.index : -1;
   if (index < 0) {
-    // The first that fits; failing that the first whose chips at least do not overlap (a cut or an overrun is better than chips over each other); failing that the last.
+    // The first that fits; failing that, of those whose chips do not overlap, the one that runs least past the panel (the earlier on a tie); failing that the last.
     const lays = (k: number) => build(env.px * tries[k]![2], tries[k]![0], tries[k]![1], tries[k]![3]).lay;
     index = tries.findIndex((_, k) => !lays(k).overflow);
-    if (index < 0) index = tries.findIndex((_, k) => !lays(k).overlap);
+    if (index < 0) {
+      let least = Infinity;
+      tries.forEach((_, k) => { const lay = lays(k); if (!lay.overlap && lay.overrun < least - 0.5) { least = lay.overrun; index = k; } });
+    }
     if (index < 0) index = tries.length - 1;
     env.painter.timelineChoices.set(d.key, { signature, index });
   }
