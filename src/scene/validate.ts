@@ -17,7 +17,8 @@ import { anchorsOf } from './anchors.ts';
 import { partFacing, resolvePartGeometry } from './part-geometry.ts';
 import { MODELS } from './model-catalogue.ts';
 import { findModel, partId, resolveModel, resolvePart } from './models.ts';
-import { DEFAULT_AMOUNT, loopRow } from './movement-rows.ts';
+import { DEFAULT_AMOUNT, JOINT_ROWS, jointRow, loopRow } from './movement-rows.ts';
+import type { JointName } from './movement-rows.ts';
 import { resolveHullPoints } from './hull-points.ts';
 import type { Body } from './attach.ts';
 import { bindParts, bindUnknownId, BINDINGS } from './bind.ts';
@@ -35,7 +36,7 @@ export type SceneState = {
   /** The ready-made part (piston, valve, cylinder-block...) that each id made by `add` part is; ids of anything else are not here. */
   parts: Map<string, string>;
   /** What joint each object has been given (hinge, slide or fixed), what each coupled object follows, and what each fixed object rides with. */
-  joints: Map<string, 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball'>;
+  joints: Map<string, JointName>;
   follows: Map<string, string>;
   rides: Map<string, string>;
   /** The axis each object has been set spinning about (a spin of rate zero takes it out): a part inside it turns with it already. */
@@ -830,8 +831,7 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
   }
   if (variant.name === 'loop' && out.kind !== 'stop') {
     // The kind is the object's joint when left out; an amount is a travel, an angle or a size factor by its kind, each in a range that still reads as that motion.
-    const joint = state.joints.get(out.id as string);
-    const kind = (out.kind as string | undefined) ?? (joint === 'hinge' || joint === 'pivot' || joint === 'ball' ? 'swing' : joint === 'slide' ? 'slide' : undefined);
+    const kind = (out.kind as string | undefined) ?? jointRow(state.joints.get(out.id as string))?.loop;
     if (kind === undefined) {
       note(notes, 'dropped', path, 'loop needs a kind, or a hinge, pivot, ball or slide joint on the object');
       return null;
@@ -992,7 +992,7 @@ function nameAnchor(out: Record<string, unknown>, state: SceneState, path: strin
 /** A joint: a fixed one needs the object it rides with (never in a ride that comes round to itself), limits run low to high; then it is on record. */
 function checkJoint(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
   const id = out.id as string;
-  if (out.kind === 'fixed') {
+  if (JOINT_ROWS[out.kind as JointName].motion === 'ride') {
     const to = out.to as string | undefined;
     if (to === undefined) {
       note(notes, 'dropped', path, 'a fixed joint needs to, the object it rides with');
@@ -1020,9 +1020,10 @@ function checkJoint(out: Record<string, unknown>, state: SceneState, path: strin
     }
     delete out.pivot;
   }
-  if (out.kind !== 'ball') delete out.limit;
-  if (out.kind !== 'hinge' && out.kind !== 'ball') delete out.about;
-  state.joints.set(id, out.kind as 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball');
+  const row = JOINT_ROWS[out.kind as JointName];
+  if (!row.limit) delete out.limit;
+  if (!row.about) delete out.about;
+  state.joints.set(id, out.kind as JointName);
   (state.jointRanges ??= new Map()).set(id, { min: out.min as number | undefined, max: out.max as number | undefined });
   return true;
 }
@@ -1076,16 +1077,15 @@ function checkCouple(out: Record<string, unknown>, state: SceneState, path: stri
     note(notes, 'dropped', `${path}.by`, `${id} cannot follow ${by}: that follows ${id} already (a coupling loop)`);
     return false;
   }
-  // A pivot is a hinge about the part's own axis: coupled to one as to a hinge.
-  const kindOf = (k: string | undefined): string | undefined => (k === 'pivot' ? 'hinge' : k);
-  const mine = kindOf(state.joints.get(id));
-  const theirs = kindOf(state.joints.get(by));
-  if (state.joints.get(id) === 'ball' || state.joints.get(by) === 'ball') {
+  // What each is when coupled: a pivot is a hinge about the part's own axis, coupled to one as to a hinge; a part that rides (a fixed joint) takes either.
+  const mine = jointRow(state.joints.get(id))?.as;
+  const theirs = jointRow(state.joints.get(by))?.as;
+  if (jointRow(state.joints.get(id))?.coupled === false || jointRow(state.joints.get(by))?.coupled === false) {
     note(notes, 'dropped', path, 'a ball joint is driven by a swing loop or spin on each axis, not coupled');
     return false;
   }
-  if (out.pitch === undefined && mine !== undefined && theirs !== undefined && mine !== 'fixed' && theirs !== 'fixed' && mine !== theirs) {
-    note(notes, 'dropped', path, `a ${theirs} and a ${mine} are coupled with pitch (units of travel for a turn), not ratio`);
+  if (out.pitch === undefined && mine !== undefined && theirs !== undefined && mine !== theirs) {
+    note(notes, 'dropped', path, `a ${theirs === 'turn' ? 'hinge' : theirs} and a ${mine === 'turn' ? 'hinge' : mine} are coupled with pitch (units of travel for a turn), not ratio`);
     return false;
   }
   state.follows.set(id, by);
@@ -1128,8 +1128,7 @@ function checkMuscle(out: Record<string, unknown>, state: SceneState, path: stri
     note(notes, 'dropped', `${path}.pulls`, `"${pulls}" is not an end of connector "${id}" (it joins ${conn.from} and ${conn.to})`);
     return false;
   }
-  const joint = state.joints.get(pulls);
-  if (joint !== 'hinge' && joint !== 'pivot') {
+  if (jointRow(state.joints.get(pulls))?.motion !== 'turn') {
     note(notes, 'dropped', `${path}.pulls`, `a muscle turns a hinge or pivot joint: give "${pulls}" one first (joint hinge about its end, or pivot) with min and max`);
     return false;
   }

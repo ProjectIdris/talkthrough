@@ -10,7 +10,7 @@ import { heldShift, mountPosition } from '../scene/attach.ts';
 import { anchorsOf } from '../scene/anchors.ts';
 import { findModel, modelScale } from '../scene/models.ts';
 import { resolvePartGeometry } from '../scene/part-geometry.ts';
-import { loopRow } from '../scene/movement-rows.ts';
+import { JOINT_ROWS, loopRow } from '../scene/movement-rows.ts';
 import { PALETTE_RGB } from '../scene/colors.ts';
 import { MATERIAL_LIBRARY } from '../scene/material-library.ts';
 import { advanceMotion, ballDriver, muscleRest, crankPinKey, crankPinSize, driverOwner, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, restPoint, waveDriver, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
@@ -770,10 +770,10 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       const by = a.by !== undefined ? lookup(plan.objs, a.by, at) : undefined;
       if (a.by !== undefined && (!by || by.key === o.key)) return;
       const joint = plan.joints.find((j) => j.key === o.key);
-      const kind = a.kind ?? (joint?.kind === 'hinge' || joint?.kind === 'pivot' || joint?.kind === 'ball' ? 'swing' : joint?.kind === 'slide' ? 'slide' : undefined);
+      const kind = a.kind ?? (joint ? JOINT_ROWS[joint.kind].loop : undefined);
       if (kind === undefined) return;
       // One loop to an object: the later one replaces the earlier (and `stop` is only that replacement left empty). A ball joint has one for each axis.
-      const ball = joint?.kind === 'ball';
+      const ball = joint !== undefined && JOINT_ROWS[joint.kind].motion === 'ball';
       const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : loopRow(kind)?.axis ?? 1;
       const driver = ball ? ballDriver(o.key, axis) : loopDriver(o.key);
       plan.muscles = plan.muscles.filter((m) => m.key !== o.key);
@@ -797,9 +797,9 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
     case 'joint': {
       const o = lookup(plan.objs, a.id, at);
       if (!o) return;
-      const to = a.kind === 'fixed' && a.to !== undefined ? lookup(plan.objs, a.to, at) : undefined;
-      if (a.kind === 'fixed' && (!to || to.key === o.key)) return;
-      const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : a.kind === 'hinge' ? 2 : 1;
+      const to = JOINT_ROWS[a.kind].motion === 'ride' && a.to !== undefined ? lookup(plan.objs, a.to, at) : undefined;
+      if (JOINT_ROWS[a.kind].motion === 'ride' && (!to || to.key === o.key)) return;
+      const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : JOINT_ROWS[a.kind].axis;
       // A pivot point named by `about` is a point of the part (built in, the kit's or one named): it is turned by the part's rest orientation to lie from its origin, in the parent's space.
       let pivot: Vec3 = a.pivot ? asVec(a.pivot) : [0, 0, 0];
       if (a.about !== undefined) {
@@ -807,7 +807,7 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
         if (named) pivot = restPoint(asVec(valueAt(o.rot, at)), asVec(valueAt(o.scale, at)), named);
       }
       plan.joints = plan.joints.filter((j) => j.key !== o.key);
-      plan.joints.push({ key: o.key, kind: a.kind, axis, dir: a.dir ? asVec(a.dir) : null, pivot, min: a.min, max: a.max, toKey: to ? to.key : null, limit: a.kind === 'ball' && a.limit ? asVec(a.limit) : null });
+      plan.joints.push({ key: o.key, kind: a.kind, axis, dir: a.dir ? asVec(a.dir) : null, pivot, min: a.min, max: a.max, toKey: to ? to.key : null, limit: JOINT_ROWS[a.kind].limit && a.limit ? asVec(a.limit) : null });
       end(0.2);
       return;
     }
@@ -956,7 +956,7 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       if (!pullsTo && fromObj.key !== pulled.key) return;
       const holder = pullsTo ? fromObj : toObj;
       const joint = plan.joints.find((j) => j.key === pulled.key);
-      if (!joint || (joint.kind !== 'hinge' && joint.kind !== 'pivot')) return;
+      if (!joint || JOINT_ROWS[joint.kind].motion !== 'turn') return;
       const endOf = (o: ObjInst, point?: Vec3, anchor?: string): Vec3 => point ? asVec(point) : (anchor !== undefined ? anchorsOf({ ...o.def, ...(o.points ? { points: o.points } : {}) } as object)[anchor] : undefined) ?? [0, 0, 0];
       const heldEnd = pullsTo ? endOf(fromObj, def.fromPoint, def.fromAnchor) : endOf(toObj, def.toPoint, def.toAnchor);
       const pullEnd = pullsTo ? endOf(toObj, def.toPoint, def.toAnchor) : endOf(fromObj, def.fromPoint, def.fromAnchor);

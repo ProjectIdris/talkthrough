@@ -11,6 +11,7 @@ import { arcPoint, beltPoints, endPoint, ropePoints, roundOf } from './connector
 import { drawFraction, swellAt, tubeGeometry } from './geometry.ts';
 import { applySurface, setSurfaceOpacity } from './materials.ts';
 import type { Surface } from './materials.ts';
+import { WAVE_ROW, fresh, num } from '../scene/movement-rows.ts';
 import { markerPlaces, markerSize, streamColour } from './stream.ts';
 import { parseColor } from './timeline.ts';
 import type { Frame, ObjectFrame } from './timeline.ts';
@@ -339,13 +340,17 @@ export function updateStreams(nodes: ReadonlyMap<number, FlowNode>, frame: Frame
 /** The factor a wave puts on the radius at `u` (0 to 1 along the tube), crests `count` apiece, each `width` of the length across, `phase` laps along. */
 export function waveFactor(u: number, phase: number, count: number, width: number, amount: number): number {
   let bump = 0;
-  const half = Math.max(0.01, width / 2);
+  const scope = fresh({ u, phase, count, width, amount, j: 0 });
+  scope.half = num(WAVE_ROW.half, scope);
   for (let j = 0; j < count; j++) {
-    const c = (((phase + j / count) % 1) + 1) % 1;
-    const d = Math.abs(u - c) / half;
-    if (d < 1) bump = Math.max(bump, 0.5 * (1 + Math.cos(Math.PI * d)));
+    scope.j = j;
+    scope.c = num(WAVE_ROW.place, scope);
+    const d = num(WAVE_ROW.reach, scope);
+    scope.d = d;
+    if (d < 1) bump = Math.max(bump, num(WAVE_ROW.bump, scope));
   }
-  return 1 + (amount - 1) * bump;
+  scope.bump = bump;
+  return num(WAVE_ROW.factor, scope);
 }
 
 /**
