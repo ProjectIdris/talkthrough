@@ -247,6 +247,15 @@ const STAGE_FAIR_HEIGHT = 620;
 const STAGE_TALLER_LEAST = 30;
 const STAGE_TALLER_INK = 0.15;
 const STAGE_TALLER_FIXTURES = 0.1;
+/**
+ * The stage's growth must leave the cards after it their room: a note-sized card (about this size) has to find a place as quiet as it would have had before
+ * the stage grew (within this much of the cost of covering the page), anywhere clear of the grown stage, the strip of its buttons below it, the page's
+ * controls and the cards already placed. A card a later step writes cannot be known when the stage is placed, so this stops short of taking the last
+ * quiet place, rather than forbidding any growth that could move a card.
+ */
+const NOTE_ROOM = { w: 380, h: 150 };
+const NOTE_ROOM_SLACK = 0.3;
+const STAGE_BUTTONS_STRIP = 90;
 
 /** A place has to be this much cheaper (a few percent of the page's text under it) before a card, diagram or stage leaves where it was asked for: text may be covered when that reads better. */
 const MOVE_WORTH = 8;
@@ -500,6 +509,18 @@ export class Placer {
       const padded = { x: strip.x - 6, y: strip.y - 6, w: strip.w + 12, h: strip.h + 12 };
       return this.ink.mean(padded) <= STAGE_TALLER_INK && this.fixtures.mean(padded) <= STAGE_TALLER_FIXTURES;
     };
+    // The least a note-sized card would cost the page, anywhere that is not under the stage (and its button strip), the controls or the cards.
+    const noteCost = (stage: Box): number => {
+      const taken = [{ x: stage.x - 10, y: stage.y - 10, w: stage.w + 20, h: stage.h + 10 + STAGE_BUTTONS_STRIP }, ...hard];
+      let least = Infinity;
+      for (let y = lo; y + NOTE_ROOM.h <= bottom + 0.01; y += 20) for (let x = lo; x + NOTE_ROOM.w <= 1000 - lo + 0.01; x += 20) {
+        const spot = { x, y, w: NOTE_ROOM.w, h: NOTE_ROOM.h };
+        if (taken.some((r) => overlap(spot, r) > 0)) continue;
+        least = Math.min(least, this.coverage(spot, []));
+      }
+      return least;
+    };
+    const roomBefore = noteCost(box);
     for (let h = target; h >= box.h + STAGE_TALLER_LEAST; h -= 20) {
       let best: { box: Box; cost: number } | undefined;
       for (const y0 of [box.y, box.y + box.h - h, box.y + (box.h - h) / 2]) {
@@ -511,7 +532,7 @@ export class Placer {
         const cost = (above.h > 0 ? this.coverage(above, []) : 0) + (below.h > 0 ? this.coverage(below, []) : 0);
         if (!best || cost < best.cost - 1e-9) best = { box: { x: box.x, y: Math.round(y), w: box.w, h: Math.round(h) }, cost };
       }
-      if (best) return best.box;
+      if (best && noteCost(best.box) <= roomBefore + NOTE_ROOM_SLACK) return best.box;
     }
     return box;
   }

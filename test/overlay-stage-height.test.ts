@@ -94,6 +94,41 @@ test('later cards keep off the grown stage, and a card written before the stage 
   assert.ok(stage.h >= 400 && !overlaps(box(later as never), box(stage as never)), 'the later card is clear of the grown stage');
 });
 
+// ---- Growth leaves the next note its room ------------------------------------------------------------------------------------------------------
+
+/** Text across the whole page except one blank rectangle (units): the only quiet ground there is. */
+function pageBlankOnlyIn(blank: Box) {
+  const gray = new Uint8Array(COLS * ROWS);
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const x = ((c + 0.5) / COLS) * 1000, y = ((r + 0.5) / ROWS) * 1000;
+    const inside = x >= blank.x && x <= blank.x + blank.w && y >= blank.y && y <= blank.y + blank.h;
+    const text = !inside && r > 2 && r % 4 < 2 && (c * 7 + r * 13) % 11 !== 0;
+    gray[r * COLS + c] = text ? 40 : 238;
+  }
+  return pageGrid(gray, COLS, ROWS);
+}
+const NOTE_W = 380, NOTE_H = 150;
+
+test('growth stops short of taking the last quiet place a note-sized card could have: the card written after still lands on blank page, not on the text', () => {
+  // The blank column ends at 780: a stage grown to 620 from 100 (and its buttons' strip) would leave no room for a note beside it in the column.
+  const p = new Placer(pageBlankOnlyIn({ x: 560, y: 40, w: 420, h: 820 }), { aspect: 1920 / 804, height: 804 });
+  const stage = p.panel({ x: 600, y: 100, w: 330, h: 400 });
+  assert.ok(stage.h > 400, `it still grows where the room allows: ${JSON.stringify(stage)}`);
+  // The column is blank to 860: the note (150 tall) and the strip of the stage's buttons (90) have to fit under the stage, so it grows to about 510 and no further.
+  assert.ok(stage.h <= 520, `but not to the full share, which would take the note's room: ${JSON.stringify(stage)}`);
+  const note = p.card({ x: 560, y: 600, w: NOTE_W, h: NOTE_H }, 'note');
+  assert.ok(!overlaps(note, stage), 'the note is clear of the stage');
+  assert.ok(p.busy(note) < 0.05, `and it sits on blank page, not on the text: ${JSON.stringify(note)} busy ${p.busy(note)}`);
+});
+
+test('where the blank page has room for the stage and a note both, the stage still grows to the full share', () => {
+  const p = new Placer(pageBlankOnlyIn({ x: 560, y: 40, w: 420, h: 940 }), { aspect: 1920 / 804, height: 804 });
+  const stage = p.panel({ x: 600, y: 100, w: 330, h: 400 });
+  assert.ok(stage.h >= FAIR - 40, JSON.stringify(stage));
+  const note = p.card({ x: 560, y: 740, w: NOTE_W, h: NOTE_H }, 'note');
+  assert.ok(!overlaps(note, stage) && p.busy(note) < 0.05, `the note has its place under the grown stage: ${JSON.stringify(note)}`);
+});
+
 // ---- Admission holds steady while the stage comes in and eases ------------------------------------------------------------------------------------
 
 function canvas() {
@@ -139,15 +174,16 @@ test('a normal answer (stage, a note, a chart) omits nothing at any moment while
   }
 });
 
-test('a stage re-asked taller in a later step eases over ground the earlier one already held, so a card clear of the new one is never clipped on the way', () => {
+test('a stage re-asked in a later step eases over ground the earlier one held, clear of the cards in between, so no card is clipped on the way', () => {
   const p = placer(page(0.4), VIEW.width / VIEW.height);
-  const first = placeAction(p, { op: 'panel', x: 640, y: 300, w: 320, h: 250 } as Action, VIEW.height) as Extract<Action, { op: 'panel' }>;
+  const ask = { op: 'panel', x: 640, y: 300, w: 320, h: 250 } as Action;
+  const first = placeAction(p, ask, VIEW.height) as Extract<Action, { op: 'panel' }>;
   const card = placeAction(p, { op: 'card', id: 'note', x: 60, y: 560, w: 300, title: 'Note', rows: ['a', 'b'] } as Action, VIEW.height) as Extract<Action, { op: 'card' }>;
+  const second = placeAction(p, ask, VIEW.height) as Extract<Action, { op: 'panel' }>;
+  assert.ok(second.x === first.x && second.w === first.w, 'same column');
+  const noteBox = { x: card.x, y: card.y, w: card.w ?? 300, h: 90 };
+  for (const [name, stage] of [['earlier', first], ['later', second]] as const) assert.ok(!overlaps(stage as never, noteBox), `the card is clear of the ${name} rectangle`);
   const base = settle(planStep(emptyFrame(), { say: '', actions: [first, card] } as Step));
-  const q = placer(page(0.4), VIEW.width / VIEW.height);
-  q.card({ x: card.x, y: card.y, w: 300, h: 100 }, 'note');
-  const second = placeAction(q, { op: 'panel', x: 640, y: 300, w: 320, h: 250 } as Action, VIEW.height) as Extract<Action, { op: 'panel' }>;
-  assert.ok(second.x === first.x && second.w === first.w && second.y <= first.y && second.y + second.h >= first.y + first.h, 'the later rectangle holds the earlier one');
   const plan = planStep(base, { say: '', actions: [second] } as Step);
   const painter = new DiagramPainter();
   for (let i = 0; i <= 60; i++) {
