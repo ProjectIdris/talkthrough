@@ -31,7 +31,9 @@ import { TAG_HEIGHT_FACTOR, tagTextPx } from './theme.ts';
 import { convexHull } from './labels.ts';
 import type { Pt } from './labels.ts';
 import type { Piece } from './parts.ts';
+import { sweptPoses } from './timeline.ts';
 import type { FocusFrame, Frame, ObjectFrame, Rgb } from './timeline.ts';
+import type { Pose } from './motion.ts';
 import { spreadPosition, userOffsets } from './explode.ts';
 import type { Part } from './explode.ts';
 import { PATCH_SEGMENTS } from '../scene/patch.ts';
@@ -155,6 +157,9 @@ export class PanelScene {
   private fitClock: number | undefined;
   /** The visible parts' bounding spheres and box corners at rest (no machine pose, no pulse), worked out in `sync` for the camera's fit. */
   private restSpheres: PartHull[] = [];
+  /** The parts' spheres and boxes at the poses a running machine takes over its cycle (see `sweptPoses`), kept while the machine and its parts are as they were. */
+  private sweepHulls: PartHull[] = [];
+  private sweepKey = '';
   /** Where the text sprites were put on screen by the last `tidyTexts` (window pixels): what is drawn includes them. */
   private textRects: ScreenRect[] = [];
   private settling = false;
@@ -567,7 +572,11 @@ export class PanelScene {
       layout(offsets, true);
       this.scene.updateMatrixWorld(true);
       this.restSpheres = this.partSpheres();
+      this.sweepHulls = this.sweptHulls(frame, offsets, spreads);
       layout(offsets);
+    } else {
+      this.sweepHulls = [];
+      this.sweepKey = '';
     }
     this.scene.updateMatrixWorld(true);
     if (!frame.objects.some((o) => o.pose || o.pulse !== 0)) this.restSpheres = this.partSpheres();
@@ -666,17 +675,23 @@ export class PanelScene {
     line.visible = node.obj.visible;
   }
 
+  /** Where a part stands and how big it is: its own values, or a machine's pose in their place; swell is what a pulse loop multiplies its scale by. */
+  private place(node: Node, o: ObjectFrame, parentSpread: number, offset: Vec3 | undefined, pose: Pose | undefined, swell: Vec3 | undefined, grow: number): void {
+    const at = spreadPosition(pose?.pos ?? o.pos, (o.def as { explode?: Vec3 }).explode, parentSpread);
+    const rot = pose?.rot ?? o.rot;
+    node.obj.position.set(at[0] + (offset?.[0] ?? 0), at[1] + (offset?.[1] ?? 0), at[2] + (offset?.[2] ?? 0));
+    node.obj.rotation.copy(new Euler(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'XYZ'));
+    const loop = swell ?? [1, 1, 1];
+    node.obj.scale.set(node.baseScale.x * o.scale[0] * loop[0] * grow, node.baseScale.y * o.scale[1] * loop[1] * grow, node.baseScale.z * o.scale[2] * loop[2] * grow);
+  }
+
   private apply(node: Node, o: ObjectFrame, parentSpread: number, offset?: Vec3, rest = false): void {
     const pulse = rest ? 0 : o.pulse;
     const pose = rest ? undefined : o.pose;
     const grow = 1 + 0.07 * pulse;
     // Spread by the model's own explode, then by the person's control; a machine's pose stands in for the rest values.
-    const at = spreadPosition(pose?.pos ?? o.pos, (o.def as { explode?: Vec3 }).explode, parentSpread);
     const rot = pose?.rot ?? o.rot;
-    node.obj.position.set(at[0] + (offset?.[0] ?? 0), at[1] + (offset?.[1] ?? 0), at[2] + (offset?.[2] ?? 0));
-    node.obj.rotation.copy(new Euler(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'XYZ'));
-    const loop = o.pose?.scale ?? [1, 1, 1]; // a pulse loop swells it on top of its own scale
-    node.obj.scale.set(node.baseScale.x * o.scale[0] * loop[0] * grow, node.baseScale.y * o.scale[1] * loop[1] * grow, node.baseScale.z * o.scale[2] * loop[2] * grow);
+    this.place(node, o, parentSpread, offset, pose, o.pose?.scale, grow); // a pulse loop swells it on top of its own scale
     if (!node.anchorsFrom || node.anchorsFrom.def !== o.def || node.anchorsFrom.points !== o.points) {
       node.anchors = anchorsOf(o.points ? { ...o.def, points: o.points } : o.def);
       node.anchorsFrom = { def: o.def, points: o.points };
@@ -852,6 +867,32 @@ export class PanelScene {
   }
 
   /**
+   * The parts' spheres and boxes at each of the poses a running machine takes over its cycle: the camera fits the stage to all of them with the rest ones, so
+   * a part that swings out of its rest shape does not leave the stage. Taken again only when the parts or the machine change (a part appears, moves, or
+   * a loop or joint is written), never as the machine runs, so the camera stands still over the cycle.
+   */
+  private sweptHulls(frame: Frame, offsets: Map<number, Vec3> | undefined, spreads: ReadonlyMap<number, number>): PartHull[] {
+    const q = (v: readonly number[], k: number): string => v.map((x) => Math.round(x * k)).join(',');
+    const m = frame.motion;
+    const key = frame.objects.map((o) => `${o.key}:${o.parentKey}:${q(o.pos, 4)}:${q(o.rot, 1)}:${q(o.scale, 4)}:${o.opacity * o.appear * o.fade > 0.003 ? 1 : 0}`).join('|')
+      + '#' + JSON.stringify([m.cranks, m.cams, m.loops, m.joints, m.couples, m.muscles, m.spins.map((s) => [s.key, s.axis, s.rate !== 0, s.lock ?? null])]);
+    if (key === this.sweepKey) return this.sweepHulls;
+    this.sweepKey = key;
+    const hulls: PartHull[] = [];
+    for (const set of sweptPoses(frame)) {
+      for (const o of frame.objects) {
+        const node = this.nodes.get(o.key);
+        if (!node) continue;
+        const pose = set.get(o.key);
+        this.place(node, o, o.parentKey !== null ? spreads.get(o.parentKey) ?? 0 : 0, offsets?.get(o.key), pose, pose?.scale, 1);
+      }
+      this.scene.updateMatrixWorld(true);
+      hulls.push(...this.partSpheres());
+    }
+    return hulls;
+  }
+
+  /**
    * Where the model is on screen, tightly: for each part the overlap of its box's projection and its bounding sphere's, joined. A box alone
    * reaches past a round part by a corner's worth, which made a ball look bigger than it was (and its buttons and tags keep away from nothing).
    */
@@ -928,10 +969,10 @@ export class PanelScene {
    * when a part pulses or a machine moves. Never further than the all-round sphere would put it.
    */
   private fitTarget(az: number, el: number, tan: number, aspect: number): { center: Vector3; radius: number } | undefined {
-    const parts = this.restSpheres;
-    if (parts.length === 0) return undefined;
+    const groups = [this.restSpheres, this.sweepHulls];
+    if (this.restSpheres.length === 0) return undefined;
     const lo = new Vector3(Infinity, Infinity, Infinity), hi = new Vector3(-Infinity, -Infinity, -Infinity);
-    for (const p of parts) for (const c of p.corners) { lo.min(c); hi.max(c); }
+    for (const parts of groups) for (const p of parts) for (const c of p.corners) { lo.min(c); hi.max(c); }
     const center = lo.add(hi).multiplyScalar(0.5);
     const toCam = new Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
     const right = new Vector3().crossVectors(new Vector3(0, 1, 0), toCam);
@@ -942,7 +983,7 @@ export class PanelScene {
     const kx = Math.sqrt(1 + tanX * tanX), ky = Math.sqrt(1 + tanY * tanY);
     const rel = new Vector3();
     let dist = 0;
-    for (const { sphere: s, corners } of parts) {
+    for (const { sphere: s, corners } of groups.flat()) {
       // Each part needs the nearer of what its box asks and what its bounding sphere asks: a long thin part is held by its box, a round one by its sphere.
       let byBox = 0;
       for (const c of corners) {

@@ -1275,6 +1275,38 @@ export function withMotion(frame: Frame, seconds: number, from: Motion = frame.m
   return { ...frame, objects, diagrams: phasedDiagrams(frame.diagrams, motion), motion };
 }
 
+/** How many poses a swept fit takes of a running machine (see `sweptPoses`). */
+export const SWEEP_SAMPLES = 40;
+/** The longest a cycle is sampled over, seconds: a slower one is seen in part. */
+const SWEEP_LONGEST = 60;
+
+/**
+ * The poses a running machine takes over its whole cycle, for the camera to fit the stage to everything the model does and not only to how it stands at
+ * rest (a wing flapped out of its rest shape, a door swung toward the viewer). A pure function of the frame's motion and not of the time it is asked at:
+ * every turning angle is put back to its start and run on by moments spread over the slowest cycle (one that does not meet a faster one's rhythm), so
+ * the same machine gives the same set at any moment and the camera does not breathe. A frame with nothing turning gives none.
+ */
+export function sweptPoses(frame: Frame, count = SWEEP_SAMPLES): Array<ReadonlyMap<number, Pose>> {
+  const running = frame.motion.spins.filter((s) => s.rate !== 0);
+  if (running.length === 0) return [];
+  const span = Math.min(SWEEP_LONGEST, Math.max(...running.map((s) => 360 / Math.abs(s.rate))));
+  const base: Motion = { ...frame.motion, spins: frame.motion.spins.map((s) => (s.rate !== 0 && !s.lock ? { ...s, angle: 0 } : s)) };
+  const bare = frame.objects.map((o) => {
+    const { pose: _gone, ...rest } = o;
+    return rest as ObjectFrame;
+  });
+  const out: Array<ReadonlyMap<number, Pose>> = [];
+  const golden = 0.6180339887498949;
+  for (let j = 0; j < count; j++) {
+    const objects = bare.map((o) => ({ ...o }));
+    applyPoses(objects, advanceMotion(base, span * ((j * golden) % 1)));
+    const placed = new Map<number, Pose>();
+    for (const o of objects) if (o.pose) placed.set(o.key, o.pose);
+    out.push(placed);
+  }
+  return out;
+}
+
 /** How far in and out the person may zoom the 3D panel: the scene language's own limits, so a wheel step never moves a scene's own zoom. */
 export const ZOOM_MIN = 0.2;
 export const ZOOM_MAX = 5;
