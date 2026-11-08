@@ -16,6 +16,7 @@ import {
 } from 'three';
 import type { Texture } from 'three';
 import type { AddAction, SurfaceFinish, Vec3 } from '../scene/types.ts';
+import { materialRow } from '../scene/material-library.ts';
 import { sweepGeometry, sweepEdges } from './sweep.ts';
 import { shellGeometry, shellEdges } from './shell.ts';
 import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
@@ -23,7 +24,7 @@ import { buildHullGeometry } from './hull.ts';
 import { applyEdgeSoften, softenEdges } from './edge-soften.ts';
 import { fitBoardPattern } from './surface-micro.ts';
 import { loftEdges, loftGeometry } from './loft.ts';
-import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
+import { DETAIL, boxGeometry, defaultBevel, softBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { closedTubeGeometry } from './closed-tube.ts';
 import { SURFACE_NAMES, TIERS, applySurface, makeSurface } from './materials.ts';
@@ -142,6 +143,13 @@ function creaseGeometry(geo: BufferGeometry): BufferGeometry {
 function isAncestor(a: Object3D, b: Object3D): boolean {
   for (let o: Object3D | null = b; o; o = o.parent) if (o === a) return true;
   return false;
+}
+
+const SOFT_FAMILIES: ReadonlySet<string> = new Set(['body', 'plant', 'food']);
+/** A solid of flesh, bone, a plant or food is rounded like a living thing (see `softBevel`), not rimmed like a machined part. */
+function softSolid(def: AddAction): boolean {
+  const family = 'material' in def ? materialRow(def.material)?.family : undefined;
+  return family !== undefined && SOFT_FAMILIES.has(family);
 }
 
 export class PanelScene {
@@ -379,7 +387,8 @@ export class PanelScene {
   private primitiveKey(def: AddAction): string | undefined {
     if (!['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'].includes(def.shape)) return undefined;
     const solid = def as { size: Vec3; bevel?: number };
-    return JSON.stringify([this.tier, def.shape, solid.size, def.shape === 'box' ? solid.bevel ?? defaultBevel(solid.size) : null]);
+    const soft = softSolid(def);
+    return JSON.stringify([this.tier, def.shape, solid.size, def.shape === 'box' ? solid.bevel ?? (soft ? softBevel(solid.size) : defaultBevel(solid.size)) : null, def.shape === 'cylinder' && soft ? 'soft' : null]);
   }
 
   private edgeLines(mesh: Mesh, geo: BufferGeometry, node: Node, key?: string, boundary?: 'sector' | 'tapered' | 'patch'): LineSegments {
@@ -437,7 +446,7 @@ export class PanelScene {
       case 'sphere': return new SphereGeometry(0.5, d.curve, Math.round(d.curve * 0.6)).scale(...(def as { size: Vec3 }).size);
       case 'cylinder': {
         const [sx, sy, sz] = (def as { size: Vec3 }).size;
-        return roundedCylinderGeometry(sx, sy, sz, d.curve);
+        return roundedCylinderGeometry(sx, sy, sz, d.curve, softSolid(def));
       }
       case 'cone': {
         const [sx, sy, sz] = (def as { size: Vec3 }).size;
@@ -475,7 +484,7 @@ export class PanelScene {
       }
       default: {
         const b = def as { size: Vec3; bevel?: number };
-        return boxGeometry(b.size, b.bevel ?? defaultBevel(b.size), d);
+        return boxGeometry(b.size, b.bevel ?? (softSolid(def) ? softBevel(b.size) : defaultBevel(b.size)), d);
       }
     }
   }

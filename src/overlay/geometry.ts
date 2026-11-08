@@ -26,6 +26,11 @@ export function defaultBevel(size: Vec3): number {
   return Math.min(0.12, Math.min(size[0], size[1], size[2]) * 0.1);
 }
 
+/** The rounding of a box of soft material (flesh, bone, a plant, food): a third of its smallest side, not a tenth held under 0.12. */
+export function softBevel(size: Vec3): number {
+  return Math.min(size[0], size[1], size[2]) * 0.3;
+}
+
 /** A box with rounded edges (a plain box when the rounding is nothing). */
 export function boxGeometry(size: Vec3, bevel: number, detail: Detail): BufferGeometry {
   const shortest = Math.min(size[0], size[1], size[2]);
@@ -162,11 +167,12 @@ export function latheGeometry(profile: readonly Vec2[], sides: number): BufferGe
  * A cylinder (or an elliptic one: `sz` is its depth) with a small rounded rim, so its edge catches the light instead of ending in a razor line.
  * The rim is a quarter circle of about a seventh of the smaller of the radius and half the height, at most 0.12 (the same limit as a box's rounding).
  */
-export function roundedCylinderGeometry(sx: number, sy: number, sz: number, sides: number): BufferGeometry {
+export function roundedCylinderGeometry(sx: number, sy: number, sz: number, sides: number, soft = false): BufferGeometry {
   const r = Math.max(1e-4, sx / 2), h = Math.max(1e-4, sy);
-  const b = Math.min(0.12, Math.min(r, h / 2) * 0.14);
+  // Soft (flesh, bone, a plant, food): the ends are rounded over most of the radius, as a living thing's are, not rimmed like a machined part's.
+  const b = soft ? Math.min(r, h / 2) * 0.7 : Math.min(0.12, Math.min(r, h / 2) * 0.14);
   const profile: Vec2[] = [[0, -h / 2]];
-  const steps = 4;
+  const steps = soft ? 8 : 4;
   for (let k = 0; k <= steps; k++) {
     const a = (k / steps) * (Math.PI / 2);
     profile.push([r - b + b * Math.sin(a), -h / 2 + b - b * Math.cos(a)]);
