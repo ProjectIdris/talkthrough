@@ -14,8 +14,8 @@ import type { ShellTier } from './shell.ts';
 import { nearestPaletteColor } from './colors.ts';
 import { MATERIAL_FAMILIES, resolveMaterial } from './material-library.ts';
 import { apply, applyInverse, attachTolerance, FACE_NORMALS, landOn, middleHeld, mountPosition, turnToFace, worldOf } from './attach.ts';
-import { AXIS_TOLERANCE_DEG, bevelFit, lineAngle, meshFit, rimPoint, ropeTangent, roundOf, sameShaft, strandCutsWheel } from './coupling.ts';
-import type { Fit } from './coupling.ts';
+import { AXIS_TOLERANCE_DEG, barOf, bevelFit, lineAngle, meshes, meshFit, rackFit, rimPoint, ropeTangent, roundOf, sameShaft, seatTangent, strandCutsWheel } from './coupling.ts';
+import type { Fit, Round } from './coupling.ts';
 import { anchorsOf } from './anchors.ts';
 import { partFacing, resolvePartGeometry } from './part-geometry.ts';
 import { MODELS } from './model-catalogue.ts';
@@ -70,6 +70,11 @@ export type SceneState = {
    * any other and cannot be written a third time. Ids named but never written again stay valid to refer to.
    */
   replaceable?: Set<string>;
+  /**
+   * Couplings the validator moved a pair for, or refused, taking the pair for meshed gears: a belt or chain that joins the same two parts afterwards says they were
+   * not (key: the two ids, sorted). The parts go back and the coupling is written as a belted one.
+   */
+  pending?: Map<string, { refused: boolean; action: Record<string, unknown>; placed: Placed[] }>;
   /** The shafts the validator itself added through a gear (id, then the gear): a scene that writes one of them replaces it, with a note. */
   made?: Map<string, string>;
   /** Set when the ids on screen may be replaced by an ordinary answer (not a detail pass, which does it by design): each replacement is then said in a note. */
@@ -80,6 +85,9 @@ export type SceneState = {
   bindUnknown?: boolean;
   bindOp?: string;
 };
+
+/** A part the validator moved: where it stood (in its holder's space) and where it was put. */
+type Placed = { id: string; from: Vec3; to: Vec3 };
 
 export type StepResult = { step: Step | null; issues: Issue[] };
 export type SceneResult = { ok: boolean; scene: Scene | null; issues: Issue[] };
@@ -101,7 +109,7 @@ export function createSceneState(): SceneState {
 export function createDetailState(onScreen: SceneState): SceneState {
   return {
     ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides), spins: new Map(onScreen.spins),
-    bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [], connectors: new Map(onScreen.connectors ?? []), tubes: new Map(onScreen.tubes ?? []), muscled: new Set(onScreen.muscled ?? []), jointRanges: new Map(onScreen.jointRanges ?? []),
+    bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [], connectors: new Map(onScreen.connectors ?? []), tubes: new Map(onScreen.tubes ?? []), muscled: new Set(onScreen.muscled ?? []), jointRanges: new Map(onScreen.jointRanges ?? []), ...(onScreen.pending ? { pending: new Map(onScreen.pending) } : {}),
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
     ...(onScreen.stage ? { stage: { ...onScreen.stage } } : {}),
   };
@@ -912,7 +920,7 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
     return null;
   }
   if (variant.name === 'spin' && !checkSpin(out, state, path, notes)) return null;
-  if ((variant.name === 'spin' || variant.name === 'couple') && out.by !== undefined && out.stop !== true && !checkCoupling(out, state, path, notes)) return null;
+  if ((variant.name === 'spin' || variant.name === 'couple' || variant.name === 'loop') && out.by !== undefined && out.stop !== true && out.kind !== 'stop' && !checkCoupling(out, state, path, notes, variant.name)) return null;
   if ((variant.name === 'loop' || variant.name === 'couple') && state.muscled?.has(out.id as string)) {
     if (variant.name === 'loop' && out.kind === 'stop') state.muscled.delete(out.id as string);
     else if (!(variant.name === 'couple' && out.stop === true)) {
@@ -1091,31 +1099,81 @@ function onTheShaft(state: SceneState, id: string): string[] {
   return out;
 }
 
+/** Where a part stands (its middle, in the scene's space): a gear, wheel or cone, or a long box; undefined when its place is not known by its own words. */
+function centreOf(state: SceneState, id: string): Vec3 | undefined {
+  return roundOf(state.bodies, id)?.c ?? barOf(state.bodies, id)?.c;
+}
+
+/**
+ * Gears that mesh a part about to be moved, and so are not on its shaft: the train it drives goes with it, by the same shift, or the mesh would be broken. A
+ * gear that meshes one that stays (the fixed gear, or one outside the train) is not taken along: moving it would break that mesh instead.
+ */
+function contactTrain(state: SceneState, moving: string[], fixed: string | undefined): string[] {
+  const gears = new Map<string, Round>();
+  for (const gid of state.bodies.keys()) {
+    const r = roundOf(state.bodies, gid);
+    if (r?.kind === 'gear') gears.set(gid, r);
+  }
+  const held = new Set(moving);
+  const train = new Set<string>();
+  const queue = moving.filter((m) => gears.has(m));
+  const group = (gid: string): string[] => [gid, ...onTheShaft(state, gid)].filter((g) => gears.has(g));
+  while (queue.length > 0) {
+    const m = gears.get(queue.shift()!)!;
+    for (const [oid, o] of gears) {
+      if (held.has(oid) || train.has(oid) || oid === fixed || isUnder(state, oid, m.id) || isUnder(state, m.id, oid) || !meshes(m, o)) continue;
+      for (const g of group(oid)) if (!held.has(g) && !train.has(g) && g !== fixed) { train.add(g); queue.push(g); }
+    }
+  }
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const t of [...train]) {
+      if (!train.has(t)) continue;
+      for (const [xid, x] of gears) {
+        if (held.has(xid) || train.has(xid) || xid === t || sameShaft(gears.get(t)!, x) || !meshes(gears.get(t)!, x)) continue;
+        for (const g of group(t)) train.delete(g);
+        changed = true;
+        break;
+      }
+    }
+  }
+  return [...train];
+}
+
 /**
  * Carry out a fit: each part named is placed where it should stand (a later part is moved before it is shown when it is the one being written, else by a
- * move the instant it appears), the parts on its shaft going with it by the same shift. Says what was done.
+ * move the instant it appears), the parts on its shaft, and the gears it meshes that nothing else holds, going with it by the same shift. Says what was done,
+ * and returns where each part stood and was put.
  */
-function applyFit(state: SceneState, fit: Fit, path: string, notes: Notes, at: number, what: string, being?: { id: string; out: Record<string, unknown> }): void {
-  if (fit.verdict !== 'repair') return;
+function applyFit(state: SceneState, fit: Fit, path: string, notes: Notes, at: number, what: string, being?: { id: string; out: Record<string, unknown> }, fixed?: string): Placed[] {
+  if (fit.verdict !== 'repair') return [];
   const done = new Set<string>();
+  const placed: Placed[] = [];
+  const dragged: string[] = [];
   for (const move of fit.moves) {
-    const before = roundOf(state.bodies, move.id);
+    const before = centreOf(state, move.id);
     if (!before) continue;
-    const shift: Vec3 = [move.to[0] - before.c[0], move.to[1] - before.c[1], move.to[2] - before.c[2]];
-    for (const id of [move.id, ...onTheShaft(state, move.id)]) {
+    const shift: Vec3 = [move.to[0] - before[0], move.to[1] - before[1], move.to[2] - before[2]];
+    const mates = [move.id, ...onTheShaft(state, move.id)];
+    const train = contactTrain(state, mates, fixed);
+    for (const t of train) if (!done.has(t) && !mates.includes(t)) dragged.push(t);
+    for (const id of [...mates, ...train]) {
       if (done.has(id)) continue;
       done.add(id);
-      const r = roundOf(state.bodies, id);
-      if (!r) continue;
-      const to = localFor(state, id, [r.c[0] + shift[0], r.c[1] + shift[1], r.c[2] + shift[2]]);
+      const c = centreOf(state, id);
+      if (!c) continue;
+      const to = localFor(state, id, [c[0] + shift[0], c[1] + shift[1], c[2] + shift[2]]);
       const body = state.bodies.get(id)!;
+      placed.push({ id, from: body.pos, to });
       body.pos = to;
       if (being && id === being.id) being.out.pos = to;
       else state.after.push({ op: 'move', id, to, at: body.step === state.turnSteps ? Math.max(body.at ?? 0, 0) : at, dur: body.step === state.turnSteps ? 0 : 0.4 } as unknown as Action);
     }
   }
   const moved = [...done].join(', ');
-  note(notes, 'trimmed', path, `repaired: ${what}: ${fit.why}; ${moved} moved to stand right (${fit.moves.map((m) => `${m.id} at [${m.to.join(',')}]`).join('; ')})`);
+  const along = dragged.length > 0 ? ` (${dragged.join(', ')} mesh${dragged.length === 1 ? 'es' : ''} it, so ${dragged.length === 1 ? 'it goes' : 'they go'} along)` : '';
+  note(notes, 'trimmed', path, `repaired: ${what}: ${fit.why}; ${moved} moved to stand right${along} (${fit.moves.map((m) => `${m.id} at [${m.to.join(',')}]`).join('; ')})`);
+  return placed;
 }
 
 /** Whether a belt of the wrapped kind runs round both parts. */
@@ -1150,6 +1208,29 @@ function endWorld(state: SceneState, id: string, side: string | undefined, ancho
 }
 
 /**
+ * A belt or chain written after the spin or coupling that treated its two gears as meshed: they were not meshed, they were belted. The gears the check moved go
+ * back to where they were written, a coupling it refused is written again, and the way they turn is the same way.
+ */
+function restoreBelted(state: SceneState, a: string, b: string, belt: string, at: number, path: string, notes: Notes): void {
+  const key = [a, b].sort().join('|');
+  const rec = state.pending?.get(key);
+  if (!rec) return;
+  state.pending!.delete(key);
+  const when = Math.max(at, 0);
+  for (const p of rec.placed) {
+    const body = state.bodies.get(p.id);
+    if (!body) continue;
+    body.pos = p.from;
+    state.after.push({ op: 'move', id: p.id, to: p.from, at: body.step === state.turnSteps ? Math.max(body.at ?? 0, 0) : when, dur: body.step === state.turnSteps ? 0 : 0.4 } as unknown as Action);
+  }
+  const act: Record<string, unknown> = { ...rec.action, at: Math.max((rec.action.at as number | undefined) ?? 0, 0) };
+  if (typeof act.ratio === 'number') act.ratio = Math.abs(act.ratio);
+  state.after.push(act as unknown as Action);
+  if (act.op === 'couple') state.follows.set(act.id as string, act.by as string);
+  note(notes, 'trimmed', path, `repaired: ${belt} joins ${a} and ${b}, so they are belted, not meshed: ${rec.refused ? `${act.id} turns with ${act.by} after all` : `${rec.placed.map((p) => p.id).join(', ')} ${rec.placed.length === 1 ? 'stands' : 'stand'} where ${rec.placed.length === 1 ? 'it was' : 'they were'} written`}, and the two turn the same way`);
+}
+
+/**
  * A rope, belt or chain joins two round parts. A straight strand along the same side of two wheels of different size (the tops of both) is no tangent to
  * both: it cuts through the larger. It is a belt round the two, so it is made one (wrapped); the strand along the other side that comes after it is part
  * of that belt already and is dropped. A straight rope that leaves a wheel at its rim by running in through the wheel leaves instead from the tangent
@@ -1159,6 +1240,7 @@ function fitConnector(out: Record<string, unknown>, state: SceneState, path: str
   const id = out.id as string;
   const from = out.from as string, to = out.to as string;
   const kind = (out.kind as string | undefined) ?? 'straight';
+  restoreBelted(state, from, to, id, (out.at as number | undefined) ?? 0, path, notes);
   const beltShafts = (): void => { for (const end of [from, to]) { const b = state.bodies.get(end); if (b?.part === 'wheel') shaftThrough(state, end, b, (out.at as number | undefined) ?? 0); } };
   if (kind === 'wrapped') { beltShafts(); return true; }
   if (kind !== 'straight') return true;
@@ -1185,7 +1267,19 @@ function fitConnector(out: Record<string, unknown>, state: SceneState, path: str
     const wheelId = out[end] as string;
     const side = out[`${end}Side`] as string | undefined;
     const wheel = end === 'from' ? a : b;
-    if (!wheel || side === undefined || out[`${end}Point`] !== undefined || out[`${end}Anchor`] !== undefined || spinsAnywhere(state, wheelId)) continue;
+    if (!wheel || out[`${end}Point`] !== undefined || out[`${end}Anchor`] !== undefined || spinsAnywhere(state, wheelId)) continue;
+    if (side === undefined) {
+      // A rope that ends on a pulley wheel with no side would run to its axle through the wheel: it is seated in the rim, where it leaves along the tangent.
+      const body = state.bodies.get(wheelId);
+      const pulley = body?.part === 'wheel' || (body?.shape === 'cylinder' && !!body.size && body.size[1] <= 0.5 * Math.max(body.size[0], body.size[2]));
+      const farEnd = endWorld(state, out[far] as string, out[`${far}Side`] as string | undefined, out[`${far}Anchor`] as string | undefined, out[`${far}Point`] as Vec3 | undefined);
+      const seat = pulley && farEnd ? seatTangent(wheel, farEnd) : undefined;
+      if (!seat) continue;
+      const p = applyInverse(worldOf(state.bodies, wheelId), seat).map((v) => Math.round(v * 1000) / 1000) as Vec3;
+      out[`${end}Point`] = p;
+      note(notes, 'trimmed', path, `repaired: ${id} ended at the middle of the wheel ${wheelId}, which a rope cannot do (it would run through the wheel to its axle); it is seated in the rim and leaves from the tangent point at [${p.join(',')}]`);
+      continue;
+    }
     const other = endWorld(state, out[far] as string, out[`${far}Side`] as string | undefined, out[`${far}Anchor`] as string | undefined, out[`${far}Point`] as Vec3 | undefined);
     const rim = rimPoint(wheel, side);
     if (!other || !rim) continue;
@@ -1212,9 +1306,12 @@ function belted(state: SceneState, a: string, b: string): boolean {
  * at right angles with their points together; a belt or chain joins two parts that turn the same way. A coupling close to right is repaired with a note
  * (the later part is moved, the parts on its shaft with it); one too far is refused, and the note names the nearest valid place.
  */
-function checkCoupling(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+function checkCoupling(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes, op = 'spin'): boolean {
   const id = out.id as string;
   const by = out.by as string;
+  const rack = rackPair(out, state, op);
+  if (rack) return checkRack(out, state, path, notes, op, rack.gear, rack.bar);
+  if (op === 'loop') return true;
   const a = roundOf(state.bodies, by), b = roundOf(state.bodies, id);
   if (!a || !b) return true;
   const at = (out.at as number | undefined) ?? 0;
@@ -1226,12 +1323,16 @@ function checkCoupling(out: Record<string, unknown>, state: SceneState, path: st
   const moving = fixed === a ? b : a;
   if (bevel || !(sameShaft(a, b) || belted(state, id, by))) {
     const fit = bevel ? bevelFit(fixed, moving) : meshFit(fixed, moving);
+    const key = [id, by].sort().join('|');
     if (fit.verdict === 'refuse') {
       const place = fit.by > 0 ? ` (the nearest place for ${moving.id} is ${fit.moves.map((m) => `[${m.to.join(',')}]`).join(', ')})` : '';
       note(notes, 'dropped', path, `${id} cannot turn with ${by}: ${fit.why}${place}`);
+      if (!bevel && fit.by > 0) (state.pending ??= new Map()).set(key, { refused: true, action: { ...out }, placed: [] });
       return false;
     }
-    applyFit(state, fit, path, notes, at, `${id} turns with ${by}`);
+    const action = { ...out };
+    const placed = applyFit(state, fit, path, notes, at, `${id} turns with ${by}`, undefined, fixed.id);
+    if (!bevel && placed.length > 0) (state.pending ??= new Map()).set(key, { refused: false, action, placed });
   }
   // The way: meshed gears turn opposite ways; on one shaft or round a belt they turn together.
   const ratio = out.ratio as number | undefined;
@@ -1243,6 +1344,33 @@ function checkCoupling(out: Record<string, unknown>, state: SceneState, path: st
       note(notes, 'trimmed', `${path}.ratio`, `repaired: ${id} turns with ${by}: ${together ? 'joined by a belt or chain, or fixed to one shaft, they turn the same way' : 'meshed gears turn opposite ways'}; ratio ${ratio} made ${-ratio}`);
     }
   }
+  return true;
+}
+
+/** A rack and its pinion, when a coupling or a loop of a slide by another part joins a long flat box with a gear. */
+function rackPair(out: Record<string, unknown>, state: SceneState, op: string): { gear: Round; bar: NonNullable<ReturnType<typeof barOf>> } | undefined {
+  const id = out.id as string, by = out.by as string;
+  if (op === 'spin') return undefined;
+  const slides = op === 'couple' ? out.pitch !== undefined : (out.kind ?? state.joints.get(id)) === 'slide';
+  if (!slides) return undefined;
+  for (const [g, r] of [[by, id], [id, by]] as const) {
+    const gear = roundOf(state.bodies, g), bar = barOf(state.bodies, r);
+    if (gear?.kind === 'gear' && bar) return { gear, bar };
+  }
+  return undefined;
+}
+
+/** A rack meets its pinion with the pitch circle on its toothed face; a near miss is repaired (the later of the two moves), a far one refused with the nearest place. */
+function checkRack(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes, op: string, gear: Round, bar: NonNullable<ReturnType<typeof barOf>>): boolean {
+  const id = out.id as string, by = out.by as string;
+  const moving = laterOf(state, gear.id, bar.id) === gear.id ? 'pinion' : 'bar';
+  const fit = rackFit(gear, bar, moving);
+  if (fit.verdict === 'refuse') {
+    const place = fit.by > 0 ? ` (the nearest place for ${fit.moves[0]!.id} is [${fit.moves[0]!.to.join(',')}])` : '';
+    note(notes, 'dropped', path, `${id} cannot ${op === 'loop' ? 'move' : 'follow'} ${by}: ${fit.why}${place}`);
+    return false;
+  }
+  applyFit(state, fit, path, notes, (out.at as number | undefined) ?? 0, `rack ${bar.id} and pinion ${gear.id}`, undefined, moving === 'pinion' ? bar.id : gear.id);
   return true;
 }
 
@@ -1259,6 +1387,7 @@ function meetNeighbours(state: SceneState, out: Record<string, unknown>, path: s
     if (!r || !here || r.kind !== mine.kind) continue;
     if (mine.kind === 'gear') {
       if (sameShaft(r, here)) continue;
+      if ([...state.bodies.keys()].some((x) => { const xr = x === other || x === id ? undefined : roundOf(state.bodies, x); return xr !== undefined && meshes(xr, here); })) continue;
       const fit = meshFit(r, here);
       const want = r.rp + here.rp;
       // Only a near miss in one plane: far apart, two gears are not meant to touch. Tips touching tips (a gap of a tooth) is left to the model.
@@ -1269,7 +1398,7 @@ function meetNeighbours(state: SceneState, out: Record<string, unknown>, path: s
       const between = [here.c[0] - r.c[0], here.c[1] - r.c[1], here.c[2] - r.c[2]];
       const axial = Math.abs(between[0]! * r.axis[0] + between[1]! * r.axis[1] + between[2]! * r.axis[2]);
       if (axial > Math.min(r.width, here.width) / 2) continue;
-      applyFit(state, fit, path, notes, at, `${id} stands beside ${other}`, { id, out });
+      applyFit(state, fit, path, notes, at, `${id} stands beside ${other}`, { id, out }, other);
     } else {
       if (!r.tip || !here.tip) continue;
       const apart = Math.hypot(r.tip[0] - here.tip[0], r.tip[1] - here.tip[1], r.tip[2] - here.tip[2]);

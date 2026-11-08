@@ -210,3 +210,83 @@ export function ropeTangent(wheel: Round, rim: Vec3, other: Vec3): Vec3 | undefi
   const p = at(1), n = at(-1);
   return dot(sub(p, wheel.c), out) >= dot(sub(n, wheel.c), out) ? p : n;
 }
+
+/** Whether two gears are meshed as they stand: parallel axes, not on one shaft, the middles the sum of the pitch radii apart (a little looser than a fit), in one plane. */
+export function meshes(a: Round, b: Round): boolean {
+  if (a.kind !== 'gear' || b.kind !== 'gear' || sameShaft(a, b)) return false;
+  if (lineAngle(a.axis, b.axis) > AXIS_TOLERANCE_DEG) return false;
+  const want = a.rp + b.rp;
+  const between = sub(b.c, a.c);
+  const axial = dot(between, a.axis);
+  const dist = len(sub(between, mul(a.axis, axial)));
+  const overlap = (a.width + b.width) / 2 - Math.abs(axial);
+  return Math.abs(dist - want) <= 2 * MESH_TOLERANCE * want && overlap >= 0.5 * Math.min(a.width, b.width);
+}
+
+/** A long flat box in the scene's space (a rack): where its middle is, the way it runs, the way across it (along a pinion's axis) and the way out of its teeth. */
+export type Bar = { id: string; c: Vec3; length: Vec3; lengthSize: number; width: Vec3; widthSize: number; depth: Vec3; depthSize: number };
+
+/** A box at least twice as long as it is wide or deep, as a bar; undefined for anything else or a box whose place is not known by its own words. */
+export function barOf(bodies: ReadonlyMap<string, Body>, id: string): Bar | undefined {
+  const b = bodies.get(id);
+  if (!b || b.shape !== 'box' || b.part !== undefined || !b.size || b.size.some((n) => !(n > 0)) || mountedAnywhere(bodies, id)) return undefined;
+  const m = worldOf(bodies, id);
+  const order = [0, 1, 2].sort((i, j) => b.size![j]! - b.size![i]!);
+  const [li, mi, si] = order as [number, number, number];
+  if (b.size[li]! < 2 * b.size[mi]!) return undefined;
+  const col = (i: number): Vec3 => unit([m.r[i]!, m.r[3 + i]!, m.r[6 + i]!]);
+  return { id, c: apply(m, [0, 0, 0]), length: col(li), lengthSize: b.size[li]!, width: col(mi), widthSize: b.size[mi]!, depth: col(si), depthSize: b.size[si]! };
+}
+
+/**
+ * A rack touches its pinion when the pinion's axis runs across the rack (along its width or its depth), and the pitch circle just touches the rack's
+ * toothed face (the face of the bar nearest the pinion), the pinion standing over the width of the rack. `moving` is the one that is shifted: the pinion
+ * along the way out of the face, or the bar the other way, and either along the pinion's axis when the two are not over each other.
+ */
+export function rackFit(pinion: Round, bar: Bar, moving: 'pinion' | 'bar'): Fit {
+  // Which of the bar's two short ways runs along the pinion's axis: that is the width; the other is the depth, out of the toothed face.
+  const w = Math.abs(dot(bar.width, pinion.axis)) >= Math.abs(dot(bar.depth, pinion.axis)) ? 0 : 1;
+  const across = w === 0 ? bar.width : bar.depth, acrossSize = w === 0 ? bar.widthSize : bar.depthSize;
+  const out = w === 0 ? bar.depth : bar.width, outSize = w === 0 ? bar.depthSize : bar.widthSize;
+  const angle = lineAngle(across, pinion.axis);
+  const subject = moving === 'pinion' ? pinion.id : bar.id;
+  const here = moving === 'pinion' ? pinion.c : bar.c;
+  if (angle > AXIS_TOLERANCE_DEG || lineAngle(bar.length, pinion.axis) < 90 - AXIS_TOLERANCE_DEG) {
+    return { verdict: 'refuse', moves: [{ id: subject, to: round3(here) }], by: 0, why: `the pinion's axis does not run across the rack (it is ${Math.round(angle)} degrees off the rack's width), and a rack meets its pinion with the axis across it (turn ${subject} to suit)` };
+  }
+  const between = sub(pinion.c, bar.c);
+  const side = dot(between, out) >= 0 ? 1 : -1;
+  const gap = side * dot(between, out) - outSize / 2; // from the toothed face to the pinion's middle
+  const axial = dot(between, pinion.axis);
+  const overlap = (pinion.width + acrossSize) / 2 - Math.abs(axial);
+  const engaged = overlap >= 0.5 * Math.min(pinion.width, acrossSize);
+  if (Math.abs(gap - pinion.rp) <= MESH_TOLERANCE * pinion.rp && engaged) return { verdict: 'ok' };
+  const toward = pinion.rp - gap; // how much further out of the face the pinion's middle must stand
+  const along = engaged ? 0 : axial; // how far the pinion's middle is from the bar's middle, along the pinion's axis
+  const shift: Vec3 = moving === 'pinion'
+    ? add(mul(out, side * toward), mul(pinion.axis, -along))
+    : add(mul(out, -side * toward), mul(pinion.axis, along));
+  const to = round3(add(here, shift));
+  const by = len(shift);
+  const why = engaged
+    ? `the pitch circle (radius ${round(pinion.rp)}) is ${round(gap)} from the rack's toothed face, where a pinion and its rack touch`
+    : `the pinion and the rack are not over each other (the pinion is ${round(Math.abs(axial))} off the rack's middle along its axis), and its pitch circle (radius ${round(pinion.rp)}) is ${round(gap)} from the toothed face`;
+  return { verdict: by > REPAIR_REACH * (pinion.rp + outSize / 2) ? 'refuse' : 'repair', moves: [{ id: subject, to }], by, why };
+}
+
+/**
+ * Where a rope should meet a wheel when it ends on it with no side given (so it would run to the axle through the wheel): the point of the rim where
+ * the rope from `other` leaves it along the tangent (the one with the shorter strand); undefined when the other end is not clear of the rim.
+ */
+export function seatTangent(wheel: Round, other: Vec3): Vec3 | undefined {
+  const q = sub(other, wheel.c);
+  const flat = sub(q, mul(wheel.axis, dot(q, wheel.axis)));
+  const d = len(flat);
+  if (d <= wheel.rp * 1.02) return undefined;
+  const w = mul(flat, 1 / d);
+  const phi = Math.acos(wheel.rp / d);
+  const side = cross(wheel.axis, w);
+  const at = (s: number): Vec3 => add(wheel.c, mul(add(mul(w, Math.cos(phi)), mul(side, s * Math.sin(phi))), wheel.rp));
+  const p = at(1), n = at(-1);
+  return len(sub(other, p)) <= len(sub(other, n)) ? p : n;
+}
