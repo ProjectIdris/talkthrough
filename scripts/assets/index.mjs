@@ -17,6 +17,8 @@ export function catalogueSource(manifests) {
     format: m.format ?? 'obj',
     // One object with no parts of its own (a scan, or a model of one thing): it is labelled whole, never exploded or cut.
     single: m.parts.length === 1,
+    // Whether the model's parts hold the thing's working mechanism, so it can show how the thing works; none does today (a clock's hands turn, but its gears and bell are not modelled).
+    mechanism: m.mechanism === true,
     size: m.built.size, realLengthMetres: m.scale.realLengthMetres ?? Math.max(...m.built.size), caveats: m.caveats ?? [],
     built: { file: m.built.file, bytes: m.built.bytes, sha256: m.built.sha256, triangles: m.built.triangles },
     parts: m.parts.map((p) => ({
@@ -50,6 +52,8 @@ export type ModelEntry = {
   format: 'obj' | 'gltf';
   /** One object with no parts of its own: label the whole, never explode or cut it. */
   single: boolean;
+  /** Whether its parts hold the thing's working mechanism (so it can show how the thing works), not only how it looks and where its parts are: when false, an answer about how it works builds the mechanism from shapes and may show this small beside it. */
+  mechanism: boolean;
   licence: { id: string; name: string; version: string; url: string };
   /** A model held back from every release (the installer is not built while one is). */
   release: { blocked: boolean; why?: string };
