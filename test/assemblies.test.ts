@@ -16,7 +16,7 @@ type Raw = Record<string, unknown>;
 const SIZES: Record<string, number[]> = {
   'gear-train': [14, 7, 4], 'rack-and-pinion': [12, 5, 2], 'crank-slider': [4.3, 8.3, 3.8], 'cam-follower': [3, 8, 6], lever: [12, 5, 2.4], differential: [12, 8.7, 13],
   planetary: [10, 10, 2], 'four-bar-linkage': [10, 6, 2], 'bicycle-drivetrain': [18, 14, 6], 'block-and-tackle': [7, 12, 2],
-  geneva: [10, 6, 2], escapement: [8, 12, 2], ratchet: [9, 9, 2],
+  geneva: [10, 6, 2], escapement: [8, 12, 2], ratchet: [9, 9, 2], 'spring-snap': [10, 5, 6],
 };
 
 function build(part: string, size: number[], extra: Raw = {}) {
@@ -403,4 +403,36 @@ test('ratchet and pawl: the wheel is pushed on a tooth while the lever goes forw
   near(dAng(wheel(2.5), wheel(0.5)), p, 1e-6, 'one tooth a cycle');
   for (const t of [0.6, 0.8, 1.0, 1.2, 1.4]) near(dAng(wheel(t), wheel(0.5)), 0, 1e-9, `stands at ${t}`);
   assert.ok(lever(1.0) < lever(0.5) - 1 && lever(1.5) < -(p / 2) + 1e-6, 'the lever swings back while the wheel stands');
+});
+
+test('spring snap: the trigger tips and the catch lifts before the hammer snaps over to the plate, it rests, is wound slowly back and caught again', () => {
+  const b = built('spring-snap');
+  const hammer = (t: number) => zAngle(worldAt(b, t)('a-hammer')), catchBar = (t: number) => zAngle(worldAt(b, t)('a-catch')), trigger = (t: number) => zAngle(worldAt(b, t)('a-trigger'));
+  // cocked: the hammer lies on the bait side held by the catch, the trigger upright under it
+  near(hammer(0), 0, 1e-9, 'cocked at the start');
+  near(catchBar(0), 0, 1e-9, 'caught');
+  near(trigger(0), 0, 1e-9, 'set');
+  // the snap: the first quarter-second is most of the 180 degrees (fast, braking as it lands), and it lands
+  let t = 0;
+  while (hammer(t) < 5 && t < 4) t += 0.005;
+  assert.ok(t > 0.3 && t < 0.6, `it goes at ${t}`);
+  const start = t;
+  while (hammer(t) < 175 && t < 4) t += 0.005;
+  assert.ok(t - start < 0.3, `180 degrees in ${(t - start).toFixed(2)} s is a snap`);
+  near(hammer(1.0), 180, 1e-6, 'rests on the plate');
+  // the catch and the trigger are out of the way as soon as it moves, and for as long as it is away
+  for (const at of [start + 0.02, 0.8, 1.2, 1.6, 2.0]) {
+    assert.ok(catchBar(at) < -40, `the catch is lifted at ${at.toFixed(2)}`);
+    assert.ok(trigger(at) > 10, `the trigger is tipped at ${at.toFixed(2)}`);
+  }
+  // wound back slowly (several times slower than the snap), never past either end, and caught again
+  let back = 1.0;
+  while (hammer(back) > 170 && back < 4) back += 0.005;
+  const wound = back;
+  while (hammer(back) > 5 && back < 4) back += 0.005;
+  assert.ok(back - wound > 0.5, `wound back in ${(back - wound).toFixed(2)} s`);
+  for (let at = 0; at < 8; at += 0.02) assert.ok(hammer(at) > -1e-6 && hammer(at) < 180 + 1e-6, `the hammer stays between its ends at ${at.toFixed(2)}`);
+  near(hammer(3.9), 0, 1e-9, 'cocked again');
+  near(catchBar(3.9), 0, 1e-9, 'caught again');
+  near(hammer(4.0 + 1.0), hammer(1.0), 1e-6, 'the same every cycle');
 });

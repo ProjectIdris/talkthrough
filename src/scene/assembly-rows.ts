@@ -516,8 +516,53 @@ const ratchetPawl: AssemblyRow = {
   ],
 };
 
+// A spring snap (a mousetrap): a base plate, a hammer wire (two arms and a striking bar) on an axle with a torsion spring coiled round it, a catch bar holding the bar down and
+// a trigger pedal under it. Each cycle the trigger tips, the catch lifts, the hammer snaps 180 degrees over the axle to the plate (the `snap` loop: fast, braking hard as it lands),
+// rests, and is wound slowly back to be caught again. The catch and the trigger are hinges coupled to the hammer's first few degrees (limited, so each is wide open for as long as the
+// hammer is away and closes as it comes home): the trigger tips a third of the way before the catch is clear.
+const springSnap: AssemblyRow = {
+  note: 'a spring snap (a mousetrap): a base, a hammer on a torsion spring, a catch bar holding the hammer back and a trigger pedal; the trigger tips, the catch lifts, the hammer snaps over to the base, then is wound back',
+  aka: ['spring-snap', 'mousetrap', 'snap trap', 'spring snap', 'spring-loaded latch', 'torsion spring snap'],
+  asks: ['mousetrap', 'mouse trap', 'snap trap', 'spring snap', 'torsion spring', 'spring loaded', 'spring-loaded'],
+  size: [10, 5, 6],
+  n: { default: 5, min: 2, max: 12, what: 'turns of the spring' },
+  drive: { key: 'hammer', what: 'the hammer: change its snap loop (period, or amount for how far it swings); the catch and the trigger follow it' },
+  values: [
+    ['u', 'min(sx/10, sy/5, sz/6)'], ['ph', '0.5*u'], ['yt', '-sy/2 + ph'], ['wt', '0.22*u'], ['cr', '0.55*u'], ['yp', 'yt + cr + wt/2'],
+    ['hl', 'min(0.38*sx, sy - ph - cr - wt)'], ['px', '-0.1*sx'], ['hw', '0.36*sz'], ['xs', 'px + hl'], ['xp', 'xs + 1.2*u'], ['xk', 'xs + 1.6*u'],
+    ['yc', 'yp + wt/2 + 0.12*u'], ['per', 4],
+  ],
+  pieces: [
+    { key: 'base', shape: 'box', size: ['sx', 'ph', 'sz'], pos: [0, '-sy/2 + ph/2', 0], tint: true, color: 'orange' },
+    { key: 'stop', shape: 'box', size: ['1.4*u', 'cr', '0.5*hw'], pos: ['px - hl', 'yt + cr/2', 0], color: 'gray' },
+    { key: 'bracket-a', shape: 'box', size: ['2*wt', 'cr + wt/2', '2*wt'], pos: ['px', 'yt + (cr + wt/2)/2', 'hw + 1.5*wt'], color: 'gray' },
+    { key: 'bracket-b', shape: 'box', size: ['2*wt', 'cr + wt/2', '2*wt'], pos: ['px', 'yt + (cr + wt/2)/2', '-(hw + 1.5*wt)'], color: 'gray' },
+    { key: 'axle', shape: 'cylinder', size: ['0.8*wt', '2*hw + 5*wt', '0.8*wt'], rot: [90, 0, 0], pos: ['px', 'yp', 0], color: 'gray' },
+    { key: 'spring', part: 'spring', size: ['2*cr', '1.5*hw', '2*cr'], n: 'n', rot: [90, 0, 0], pos: ['px', 'yp', 0], color: 'gray' },
+    { key: 'hammer', shape: 'sphere', size: ['1.5*wt', '1.5*wt', '1.5*wt'], pos: ['px', 'yp', 0], color: 'red' },
+    { key: 'hammer-arm-a', on: 'hammer', shape: 'box', size: ['hl', 'wt', 'wt'], pos: ['hl/2', 0, 'hw'], color: 'red' },
+    { key: 'hammer-arm-b', on: 'hammer', shape: 'box', size: ['hl', 'wt', 'wt'], pos: ['hl/2', 0, '-hw'], color: 'red' },
+    { key: 'hammer-bar', on: 'hammer', shape: 'box', size: ['wt', 'wt', '2*hw + wt'], pos: ['hl', 0, 0], color: 'red' },
+    { key: 'post', shape: 'box', size: ['0.5*u', 'yc - yt', '0.6*u'], pos: ['xk + 0.25*u', '(yc + yt)/2', 0], color: 'gray' },
+    { key: 'catch', shape: 'group', pos: ['xk', 'yc', 0] },
+    { key: 'catch-arm', on: 'catch', shape: 'box', size: ['xk - xs + 0.2*u', '0.14*u', '0.5*u'], pos: ['-(xk - xs + 0.2*u)/2', '0.07*u', 0], color: 'teal' },
+    { key: 'catch-hook', on: 'catch', shape: 'box', size: ['0.14*u', '0.3*u', '0.5*u'], pos: ['-(xk - xs + 0.2*u) + 0.07*u', '-0.08*u', 0], color: 'teal' },
+    { key: 'trigger', shape: 'group', pos: ['xp', 'yt + cr - 0.09*u', 0] },
+    { key: 'trigger-pedal', on: 'trigger', shape: 'box', size: ['1.7*u', '0.18*u', '0.5*sz*0.6'], pos: ['-0.85*u', 0, 0], color: 'blue' },
+  ],
+  anchors: [{ name: 'input', at: ['xp', 'yt + cr + 0.2*u', 0] }, { name: 'output', at: ['px - hl', 'yt + cr', 0] }],
+  steps: [
+    { op: 'joint', refs: { id: 'hammer' }, texts: { kind: 'hinge', axis: 'z' } },
+    { op: 'loop', refs: { id: 'hammer' }, texts: { kind: 'snap', axis: 'z' }, fields: { amount: 180, period: 'per' } },
+    { op: 'joint', refs: { id: 'catch' }, texts: { kind: 'hinge', axis: 'z' }, fields: { min: -75, max: 0 } },
+    { op: 'couple', refs: { id: 'catch', by: 'hammer' }, fields: { ratio: -15 } },
+    { op: 'joint', refs: { id: 'trigger' }, texts: { kind: 'hinge', axis: 'z' }, fields: { min: 0, max: 18 } },
+    { op: 'couple', refs: { id: 'trigger', by: 'hammer' }, fields: { ratio: 6 } },
+  ],
+};
+
 const rows = {
-  'gear-train': gearTrain, 'rack-and-pinion': rackAndPinion, 'crank-slider': crankSlider, 'cam-follower': camFollower, lever: leverRow, differential, planetary, 'four-bar-linkage': fourBar, 'bicycle-drivetrain': bicycle, 'block-and-tackle': blockAndTackle, geneva: genevaDrive, escapement: clockEscapement, ratchet: ratchetPawl,
+  'gear-train': gearTrain, 'rack-and-pinion': rackAndPinion, 'crank-slider': crankSlider, 'cam-follower': camFollower, lever: leverRow, differential, planetary, 'four-bar-linkage': fourBar, 'bicycle-drivetrain': bicycle, 'block-and-tackle': blockAndTackle, geneva: genevaDrive, escapement: clockEscapement, ratchet: ratchetPawl, 'spring-snap': springSnap,
 } satisfies Record<string, AssemblyRow>;
 export type AssemblyName = keyof typeof rows;
 export const ASSEMBLY_ROWS: Readonly<Record<string, AssemblyRow>> = rows;

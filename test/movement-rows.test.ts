@@ -19,7 +19,7 @@ test('the catalogue holds exactly the loop kinds the scene language names, with 
   assert.deepEqual(Object.keys(LOOP_ROWS).sort(), [...named].sort());
   assert.deepEqual(Object.fromEntries(Object.entries(LOOP_ROWS).map(([k, r]) => [k, [r.axis, r.start, ...r.amount]])), {
     slide: [1, 270, 0.01, 100], swing: [2, 270, -180, 180], gate: [2, 270, -170, 170], pulse: [1, 180, 0.1, 5], float: [1, 270, 0.01, 100],
-    step: [2, 0, -360, 360], ratchet: [2, 270, -360, 360], geneva: [2, 180, 20, 120],
+    step: [2, 0, -360, 360], ratchet: [2, 270, -360, 360], geneva: [2, 180, 20, 120], snap: [2, 0, -180, 180],
   });
   assert.deepEqual(DEFAULT_AMOUNT, [0.1, 5], 'a stopped loop keeps the old range');
   assert.equal(loopStart('pulse'), 180);

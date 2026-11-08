@@ -64,6 +64,12 @@ const rows = {
     ],
     value: '-(amount*(k - 0.5) + slot/deg)',
   },
+  // A spring let go: it stands cocked, snaps `amount` degrees in a sixteenth of the cycle (fast to start and braking hard as it arrives), rests there, then is wound slowly back over a fifth (a mousetrap's hammer).
+  snap: {
+    motion: 'turn', axis: 2, start: 0, amount: [-180, 180],
+    lets: [['f', 'a/(2*pi) - floor(a/(2*pi))'], ['u', 'min(1, max(0, (f - 0.12)/0.06))'], ['w', 'min(1, max(0, (f - 0.32)/0.22))']],
+    value: 'amount*(f < 0.32 ? 1 - pow(1 - u, 3) : 1 - w*w*(3 - 2*w))',
+  },
 } satisfies Record<string, LoopRow>;
 
 export type LoopName = keyof typeof rows;
