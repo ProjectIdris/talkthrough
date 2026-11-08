@@ -52,3 +52,32 @@ test('a shaft through a solid wheel, or a hub no bigger than its thickness, is n
   // a part really buried in a thick solid is still found
   assert.equal(run([{ ...wheel, size: [4, 4, 4] }, { ...shaft, size: [0.4, 0.4, 0.4] }]).styled.length, 1);
 });
+
+// The eye answer as the model wrote it: the globe is a closed white sphere, and the cornea, lens and retina are its children (parent: globe), not siblings under a group.
+const globe: Record<string, unknown> = { op: 'add', shape: 'sphere', id: 'globe', size: [4, 4, 4], color: 'white', material: 'foam' };
+const eyeCornea: Record<string, unknown> = { op: 'add', shape: 'shell', id: 'cornea', parent: 'globe', parentAnchor: 'front', selfAnchor: 'center', pos: [0, 0, 0.3], rot: [90, 0, 0], size: [2.2, 2.2, 1.4], latitude: [0, 90], material: 'glass', opacity: 0.5, at: 0.5 };
+const eyeLens: Record<string, unknown> = { op: 'add', shape: 'cylinder', id: 'lens', parent: 'globe', pos: [0, 0, 1], size: [1.4, 0.5, 1.4], rot: [90, 0, 0], material: 'crystal', opacity: 0.7, at: 1 };
+const eyeRetina: Record<string, unknown> = { op: 'add', shape: 'shell', id: 'retina', parent: 'globe', pos: [0, 0, 0], rot: [90, 0, 0], size: [3.9, 3.9, 3.9], latitude: [-90, -30], color: 'orange', material: 'muscle', at: 1.5 };
+const eye = [eyeCornea, eyeLens, eyeRetina];
+
+test('a part held by the closed solid itself (a lens as a child of the globe) is a part inside it: the globe is made see-through', () => {
+  const r = run([globe, ...eye]);
+  assert.deepEqual(r.styled.map((a) => a.id), ['globe']);
+  assert.equal(r.styled[0]?.opacity, 0.3);
+  assert.equal(r.styled[0]?.at, 1, 'from the moment the first part arrives inside it');
+  assert.ok(r.issues.some((m) => /repaired.*"lens".*"globe"/.test(m)), r.issues.join(' | '));
+  assert.equal(run([globe, { ...eyeLens, pos: [0, 0, 1.2] }]).styled.length, 1, 'the lens at 1.2, as it was logged, lies just inside');
+});
+
+test('the solid arriving after its children is found as well, and a child standing out in front (the cornea on the anchor, an optic tube behind) is not inside', () => {
+  assert.deepEqual(run([...[eyeLens, eyeRetina], globe]).styled.map((a) => a.id), ['globe']);
+  assert.deepEqual(run([globe, eyeCornea]).styled, [], 'a cornea mounted on the front face is out in front');
+  const tube = { op: 'add', shape: 'cylinder', id: 'nerve', parent: 'globe', pos: [0, 0, -3], size: [0.6, 2, 0.6], rot: [90, 0, 0], at: 1 };
+  assert.deepEqual(run([globe, tube]).styled, []);
+});
+
+test('a child of a see-through or cut-open solid is left alone, and so is a child as big as the solid', () => {
+  assert.deepEqual(run([{ ...globe, material: 'glass' }, eyeLens]).styled, []);
+  assert.deepEqual(run([{ ...globe, opacity: 0.4 }, eyeLens]).styled, []);
+  assert.deepEqual(run([globe, { ...eyeLens, size: [3.9, 3.9, 3.9] }]).styled, [], 'a part as big as the solid is no part inside it');
+});

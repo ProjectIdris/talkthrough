@@ -553,7 +553,8 @@ const SEE_THROUGH = /(?<![a-z])(?:glass|ice|water|gem|crystal|acrylic|clear|liqu
 /**
  * An opaque closed solid (a box, sphere or cylinder, or a hollow shell with no opening cut in it) hides every part inside it for good: the part is never seen, and a pin on it
  * points at nothing. When a part arrives inside such a solid (or the solid arrives round one), the solid is made see-through from then on, so the inside shows.
- * Only parts that share the solid's parent are asked (their places are in one space); a shell that is cut open is not closed, so it is never touched.
+ * Two kinds of part are asked: those that share the solid's parent (their places are in one space) and those held by the solid itself, its children (their places are in its own space,
+ * so its middle is the origin; a lens or retina written as a child of an eyeball is the usual case). A shell that is cut open is not closed, so it is never touched.
  */
 function hideCheck(state: SceneState, id: string, name: string, out: Record<string, unknown>, body: Body, path: string, notes: Notes): void {
   const at = (out.at as number | undefined) ?? 0;
@@ -568,11 +569,14 @@ function hideCheck(state: SceneState, id: string, name: string, out: Record<stri
       if ((!lat || lat[1] - lat[0] >= 350) && (sweep === undefined || sweep >= 350)) body.hides = { reach: (Math.min(...size) / 2) * ((out.inner as number | undefined) ?? 0.85), whole: false, at };
     }
   }
-  const inside = (wall: Body, part: Body): boolean => {
-    if (!wall.hides || wall.hides.done || part.shape === 'group' || wall.parent !== part.parent) return false;
+  const inside = (wallId: string, wall: Body, part: Body): boolean => {
+    if (!wall.hides || wall.hides.done || part.shape === 'group') return false;
+    const held = part.parent === wallId; // a child of the wall: its place is measured from the wall's middle
+    if (!held && wall.parent !== part.parent) return false;
+    const middle = held ? ZERO : wall.pos;
     if (part.size && part.size.some((n) => !(n > 0))) return false; // a flat sheet is not a part
     const reach = wall.hides.whole && part.size ? Math.max(...part.size) / 2 : 0;
-    return Math.hypot(part.pos[0] - wall.pos[0], part.pos[1] - wall.pos[1], part.pos[2] - wall.pos[2]) + reach <= wall.hides.reach * 0.95; // a part as big as the solid is no part inside it
+    return Math.hypot(part.pos[0] - middle[0], part.pos[1] - middle[1], part.pos[2] - middle[2]) + reach <= wall.hides.reach * 0.95; // a part as big as the solid is no part inside it
   };
   const mend = (wallId: string, wall: Body, partId: string): void => {
     wall.hides!.done = true;
@@ -581,9 +585,9 @@ function hideCheck(state: SceneState, id: string, name: string, out: Record<stri
   };
   for (const [other, b] of state.bodies) {
     if (other === id) continue;
-    if (inside(body, b)) { mend(id, body, other); break; }
+    if (inside(id, body, b)) { mend(id, body, other); break; }
   }
-  for (const [other, b] of state.bodies) if (other !== id && inside(b, body)) mend(other, b, id);
+  for (const [other, b] of state.bodies) if (other !== id && inside(other, b, body)) mend(other, b, id);
 }
 
 const ends = (pts: readonly Vec3[]): [number, number] => [0, pts.length - 1];
