@@ -1,0 +1,201 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "The same closed body can be described from bottom to top or from top to bottom. Both should show their outside surface, with a light-facing shoulder and a solid front wall.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 120,
+          "y": 100,
+          "w": 760,
+          "h": 650
+        },
+        {
+          "op": "orbit",
+          "az": 20,
+          "el": 15,
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "shape": "lathe",
+          "id": "up",
+          "profile": [
+            [
+              0,
+              -1
+            ],
+            [
+              0.55,
+              -1
+            ],
+            [
+              0.8,
+              -0.6
+            ],
+            [
+              0.7,
+              0.5
+            ],
+            [
+              0.4,
+              1
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          "pos": [
+            -1.3,
+            0,
+            0
+          ],
+          "color": "orange",
+          "roughness": 0.75,
+          "clearcoat": 0,
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "lathe",
+          "id": "down",
+          "profile": [
+            [
+              0,
+              1
+            ],
+            [
+              0.4,
+              1
+            ],
+            [
+              0.7,
+              0.5
+            ],
+            [
+              0.8,
+              -0.6
+            ],
+            [
+              0.55,
+              -1
+            ],
+            [
+              0,
+              -1
+            ]
+          ],
+          "pos": [
+            1.3,
+            0,
+            0
+          ],
+          "color": "orange",
+          "roughness": 0.75,
+          "clearcoat": 0,
+          "edges": false
+        }
+      ]
+    },
+    {
+      "say": "Closed hollow rings also keep their real openings. Reversing the profile must not replace the outer surface with the inside of the far wall.",
+      "actions": [
+        {
+          "op": "clear",
+          "target": "up"
+        },
+        {
+          "op": "clear",
+          "target": "down"
+        },
+        {
+          "op": "add",
+          "shape": "lathe",
+          "id": "up",
+          "profile": [
+            [
+              0.55,
+              -0.7
+            ],
+            [
+              1,
+              -0.7
+            ],
+            [
+              1,
+              0.7
+            ],
+            [
+              0.55,
+              0.7
+            ],
+            [
+              0.55,
+              -0.7
+            ]
+          ],
+          "pos": [
+            -1.3,
+            0,
+            0
+          ],
+          "color": "teal",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "lathe",
+          "id": "down",
+          "profile": [
+            [
+              0.55,
+              -0.7
+            ],
+            [
+              0.55,
+              0.7
+            ],
+            [
+              1,
+              0.7
+            ],
+            [
+              1,
+              -0.7
+            ],
+            [
+              0.55,
+              -0.7
+            ]
+          ],
+          "pos": [
+            1.3,
+            0,
+            0
+          ],
+          "color": "teal",
+          "edges": false
+        },
+        {
+          "op": "orbit",
+          "az": 28,
+          "el": 38,
+          "dur": 0
+        }
+      ]
+    },
+    {
+      "say": "The same two rings from the reverse view remain closed on the outside and open through the centre.",
+      "actions": [
+        {
+          "op": "orbit",
+          "az": 205,
+          "el": 28,
+          "dur": 0
+        }
+      ]
+    }
+  ]
+}
