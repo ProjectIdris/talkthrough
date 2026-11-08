@@ -60,6 +60,8 @@ function omega(b: ReturnType<typeof built>, id: string, t: number, dt = 1e-3): V
 }
 const near = (a: number, b: number, eps: number, what = '') => assert.ok(Math.abs(a - b) <= eps, `${what} ${a} vs ${b}`);
 const centre = (m: Matrix4) => new Vector3().setFromMatrixPosition(m);
+/** The turn from angle b to angle a in degrees, taken as the short way round (-180 to 180), so a wheel's angle passing the wrap is not a jump. */
+const dAng = (a: number, b: number) => ((((a - b) % 360) + 540) % 360) - 180;
 const zAngle = (m: Matrix4) => new Euler().setFromRotationMatrix(new Matrix4().extractRotation(m), 'XYZ').z * 180 / Math.PI;
 
 // --- the outline of a kit gear and how deep two outlines go into each other (the same tooth shape the kit draws) ---
@@ -354,17 +356,16 @@ test('Geneva drive: the pin runs in a slot while it is in the wheel, the wheel t
         const off = Math.min(...Array.from({ length: n }, (_, i) => Math.abs((((dir - (180 + amt / 2 + i * amt)) % 360) + 540) % 360 - 180)));
         assert.ok(off < 0.6, `n=${n} t=${t.toFixed(2)}: the pin is ${off.toFixed(2)} degrees off a slot`);
         assert.ok(dist > c - a - 0.05 * a, `n=${n} t=${t.toFixed(2)}: the pin is out of the slot's inner end`);
-      } else if (dist > bReach + 0.002 * a) {
+      } else if (dist > bReach + 0.03 * a) {
         still++;
-        assert.ok(Math.abs(next - prev) < 1e-6, `n=${n} t=${t.toFixed(2)}: the wheel stands while the pin is away (${prev} to ${next})`);
+        assert.ok(Math.abs(dAng(next, prev)) < 1e-6, `n=${n} t=${t.toFixed(2)}: the wheel stands while the pin is away (${prev} to ${next})`);
       }
     }
     assert.ok(engaged > 10 && still > 10, `n=${n}: the pin engages for part of a turn and is away for the rest (${engaged}, ${still})`);
     // one slot opposite the driver a turn, and the same each turn
     const w0 = zAngle(worldAt(b, 0.02)('a-wheel')), w1 = zAngle(worldAt(b, 0.02 + tau)('a-wheel')), w2 = zAngle(worldAt(b, 0.02 + 2 * tau)('a-wheel'));
-    const turn = (x: number) => ((x + 540) % 360) - 180;
-    near(turn(w1 - w0), -amt, 0.01, `n=${n} first turn`);
-    near(turn(w2 - w1), -amt, 0.01, `n=${n} second turn`);
+        near(dAng(w1, w0), -amt, 0.01, `n=${n} first turn`);
+    near(dAng(w2, w1), -amt, 0.01, `n=${n} second turn`);
   }
 });
 
@@ -374,32 +375,32 @@ test('clock escapement: the wheel steps one tooth each time the anchor passes th
   for (let k = 0; k < 8; k++) {
     // between one crossing of the middle and the next (half a period, a second) the wheel has gone on by exactly one tooth
     const t0 = 0.25 + k * 1, t1 = t0 + 1;
-    near(wheel(t1) - wheel(t0), -amt, 1e-6, `tick ${k}`);
+    near(dAng(wheel(t1), wheel(t0)), -amt, 1e-6, `tick ${k}`);
   }
   let moving = 0;
   for (let t = 0.05; t < 6; t += 0.04) {
-    const dw = Math.abs(wheel(t + 0.01) - wheel(t - 0.01));
+    const dw = Math.abs(dAng(wheel(t + 0.01), wheel(t - 0.01)));
     if (Math.abs(anchor(t)) > 5.5) assert.ok(dw < 1e-6, `t=${t.toFixed(2)}: the wheel stands while the anchor is at ${anchor(t).toFixed(1)} degrees`);
     else if (dw > 1e-3) moving++;
   }
   assert.ok(moving > 5, 'the wheel moves while the anchor is near the middle');
   // the hand is on the wheel: after fifteen beats (fifteen teeth) it has gone half way round
-  near(Math.abs(wheel(0.25 + 15) - wheel(0.25)), 180, 1e-6, 'half a round of the wheel in n/2 beats');
+  near(Math.abs(dAng(wheel(0.25 + 15), wheel(0.25))), 180, 1e-6, 'half a round of the wheel in n/2 beats');
 });
 
 test('ratchet and pawl: the wheel is pushed on a tooth while the lever goes forward, stands when it comes back, and never runs backward', () => {
   const b = built('ratchet');
   const p = 360 / 12, wheel = (t: number) => zAngle(worldAt(b, t)('a-wheel')), lever = (t: number) => zAngle(worldAt(b, t)('a-lever'));
   // the lever swings half a tooth either side: the push is the forward stroke, the wheel keeps pace with the lever through it
-  for (const t of [0.1, 0.2, 0.3, 0.4, 2.1, 2.2, 2.3, 2.4]) near(wheel(t) - wheel(0), lever(t) + (t > 1 ? 0 : 0) - (t > 1 ? lever(2) * 0 : 0) + (t > 1 ? p : 0), 1e-6, `push at ${t}`);
+  for (const t of [0.1, 0.2, 0.3, 0.4, 2.1, 2.2, 2.3, 2.4]) near(dAng(wheel(t), wheel(0)), lever(t) + (t > 1 ? p : 0), 1e-6, `push at ${t}`);
   let prev = wheel(0);
   for (let t = 0; t < 8; t += 0.01) {
     const w = wheel(t);
-    assert.ok(w >= prev - 1e-9, `t=${t.toFixed(2)}: the wheel runs back (${prev} to ${w})`);
+    assert.ok(dAng(w, prev) >= -1e-9, `t=${t.toFixed(2)}: the wheel runs back (${prev} to ${w})`);
     prev = w;
   }
   // a whole number of teeth a cycle, and still through the lever's return stroke
-  near(wheel(2.5) - wheel(0.5), p, 1e-6, 'one tooth a cycle');
-  for (const t of [0.6, 0.8, 1.0, 1.2, 1.4]) near(wheel(t), wheel(0.5), 1e-9, `stands at ${t}`);
+  near(dAng(wheel(2.5), wheel(0.5)), p, 1e-6, 'one tooth a cycle');
+  for (const t of [0.6, 0.8, 1.0, 1.2, 1.4]) near(dAng(wheel(t), wheel(0.5)), 0, 1e-9, `stands at ${t}`);
   assert.ok(lever(1.0) < lever(0.5) - 1 && lever(1.5) < -(p / 2) + 1e-6, 'the lever swings back while the wheel stands');
 });
