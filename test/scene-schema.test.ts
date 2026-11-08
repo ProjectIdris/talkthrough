@@ -106,7 +106,7 @@ test('the guide asks for a short first step and its example keeps to it', () => 
   const steps = (sceneGuideExample as { steps: { say: string; actions: unknown[] }[] }).steps;
   assert.ok((steps[0]?.actions.length ?? 99) <= 2, 'the first step of the example has one or two marks');
   assert.ok((steps[0]?.say.length ?? 999) <= 90, 'and one short sentence');
-  assert.ok(JSON.stringify(sceneGuideExample).length < 1200, 'the example stays lean');
+  assert.ok(JSON.stringify(sceneGuideExample).length < 1500, 'the example stays lean (a door attached by its hinge edge was added to teach attaching)');
 });
 
 test('the guide says the question sets the task and the page is material, never a subject (no talk of where knowledge comes from), that a figure adds what the page lacks, and that a label starts beside its point', () => {

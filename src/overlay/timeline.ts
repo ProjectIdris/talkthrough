@@ -6,7 +6,8 @@
 // previous step settled in (evaluate at Infinity), so ids, positions and the camera carry over,
 // including across follow-up questions.
 
-import { mountPosition } from '../scene/attach.ts';
+import { heldShift, mountPosition } from '../scene/attach.ts';
+import { anchorsOf } from '../scene/anchors.ts';
 import { resolvePartGeometry } from '../scene/part-geometry.ts';
 import { PALETTE_RGB } from '../scene/colors.ts';
 import { advanceMotion, crankPinKey, crankPinSize, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
@@ -128,6 +129,10 @@ export type ObjectFrame = {
   pose?: Pose;
   /** A local plane: remove points beyond `at` along the unit normal, or axis (0 x, 1 y, 2 z). */
   cut?: CutDirection & { at: number };
+  /** Points the model named on it, in its own space (its built-in ones come from its shape). */
+  points?: Record<string, Vec3>;
+  /** While it is attached at a point: `pos` is where that puts its origin just now; `offset` is the authored offset from the point, `parentPoint` the point on its parent and `self` the point of its own (both in the parent's and its own space). */
+  mount?: { offset: Vec3; parentPoint: Vec3; self: Vec3 };
 };
 
 export type Frame = {
@@ -231,6 +236,10 @@ type ObjInst = Life & {
   pos: Track; rot: Track; scale: Track; color: Track; opacity: Track; draw: Track; spread: Track;
   /** The plane that cuts it open, once a `cut` has named it. */
   cut?: CutTrack;
+  /** Points the model named on it (its own space). */
+  points?: Record<string, Vec3>;
+  /** The time an attachment was let go, from when it is placed on its own (-Infinity: it was already let go in an earlier step). */
+  detachedAt?: number;
 };
 type PanelInst = Life & { rect: Track; frame: boolean };
 type Pulse = { key: number; start: number; dur: number; color: Rgb | undefined };
@@ -374,8 +383,9 @@ function buildStep(base: Frame, step: Step, authored?: AuthoredStep, targets?: M
   for (const o of base.objects) {
     plan.objs.push({
       key: o.key, id: o.id, parentKey: o.parentKey, def: o.def, bornAt: NEVER, diedAt: undefined,
-      pos: track(o.pos), rot: track(o.rot), scale: track(o.scale), color: track(o.color), opacity: track([o.opacity]),
+      pos: track(o.mount?.offset ?? o.pos), rot: track(o.rot), scale: track(o.scale), color: track(o.color), opacity: track([o.opacity]),
       draw: track([o.draw]), spread: track([o.spread]),
+      ...(o.points ? { points: { ...o.points } } : {}), ...(!o.mount && hasMount(o.def) ? { detachedAt: -Infinity } : {}),
       ...(o.cut ? { cut: { direction: { axis: o.cut.axis, ...(o.cut.normal ? { normal: [...o.cut.normal] as Vec3 } : {}) }, changes: [], at: track([o.cut.at]) } } : {}),
     });
   }
@@ -529,34 +539,31 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       if ('parent' in a && a.parent !== undefined && !parent) return;
       const given = (a as { color?: string }).color;
       const replaced = lookup(plan.objs, a.id, at);
-      let mountedPos: Vec3 | undefined;
       if (hasMount(a)) {
         if (!parent || authoredMount === null) return;
-        if (authoredMount) mountedPos = authoredMount.pos;
-        else {
-          const parentAnchors = parent.def.shape === 'part' ? resolvePartGeometry(parent.def).anchors : { origin: [0, 0, 0] as Vec3 };
-          const selfAnchors = a.shape === 'part' ? resolvePartGeometry(a).anchors : { origin: [0, 0, 0] as Vec3 };
-          const parentName = a.parentAnchor ?? 'origin';
-          const selfName = a.shape === 'part' ? a.selfAnchor ?? 'origin' : 'origin';
-          // A differently scheduled replacement can change the available sockets after validation.
-          // Never silently fall back to the origin or leave an invalid mounted replacement half-applied.
-          if (!Object.hasOwn(parentAnchors, parentName) || !Object.hasOwn(selfAnchors, selfName)) return;
-          const rot = a.rot ?? (replaced ? valueAt(replaced.rot, at) as Vec3 : [0, 0, 0]);
-          const scale = replaced ? valueAt(replaced.scale, at) as Vec3 : [1, 1, 1] as Vec3;
-          mountedPos = mountPosition(parentAnchors[parentName]!, selfAnchors[selfName]!, rot, a.pos ?? [0, 0, 0], scale);
-          if (mountedPos.some((v) => !Number.isFinite(v) || v < -100 || v > 100)) return;
-        }
+        // A differently scheduled replacement can change the available points after validation.
+        // Never silently fall back to the origin or leave an invalid mounted replacement half-applied.
+        const parentAnchors = anchorsOf({ ...parent.def, ...(parent.points ? { points: parent.points } : {}) });
+        const selfAnchors = anchorsOf({ ...a, ...(replaced?.points ? { points: replaced.points } : {}) });
+        const parentName = a.parentAnchor ?? 'origin';
+        const selfName = a.selfAnchor ?? 'origin';
+        if (!Object.hasOwn(parentAnchors, parentName) || !Object.hasOwn(selfAnchors, selfName)) return;
+        const rot = ('rot' in a && a.rot) || (replaced ? valueAt(replaced.rot, at) as Vec3 : [0, 0, 0] as Vec3);
+        const scale = replaced ? valueAt(replaced.scale, at) as Vec3 : [1, 1, 1] as Vec3;
+        const placed = mountPosition(parentAnchors[parentName]!, selfAnchors[selfName]!, rot, a.pos ?? [0, 0, 0], scale);
+        if (placed.some((v) => !Number.isFinite(v) || v < -100 || v > 100)) return;
       }
       const fresh: ObjInst = {
         key: plan.nextKey++, id: a.id, parentKey: parent ? parent.key : replaced ? replaced.parentKey : null, def: a,
         bornAt: at, diedAt: undefined,
-        pos: track(mountedPos ?? ('pos' in a && a.pos ? a.pos : [0, 0, 0])),
+        pos: track('pos' in a && a.pos ? a.pos : [0, 0, 0]),
         rot: track('rot' in a && a.rot ? a.rot : [0, 0, 0]),
         scale: track([1, 1, 1]),
         color: track(given !== undefined ? parseColor(given) : defaultColor(a)),
         opacity: track([('opacity' in a && a.opacity !== undefined) ? a.opacity : 1]),
         draw: track([('draw' in a && a.draw !== undefined) ? a.draw : 1]), spread: track([0]),
       };
+      if (replaced?.points) fresh.points = { ...replaced.points };
       if (replaced) replaceObject(plan, replaced, fresh, at);
       else plan.objs.push(fresh);
       if (authoredMount) {
@@ -565,6 +572,26 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
         fresh.scale = track(authoredMount.scale);
       }
       end(replaced ? REPLACE_SECONDS : APPEAR_SECONDS);
+      return;
+    }
+    case 'anchor': {
+      const o = lookup(plan.objs, a.id, at);
+      if (o) o.points = { ...o.points, [a.name]: [...a.pos] };
+      return;
+    }
+    case 'detach': {
+      const o = lookup(plan.objs, a.id, at);
+      if (!o || !aliveAt(o, at) || !hasMount(o.def) || (o.detachedAt !== undefined && o.detachedAt <= at)) return;
+      const parent = o.parentKey !== null ? plan.objs.find((p) => p.key === o.parentKey) : undefined;
+      const def = o.def as { parentAnchor?: string; selfAnchor?: string };
+      const parentPoint = parent ? anchorsOf({ ...parent.def, ...(parent.points ? { points: parent.points } : {}) })[def.parentAnchor ?? 'origin'] : undefined;
+      const self = anchorsOf({ ...o.def, ...(o.points ? { points: o.points } : {}) })[def.selfAnchor ?? 'origin'];
+      // From here it stands where the attachment had put it: its position becomes that, so nothing jumps.
+      if (parentPoint && self) {
+        const where = mountPosition(parentPoint, self, valueAt(o.rot, at) as Vec3, valueAt(o.pos, at) as Vec3, valueAt(o.scale, at) as Vec3);
+        if (where.every(Number.isFinite)) tweenTo(o.pos, at, 0, where);
+      }
+      o.detachedAt = at;
       return;
     }
     case 'move': case 'turn': case 'scale': {
@@ -765,9 +792,11 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
   }
 }
 
-/** Mount instructions stay data until chronological planning, where parent geometry and inherited base transforms are known. */
-function hasMount(def: AddAction): def is Extract<AddAction, { shape: 'part' | 'group' }> {
-  return (def.shape === 'part' || def.shape === 'group') && (def.parentAnchor !== undefined || (def.shape === 'part' && def.selfAnchor !== undefined));
+/** An attachment is data kept live: each frame resolves it from the parent's point, the offset and the part's own turn and size. */
+type Mountable = Extract<AddAction, { parentAnchor?: string }>;
+function hasMount(def: AddAction): def is Mountable {
+  const d = def as { parent?: string; parentAnchor?: string; selfAnchor?: string };
+  return def.shape !== 'stream' && def.shape !== 'array' && d.parent !== undefined && (d.parentAnchor !== undefined || d.selfAnchor !== undefined);
 }
 
 /** Seconds an object that is added again under the id of one already there takes to swap in, the old one fading as the new comes up. */
@@ -990,8 +1019,10 @@ export function evaluate(plan: StepPlan, t: number): Frame {
       color: asRgb(valueAt(o.color, t)), opacity: valueAt(o.opacity, t)[0] ?? 1,
       appear: appearOf(o, t), fade: fadeOf(o, t), pulse: pulse.amount, pulseColor: pulse.color,
       draw: valueAt(o.draw, t)[0] ?? 1, spread: valueAt(o.spread, t)[0] ?? 0,
+      ...(o.points ? { points: o.points } : {}),
       ...cutOf(o, t),
     });
+    resolveMount(plan, hosts, objects, o, t);
   }
   // A crank on a plain-shape disc draws its own pin, so the rod and the pin the person sees are one point (a kit crankshaft has its own).
   for (const c of plan.cranks) {
@@ -1022,6 +1053,24 @@ export function evaluate(plan: StepPlan, t: number): Frame {
       focus: focusAt(plan.focus, t),
     },
   };
+}
+
+/** An attached part is placed from its parent's point: its origin is the point plus its offset, less its own point turned and sized as it is now. */
+function resolveMount(plan: StepPlan, hosts: ReadonlyMap<number, ObjInst>, objects: ObjectFrame[], o: ObjInst, t: number): void {
+  const frame = objects[objects.length - 1];
+  if (!frame || frame.key !== o.key || !hasMount(o.def) || (o.detachedAt !== undefined && o.detachedAt <= t)) return;
+  // Its holder as it stands now: an object added again under the holder's id swaps in at its own time, and until then the old one is what the part sits on.
+  const named = frame.parentKey !== null ? hosts.get(frame.parentKey) : undefined;
+  const parent = named && (plan.objs.findLast((p) => p.id === named.id && visibleAt(p, t)) ?? named);
+  if (!parent) return;
+  const def = o.def as { parentAnchor?: string; selfAnchor?: string };
+  const parentPoint = anchorsOf({ ...parent.def, ...(parent.points ? { points: parent.points } : {}) })[def.parentAnchor ?? 'origin'];
+  const self = anchorsOf({ ...o.def, ...(o.points ? { points: o.points } : {}) })[def.selfAnchor ?? 'origin'];
+  if (!parentPoint || !self) return;
+  const placed = mountPosition(parentPoint, self, frame.rot, frame.pos, frame.scale);
+  if (!placed.every(Number.isFinite)) return;
+  frame.mount = { offset: frame.pos, parentPoint, self };
+  frame.pos = placed;
 }
 
 /** The plane cutting an object open at time t, when it is within the world (100 and beyond means no cut). */
@@ -1095,8 +1144,27 @@ function applyPoses(objects: ObjectFrame[], motion: Motion): void {
   if (placed.size === 0) return;
   for (const o of objects) {
     const pose = placed.get(o.key);
-    if (pose) o.pose = pose;
+    if (pose) {
+      o.pose = pose;
+      holdMount(o, pose, motion);
+    }
   }
+}
+
+/**
+ * A spin, a swing or a pulse turns or swells an attached part about its own origin; it is held on its point instead, so it stays attached. Left alone
+ * where the machine places it exactly (a crank's rod and piston, a fixed joint) or where the joint names its own pivot.
+ */
+function holdMount(o: ObjectFrame, pose: Pose, motion: Motion): void {
+  if (!o.mount || (!pose.rot && !pose.scale)) return;
+  const pivot = (p: Vec3): boolean => p[0] !== 0 || p[1] !== 0 || p[2] !== 0;
+  if (motion.cranks.some((c) => c.key === o.key || c.rodKey === o.key)) return;
+  if (motion.joints.some((j) => j.key === o.key && (j.kind === 'fixed' || pivot(j.pivot)))) return;
+  if (motion.loops.some((l) => l.key === o.key && pivot(l.pivot))) return;
+  const grown: Vec3 = [o.scale[0] * (pose.scale?.[0] ?? 1), o.scale[1] * (pose.scale?.[1] ?? 1), o.scale[2] * (pose.scale?.[2] ?? 1)];
+  const shift = heldShift(o.rot, pose.rot ?? o.rot, o.scale, grown, o.mount.self);
+  const base = pose.pos ?? o.pos;
+  pose.pos = [base[0] + shift[0], base[1] + shift[1], base[2] + shift[2]];
 }
 
 /** The Frame a step ends in, which the next step starts from. `at` is how far into the step it really got, for what is turning. */

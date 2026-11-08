@@ -120,8 +120,8 @@ const TILT: Field = { k: 'num', min: -360, max: 360, opt: true, doc: 'degrees cl
 const COLOR_OPT: Field = { k: 'color', opt: true };
 const OPACITY: Field = { k: 'num', min: 0, max: 1, opt: true };
 const PARENT: Field = { k: 'parent', opt: true, doc: 'id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)' };
-const PARENT_ANCHOR: Field = { k: 'str', min: 1, max: 24, opt: true, doc: 'named local point on parent (requires parent); defaults to origin when selfAnchor is used. pos becomes an offset in the parent frame; rot stays explicit. Resolved at creation with current geometry and inherited base transforms, not a motion constraint' };
-const SELF_ANCHOR: Field = { k: 'str', min: 1, max: 24, opt: true, doc: 'named point on this part to place at parentAnchor, default origin; requires parent. Unknown anchors drop the action with available names' };
+const PARENT_ANCHOR: Field = { k: 'str', min: 1, max: 24, opt: true, doc: 'attach at this named point of the parent (requires parent): a built-in name, a kit part\'s own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point' };
+const SELF_ANCHOR: Field = { k: 'str', min: 1, max: 24, opt: true, doc: 'the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones' };
 const POS: Field = { k: 'vec3', ...WORLD, opt: true, doc: '[x,y,z], default [0,0,0]' };
 const ROT: Field = { k: 'vec3', min: -3600, max: 3600, opt: true, doc: 'degrees [x,y,z]' };
 const EXPLODE: Field = { k: 'vec3', ...WORLD, opt: true, doc: 'where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it' };
@@ -278,7 +278,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addSolid', op: 'add', shapes: SOLID_SHAPES, creates: 'solid',
     doc: 'A solid. size is its bounding box [x,y,z]: cylinder and cone stand on y with diameter x, torus lies flat with outer diameter x and tube thickness y, plane faces +z and ignores z. A box with a bevel has rounded edges.',
     fields: {
-      shape: { k: 'enum', values: SOLID_SHAPES }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS,
+      shape: { k: 'enum', values: SOLID_SHAPES }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS,
       size: { k: 'vec3', min: 0.01, max: 100 }, rot: ROT, color: COLOR_OPT, material: MATERIAL, ...FINISH, bevel: BEVEL, edges: EDGES, opacity: OPACITY, at: AT,
     },
   },
@@ -286,7 +286,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addShell', op: 'add', shapes: ['shell'], creates: 'solid',
     doc: 'A closed hollow ellipsoid section: domes, bowls, curved enclosures and opened layers. size is the full outer ellipsoid diameters [x,y,z], not the cropped bounds. inner (default .85) scales its concentric cavity, not a uniform wall thickness. latitude [south,north] degrees -90..90 (default [-90,90], span at least 1); sweep 1..360 (default 360) runs from +x toward +z around y. Radial rims close the material volume. Rotate to aim the opening. Invalid or unsafe geometry rejects.',
     fields: {
-      shape: { k: 'enum', values: ['shell'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['shell'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       size: { k: 'vec3', min: 0.01, max: 100 }, inner: { k: 'num', min: 0.01, max: 0.99, opt: true },
       latitude: { k: 'vec2', min: -90, max: 90, opt: true }, sweep: { k: 'num', min: 1, max: 360, opt: true },
       color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
@@ -296,7 +296,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addExtrude', op: 'add', shapes: ['extrude'], creates: 'solid',
     doc: 'A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets. Ordinary extrusions support disjoint through-hole rings strictly inside the outline, with flat edges only. Optional taper or shift makes a sharp closed transition: the negative-z end is the outline, the positive-z end is outline*taper+shift, scaling about the local origin. Defaults in this mode: taper 1, shift [0,0]. taper 0.05..20; both end coordinates -100..100; depth 0.01..100. Requires a simple polygon, 3..40 points, either winding. Invalid or Float32-unsafe geometry rejects, not repairs. Bevel must be omitted/null/0; through-holes are not supported in this mode.',
     fields: {
-      shape: { k: 'enum', values: ['extrude'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['extrude'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: LIMITS.maxOutline, lo: WORLD.min, hi: WORLD.max },
       taper: { k: 'num', min: 0.05, max: 20, opt: true }, shift: { k: 'vec2', min: -100, max: 100, opt: true },
       holes: { k: 'rings2', max: LIMITS.maxExtrudeHoles, points: LIMITS.maxHolePoints, lo: WORLD.min, hi: WORLD.max, opt: true, doc: 'up to 8 through-openings in outline local XY; 3 to 24 points each, 128 points total including outline; no crossing, touching or nesting; either winding and a single closing point are allowed' },
@@ -307,7 +307,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addHull', op: 'add', shapes: ['hull'], creates: 'solid',
     doc: 'A closed convex envelope of 4 to 64 local 3D points. Points are not recentered and must span three dimensions; interior and duplicate points are allowed. No concavities or cavities.',
     fields: {
-      shape: { k: 'enum', values: ['hull'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['hull'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       pts: { k: 'pts', min: 4, max: LIMITS.maxHullPoints, lo: WORLD.min, hi: WORLD.max },
       color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
     },
@@ -316,7 +316,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addLathe', op: 'add', shapes: ['lathe'], creates: 'solid',
     doc: 'A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides makes it faceted (default quality tiers: 20/36/64). Optional sweep 1..359 degrees makes a closed sector from +z towards +x about +y; rotate to choose its start. Sector profile: simple closed polygon, 3..40 points (one repeated closing point allowed), radius 0..100, y -100..100. Invalid, touching, intersecting or Float32-unsafe profiles and invalid sweeps are rejected, not repaired. Either winding; exact redundant collinear boundary points are removed. sides is segments per full revolution (sector segments scale proportionally, at most 90 degrees each).',
     fields: {
-      shape: { k: 'enum', values: ['lathe'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['lathe'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       profile: { k: 'pts2', min: 2, max: LIMITS.maxOutline, lo: WORLD.min, hi: WORLD.max },
       sweep: { k: 'num', min: 1, max: 359, opt: true },
       sides: { k: 'num', min: 3, max: 64, int: true, opt: true }, color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
@@ -326,7 +326,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addPatch', op: 'add', shapes: ['patch'], creates: 'solid',
     doc: 'An open bicubic Bézier sheet: exactly 16 controls [x,y,z], four rows of four in row-major order. Each row runs across u; rows advance v. Corners lie on the sheet; other controls pull its curvature, not interpolation points. Curved panels, canopies, membranes. Two-sided, no thickness or solid cut cap. Use a regular net without folds or collapsed rows.',
     fields: {
-      shape: { k: 'enum', values: ['patch'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['patch'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       pts: { k: 'pts', min: 16, max: 16, lo: WORLD.min, hi: WORLD.max, doc: 'exactly 16 finite controls in -100..100; never trimmed or clamped; numerically unsafe sampled nets are rejected' },
       color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
     },
@@ -335,7 +335,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addSweep', op: 'add', shapes: ['sweep'], creates: 'solid',
     doc: 'A closed polygon outline carried along a smooth open 3D path: curved rails, shaped cables and solid bands. Outline x,y are local section offsets; up sets initial +y, projected perpendicular to the path (default +y, or +x for a vertical start). The section follows with minimum rotation. Flat caps and sharp section corners by default; smooth:true blends shallow wall joins without changing geometry. No bevel or holes. Keep the profile narrow relative to bends; folded or collapsed sampled meshes are rejected.',
     fields: {
-      shape: { k: 'enum', values: ['sweep'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['sweep'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
       pts: { k: 'pts', min: 2, max: 16, lo: WORLD.min, hi: WORLD.max },
       up: { k: 'vec3', ...WORLD, opt: true, doc: 'nonzero initial section +y direction, not parallel to the starting path' },
@@ -347,7 +347,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addLoft', op: 'add', shapes: ['loft'], creates: 'solid',
     doc: 'A closed solid joining independently shaped convex end outlines by matching point indices, at z=-depth/2 and +depth/2. Both rings need 3–24 corners, equal counts and the same winding; every interpolated section must stay strictly convex. No closing duplicate, collinear corners, holes or bevel. Use for asymmetric shape-changing transitions; no automatic recentering or point rematching. Optional smooth:true blends shallow wall joins while retaining flat caps and sharp corners.',
     fields: {
-      shape: { k: 'enum', values: ['loft'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['loft'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
       endOutline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
       smooth: { k: 'bool', opt: true, doc: 'blend shallow section corners for rounded wall lighting; retain sharp corners and flat caps, without changing the silhouette; default false' },
@@ -358,7 +358,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addBlob', op: 'add', shapes: ['blob'], creates: 'solid',
     doc: 'A soft organic form blended from up to 12 ellipsoid lumps, each at a point of pts with its own box size [x,y,z] in sizes (the same count, or the last is repeated): a heart or other organ, a fruit, an animal body or head, a leaf. Lumps that overlap melt into one skin with smooth necks; soft (0.05 to 1, default 0.5) is how far they blend. Build one form per blob and join forms with tube.',
     fields: {
-      shape: { k: 'enum', values: ['blob'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['blob'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       pts: { k: 'pts', min: 1, max: LIMITS.maxLumps, lo: WORLD.min, hi: WORLD.max },
       sizes: { k: 'pts', min: 1, max: LIMITS.maxLumps, lo: 0.01, hi: 100 },
       soft: { k: 'num', min: 0.05, max: 1, opt: true }, color: COLOR_OPT, material: MATERIAL, ...FINISH, opacity: OPACITY, at: AT,
@@ -434,14 +434,14 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addText', op: 'add', shapes: ['text'], creates: 'text',
     doc: 'Text in the 3D scene that always faces the camera; height is in 3D units.',
     fields: {
-      shape: { k: 'enum', values: ['text'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS,
+      shape: { k: 'enum', values: ['text'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS,
       text: { k: 'str', min: 1, max: LIMITS.maxText }, height: { k: 'num', min: 0.05, max: 50 }, color: COLOR, at: AT,
     },
   },
   {
     name: 'addGroup', op: 'add', shapes: ['group'], creates: 'group',
     doc: 'An empty node to move, turn and scale other objects together (attach them with parent).',
-    fields: { shape: { k: 'enum', values: ['group'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT, at: AT },
+    fields: { shape: { k: 'enum', values: ['group'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT, at: AT },
   },
   {
     name: 'pin', op: 'pin', creates: 'pin', attach: 'on',
@@ -480,6 +480,16 @@ export const VARIANTS: readonly Variant[] = [
     name: 'reveal', op: 'reveal',
     doc: 'Draw a tube, line or arrow on, from its start: to 1 is all of it.',
     fields: { id: { k: 'ref', of: 'object3d' }, to: { k: 'num', min: 0, max: 1 }, at: AT, dur: DUR },
+  },
+  {
+    name: 'anchor', op: 'anchor',
+    doc: 'Name a point on a 3D object, in its own space, for parentAnchor or selfAnchor: write it right after the object.',
+    fields: { id: { k: 'ref', of: 'object3d' }, name: { k: 'str', min: 1, max: 24 }, pos: { k: 'vec3', ...WORLD } },
+  },
+  {
+    name: 'detach', op: 'detach',
+    doc: 'Let an attached part go: it stays where it is and is placed on its own from then (no join line). To lift a part out and still show where it goes, move it instead.',
+    fields: { id: { k: 'ref', of: 'object3d' }, at: AT },
   },
   {
     name: 'style', op: 'style',

@@ -46,6 +46,16 @@ export function mountPosition(parentAnchor: Vec3, selfAnchor: Vec3, rot: Vec3, o
   return [parentAnchor[0] + offset[0] - point[0], parentAnchor[1] + offset[1] - point[1], parentAnchor[2] + offset[2] - point[2]];
 }
 
+/**
+ * Where an attached part's origin goes when something turns or swells it after it was placed (a spin, a swing, a pulse): its own point stays where it
+ * was, so the shift is the point's place at the rest turn and size minus its place now.
+ */
+export function heldShift(restRot: Vec3, nowRot: Vec3, restScale: Vec3, nowScale: Vec3, selfAnchor: Vec3): Vec3 {
+  const at = (rot: Vec3, scale: Vec3): Vec3 => apply({ r: rotation(rot), t: [0, 0, 0] }, [selfAnchor[0] * scale[0], selfAnchor[1] * scale[1], selfAnchor[2] * scale[2]]);
+  const rest = at(restRot, restScale), now = at(nowRot, nowScale);
+  return [rest[0] - now[0], rest[1] - now[1], rest[2] - now[2]];
+}
+
 /** The way back from a rotation and a shift (no scale: the language has none on objects). */
 const applyInverse = (m: Affine, p: Vec3): Vec3 => {
   const q: Vec3 = [p[0] - m.t[0], p[1] - m.t[1], p[2] - m.t[2]];

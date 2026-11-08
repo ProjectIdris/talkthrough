@@ -97,7 +97,7 @@ test('defining the parent replacement before its mounted child joins sockets in 
   assert.ok(socketGap(live, [0, 3, 0], [0, -1, 0]) < 1e-8);
 });
 
-test('a later scheduled parent replacement remains valid and does not remount its existing child', () => {
+test('a later scheduled parent replacement is valid and the attached child follows its new point', () => {
   const run = session([pipe('base')]);
   const result = run.stream([
     pipe('child', { size: [0.5, 2, 0.5], parent: 'base', parentAnchor: 'top', selfAnchor: 'bottom', at: 2 }),
@@ -110,8 +110,8 @@ test('a later scheduled parent replacement remains valid and does not remount it
   assert.ok(socketGap(mounted, [0, 1, 0], [0, -1, 0]) < 1e-8);
   const replaced = run.at(4);
   assert.deepEqual(replaced.objects, run.replay(result.step, 4).objects);
-  assert.deepEqual(replaced.objects.find((o) => o.id === 'child')?.pos, [0, 2, 0], 'the child keeps its original local placement');
-  assert.ok(Math.abs(socketGap(replaced, [0, 3, 0], [0, -1, 0]) - 2) < 1e-8, 'replacement geometry can move the parent socket without a live mating constraint');
+  assert.deepEqual(replaced.objects.find((o) => o.id === 'child')?.pos, [0, 4, 0], 'the child stays at the point, which the richer parent has moved');
+  assert.ok(socketGap(replaced, [0, 3, 0], [0, -1, 0]) < 1e-8, 'the attachment is live: the sockets stay together through the replacement');
 });
 
 test('an uncertain replacement preview cannot reject a valid inherited-rotation mount', () => {

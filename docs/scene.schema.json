@@ -1080,6 +1080,20 @@
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "attach at this named point of the parent (requires parent): a built-in name, a kit part's own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones; up to 24 characters"
+        },
         "explode": {
           "type": [
             "array",
@@ -1200,6 +1214,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "explode",
         "pos",
         "size",
@@ -1240,6 +1256,20 @@
             "null"
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "attach at this named point of the parent (requires parent): a built-in name, a kit part's own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones; up to 24 characters"
         },
         "explode": {
           "type": [
@@ -1378,6 +1408,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "explode",
         "pos",
         "rot",
@@ -1420,6 +1452,20 @@
             "null"
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "attach at this named point of the parent (requires parent): a built-in name, a kit part's own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones; up to 24 characters"
         },
         "explode": {
           "type": [
@@ -1581,6 +1627,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "explode",
         "pos",
         "rot",
@@ -1625,6 +1673,20 @@
             "null"
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "attach at this named point of the parent (requires parent): a built-in name, a kit part's own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones; up to 24 characters"
         },
         "explode": {
           "type": [
@@ -1742,6 +1804,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "explode",
         "pos",
         "rot",
@@ -1781,6 +1845,20 @@
             "null"
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "attach at this named point of the parent (requires parent): a built-in name, a kit part's own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones; up to 24 characters"
         },
         "explode": {
           "type": [
@@ -1912,6 +1990,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "explode",
         "pos",
         "rot",
@@ -1953,6 +2033,20 @@
             "null"
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "attach at this named point of the parent (requires parent): a built-in name, a kit part's own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones; up to 24 characters"
         },
         "explode": {
           "type": [
@@ -2070,6 +2164,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "explode",
         "pos",
         "rot",
@@ -2109,6 +2205,20 @@
             "null"
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "attach at this named point of the parent (requires parent): a built-in name, a kit part's own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones; up to 24 characters"
         },
         "explode": {
           "type": [
@@ -2253,6 +2363,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "explode",
         "pos",
         "rot",
@@ -2295,6 +2407,20 @@
             "null"
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "attach at this named point of the parent (requires parent): a built-in name, a kit part's own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones; up to 24 characters"
         },
         "explode": {
           "type": [
@@ -2433,6 +2559,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "explode",
         "pos",
         "rot",
@@ -2475,6 +2603,20 @@
             "null"
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "attach at this named point of the parent (requires parent): a built-in name, a kit part's own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones; up to 24 characters"
         },
         "explode": {
           "type": [
@@ -2602,6 +2744,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "explode",
         "pos",
         "rot",
@@ -3255,14 +3399,14 @@
             "string",
             "null"
           ],
-          "description": "named local point on parent (requires parent); defaults to origin when selfAnchor is used. pos becomes an offset in the parent frame; rot stays explicit. Resolved at creation with current geometry and inherited base transforms, not a motion constraint; up to 24 characters"
+          "description": "attach at this named point of the parent (requires parent): a built-in name, a kit part's own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point; up to 24 characters"
         },
         "selfAnchor": {
           "type": [
             "string",
             "null"
           ],
-          "description": "named point on this part to place at parentAnchor, default origin; requires parent. Unknown anchors drop the action with available names; up to 24 characters"
+          "description": "the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones; up to 24 characters"
         },
         "explode": {
           "type": [
@@ -3478,6 +3622,20 @@
           ],
           "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
         },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "attach at this named point of the parent (requires parent): a built-in name, a kit part's own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones; up to 24 characters"
+        },
         "explode": {
           "type": [
             "array",
@@ -3523,6 +3681,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "explode",
         "pos",
         "text",
@@ -3561,7 +3721,14 @@
             "string",
             "null"
           ],
-          "description": "named local point on parent (requires parent); defaults to origin when selfAnchor is used. pos becomes an offset in the parent frame; rot stays explicit. Resolved at creation with current geometry and inherited base transforms, not a motion constraint; up to 24 characters"
+          "description": "attach at this named point of the parent (requires parent): a built-in name, a kit part's own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones; up to 24 characters"
         },
         "explode": {
           "type": [
@@ -3607,6 +3774,7 @@
         "id",
         "parent",
         "parentAnchor",
+        "selfAnchor",
         "explode",
         "pos",
         "rot",
@@ -3943,6 +4111,65 @@
       ],
       "additionalProperties": false,
       "description": "Draw a tube, line or arrow on, from its start: to 1 is all of it."
+    },
+    "anchor": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "anchor"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "description": "up to 24 characters"
+        },
+        "pos": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], each -100 to 100"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "name",
+        "pos"
+      ],
+      "additionalProperties": false,
+      "description": "Name a point on a 3D object, in its own space, for parentAnchor or selfAnchor: write it right after the object."
+    },
+    "detach": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "detach"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Let an attached part go: it stays where it is and is placed on its own from then (no join line). To lift a part out and still show where it goes, move it instead."
     },
     "style": {
       "type": "object",
@@ -4960,6 +5187,12 @@
         },
         {
           "$ref": "#/$defs/reveal"
+        },
+        {
+          "$ref": "#/$defs/anchor"
+        },
+        {
+          "$ref": "#/$defs/detach"
         },
         {
           "$ref": "#/$defs/style"
