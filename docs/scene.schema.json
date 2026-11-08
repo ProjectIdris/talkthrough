@@ -2743,6 +2743,13 @@
           ],
           "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
         },
+        "treatment": {
+          "enum": [
+            "fibres",
+            null
+          ],
+          "description": "optional longitudinal material detail on a tube/connector; follows the path without extra strands or physics"
+        },
         "draw": {
           "type": [
             "number",
@@ -2782,6 +2789,7 @@
         "metalness",
         "clearcoat",
         "clearcoatRoughness",
+        "treatment",
         "draw",
         "opacity",
         "at"
@@ -3015,6 +3023,13 @@
           ],
           "description": "coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe; 0 to 1"
         },
+        "treatment": {
+          "enum": [
+            "fibres",
+            null
+          ],
+          "description": "optional longitudinal material detail on a tube/connector; follows the path without extra strands or physics"
+        },
         "draw": {
           "type": [
             "number",
@@ -3057,6 +3072,7 @@
         "metalness",
         "clearcoat",
         "clearcoatRoughness",
+        "treatment",
         "draw",
         "opacity",
         "at"

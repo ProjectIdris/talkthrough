@@ -128,9 +128,28 @@ function compactDefinitionNames(schema: Schema): Schema {
 
 function buildSchema(descriptions: boolean): Schema {
   const defs: Record<string, Schema> = {};
-  for (const v of VARIANTS) defs[v.name] = variantSchema(v, descriptions);
+  const contracts = new Map<string, string>();
+  const variants: string[] = [];
+  for (const v of VARIANTS) {
+    const schema = variantSchema(v, descriptions);
+    const properties = schema.properties as Record<string, Schema>;
+    const { op: _op, ...fields } = properties;
+    const contract = JSON.stringify({ ...schema, properties: fields });
+    const shared = descriptions ? undefined : contracts.get(contract);
+    if (shared) {
+      // These actions differ only by their discriminator in the lean contract
+      // (move/turn/scale, for example). Keep every field and every op, without
+      // paying for identical object definitions in the Windows CLI argument.
+      const ops = ((defs[shared]!.properties as Record<string, Schema>).op!.enum as string[]);
+      if (!ops.includes(v.op)) ops.push(v.op);
+    } else {
+      defs[v.name] = schema;
+      contracts.set(contract, v.name);
+      variants.push(v.name);
+    }
+  }
   if (!descriptions) shareLeanFields(defs);
-  defs.action = { anyOf: VARIANTS.map((v) => ({ $ref: `#/$defs/${v.name}` })) };
+  defs.action = { anyOf: variants.map((name) => ({ $ref: `#/$defs/${name}` })) };
   defs.step = {
     type: 'object',
     ...(descriptions ? { description: `What is said and what appears while it is said. At most ${LIMITS.maxActionsPerStep} actions.` } : {}),

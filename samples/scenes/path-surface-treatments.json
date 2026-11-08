@@ -1,0 +1,411 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "These pairs share the same shapes. The right adds a subtle longitudinal material effect, with no individual strands: tissue above, rubber cord in the middle, and glass below. This is an authored appearance demonstration, not tissue mechanics.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 100,
+          "y": 90,
+          "w": 800,
+          "h": 780
+        },
+        {
+          "op": "orbit",
+          "az": 10,
+          "el": 10,
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "plain",
+          "pos": [
+            -2.4,
+            0,
+            0
+          ]
+        },
+        {
+          "op": "add",
+          "shape": "tube",
+          "id": "plainTissue",
+          "parent": "plain",
+          "pts": [
+            [
+              -1.6,
+              1.5,
+              0
+            ],
+            [
+              -0.6,
+              2.1,
+              0.1
+            ],
+            [
+              0.6,
+              2.1,
+              0.1
+            ],
+            [
+              1.6,
+              1.5,
+              0
+            ]
+          ],
+          "radius": 0.26,
+          "swell": [
+            [
+              0,
+              0.45
+            ],
+            [
+              0.25,
+              1
+            ],
+            [
+              0.75,
+              1
+            ],
+            [
+              1,
+              0.45
+            ]
+          ],
+          "color": "#bf6166",
+          "material": "tissue"
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "plainA",
+          "parent": "plain",
+          "pos": [
+            -1.6,
+            -0.2,
+            0
+          ],
+          "size": [
+            0.25,
+            0.25,
+            0.25
+          ],
+          "color": "#68778b"
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "plainB",
+          "parent": "plain",
+          "pos": [
+            1.6,
+            -0.2,
+            0
+          ],
+          "size": [
+            0.25,
+            0.25,
+            0.25
+          ],
+          "color": "#68778b"
+        },
+        {
+          "op": "add",
+          "shape": "connector",
+          "id": "plainCord",
+          "parent": "plain",
+          "from": "plainA",
+          "to": "plainB",
+          "kind": "slack",
+          "sag": 0.25,
+          "radius": 0.16,
+          "color": "#d6b37b",
+          "material": "rubber"
+        },
+        {
+          "op": "add",
+          "shape": "tube",
+          "id": "plainGlass",
+          "parent": "plain",
+          "pts": [
+            [
+              -1.6,
+              -2.2,
+              0
+            ],
+            [
+              -0.6,
+              -1.8,
+              0.1
+            ],
+            [
+              0.6,
+              -1.8,
+              0.1
+            ],
+            [
+              1.6,
+              -2.2,
+              0
+            ]
+          ],
+          "radius": 0.28,
+          "color": "#54a69e",
+          "material": "glass"
+        },
+        {
+          "op": "add",
+          "shape": "text",
+          "id": "plainLabel",
+          "parent": "plain",
+          "pos": [
+            0,
+            -3,
+            0
+          ],
+          "text": "Plain material",
+          "height": 0.24,
+          "color": "#334155"
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "treated",
+          "pos": [
+            2.4,
+            0,
+            0
+          ]
+        },
+        {
+          "op": "add",
+          "shape": "tube",
+          "id": "treatedTissue",
+          "parent": "treated",
+          "pts": [
+            [
+              -1.6,
+              1.5,
+              0
+            ],
+            [
+              -0.6,
+              2.1,
+              0.1
+            ],
+            [
+              0.6,
+              2.1,
+              0.1
+            ],
+            [
+              1.6,
+              1.5,
+              0
+            ]
+          ],
+          "radius": 0.26,
+          "swell": [
+            [
+              0,
+              0.45
+            ],
+            [
+              0.25,
+              1
+            ],
+            [
+              0.75,
+              1
+            ],
+            [
+              1,
+              0.45
+            ]
+          ],
+          "color": "#bf6166",
+          "material": "tissue",
+          "treatment": "fibres"
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "treatedA",
+          "parent": "treated",
+          "pos": [
+            -1.6,
+            -0.2,
+            0
+          ],
+          "size": [
+            0.25,
+            0.25,
+            0.25
+          ],
+          "color": "#68778b"
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "treatedB",
+          "parent": "treated",
+          "pos": [
+            1.6,
+            -0.2,
+            0
+          ],
+          "size": [
+            0.25,
+            0.25,
+            0.25
+          ],
+          "color": "#68778b"
+        },
+        {
+          "op": "add",
+          "shape": "connector",
+          "id": "treatedCord",
+          "parent": "treated",
+          "from": "treatedA",
+          "to": "treatedB",
+          "kind": "slack",
+          "sag": 0.25,
+          "radius": 0.16,
+          "color": "#d6b37b",
+          "material": "rubber",
+          "treatment": "fibres"
+        },
+        {
+          "op": "add",
+          "shape": "tube",
+          "id": "treatedGlass",
+          "parent": "treated",
+          "pts": [
+            [
+              -1.6,
+              -2.2,
+              0
+            ],
+            [
+              -0.6,
+              -1.8,
+              0.1
+            ],
+            [
+              0.6,
+              -1.8,
+              0.1
+            ],
+            [
+              1.6,
+              -2.2,
+              0
+            ]
+          ],
+          "radius": 0.28,
+          "color": "#54a69e",
+          "material": "glass",
+          "treatment": "fibres"
+        },
+        {
+          "op": "add",
+          "shape": "text",
+          "id": "treatedLabel",
+          "parent": "treated",
+          "pos": [
+            0,
+            -3,
+            0
+          ],
+          "text": "Material + effect",
+          "height": 0.24,
+          "color": "#334155"
+        }
+      ]
+    },
+    {
+      "say": "The cord bends with its endpoints. The pattern follows the existing surface. Glass still uses its ordinary transparent material.",
+      "actions": [
+        {
+          "op": "move",
+          "id": "plainB",
+          "to": [
+            0.4,
+            0.1,
+            0.3
+          ],
+          "dur": 1
+        },
+        {
+          "op": "move",
+          "id": "treatedB",
+          "to": [
+            0.4,
+            0.1,
+            0.3
+          ],
+          "dur": 1
+        },
+        {
+          "op": "orbit",
+          "az": -25,
+          "el": 22,
+          "dur": 1
+        }
+      ]
+    },
+    {
+      "say": "At a smaller size and grazing view, fine detail fades instead of becoming a dense stripe pattern.",
+      "actions": [
+        {
+          "op": "zoom",
+          "dur": 0.5,
+          "to": 0.55
+        },
+        {
+          "op": "orbit",
+          "az": 65,
+          "el": 12,
+          "dur": 0.5
+        }
+      ]
+    },
+    {
+      "say": "Returning restores the same surface. The treatment changes only the material appearance.",
+      "actions": [
+        {
+          "op": "zoom",
+          "dur": 0.5,
+          "to": 1
+        },
+        {
+          "op": "orbit",
+          "az": 10,
+          "el": 10,
+          "dur": 0.5
+        },
+        {
+          "op": "move",
+          "id": "plainB",
+          "to": [
+            1.6,
+            -0.2,
+            0
+          ],
+          "dur": 0.5
+        },
+        {
+          "op": "move",
+          "id": "treatedB",
+          "to": [
+            1.6,
+            -0.2,
+            0
+          ],
+          "dur": 0.5
+        }
+      ]
+    }
+  ]
+}

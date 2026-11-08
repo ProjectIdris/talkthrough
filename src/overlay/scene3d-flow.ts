@@ -1,3 +1,4 @@
+import { setPathSurfaceCoordinates } from './surface-treatment.ts';
 // Connectors and streams on the 3D stage. A connector is a tube whose points are worked out from where its two objects are in the scene
 // (connector.ts), rebuilt only when they have moved; a stream is a few markers placed along a path from the stream's lap count (stream.ts).
 // Both are redone on every frame after the scene's matrices are up to date, so they follow the parts they hang on, however those were moved.
@@ -94,6 +95,7 @@ export function updateConnectors(nodes: ReadonlyMap<number, FlowNode>, frame: Fr
     const signature = [radius, flat, ...(along ? [along.x, along.y, along.z] : []), ...local.flat()].map((x) => Math.round(x * 1e5)).join(',');
     if (signature !== node.connector.signature) {
       const geo = tubeGeometry(local, radius, flat, radial, undefined, along ? [along.x, along.y, along.z] : undefined);
+      setPathSurfaceCoordinates(geo, 'treatment' in def ? def.treatment : undefined);
       const old = node.path.geo;
       node.connector.mesh.geometry = geo;
       const at = node.geometries.indexOf(old);
@@ -171,6 +173,7 @@ export function updateAttached(nodes: ReadonlyMap<number, FlowNode>, frame: Fram
       const tube = o.shape === 'tube';
       const geo = tubeGeometry(moved, tube ? (def as AddTube).radius : pathRadius, tube ? (def as AddTube).flat ?? 1 : 1, radial, tube ? (def as AddTube).swell : undefined);
       const mesh = node.obj.children[0] as Mesh;
+      setPathSurfaceCoordinates(geo, 'treatment' in def ? def.treatment : undefined);
       const old = node.path.geo;
       mesh.geometry = geo;
       const at = node.geometries.indexOf(old);

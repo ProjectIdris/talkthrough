@@ -137,6 +137,7 @@ const FINISH: Record<string, Field> = {
   clearcoat: { k: 'num', min: 0, max: 1, opt: true, doc: 'clear coating strength; omitted keeps the material recipe; disabled at low quality' },
   clearcoatRoughness: { k: 'num', min: 0, max: 1, opt: true, doc: 'coating: 0 polished, 1 matte; only visible with clearcoat; omitted keeps the material recipe' },
 };
+const PATH_TREATMENT: Field = { k: 'enum', values: ['fibres'], opt: true, doc: 'optional longitudinal material detail on a tube/connector; follows the path without extra strands or physics' };
 const BEVEL: Field = { k: 'num', min: 0, max: 20, opt: true, doc: 'rounding of the edges in units (default small)' };
 const EDGES: Field = { k: 'bool', opt: true, doc: 'dark edge lines (default true)' };
 const DRAW: Field = { k: 'num', min: 0, max: 1, opt: true, doc: 'how much is drawn at first, 0 to 1 (default 1); grow it with reveal' };
@@ -373,7 +374,7 @@ export const VARIANTS: readonly Variant[] = [
       radius: { k: 'num', min: 0.01, max: 20 }, flat: { k: 'num', min: 0.05, max: 1, opt: true },
       swell: { k: 'pts2', min: 2, max: LIMITS.maxSwell, lo: 0, hi: 10, opt: true },
       closed: { k: 'bool', opt: true, doc: 'Join into a smooth loop with no caps; needs three distinct points. The radius at the join uses the start of swell.' },
-      color: COLOR_OPT, material: MATERIAL, ...FINISH, draw: DRAW, opacity: OPACITY, at: AT,
+      color: COLOR_OPT, material: MATERIAL, ...FINISH, treatment: PATH_TREATMENT, draw: DRAW, opacity: OPACITY, at: AT,
     },
   },
   {
@@ -394,7 +395,7 @@ export const VARIANTS: readonly Variant[] = [
       fromSide: SIDE, toSide: SIDE,
       fromAnchor: { k: 'str', min: 1, max: 24, opt: true }, toAnchor: { k: 'str', min: 1, max: 24, opt: true },
       sag: { k: 'num', min: 0, max: 1, opt: true, doc: 'slack: how far it hangs, as a fraction of its length (default 0.2)' },
-      radius: { k: 'num', min: 0.01, max: 2, opt: true }, color: COLOR_OPT, material: MATERIAL, ...FINISH, draw: DRAW, opacity: OPACITY, at: AT,
+      radius: { k: 'num', min: 0.01, max: 2, opt: true }, color: COLOR_OPT, material: MATERIAL, ...FINISH, treatment: PATH_TREATMENT, draw: DRAW, opacity: OPACITY, at: AT,
     },
   },
   {
