@@ -39,6 +39,24 @@ const apply = (m: Affine, p: Vec3): Vec3 => [
   m.r[3]! * p[0] + m.r[4]! * p[1] + m.r[5]! * p[2] + m.t[1],
   m.r[6]! * p[0] + m.r[7]! * p[1] + m.r[8]! * p[2] + m.t[2],
 ];
+/** The way out of each face of a box, in the box's own space: the names a model gives a point on a face. */
+export const FACE_NORMALS: Readonly<Record<string, Vec3>> = {
+  right: [1, 0, 0], left: [-1, 0, 0], top: [0, 1, 0], bottom: [0, -1, 0], front: [0, 0, 1], back: [0, 0, -1],
+};
+
+/**
+ * The rot (Euler degrees) that turns a part's own facing, one of the six axes, to point along a face's normal by the shortest way; undefined when it
+ * already does. A quarter turn about the axis both are square to, or half a turn about one square to the facing when they are opposite.
+ */
+export function turnToFace(facing: Vec3, normal: Vec3): Vec3 | undefined {
+  const cross: Vec3 = [facing[1] * normal[2] - facing[2] * normal[1], facing[2] * normal[0] - facing[0] * normal[2], facing[0] * normal[1] - facing[1] * normal[0]];
+  if (cross.every((v) => v === 0)) {
+    if (facing[0] * normal[0] + facing[1] * normal[1] + facing[2] * normal[2] > 0) return undefined;
+    return facing[1] !== 0 ? [180, 0, 0] : [0, 180, 0];
+  }
+  return cross.map((v) => v * 90 + 0) as Vec3;
+}
+
 /** Initial socket placement: rotation is explicit, and the offset is in the parent's frame. No runtime constraint is created. */
 export function mountPosition(parentAnchor: Vec3, selfAnchor: Vec3, rot: Vec3, offset: Vec3, scale: Vec3 = [1, 1, 1]): Vec3 {
   const scaled: Vec3 = [selfAnchor[0] * scale[0], selfAnchor[1] * scale[1], selfAnchor[2] * scale[2]];

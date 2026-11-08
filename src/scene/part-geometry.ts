@@ -60,6 +60,18 @@ export function normalSize(part: string, size: Vec3): Vec3 {
   }
 }
 
+/**
+ * Which way a kit part faces in its own space (where its opening, glass or pins are), for the parts that have a front; the rest have none (a gear or a
+ * piston is round about an axis, a wheel hangs by its centre) and are never turned for a face.
+ */
+export function partFacing(part: string): Vec3 | undefined {
+  switch (part) {
+    case 'port': case 'lens': case 'screen': return [0, 0, 1];
+    case 'chip': case 'header': case 'button': case 'fan': return [0, 1, 0];
+    default: return undefined;
+  }
+}
+
 /** Radius of the circle the crank pin travels, for a crankshaft of this size box. */
 export function crankThrow(size: Vec3): number {
   return Math.min(size[0], size[1]) * 0.3;

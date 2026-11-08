@@ -12,9 +12,9 @@ import { LOFT_STRIPS, prepareLoft } from './loft.ts';
 import { prepareShell, SHELL_DETAIL } from './shell.ts';
 import type { ShellTier } from './shell.ts';
 import { nearestPaletteColor } from './colors.ts';
-import { attachTolerance, landOn, mountPosition } from './attach.ts';
+import { attachTolerance, FACE_NORMALS, landOn, mountPosition, turnToFace } from './attach.ts';
 import { anchorsOf } from './anchors.ts';
-import { resolvePartGeometry } from './part-geometry.ts';
+import { partFacing, resolvePartGeometry } from './part-geometry.ts';
 import { resolveHullPoints } from './hull-points.ts';
 import type { Body } from './attach.ts';
 import { bindParts, bindUnknownId, BINDINGS } from './bind.ts';
@@ -61,6 +61,8 @@ export type SceneState = {
    * any other and cannot be written a third time. Ids named but never written again stay valid to refer to.
    */
   replaceable?: Set<string>;
+  /** Set when the ids on screen may be replaced by an ordinary answer (not a detail pass, which does it by design): each replacement is then said in a note. */
+  replaceNote?: boolean;
   /** The size of the 3D stage as last written (a stage written with no size takes it). */
   stage?: { w: number; h: number };
   /** Set only while an action that named an id the scene does not have is tried once more, after the rest had their chance to make it. */
@@ -98,6 +100,16 @@ export function createDetailState(onScreen: SceneState): SceneState {
 export function startTurn(state: SceneState): void {
   state.turnSteps = 0;
   state.turnActions = 0;
+}
+
+/**
+ * A new answer begins on a scene that may already have things on screen from the last: it may write any of their ids again, and that replaces the thing
+ * (a follow-up that says "move this" or "make this bigger" writes the part again). What the answer itself writes is then in use like any id.
+ */
+export function startAnswer(state: SceneState): void {
+  startTurn(state);
+  state.replaceable = new Set(state.ids.keys());
+  state.replaceNote = true;
 }
 
 type Notes = Issue[];
@@ -366,6 +378,34 @@ function bodyAt(versions: BodyVersions, id: string, at: number): Body | undefine
   return found?.body;
 }
 
+/** The self anchor that names the side a facing part faces by (the one a part put "face to the surface" would be attached by). */
+const FACING_SIDE = new Map<string, string>([['0,0,1', 'front'], ['0,1,0', 'top']]);
+
+/**
+ * A kit part with a front (a port's opening, a lens, a chip's top) attached by a face of its parent (right, top, front...) is meant to face out of that
+ * face; written with no rot it would keep its default turn, which only suits one face in six. Its rot is set to turn it out, with a note. A rot the model
+ * wrote, even [0,0,0], is its own call and stands, and so does a part attached by the very side it faces (it was asked to put that side on the surface).
+ */
+function faceTurn(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes, bodies: BodyVersions): void {
+  if (out.shape !== 'part' || typeof out.part !== 'string' || out.rot !== undefined || typeof out.parent !== 'string') return;
+  const facing = partFacing(out.part);
+  const face = typeof out.parentAnchor === 'string' ? out.parentAnchor : undefined;
+  const normal = face === undefined ? undefined : FACE_NORMALS[face];
+  if (!facing || !face || !normal) return;
+  if (out.selfAnchor === FACING_SIDE.get(facing.join(','))) return;
+  if (out.parent === out.id || isUnder(state, out.parent, out.id as string)) return;
+  const anchors = bodyAt(bodies, out.parent, (out.at as number | undefined) ?? 0)?.anchors;
+  const at = anchors?.[face];
+  if (!at) return;
+  // A point the model named "right" that is not on the right of the parent's middle is not a face.
+  const middle = anchors.center ?? anchors.origin ?? ZERO;
+  if ((at[0] - middle[0]) * normal[0] + (at[1] - middle[1]) * normal[1] + (at[2] - middle[2]) * normal[2] <= 0) return;
+  const rot = turnToFace(facing, normal);
+  if (!rot) return;
+  out.rot = rot;
+  note(notes, 'trimmed', `${path}.rot`, `repaired: "${out.id as string}" is attached by ${face}, so its ${out.part} is turned to face out of it (rot [${rot.join(',')}]); write rot to turn it another way`);
+}
+
 /** Check declarative socket placement and preview its authored position for surface attachment. Playback resolves the creation-time base transforms. */
 function checkMount(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes, bodies: BodyVersions): Vec3 | null | undefined {
   if (out.parentAnchor === undefined && out.selfAnchor === undefined) return undefined;
@@ -514,12 +554,31 @@ function shapeAsOp(raw: object, path: string, notes: Notes): object {
   return { ...raw, op: 'add', shape: op };
 }
 
+/**
+ * The name of the thing an op acts on: every op calls it `id` except clear, which says `target` (it also takes all, marks and panel). A model writes the
+ * one for the other (clear id "eth" seven times in one answer, every one dropped as "missing target"): read it as the field the op wants, with a note.
+ * A field that is given in its own name wins, and the id is checked as usual, so a clear of an id that does not exist is still refused.
+ */
+function subjectName(raw: object, path: string, notes: Notes): object {
+  const op = own(raw, 'op');
+  if (typeof op !== 'string') return raw;
+  const variant = VARIANTS.find((v) => v.op === op && !v.shapes);
+  if (!variant) return raw;
+  const [want, given] = op === 'clear' ? ['target', 'id'] : variant.fields.id?.k === 'ref' ? ['id', 'target'] : [undefined, undefined];
+  if (!want || !given) return raw;
+  const value = own(raw, given);
+  if (typeof value !== 'string' || (own(raw, want) !== undefined && own(raw, want) !== null)) return raw;
+  note(notes, 'trimmed', path, `repaired: ${op} takes ${want}; ${given} "${value.slice(0, 40)}" read as ${want}`);
+  const { [given]: _moved, ...rest } = raw as Record<string, unknown>;
+  return { ...rest, [want]: value };
+}
+
 function validateAction(rawIn: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>, mountedChildrenAt: ReadonlyMap<string, number>, bodies: BodyVersions): Action | null {
   if (!isObject(rawIn)) {
     note(notes, 'dropped', path, 'action is not an object');
     return null;
   }
-  const raw = shapeAsOp(rawIn, path, notes);
+  const raw = subjectName(shapeAsOp(rawIn, path, notes), path, notes);
   const variant = pickVariant(raw);
   if (typeof variant === 'string') {
     note(notes, 'dropped', path, variant);
@@ -683,6 +742,7 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
     note(notes, 'dropped', path, 'define or replace the parent before its mounted children; a later-written replacement cannot precede an accepted mount');
     return null;
   }
+  faceTurn(out, state, path, notes, bodies);
   const mountedPos = checkMount(out, state, path, notes, bodies);
   if (mountedPos === null) return null;
   if (variant.op === 'panel' && typeof out.w === 'number' && typeof out.h === 'number') state.stage = { w: out.w, h: out.h };
@@ -803,7 +863,7 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
   if (variant.creates) {
     const id = out.id as string;
     // An id from the scene already on screen, written again, replaces the old one: any 3D object for any other (a box for a kit part, a cylinder for a tube), a mark, pin or text only for its own kind.
-    const replacing = state.replaceable?.has(id) === true;
+    const replacing = state.replaceable?.has(id) === true && state.ids.has(id);
     // A stream on an arrow of a flow diagram belongs to the diagram (a clear of the marks takes it); on a path it is a 3D object.
     const kind: ObjectKind = variant.name === 'addStream' && state.ids.get(out.along as string) === 'edge' ? 'dot' : variant.creates;
     if (replacing && !swappable(state.ids.get(id), kind)) {
@@ -814,6 +874,7 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
       note(notes, 'dropped', path, `scene already holds ${LIMITS.maxObjects} objects`);
       return null;
     }
+    if (replacing && state.replaceNote) note(notes, 'trimmed', path, `repaired: "${id}" was already on screen; this replaces it (clear it first to start it over)`);
     state.replaceable?.delete(id);
     const parent = (variant.attach ? out[variant.attach] : out.parent) as string | undefined;
     state.ids.set(id, kind);

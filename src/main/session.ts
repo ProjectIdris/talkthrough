@@ -5,7 +5,7 @@ import type { FocusCrop, Model, ModelOutput, ModelRequest, ThreadTurn, Usage } f
 import { SpeechToTextError } from '../adapters/speech-to-text.ts';
 import type { SpeechToText } from '../adapters/speech-to-text.ts';
 import type { Screenshot } from '../adapters/types.ts';
-import { applyClear, beginLiveStep, createDetailState, createSceneState, orderScore, sceneSchemaLean, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
+import { applyClear, beginLiveStep, createDetailState, createSceneState, orderScore, sceneSchemaLean, startAnswer, startTurn, validateEscalate, validateStep } from '../scene/index.ts';
 import type { Action, Issue, LiveStep, SceneState, Step } from '../scene/index.ts';
 import { FADE_AFTER_MS, PEN_FLUSH_GRACE_MS } from '../shared/ipc.ts';
 import type { MicResult, Milestone, SceneMessage, Stroke } from '../shared/ipc.ts';
@@ -544,7 +544,8 @@ export function createSession(deps: SessionDeps) {
     const turn = detail ? Math.max(1, thread.length) : thread.length + 1;
     const picture = lastAsk?.clean;
     const known = [...state.ids.keys()];
-    startTurn(checking);
+    // A detail pass replaces what it was shown by design; any other answer may write an id on screen again and replace it, with a note.
+    if (detail) startTurn(checking); else startAnswer(checking);
     deps.log(`question heard (turn ${turn}, ${source.label}${deps.logText ? `): ${JSON.stringify(question)}` : ')'}`);
 
     const shown: Step[] = [];
