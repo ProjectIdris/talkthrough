@@ -514,12 +514,31 @@ function shapeAsOp(raw: object, path: string, notes: Notes): object {
   return { ...raw, op: 'add', shape: op };
 }
 
+/**
+ * The name of the thing an op acts on: every op calls it `id` except clear, which says `target` (it also takes all, marks and panel). A model writes the
+ * one for the other (clear id "eth" seven times in one answer, every one dropped as "missing target"): read it as the field the op wants, with a note.
+ * A field that is given in its own name wins, and the id is checked as usual, so a clear of an id that does not exist is still refused.
+ */
+function subjectName(raw: object, path: string, notes: Notes): object {
+  const op = own(raw, 'op');
+  if (typeof op !== 'string') return raw;
+  const variant = VARIANTS.find((v) => v.op === op && !v.shapes);
+  if (!variant) return raw;
+  const [want, given] = op === 'clear' ? ['target', 'id'] : variant.fields.id?.k === 'ref' ? ['id', 'target'] : [undefined, undefined];
+  if (!want || !given) return raw;
+  const value = own(raw, given);
+  if (typeof value !== 'string' || (own(raw, want) !== undefined && own(raw, want) !== null)) return raw;
+  note(notes, 'trimmed', path, `repaired: ${op} takes ${want}; ${given} "${value.slice(0, 40)}" read as ${want}`);
+  const { [given]: _moved, ...rest } = raw as Record<string, unknown>;
+  return { ...rest, [want]: value };
+}
+
 function validateAction(rawIn: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>, mountedChildrenAt: ReadonlyMap<string, number>, bodies: BodyVersions): Action | null {
   if (!isObject(rawIn)) {
     note(notes, 'dropped', path, 'action is not an object');
     return null;
   }
-  const raw = shapeAsOp(rawIn, path, notes);
+  const raw = subjectName(shapeAsOp(rawIn, path, notes), path, notes);
   const variant = pickVariant(raw);
   if (typeof variant === 'string') {
     note(notes, 'dropped', path, variant);

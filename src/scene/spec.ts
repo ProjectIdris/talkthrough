@@ -726,7 +726,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'clear', op: 'clear',
-    doc: 'Remove an object or mark (and what is attached to it), or everything with "all", every mark, card, diagram and pin with "marks", the 3D stage and its objects with "panel".',
+    doc: 'Remove an object or mark (and what is attached to it): target is its id; or everything with "all", every mark, card, diagram and pin with "marks", the 3D stage and its objects with "panel".',
     fields: { target: { k: 'target' }, at: AT },
   },
 ];
