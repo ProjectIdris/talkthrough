@@ -510,7 +510,7 @@ export const VARIANTS: readonly Variant[] = [
     fields: {
       id: { k: 'ref', of: 'object3d' }, rpm: { k: 'num', min: -600, max: 600, opt: true },
       by: { k: 'ref', of: 'object3d', opt: true }, ratio: { k: 'num', min: -20, max: 20, opt: true }, phase: { k: 'num', min: -3600, max: 3600, opt: true },
-      axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT, dur: DUR,
+      axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, onlyAxis: { k: 'bool', opt: true, doc: 'with rpm 0: stop only a spin about axis, and leave any other as it is' }, at: AT, dur: DUR,
     },
   },
   {

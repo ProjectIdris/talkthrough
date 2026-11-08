@@ -159,7 +159,7 @@ export type StyleAction = { op: 'style'; id: string; color?: Color; opacity?: nu
 export type HighlightAction = { op: 'highlight'; id: string; color?: Color } & Timing;
 
 // Machines: parts that keep moving by themselves once started.
-export type SpinAction = { op: 'spin'; id: string; rpm?: number; by?: string; ratio?: number; phase?: number; axis?: 'x' | 'y' | 'z' } & Timing;
+export type SpinAction = { op: 'spin'; id: string; rpm?: number; by?: string; ratio?: number; phase?: number; axis?: 'x' | 'y' | 'z'; onlyAxis?: boolean } & Timing;
 export type CutAction = { op: 'cut'; id: string; axis?: 'x' | 'y' | 'z'; normal?: Vec3; to: number } & Timing;
 export type CrankAction = { op: 'crank'; id: string; shaft: string; rod?: string; pin?: number } & At;
 export type CamAction = { op: 'cam'; id: string; by: string; lift?: number; open?: number; phase?: number } & At;

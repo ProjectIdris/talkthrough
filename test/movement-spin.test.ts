@@ -51,3 +51,20 @@ test('the reverse order: the wheel spun first, then its holder about the same ax
   const other = check([cyl('a'), cyl('b', { parent: 'a' }), { op: 'spin', id: 'b', rpm: 10, axis: 'y' }, { op: 'spin', id: 'a', rpm: 10, axis: 'z' }]);
   assert.equal(kept(other, 'spin'), 2, 'a planet on its own axis keeps it');
 });
+
+test('the stop the validator writes is for the axis it stops: written out of time order, it does not freeze a spin about another axis', () => {
+  // The wheel spins about z from 0; its holder is spun about z at 5 (the wheel's z spin is stopped then); written last, the wheel spins about x from 2.
+  const r = check([cyl('cog'), cyl('wheel', { parent: 'cog' }),
+    { op: 'spin', id: 'wheel', rpm: 30, axis: 'z', dur: 0, at: 0 }, { op: 'spin', id: 'cog', rpm: 30, axis: 'z', dur: 0, at: 5 }, { op: 'spin', id: 'wheel', rpm: 30, axis: 'x', dur: 0, at: 2 }]);
+  const stops = (r.step?.actions ?? []).filter((a) => a.op === 'spin' && (a as { rpm?: number }).rpm === 0);
+  assert.equal(stops.length, 1, 'the stop is written');
+  assert.equal((stops[0] as { axis?: string }).axis, 'z', 'and says which axis it stops');
+  const plan = planStep(emptyFrame(), r.step!);
+  const xAt = (t: number) => (evaluate(plan, t).objects.find((o) => o.id === 'wheel')!.pose?.rot ?? [0, 0, 0])[0]!;
+  assert.ok(Math.abs(xAt(7) - xAt(6) - 180) < 1, `the wheel goes on turning about x after 5 s: ${xAt(7) - xAt(6)} degrees a second`);
+  // An author's own stop with an axis is as it was: it stops the spin and takes the axis it names.
+  const own = check([cyl('w'), { op: 'spin', id: 'w', rpm: 30, axis: 'z', dur: 0, at: 0 }, { op: 'spin', id: 'w', rpm: 0, axis: 'x', dur: 0, at: 2 }]);
+  const ownPlan = planStep(emptyFrame(), own.step!);
+  const zAt = (t: number) => (evaluate(ownPlan, t).objects.find((o) => o.id === 'w')!.pose?.rot ?? [0, 0, 0])[2]!;
+  assert.ok(Math.abs(zAt(4) - zAt(3)) < 1e-6, 'an author\'s stop with an axis still stops the spin');
+});

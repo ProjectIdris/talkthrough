@@ -887,7 +887,7 @@ function checkSpin(out: Record<string, unknown>, state: SceneState, path: string
     if (!inside) continue;
     note(notes, 'trimmed', path, `${inner} is inside ${id}, which now spins about ${axis}: it turns with it, so its own spin about ${axis} is stopped (it would turn twice as fast)`);
     state.spins.delete(inner);
-    state.after.push({ op: 'spin', id: inner, rpm: 0, dur: 0, at: (out.at as number | undefined) ?? 0 } as unknown as Action);
+    state.after.push({ op: 'spin', id: inner, rpm: 0, axis, onlyAxis: true, dur: 0, at: (out.at as number | undefined) ?? 0 } as unknown as Action);
   }
   state.spins.set(id, axis);
   return true;

@@ -4448,6 +4448,13 @@
             null
           ]
         },
+        "onlyAxis": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "with rpm 0: stop only a spin about axis, and leave any other as it is"
+        },
         "at": {
           "type": [
             "number",
@@ -4471,6 +4478,7 @@
         "ratio",
         "phase",
         "axis",
+        "onlyAxis",
         "at",
         "dur"
       ],

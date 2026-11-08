@@ -672,6 +672,8 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       if (!o) return;
       let sp = plan.spins.find((x) => x.key === o.key);
       const axis = a.axis === 'x' ? 0 : a.axis === 'y' ? 1 : a.axis === undefined ? (sp ? sp.axis : 2) : 2;
+      // A stop for one axis (the validator's, for a part that turns with its holder) leaves a spin about another axis as it is, whatever order the actions were written in.
+      if (a.onlyAxis === true && a.rpm === 0 && (!sp || sp.axis !== axis)) return;
       if (!sp) {
         sp = spinPlanFrom({ key: o.key, axis, angle: 0, rate: 0 });
         plan.spins.push(sp);
