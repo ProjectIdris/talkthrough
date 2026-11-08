@@ -11,6 +11,8 @@
 
 import type { AddAction, Vec3 } from '../scene/types.ts';
 import { crankThrow, pistonPinDrop, rodEnds } from './mechanism-geometry.ts';
+import { CAM_ROW, CRANK_ROW, FLASH_ROW, LOOP_ROWS, bind, fresh, num } from '../scene/movement-rows.ts';
+import type { LoopName } from '../scene/movement-rows.ts';
 
 const DEG = Math.PI / 180;
 
@@ -28,7 +30,7 @@ export type FlashDef = { key: number; byKey: number; angle: number; span: number
  * `loopDriver(key)` (below zero, so it never meets an object): free, it turns once a period; locked, it follows another part. The pose is a function
  * of that angle (the cosine of it: 1 at the far end, so a part locked to a crank is at the top when the crank pin is).
  */
-export type LoopKind = 'slide' | 'swing' | 'pulse' | 'gate' | 'float';
+export type LoopKind = LoopName;
 /**
  * `gate` swings a hinge open on one half of the cycle and shuts it on the other (a one-way valve); `float` bobs the object up and down by `amount`
  * units and rocks it `tilt` degrees about z (a boat on water). `damp` is the number of cycles for the motion to fall to a third (it settles); `start` is the
@@ -50,7 +52,16 @@ const WAVE_BASE = -1_000_000_000;
 export const waveDriver = (key: number): number => WAVE_BASE - key;
 export const driverOwner = (driver: number): number => (driver <= WAVE_BASE ? WAVE_BASE - driver : driver <= BALL_BASE ? Math.floor((BALL_BASE - driver) / 3) : -1 - driver);
 /** Where a free loop's angle starts, so it begins at rest: the cosine is 0 for slide and swing, and the pulse is at its smallest. */
-export const loopStart = (kind: LoopKind): number => (kind === 'pulse' ? 180 : 270);
+export const loopStart = (kind: LoopKind): number => LOOP_ROWS[kind].start;
+/** Whether a loop is a freedom of its part (a turn or a slide, worked out with the joints) rather than a swell or a bob on top. */
+const isFreedom = (l: LoopDef): boolean => LOOP_ROWS[l.kind].motion === 'turn' || LOOP_ROWS[l.kind].motion === 'slide';
+/** A loop's value now, from the row of its kind, when the angle of its cycle is `a` degrees; `rock` is a bob's turn about z. */
+function loopValue(l: LoopDef, a: number): { value: number; rock: number } {
+  const row = LOOP_ROWS[l.kind];
+  const b = row.ease !== undefined && l.start !== undefined ? Math.min(1, Math.max(0, (a - l.start) / row.ease)) : 1;
+  const scope = fresh({ a: a * DEG, amount: l.amount, tilt: l.tilt ?? 0, fade: loopFade(l, a), born: row.ease !== undefined ? b * b * (3 - 2 * b) : 1 });
+  return { value: num(row.value, scope), rock: row.rock !== undefined ? num(row.rock, scope) : 0 };
+}
 
 /**
  * Joints and couplings (the mechanism layer). A joint is a freedom an object has: a hinge about `axis` through `pivot`, a slide along `axis` or `dir`,
@@ -318,55 +329,37 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     const written = sizeOf(shaft.def, [1, 1, 1]);
     const shaftSize: Vec3 = drawsOwnPin(shaft.def) ? [written[0], written[0], written[1]] : written;
     const throws = Math.max(1, Math.min('n' in shaft.def && shaft.def.n ? shaft.def.n : 1, 8));
-    const theta = (turnZ(c.shaftKey) + (throws > 1 ? ((c.pin - 1) * 360) / throws : 0)) * DEG;
     const r = crankThrow(shaftSize);
-    const pinX = shaft.pos[0] - Math.sin(theta) * r;
-    const pinY = shaft.pos[1] + Math.cos(theta) * r;
     const ends = rod ? rodEnds(sizeOf(rod.def, [1, 4 * r, 1])) : { big: 0, small: 0, length: 3.5 * r };
-    const dx = piston.pos[0] - pinX;
-    const rise = Math.sqrt(Math.max(0, ends.length * ends.length - dx * dx));
-    const wristY = pinY + rise;
-    const drop = pistonPinDrop(sizeOf(piston.def, [1, 1, 1]));
-    edit(c.key).pos = [piston.pos[0], wristY - drop, piston.pos[2]];
+    const g = crankPinSize(shaft.def, rod?.def);
+    const v = bind(fresh({
+      shaftX: shaft.pos[0], shaftY: shaft.pos[1], shaftZ: shaft.pos[2], pistonX: piston.pos[0], pistonZ: piston.pos[2], turn: turnZ(c.shaftKey), throws, pin: c.pin, r,
+      big: ends.big, length: ends.length, drop: pistonPinDrop(sizeOf(piston.def, [1, 1, 1])), plain: drawsOwnPin(shaft.def), thick: g.thick, rodD: g.rodD, pinH: g.pin[1], rodZ: rod ? rod.pos[2] : 0,
+    }), CRANK_ROW.lets);
+    edit(c.key).pos = [num(CRANK_ROW.piston[0], v), num(CRANK_ROW.piston[1], v), num(CRANK_ROW.piston[2], v)];
     if (rod) {
-      const a = Math.atan2(-dx, rise);
       edit(c.rodKey as number);
       const pose = out.get(c.rodKey as number) as Pose;
-      // On a plain-shape disc the rod runs in front of it, on the pin the crank draws, so the rod and the pin are one thing to look at.
-      const front = drawsOwnPin(shaft.def) ? crankPinSize(shaft.def, rod.def) : undefined;
-      const rodZ = front ? shaft.pos[2] + front.thick / 2 + 0.02 + front.rodD / 2 : rod.pos[2];
-      pose.pos = [pinX + ends.big * Math.sin(a), pinY - ends.big * Math.cos(a), rodZ];
-      pose.rot = [rod.rot[0], rod.rot[1], a / DEG];
+      pose.pos = [num(CRANK_ROW.rod.pos[0], v), num(CRANK_ROW.rod.pos[1], v), num(CRANK_ROW.rod.pos[2], v)];
+      pose.rot = [rod.rot[0], rod.rot[1], num(CRANK_ROW.rod.rotZ, v)];
     }
     const pinObj = byKey.get(crankPinKey(c.key));
-    if (pinObj) {
-      const g = crankPinSize(shaft.def, rod?.def);
-      const face = shaft.pos[2] + g.thick / 2;
-      edit(pinObj.key).pos = [pinX, pinY, face + (g.pin[1] / 2) - 0.02];
-    }
+    if (pinObj) edit(pinObj.key).pos = [num(CRANK_ROW.pin[0], v), num(CRANK_ROW.pin[1], v), num(CRANK_ROW.pin[2], v)];
   }
 
   for (const cam of motion.cams) {
     const valve = byKey.get(cam.key);
     if (!valve || holders.has(cam.key)) continue;
-    const d = Math.abs(wrap180(turnZ(cam.byKey) - cam.phase));
-    const half = cam.open / 2;
-    const bump = d < half ? 0.5 * (1 + Math.cos((Math.PI * d) / half)) : 0;
-    const lift = cam.lift ?? sizeOf(valve.def, [1, 1, 1])[1] * 0.2;
     const pos = out.get(cam.key)?.pos ?? valve.pos;
-    edit(cam.key).pos = [pos[0], pos[1] - lift * bump, pos[2]];
+    const v = bind(fresh({ turn: turnZ(cam.byKey), phase: cam.phase, open: cam.open, liftSet: cam.lift !== undefined, liftOpt: cam.lift ?? 0, valveH: sizeOf(valve.def, [1, 1, 1])[1], posY: pos[1] }), CAM_ROW.lets);
+    edit(cam.key).pos = [pos[0], num(CAM_ROW.y, v), pos[2]];
   }
 
   for (const f of motion.flashes) {
     const o = byKey.get(f.key);
     if (!o) continue;
-    const c = ((((turnZ(f.byKey) - f.angle) % f.cycle) + f.cycle) % f.cycle);
-    let v = 0;
-    if (c < f.span) {
-      const u = c / f.span;
-      v = u < 0.1 ? u / 0.1 : Math.pow(1 - (u - 0.1) / 0.9, 1.6);
-    }
-    edit(f.key).opacity = o.opacity * v;
+    const v = bind(fresh({ turn: turnZ(f.byKey), angle: f.angle, span: f.span, cycle: f.cycle, opacity: o.opacity }), FLASH_ROW.lets);
+    edit(f.key).opacity = num(FLASH_ROW.opacity, v);
   }
 
   // Joints, loops and couplings go last and ride on whatever a spin, crank or cam already did to the same part.
@@ -379,7 +372,7 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     const j = jointOf.get(key);
     if (j) return j.kind === 'fixed' || j.kind === 'ball' ? undefined : j.kind === 'pivot' ? 'hinge' : j.kind;
     const l = loopOf.get(key);
-    if (l) return l.kind === 'slide' ? 'slide' : l.kind === 'swing' || l.kind === 'gate' ? 'hinge' : undefined;
+    if (l) return LOOP_ROWS[l.kind].motion === 'slide' ? 'slide' : LOOP_ROWS[l.kind].motion === 'turn' ? 'hinge' : undefined;
     const c = coupleOf.get(key);
     if (c && depth < 8) {
       const by = kindOf(c.byKey, depth + 1) ?? 'hinge';
@@ -406,16 +399,16 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
         const by = kindOf(c.byKey) ?? 'hinge';
         v = c.pitch === undefined ? c.ratio * b + c.phase : by === 'hinge' ? (c.pitch * b) / 360 + c.phase : (360 * b) / c.pitch + c.phase;
       }
-    } else if (l && l.kind !== 'pulse' && l.kind !== 'float') {
+    } else if (l && isFreedom(l)) {
       const a = angleOf.get(loopDriver(key));
-      if (a !== undefined) v = l.kind === 'gate' ? Math.max(0, Math.cos(a * DEG)) * l.amount : (Math.cos(a * DEG) * l.amount * loopFade(l, a)) / (l.kind === 'slide' ? 2 : 1);
+      if (a !== undefined) v = loopValue(l, a).value;
     } else {
       v = angleOf.get(key);
     }
     memo.set(key, v);
     return v;
   };
-  const driven = new Set<number>([...jointOf.keys(), ...coupleOf.keys(), ...muscleOf.keys(), ...[...loopOf.values()].filter((l) => l.kind !== 'pulse' && l.kind !== 'float').map((l) => l.key)]);
+  const driven = new Set<number>([...jointOf.keys(), ...coupleOf.keys(), ...muscleOf.keys(), ...[...loopOf.values()].filter(isFreedom).map((l) => l.key)]);
   for (const key of driven) {
     const o = byKey.get(key);
     const joint = jointOf.get(key);
@@ -483,31 +476,24 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
       pose.pos = [p[0] + px - t[0], p[1] + py - t[1], p[2] + pz - t[2]];
     }
   }
-  // A pulse swells the object about its own middle, on top of any scale it has.
+  // A swell enlarges the object about its own middle, on top of any scale it has; a bob moves it up and down and rocks it from side to side about z, a quarter of a
+  // cycle apart, on top of whatever else has moved it (it eases in over the first half turn, so it begins at rest whatever the angle it begins at).
   for (const l of motion.loops) {
-    if (l.kind !== 'pulse') continue;
+    const motionOf = LOOP_ROWS[l.kind].motion;
+    if (motionOf !== 'scale' && motionOf !== 'bob') continue;
     const o = byKey.get(l.key);
     const a = angleOf.get(loopDriver(l.key));
     if (!o || a === undefined) continue;
-    const m = 1 + (l.amount - 1) * ((1 + Math.cos(a * DEG)) / 2) * loopFade(l, a);
+    const { value, rock } = loopValue(l, a);
     const pose = edit(l.key);
-    const base = pose.scale ?? [1, 1, 1];
-    pose.scale = [base[0] * m, base[1] * m, base[2] * m];
-  }
-  // A float bobs the object up and down and rocks it from side to side about z, a quarter of a cycle apart, on top of whatever else has moved it.
-  for (const l of motion.loops) {
-    if (l.kind !== 'float') continue;
-    const o = byKey.get(l.key);
-    const a = angleOf.get(loopDriver(l.key));
-    if (!o || a === undefined) continue;
-    // It eases in over the first half turn, so it begins at rest whatever the angle it begins at.
-    const born = l.start !== undefined ? Math.min(1, Math.max(0, (a - l.start) / 180)) : 1;
-    const f = loopFade(l, a) * born * born * (3 - 2 * born);
-    const pose = edit(l.key);
-    const p = pose.pos ?? o.pos;
-    pose.pos = [p[0], p[1] + Math.cos(a * DEG) * l.amount * f, p[2]];
-    const r = pose.rot ?? o.rot;
-    pose.rot = turned(r, 2, Math.sin(a * DEG) * (l.tilt ?? 0) * f);
+    if (motionOf === 'scale') {
+      const base = pose.scale ?? [1, 1, 1];
+      pose.scale = [base[0] * value, base[1] * value, base[2] * value];
+    } else {
+      const p = pose.pos ?? o.pos;
+      pose.pos = [p[0], p[1] + value, p[2]];
+      pose.rot = turned(pose.rot ?? o.rot, 2, rock);
+    }
   }
   // A fixed joint rides with the object it is fixed to: its move and its turn, about that object's middle (chains settle in a few passes).
   for (let pass = 0; pass < 4; pass++) {

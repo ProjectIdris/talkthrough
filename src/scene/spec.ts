@@ -1,7 +1,11 @@
 // Scene language v0: the single table the validator and the JSON Schema are both built from.
 // Change a field here and both follow; docs/scene-language.md describes the same table.
 
+import { kitParts } from './kit-presets.ts';
+import type { KitPartName } from './kit-presets.ts';
 import { MATERIAL_NAMES } from './material-library.ts';
+import { LOOP_ROWS } from './movement-rows.ts';
+import type { OtherPartKind, PartKind } from './types.ts';
 
 export const PALETTE = [
   'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink', 'white', 'gray', 'black',
@@ -145,10 +149,9 @@ const EDGES: Field = { k: 'bool', opt: true, doc: 'dark edge lines (default true
 const DRAW: Field = { k: 'num', min: 0, max: 1, opt: true, doc: 'how much is drawn at first, 0 to 1 (default 1); grow it with reveal' };
 
 export const SOLID_SHAPES = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'] as const;
-export const PARTS = [
-  'chip', 'header', 'port', 'lens', 'screen', 'button', 'fan', 'wheel',
-  'cylinder-block', 'piston', 'connecting-rod', 'crankshaft', 'valve', 'camshaft', 'spark-plug', 'gear', 'spring', 'bearing', 'pipe', 'elbow', 'housing',
-] as const;
+/** The parts that are not in the kit table (drawn by their own code); the kit parts follow, as the table has them. A new kit row is a part with no change here. */
+const OTHER_PARTS: OtherPartKind[] = ['chip', 'header', 'port', 'lens', 'screen', 'button', 'fan', 'wheel'];
+export const PARTS: readonly PartKind[] = [...OTHER_PARTS, ...(kitParts() as KitPartName[])];
 export const PART_VARIANTS = ['black', 'metal', 'usb', 'usb3', 'ethernet', 'hdmi', 'usbc', 'gold', 'cutaway', 'finned'] as const;
 
 export const VARIANTS: readonly Variant[] = [
@@ -576,7 +579,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'loop', op: 'loop',
     doc: 'Repeat a motion on any object: slide (back and forth along axis, positive amount units in all), swing (rock about axis by signed amount degrees each side, -180 to 180, about the hinge pivot; negative reverses it, zero holds still) or pulse (swell to positive amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint\'s. Another loop replaces it; stop ends it. id is an object already in the scene, never a name for the loop.',
     fields: {
-      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['slide', 'swing', 'pulse', 'gate', 'float', 'stop'], opt: true },
+      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: [...Object.keys(LOOP_ROWS), 'stop'], opt: true },
       amount: { k: 'num', min: -360, max: 360, opt: true, doc: 'slide: positive total travel in units; swing: signed degrees each side (negative reverses the swing, zero holds still); pulse: positive size factor (1.3 is 30% bigger, 0.8 smaller); gate: degrees the hinge opens on half of each cycle; float: units it bobs up and down' },
       damp: { k: 'num', min: 0.2, max: 50, opt: true, doc: 'cycles for the motion to fall to a third of its size, so it settles (a pendulum running down); left out, it never settles' },
       tilt: { k: 'num', min: 0, max: 30, opt: true, doc: 'float: degrees it rocks from side to side about z (default 4)' },
