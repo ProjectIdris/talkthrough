@@ -8,6 +8,10 @@ import { build } from 'esbuild';
 import { electronRuntime } from './support/electron-runtime.ts';
 
 const runtime = electronRuntime();
+// The fixture is built against a stand-in for the electron module whose windows are made off every display, unfocused and out of the taskbar
+// (so a test run never shows anything where someone is working); the fixture checks that afterwards.
+const offscreen = resolve('test/support/electron-offscreen.cjs');
+const offscreenWindows = { name: 'offscreen-windows', setup(b: import('esbuild').PluginBuild) { b.onResolve({ filter: /^electron$/ }, (a) => (a.importer === offscreen ? { path: 'electron', external: true } : { path: offscreen })); } };
 test('offline visual explorer: real renderer, isolated IPC, navigation and lifecycle', { skip: runtime.reason, timeout: 90000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), 'tt-tour-test-'));
   const profile = join(root, 'profile');
@@ -21,7 +25,7 @@ test('offline visual explorer: real renderer, isolated IPC, navigation and lifec
       ['src/main/visual-tour-preload.ts', 'tour-preload.cjs', 'node'],
       ['src/overlay/overlay.ts', 'overlay/overlay.js', 'browser'],
       ['src/tour/tour.ts', 'tour/tour.js', 'browser'],
-    ] as const) await build({ entryPoints: [entry], outfile: join(root, out), bundle: true, platform, format: platform === 'node' ? 'cjs' : 'iife', external: ['electron'], logLevel: 'silent' });
+    ] as const) await build({ entryPoints: [entry], outfile: join(root, out), bundle: true, plugins: entry === 'test/support/visual-tour-window.ts' ? [offscreenWindows] : [], platform, format: platform === 'node' ? 'cjs' : 'iife', external: ['electron'], logLevel: 'silent' });
     for (const dir of ['overlay', 'tour', 'shared', 'firstrun']) mkdirSync(join(root, dir), { recursive: true });
     copyFileSync('src/overlay/index.html', join(root, 'overlay/index.html'));
     copyFileSync('src/firstrun/index.html', join(root, 'firstrun/index.html'));

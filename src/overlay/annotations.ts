@@ -5,8 +5,8 @@
 import type { Vec3 } from '../scene/types.ts';
 import { imageCaptionLines } from './image-caption.ts';
 import type { View } from './marks.ts';
-import { THEME, fontAt, tagTextPx } from './theme.ts';
-import type { Theme } from './theme.ts';
+import { FROST, THEME, discWithNumber, fontAt, frostAccent, tagTextPx } from './theme.ts';
+import type { Face, FrostFace, Theme } from './theme.ts';
 import { attachPoint } from './labels.ts';
 import type { PinRequest, Placement } from './labels.ts';
 import type { MarkFrame, Rgb } from './timeline.ts';
@@ -24,6 +24,8 @@ export type Annotator = {
   source?: { image: CanvasImageSource; width: number; height: number };
   /** Where the tag of a pin goes (stable between frames). Without it a tag sits where the author's offset says. */
   place?: (key: number, request: PinRequest) => Placement;
+  /** The face a note card wears (light or dark) over the page under the rectangle (pixels); without it every card is dark. The key names the card, so it keeps its face. */
+  faceOf?: (key: string, rect: { x: number; y: number; w: number; h: number }) => Face;
   /** Geometry actually drawn this frame, used for pointer ownership. */
   onPinGeometry?: (geometry: { key: number; anchor: Pt; leaderEnd: Pt; radius: number; alpha: number }) => void;
 };
@@ -226,6 +228,8 @@ export function drawPin(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): vo
 
 // ---- Cards ------------------------------------------------------------------------------------
 
+/** Words in a card are drawn in the face's own ink or muted tone, which is known only once the card's size is (the face depends on where it lands). */
+const INK = 'ink', MUTED = 'muted';
 type CardLine = { text: string; font: string; color: string; x: number; y: number };
 
 export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): void {
@@ -235,20 +239,22 @@ export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): v
   const { view } = a;
   const alpha = Math.max(0, Math.min(1, m.opacity * m.fade));
   const p = m.appear;
-  const color = accentFor(m, theme, order);
+  // The leader and a big number take the card's colour; the numbered rows take the accents in turn unless the scene tinted the card.
+  const color = m.tinted ? m.color : frostAccent(order);
   const W = Math.min(view.width - 16, ((mk.w ?? 300) / 1000) * view.width);
-  const pad = Math.max(12, view.height * 0.017);
+  const pad = Math.max(12, view.height * 0.017) * 1.25;
   const titlePx = Math.max(15, view.height * 0.0245);
   const rowPx = Math.max(13, view.height * 0.0185);
   const layout = mk.layout ?? 'list';
   const rows = mk.rows ?? [];
   const x = snapPx((mk.x / 1000) * view.width, view.dpr);
   const y0 = snapPx((mk.y / 1000) * view.height, view.dpr);
+  const rowAccent = (i: number): Rgb => (m.tinted ? m.color : frostAccent(i));
 
   ctx.save();
   ctx.textBaseline = 'alphabetic';
   const lines: CardLine[] = [];
-  const shapes: Array<() => void> = [];
+  const shapes: Array<(tone: FrostFace) => void> = [];
   let y = pad;
   const inner = W - pad * 2;
   const addText = (text: string, font: string, colorCss: string, lx: number, ly: number) => lines.push({ text, font, color: colorCss, x: lx, y: ly });
@@ -258,10 +264,10 @@ export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): v
     const t = mk.title;
     for (const l of words(ctx, t, inner, 2)) {
       y += titlePx * 1.05;
-      addText(l, fontAt(theme.titleFont, titlePx), theme.ink, pad, y);
+      addText(l, fontAt(theme.titleFont, titlePx), INK, pad, y);
       y += titlePx * 0.28;
     }
-    y += rowPx * 0.35;
+    y += rowPx * 0.5;
   }
   if (layout === 'stat' && rows.length > 0) {
     const bigPx = Math.max(30, view.height * 0.062);
@@ -274,7 +280,7 @@ export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): v
     for (const r of rows.slice(1)) {
       for (const l of words(ctx, r, inner, 2)) {
         y += rowPx * 1.35;
-        addText(l, fontAt(theme.font, rowPx), theme.muted, pad, y);
+        addText(l, fontAt(theme.font, rowPx), MUTED, pad, y);
       }
     }
   } else if (layout === 'timeline' && rows.length > 0) {
@@ -287,24 +293,29 @@ export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): v
       const [when, what] = r.includes('|') ? r.split('|').map((s) => s.trim()) : ['', r];
       const cx = pad + slot * (i + 0.5);
       ctx.font = fontAt(theme.titleFont, rowPx * 1.05);
-      if (when) addText(when, fontAt(theme.titleFont, rowPx * 1.05), theme.ink, Math.max(pad, cx - ctx.measureText(when).width / 2), lineY - rowPx * 0.95);
+      if (when) addText(when, fontAt(theme.titleFont, rowPx * 1.05), INK, Math.max(pad, cx - ctx.measureText(when).width / 2), lineY - rowPx * 0.95);
       ctx.font = fontAt(theme.font, rowPx * 0.92);
       const wrapped = words(ctx, what ?? '', slot - 6, 3);
       wrapped.forEach((l, k) => {
         const ly = lineY + rowPx * 1.7 + k * rowPx * 1.2;
-        addText(l, fontAt(theme.font, rowPx * 0.92), theme.muted, cx - ctx.measureText(l).width / 2, ly);
+        addText(l, fontAt(theme.font, rowPx * 0.92), MUTED, cx - ctx.measureText(l).width / 2, ly);
         tall = Math.max(tall, ly - lineY);
       });
-      shapes.push(() => {
-        ctx.fillStyle = rgbCss(color, 1);
+      shapes.push((tone) => {
+        // A marker ring of the event's colour round a hollow, as on the timeline panel.
+        ctx.fillStyle = tone.core;
+        ctx.strokeStyle = rgbCss(rowAccent(i), 1);
+        ctx.lineWidth = Math.max(2.4, rowPx * 0.2);
         ctx.beginPath();
-        ctx.arc(x + cx, y0 + lineY, rowPx * 0.3, 0, Math.PI * 2);
+        ctx.arc(x + cx, y0 + lineY, rowPx * 0.4, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
       });
     });
-    shapes.unshift(() => {
-      ctx.strokeStyle = theme.line;
-      ctx.lineWidth = 1.5;
+    shapes.unshift((tone) => {
+      ctx.strokeStyle = tone.chipLine;
+      ctx.lineWidth = Math.max(3, rowPx * 0.28);
+      ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(x + pad + slot * 0.5, y0 + lineY);
       ctx.lineTo(x + pad + slot * (n - 0.5), y0 + lineY);
@@ -312,54 +323,65 @@ export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): v
     });
     y = lineY + Math.max(tall, rowPx * 1.7) + rowPx * 0.5;
   } else {
+    // A list: each row has its own number in a disc of its own colour.
+    const discR = rowPx * 0.62, indent = rowPx * 1.95;
     ctx.font = fontAt(theme.font, rowPx);
-    for (const r of rows) {
-      const wrapped = words(ctx, r, inner - rowPx * 1.1, 2);
+    rows.forEach((r, ri) => {
+      const wrapped = words(ctx, r, inner - indent, 2);
       wrapped.forEach((l, k) => {
         y += rowPx * 1.4;
         if (k === 0) {
-          const by = y - rowPx * 0.32;
-          shapes.push(() => {
-            ctx.fillStyle = rgbCss(color, 1);
-            ctx.beginPath();
-            ctx.arc(x + pad + rowPx * 0.2, y0 + by, rowPx * 0.17, 0, Math.PI * 2);
-            ctx.fill();
-          });
+          const by = y - rowPx * 0.34;
+          shapes.push(() => discWithNumber(ctx, x + pad + discR, y0 + by, discR, rowAccent(ri), String(ri + 1)));
         }
-        addText(l, fontAt(theme.font, rowPx), theme.ink, pad + rowPx * 1.1, y);
+        addText(l, fontAt(theme.font, rowPx), INK, pad + indent, y);
       });
-      y += rowPx * 0.18;
-    }
+      y += rowPx * 0.5;
+    });
   }
-  const H = y + pad * 0.9;
+  const H = y + pad * 0.7;
   const slide = (1 - p) * 10;
   const top = y0 + slide;
+  // Frost: the panel wears the face of the page under it (light over a light page, dark over a dark one).
+  const tone = FROST[a.faceOf?.(`m${m.key}`, { x, y: y0, w: W, h: H }) ?? 'dark'];
 
   ctx.globalAlpha = alpha * Math.min(1, p * 1.5);
   ctx.translate(0, slide);
-  ctx.shadowColor = 'rgba(0,0,0,0.35)';
-  ctx.shadowBlur = 24;
-  ctx.shadowOffsetY = 8;
+  const glass = ctx.createLinearGradient(0, y0, 0, y0 + H);
+  glass.addColorStop(0, tone.panelTop);
+  glass.addColorStop(1, tone.panelFoot);
+  const radius = Math.max(14, Math.min(28, Math.min(W, H) * 0.075));
+  ctx.shadowColor = tone.shadow;
+  ctx.shadowBlur = 40;
+  ctx.shadowOffsetY = 16;
   if (m.pulse > 0) {
     ctx.shadowColor = rgbCss(m.pulseColor ?? color, 0.9 * m.pulse);
     ctx.shadowBlur = 30 * m.pulse;
     ctx.shadowOffsetY = 0;
   }
-  ctx.fillStyle = theme.surface;
-  roundRectPath(ctx, x, y0, W, H, theme.radius + 3);
+  ctx.fillStyle = glass;
+  roundRectPath(ctx, x, y0, W, H, radius);
   ctx.fill();
+  if (m.pulse <= 0) {
+    ctx.shadowColor = tone.ring;
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+    roundRectPath(ctx, x, y0, W, H, radius);
+    ctx.fill();
+  }
   ctx.shadowBlur = 0;
   ctx.shadowOffsetY = 0;
   ctx.lineWidth = 1;
-  ctx.strokeStyle = theme.line;
+  ctx.strokeStyle = tone.ring;
+  roundRectPath(ctx, x - 0.5, y0 - 0.5, W + 1, H + 1, radius + 0.5);
   ctx.stroke();
-  ctx.fillStyle = rgbCss(color, 1);
-  roundRectPath(ctx, x, y0 + 10, 4, Math.min(H - 20, titlePx * 1.6), 2);
-  ctx.fill();
-  for (const s of shapes) s();
+  ctx.strokeStyle = tone.border;
+  roundRectPath(ctx, x + 0.5, y0 + 0.5, W - 1, H - 1, radius - 0.5);
+  ctx.stroke();
+  for (const s of shapes) s(tone);
   for (const l of lines) {
     ctx.font = l.font;
-    ctx.fillStyle = l.color;
+    ctx.fillStyle = l.color === INK ? tone.ink : l.color === MUTED ? tone.muted : l.color;
     ctx.fillText(l.text, x + l.x, y0 + l.y);
   }
   ctx.restore();

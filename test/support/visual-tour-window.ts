@@ -1,3 +1,4 @@
+import * as electron from 'electron';
 import { app, BrowserWindow, ipcMain, WebContentsView } from 'electron';
 import assert from 'node:assert/strict';
 import { writeFileSync, mkdirSync, existsSync, copyFileSync } from 'node:fs';
@@ -12,6 +13,9 @@ import { TOUR_CHANNEL } from '../../src/shared/visual-tour.ts';
 const require = createRequire(__filename);
 require('./profile-guard.cjs')(process.env.TT_TEST_PROFILE, (receipt: unknown) => writeFileSync(join(__dirname, 'profile.json'), JSON.stringify(receipt)));
 app.on('window-all-closed', () => {});
+// Windows stops painting a window that other windows fully cover (native occlusion), so a preview opened behind another window, or under this
+// fixture's own welcome window, never produces its frame and the waits below time out. These windows are checked, not watched: keep them painting.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 async function until(check: () => Promise<boolean>, what: string): Promise<void> {
   const deadline = Date.now() + 10000;
@@ -135,6 +139,12 @@ void app.whenReady().then(async () => {
   assert.equal((await failedState()).busy, false, 'resizing a failed startup must not enter an unbounded busy state');
   assert.equal((await failedState()).error, loadError);
   unavailable.dispose();
+  // Every window of this run was made off every display, never took focus, and still painted (the waits above would have timed out otherwise).
+  const watched = (electron as unknown as { windowWatch(): { windows: number; samples: number; onDisplay: number; focused: number } }).windowWatch();
+  console.log('WINDOW_WATCH', JSON.stringify(watched));
+  assert.ok(watched.windows >= 6 && watched.samples > 100, 'the windows were watched');
+  assert.equal(watched.onDisplay, 0, 'no window was ever on a display');
+  assert.equal(watched.focused, 0, 'no window ever took focus');
   console.log('TOUR_CHECKS_PASSED: navigation, four real scenes, network blocked, sender isolation, window reuse, minimum size, no voice, cleanup and reopen');
   app.exit(0);
 }).catch(error => { console.error(error); app.exit(1); });

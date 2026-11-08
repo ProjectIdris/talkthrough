@@ -6,8 +6,8 @@ import type { DiagramFrame, DiagramItemFrame } from './diagram-plan.ts';
 import { bezierPoints, chartDotLabelPlacements, chartLayout, flowGrowth, flowLayout, flowReadable, formatTick, smoothPoints, stepsLayout, timelineLayout, routeEdge } from './diagram-layout.ts';
 import type { ChartDotLabel, FlowBox, FlowLayout, Pt, Px } from './diagram-layout.ts';
 import type { View } from './marks.ts';
-import { softShadow } from './style.ts';
-import { THEME, fontAt } from './theme.ts';
+import { FROST, THEME, discWithNumber, fontAt, frostAccent, onAccent } from './theme.ts';
+import type { Face, FrostFace } from './theme.ts';
 import { parseColor, rgbCss } from './timeline.ts';
 import { refine } from './style.ts';
 import type { Rgb } from './timeline.ts';
@@ -16,7 +16,6 @@ import type { EdgeAction, NodeAction, SeriesAction, DotAction, StreamPiece } fro
 
 type Ctx = CanvasRenderingContext2D;
 
-const GREEN: Rgb = [92, 224, 168];
 
 function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
   const rr = Math.max(0, Math.min(r, w / 2, h / 2));
@@ -78,9 +77,20 @@ function strokePartial(ctx: Ctx, pts: readonly Pt[], fraction: number): { tip: P
 }
 
 const easeOut = (t: number): number => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
-const accentOf = (color: string | undefined, index: number): Rgb => (color !== undefined ? refine(parseColor(color)) : (THEME.accents[index % THEME.accents.length] as Rgb));
+/** An item's accent: the colour the scene named, else the next of Frost's accents in turn (blue, teal, violet, amber, rose). */
+const accentOf = (color: string | undefined, index: number): Rgb => (color !== undefined ? refine(parseColor(color)) : frostAccent(index));
 
-type Env = { ctx: Ctx; view: View; alpha: number; accent: Rgb; px: number; painter: DiagramPainter; dt: number };
+type Env = { ctx: Ctx; view: View; alpha: number; accent: Rgb; px: number; painter: DiagramPainter; dt: number; face: Face; tone: FrostFace };
+
+/** The radius of a panel's corners: round, in proportion to the panel (a small card is not a pill). */
+const panelRadius = (r: Px): number => Math.max(14, Math.min(28, Math.min(r.w, r.h) * 0.075));
+
+export type DiagramPainterOptions = {
+  regrow?: (id: string, want: Px) => Px | undefined;
+  onBounds?: (id: string, bounds: Px) => void;
+  /** The face a panel wears (light or dark), from the page under it; without it every panel is dark. `key` names the panel, so it keeps its face. */
+  faceOf?: (key: string, rect: Px) => Face;
+};
 
 /** Draws diagrams, remembering where each piece was last put so a re-layout glides. One per canvas. */
 export class DiagramPainter {
@@ -90,9 +100,12 @@ export class DiagramPainter {
   private grownLive = new Set<string>();
   private flowRouting = new Map<number, { topology: string; slots: Map<string, string>; revision: number }>();
   private flowLive = new Set<number>();
+  /** Which size and wrapping a timeline's labels were fitted at, for the labels and room they were worked out for; and the timelines drawn this frame. */
+  readonly timelineChoices = new Map<number, { signature: string; index: number }>();
+  readonly timelineLive = new Set<number>();
   /** Where a flow card that has to grow goes: the page finds a free place for its new size (pixels in, pixels out; undefined: stay as it was). */
-  private readonly options: { regrow?: (id: string, want: Px) => Px | undefined; onBounds?: (id: string, bounds: Px) => void };
-  constructor(options: { regrow?: (id: string, want: Px) => Px | undefined; onBounds?: (id: string, bounds: Px) => void } = {}) {
+  private readonly options: DiagramPainterOptions;
+  constructor(options: DiagramPainterOptions = {}) {
     this.options = options;
   }
   private last: number | undefined;
@@ -147,6 +160,7 @@ export class DiagramPainter {
     this.moving = false;
     this.grownLive.clear();
     this.flowLive.clear();
+    this.timelineLive.clear();
     const seen = new Set<string>();
     for (const d of diagrams) {
       const alpha = Math.max(0, Math.min(1, d.opacity * d.fade));
@@ -162,6 +176,7 @@ export class DiagramPainter {
     for (const key of [...this.cur.keys()]) if (!seen.has(key)) this.cur.delete(key);
     for (const key of [...this.grown.keys()]) if (!this.grownLive.has(key)) this.grown.delete(key);
     for (const key of [...this.flowRouting.keys()]) if (!this.flowLive.has(key)) this.flowRouting.delete(key);
+    for (const key of [...this.timelineChoices.keys()]) if (!this.timelineLive.has(key)) this.timelineChoices.delete(key);
     return this.moving;
   }
 
@@ -209,24 +224,26 @@ export class DiagramPainter {
     // A flow does not go below a readable node size: its card grows (eased, so a late node does not make it jump) until the nodes read.
     const r = d.def.kind === 'flow' ? this.ease(`${d.key}:card`, this.grownFlow(ctx, d, asked, view), dt, seen) : asked;
     this.options.onBounds?.(d.id, r);
+    const face = this.options.faceOf?.(`d${d.key}`, r) ?? 'dark';
+    const tone = FROST[face];
     const accent = accentOf(d.color, 0);
     const { base, pad } = textSizes(r, view);
     const slide = (1 - d.appear) * 10;
     ctx.globalAlpha = alpha * Math.min(1, d.appear * 1.5);
     ctx.translate(0, slide);
-    // Depth: a wide soft shadow under the card and a tight one at its foot, on a surface a little lighter at the top.
+    // Frost: a rounded pane of frosted glass in the face of the page under it, a wide soft shadow under it and a tight one at its foot.
     const glass = ctx.createLinearGradient(0, r.y, 0, r.y + r.h);
-    glass.addColorStop(0, 'rgba(31,39,59,0.96)');
-    glass.addColorStop(1, 'rgba(14,19,31,0.96)');
-    const radius = theme.radius + 4;
-    ctx.shadowColor = d.pulse > 0 ? rgbCss(d.pulseColor !== undefined ? parseColor(d.pulseColor) : accent, 0.9 * d.pulse) : 'rgba(4,8,18,0.46)';
-    ctx.shadowBlur = d.pulse > 0 ? 30 * d.pulse : 40;
-    ctx.shadowOffsetY = d.pulse > 0 ? 0 : 16;
+    glass.addColorStop(0, tone.panelTop);
+    glass.addColorStop(1, tone.panelFoot);
+    const radius = panelRadius(r);
+    ctx.shadowColor = d.pulse > 0 ? rgbCss(d.pulseColor !== undefined ? parseColor(d.pulseColor) : accent, 0.9 * d.pulse) : tone.shadow;
+    ctx.shadowBlur = d.pulse > 0 ? 30 * d.pulse : 44;
+    ctx.shadowOffsetY = d.pulse > 0 ? 0 : 18;
     ctx.fillStyle = glass;
     roundRect(ctx, r.x, r.y, r.w, r.h, radius);
     ctx.fill();
     if (d.pulse <= 0) {
-      ctx.shadowColor = 'rgba(4,8,18,0.34)';
+      ctx.shadowColor = tone.ring;
       ctx.shadowBlur = 5;
       ctx.shadowOffsetY = 2;
       roundRect(ctx, r.x, r.y, r.w, r.h, radius);
@@ -235,24 +252,18 @@ export class DiagramPainter {
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
     ctx.lineWidth = 1;
-    ctx.strokeStyle = 'rgba(255,255,255,0.13)';
+    ctx.strokeStyle = tone.ring;
+    roundRect(ctx, r.x - 0.5, r.y - 0.5, r.w + 1, r.h + 1, radius + 0.5);
     ctx.stroke();
-    // A fine light line along the top edge, as a lit pane has.
-    ctx.fillStyle = 'rgba(255,255,255,0.20)';
-    ctx.fillRect(r.x + radius, r.y + 0.5, Math.max(0, r.w - radius * 2), 1);
-    ctx.fillStyle = rgbCss(accent, 1);
-    roundRect(ctx, r.x + 1, r.y + pad * 0.95, 3.5, base * 1.5, 1.75);
-    ctx.fill();
+    ctx.strokeStyle = tone.border;
+    roundRect(ctx, r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1, radius - 0.5);
+    ctx.stroke();
     const { lines: titleLines, area } = titleAndArea(ctx, d, r, base, pad);
     ctx.font = fontAt(theme.titleFont, base * 1.2);
-    ctx.fillStyle = theme.ink;
+    ctx.fillStyle = tone.ink;
     ctx.textBaseline = 'alphabetic';
-    titleLines.forEach((l, i) => ctx.fillText(l, r.x + pad + 2, r.y + pad + base * 1.2 * (1 + i * 1.05)));
-    if (titleLines.length > 0) {
-      ctx.fillStyle = 'rgba(255,255,255,0.09)';
-      ctx.fillRect(r.x + pad, area.y - base * 0.32, r.w - pad * 2, 1);
-    }
-    const env: Env = { ctx, view, alpha: 1, accent, px: base, painter: this, dt };
+    titleLines.forEach((l, i) => ctx.fillText(l, r.x + pad + 4, r.y + pad + base * 1.2 * (1 + i * 1.05)));
+    const env: Env = { ctx, view, alpha: 1, accent, px: base, painter: this, dt, face, tone };
     ctx.save();
     roundRect(ctx, r.x + 1, r.y + 1, r.w - 2, r.h - 2, theme.radius + 2);
     ctx.clip();
@@ -398,13 +409,18 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
     const t = lay.nodes.get(n.id);
     if (t) boxes.set(n.id, { ...painter.ease(`${d.key}:${n.key}:${routing}`, t, env.dt, seen), layer: t.layer, ...(t.row !== undefined ? { row: t.row, ...(t.rev ? { rev: true } : {}) } : {}) });
   }
+  const { tone } = env;
+  const colorOf = new Map<string, Rgb>(nodes.map((n, i) => [n.id, accentOf(n.color, i)]));
+  const lineW = Math.max(2.6, env.px * 0.27);
+  const dotR = Math.max(4.2, env.px * 0.42);
   // Edges first, so a node sits over the end of its own arrows.
   const runs = new Map<string, Run>();
   edges.forEach((e, k) => {
     const s = boxes.get(e.def.from), t = boxes.get(e.def.to);
     if (!s || !t || e.appear <= 0) return;
     const route = routeEdge(lay.dir, s, t);
-    const color = accentOf(e.color, 0);
+    const from = e.color !== undefined ? accentOf(e.color, 0) : (colorOf.get(e.def.from) ?? accentOf(undefined, k));
+    const to = e.color !== undefined ? from : (colorOf.get(e.def.to) ?? from);
     const a = pieceAlpha(e) * d.appear;
     const pts = bezierPoints(route.a, route.b, route.c, route.d);
     runs.set(e.id, { pts, appear: easeOut(e.appear) });
@@ -412,29 +428,23 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.globalAlpha = a;
-    softShadow(ctx);
-    ctx.strokeStyle = rgbCss(color, 1);
-    ctx.lineWidth = 2.3;
-    glow(ctx, e, color);
+    // A thick rounded connector that runs from the colour of the node it leaves to the colour of the node it reaches, and ends in a dot.
+    if (Math.hypot(route.d.x - route.a.x, route.d.y - route.a.y) > 1) {
+      const grad = ctx.createLinearGradient(route.a.x, route.a.y, route.d.x, route.d.y);
+      grad.addColorStop(0, rgbCss(from, 0.8));
+      grad.addColorStop(1, rgbCss(to, 0.8));
+      ctx.strokeStyle = grad;
+    } else ctx.strokeStyle = rgbCss(to, 0.8);
+    ctx.lineWidth = lineW;
+    glow(ctx, e, to);
     const { tip, angle } = strokePartial(ctx, pts, easeOut(e.appear));
     ctx.shadowBlur = 0;
     if (e.appear > 0.55) {
-      // A kite-shaped head with rounded corners: a notch at the back so it reads as an arrow, not a wedge.
-      const h = Math.max(11, env.px * 0.86);
-      const ca = Math.cos(angle), sa = Math.sin(angle);
-      const wing = 0.46, notch = 0.62;
-      ctx.fillStyle = rgbCss(color, 1);
-      ctx.strokeStyle = rgbCss(color, 1);
-      ctx.lineWidth = 1.2;
-      ctx.lineJoin = 'round';
+      // The dot sits a little back from the tip, on the line, so it is not hidden by the node the line runs under. An arrow still being drawn has none yet.
+      ctx.fillStyle = rgbCss(to, 1);
       ctx.beginPath();
-      ctx.moveTo(tip.x, tip.y);
-      ctx.lineTo(tip.x - h * Math.cos(angle - wing), tip.y - h * Math.sin(angle - wing));
-      ctx.lineTo(tip.x - h * notch * ca, tip.y - h * notch * sa);
-      ctx.lineTo(tip.x - h * Math.cos(angle + wing), tip.y - h * Math.sin(angle + wing));
-      ctx.closePath();
+      ctx.arc(tip.x - Math.cos(angle) * dotR * 1.1, tip.y - Math.sin(angle) * dotR * 1.1, dotR, 0, Math.PI * 2);
       ctx.fill();
-      ctx.stroke();
     }
     if (e.def.text && e.appear > 0.7) {
       const px = env.px * 0.78;
@@ -443,24 +453,23 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
       const own = runs.get(e.id);
       if (own) own.label = { x0: route.mid.x - tw / 2 - 8, y0: route.mid.y - px * 0.8, x1: route.mid.x + tw / 2 + 8, y1: route.mid.y + px * 0.8 };
       ctx.globalAlpha = a * Math.min(1, (e.appear - 0.7) / 0.3);
-      ctx.fillStyle = 'rgba(19,25,39,0.97)';
+      ctx.fillStyle = tone.chip;
       roundRect(ctx, route.mid.x - tw / 2 - 8, route.mid.y - px * 0.8, tw + 16, px * 1.6, px * 0.8);
       ctx.fill();
       ctx.lineWidth = 1;
-      ctx.strokeStyle = rgbCss(color, 0.42);
+      ctx.strokeStyle = tone.chipLine;
       ctx.stroke();
-      ctx.fillStyle = 'rgba(232,238,248,0.96)';
+      ctx.fillStyle = tone.muted;
       ctx.textBaseline = 'middle';
       ctx.fillText(e.def.text, route.mid.x - tw / 2, route.mid.y + px * 0.04);
     }
     ctx.restore();
-    void k;
   });
   for (const s of d.items) if (s.def.op === 'stream') drawStream(env, s as DiagramItemFrame & { def: StreamPiece }, d.appear, runs);
   nodes.forEach((n, i) => {
     const b = boxes.get(n.id);
     if (!b || n.appear <= 0) return;
-    const color = accentOf(n.color, n.color === undefined ? 0 : i);
+    const color = colorOf.get(n.id) as Rgb;
     const a = pieceAlpha(n) * d.appear;
     const grow = 0.9 + 0.1 * easeOut(n.appear);
     ctx.save();
@@ -469,30 +478,24 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
     ctx.translate(mx, my);
     ctx.scale(grow, grow);
     ctx.translate(-mx, -my);
-    const nodeRadius = Math.min(13, b.h * 0.34);
+    // A node is a tinted capsule of its own colour with a fine line of that colour round it, and its number in a disc of the colour.
+    const nodeRadius = Math.min(26, b.h * 0.32);
     if (n.pulse > 0) glow(ctx, n, color);
-    else {
-      ctx.shadowColor = 'rgba(4,8,18,0.42)';
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetY = 3;
-    }
-    // A node is a small lit pane of its own colour: tinted at the top, deeper at the foot, with a fine light line along its top edge.
-    const pane = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
-    pane.addColorStop(0, rgbCss(color, 0.30));
-    pane.addColorStop(1, rgbCss(color, 0.11));
-    ctx.fillStyle = 'rgba(14,19,31,0.9)';
+    ctx.fillStyle = rgbCss(color, tone.tint);
     roundRect(ctx, b.x, b.y, b.w, b.h, nodeRadius);
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
-    ctx.fillStyle = pane;
-    ctx.fill();
-    ctx.lineWidth = 1.3;
-    ctx.strokeStyle = rgbCss(color, 0.9);
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = rgbCss(color, tone.tintLine);
     ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.22)';
-    ctx.fillRect(b.x + nodeRadius, b.y + 1.2, Math.max(0, b.w - nodeRadius * 2), 1);
-    textInBox(ctx, n.def.text, n.def.note, b, env.px, theme.ink, theme.muted);
+    const lp = Math.max(8, b.h * 0.19), br = Math.max(7, Math.min(14, b.h * 0.19));
+    // A capsule too narrow for a disc and its words keeps the words (centred) and drops the disc.
+    if (b.w >= (lp + br) * 2 + env.px * 4.2) {
+      const cx = b.x + lp + br, cy = b.y + b.h / 2;
+      discWithNumber(ctx, cx, cy, br, color, String(i + 1));
+      const x0 = cx + br + lp * 0.7;
+      textInBox(ctx, n.def.text, n.def.note, { x: x0, y: b.y, w: b.x + b.w - x0 - lp * 0.6, h: b.h }, env.px, tone.ink, tone.muted, 'left');
+    } else textInBox(ctx, n.def.text, n.def.note, b, env.px, tone.ink, tone.muted);
     ctx.restore();
   });
 }
@@ -502,8 +505,9 @@ function drawFlow(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<st
  * out for want of room (it is the point of some boxes): in a short box the text and the note both go small, down to 9 px, and last
  * of all the text is cut to one line, and the note still stands in full (a hair over the box before a word of it is lost).
  */
-function textInBox(ctx: Ctx, text: string, note: string | undefined, b: Px, basePx: number, ink: string, muted: string): void {
-  const innerW = b.w - 14;
+function textInBox(ctx: Ctx, text: string, note: string | undefined, b: Px, basePx: number, ink: string, muted: string, align: 'center' | 'left' = 'center'): void {
+  const innerW = b.w - (align === 'left' ? 4 : 14);
+  const startX = (w: number): number => (align === 'left' ? b.x : b.x + b.w / 2 - w / 2);
   const wrapAt = (font: string, s: string, max: number): string[] => wrapLines((t) => { ctx.font = font; return ctx.measureText(t).width; }, s, innerW, max);
   const fitAt = (px: number, noteMax: number, textMax = 3): { lines: string[]; noteLines: string[]; notePx: number; ok: boolean } => {
     const notePx = Math.max(9, px * 0.82);
@@ -527,13 +531,13 @@ function textInBox(ctx: Ctx, text: string, note: string | undefined, b: Px, base
   ctx.font = fontAt(THEME.font, px);
   ctx.fillStyle = ink;
   for (const l of lines) {
-    ctx.fillText(l, b.x + b.w / 2 - ctx.measureText(l).width / 2, y);
+    ctx.fillText(l, startX(ctx.measureText(l).width), y);
     y += px * 1.2;
   }
   ctx.font = fontAt(THEME.font, notePx);
   ctx.fillStyle = muted;
   for (const l of noteLines) {
-    ctx.fillText(l, b.x + b.w / 2 - ctx.measureText(l).width / 2, y);
+    ctx.fillText(l, startX(ctx.measureText(l).width), y);
     y += notePx * 1.2;
   }
 }
@@ -541,52 +545,91 @@ function textInBox(ctx: Ctx, text: string, note: string | undefined, b: Px, base
 // ---- Timeline --------------------------------------------------------------------------------------
 
 function drawTimeline(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<string>): void {
-  const { ctx } = env;
+  const { ctx, tone } = env;
   const theme = THEME;
   const events = d.items.filter((i): i is DiagramItemFrame & { def: NodeAction } => i.def.op === 'node');
   if (events.length === 0) return;
   const measureAt = (font: string) => (t: string): number => { ctx.font = font; return ctx.measureText(t).width; };
-  type Label = { when: string[]; text: string[]; note: string[]; w: number; h: number };
-  const build = (px: number): { labels: Map<string, Label>; lay: ReturnType<typeof timelineLayout> } => {
-  const whenPx = px * 1.08, textPx = px, notePx = px * 0.84;
+  type Label = { when: string[]; text: string[]; note: string[]; w: number; h: number; pillW: number; inline: boolean };
+  // In a short panel the date sits in its pill beside the event (when the event is one short line), instead of in a row of its own.
+  const build = (px: number, compact: boolean, wrap: number, notes = true): { labels: Map<string, Label>; lay: ReturnType<typeof timelineLayout> } => {
+  const whenPx = px * 0.92, textPx = px, notePx = px * 0.84;
+  // A label is a tinted chip: a pill with the date, then the event and its note, with room round them.
+  const padX = Math.max(10, px * 0.95), padY = Math.max(compact ? 6 : 8, px * (compact ? 0.5 : 0.7)), pillH = whenPx * 1.75, pillGap = px * 0.4;
   // Each label: its lines and size, wrapped to a width that leaves room for the others.
   // Along a tall area the labels stand to the right of the axis and may use most of the width; along a wide one they share it.
   const tall = area.w - 2 * pad < (area.h - 2 * pad) * 0.9;
-  const maxW = tall ? Math.max(70, (area.w - 2 * pad) * 0.7 - 20) : Math.max(70, Math.min(area.w * 0.3, px * 15));
+  const maxW = tall ? Math.max(70, (area.w - 2 * pad) * 0.7 - 20 - 2 * padX) : Math.max(70, Math.min(area.w * 0.3, px * 15) * wrap - 2 * padX);
   const labels = new Map<string, Label>();
   for (const e of events) {
     const when = e.def.when ? wrapLines(measureAt(fontAt(theme.titleFont, whenPx)), e.def.when, maxW, 1) : [];
     const text = wrapLines(measureAt(fontAt(theme.font, textPx)), e.def.text, maxW, tall ? 5 : 3);
-    const note = e.def.note ? wrapLines(measureAt(fontAt(theme.font, notePx)), e.def.note, maxW, 2) : [];
-    let w = 0;
-    for (const l of when) w = Math.max(w, measureAt(fontAt(theme.titleFont, whenPx))(l));
+    // A narrower wrap makes more lines, so the note may have a third: it is cut only when nothing is left of its room.
+    const note = notes && e.def.note ? wrapLines(measureAt(fontAt(theme.font, notePx)), e.def.note, maxW, wrap < 1 ? 3 : 2) : [];
+    let w = 0, pillW = 0;
+    for (const l of when) { pillW = measureAt(fontAt(theme.titleFont, whenPx))(l) + whenPx * 1.4; w = Math.max(w, pillW); }
     for (const l of text) w = Math.max(w, measureAt(fontAt(theme.font, textPx))(l));
     for (const l of note) w = Math.max(w, measureAt(fontAt(theme.font, notePx))(l));
-    labels.set(e.id, { when, text, note, w: w + 4, h: when.length * whenPx * 1.25 + text.length * textPx * 1.22 + note.length * notePx * 1.2 + 2 });
+    const textW = Math.max(0, ...text.map(measureAt(fontAt(theme.font, textPx))));
+    const inline = compact && when.length > 0 && text.length === 1 && pillW + pillGap + textW <= maxW;
+    if (inline) w = Math.max(pillW + pillGap + textW, ...note.map(measureAt(fontAt(theme.font, notePx))));
+    labels.set(e.id, { when, text, note, pillW, inline, w: w + 4 + 2 * padX, h: 2 * padY + (inline ? Math.max(pillH, textPx * 1.22) : (when.length > 0 ? pillH + pillGap : 0) + text.length * textPx * 1.22) + note.length * notePx * 1.2 + 2 });
   }
   const lay = timelineLayout(events.map((e) => ({ id: e.id, ...(e.def.pos !== undefined ? { pos: e.def.pos } : {}) })), area, pad, (id) => labels.get(id) ?? { w: 40, h: 20 });
   return { labels, lay };
   };
   // If the labels do not fit the room, the text comes down a size at a time (to a floor) until they do.
-  let px = env.px * 1.02;
-  let made = build(px);
-  for (let tries = 0; made.lay.overflow && px > env.px * 0.62 && tries < 6; tries++) {
-    px *= 0.92;
-    made = build(px);
+  // Roomy first (a row for the date); a little smaller is better than cramped, then the date goes beside the event, then the words wrap narrower
+  // (a panel with height to spare and little width), and last the words go smaller still, down to a floor.
+  // Last of all, when nothing fits with its notes, the notes go (a date and an event with no note is better than chips written over each other).
+  const tries: Array<[boolean, number, number, boolean]> = [];
+  for (const [compact, wrap, sizes, notes] of [[false, 1, [1.02, 0.94, 0.865], true], [true, 1, [1.02, 0.94, 0.865, 0.8], true], [true, 0.7, [1.02, 0.94, 0.865, 0.8, 0.73, 0.67, 0.62], true], [true, 0.7, [0.94, 0.8, 0.67], false]] as Array<[boolean, number, number[], boolean]>) for (const f of sizes) tries.push([compact, wrap, f, notes]);
+  // Which attempt fits is worked out once for the labels, the room and the text size, not on every frame (each attempt measures every label).
+  const signature = JSON.stringify([Math.round(area.w), Math.round(area.h), Math.round(pad), Math.round(env.px * 10), events.map((e) => [e.def.text, e.def.when, e.def.note, e.def.pos])]);
+  const remembered = env.painter.timelineChoices.get(d.key);
+  env.painter.timelineLive.add(d.key);
+  let index = remembered && remembered.signature === signature ? remembered.index : -1;
+  if (index < 0) {
+    // The first that fits; failing that, of those whose chips do not overlap, the one that runs least past the panel (the earlier on a tie); failing that the last.
+    const lays = (k: number) => build(env.px * tries[k]![2], tries[k]![0], tries[k]![1], tries[k]![3]).lay;
+    index = tries.findIndex((_, k) => !lays(k).overflow);
+    if (index < 0) {
+      let least = Infinity;
+      tries.forEach((_, k) => { const lay = lays(k); if (!lay.overlap && lay.overrun < least - 0.5) { least = lay.overrun; index = k; } });
+    }
+    if (index < 0) index = tries.length - 1;
+    env.painter.timelineChoices.set(d.key, { signature, index });
   }
+  const chosen = tries[index]!;
+  const made = build(env.px * chosen[2], chosen[0], chosen[1], chosen[3]);
+  const compact = chosen[0];
+  const px = env.px * chosen[2];
   const { labels, lay } = made;
-  const whenPx = px * 1.08, textPx = px, notePx = px * 0.84;
-  // The axis draws on along with the diagram.
+  const whenPx = px * 0.92, textPx = px, notePx = px * 0.84;
+  const padX = Math.max(10, px * 0.95), padY = Math.max(compact ? 6 : 8, px * (compact ? 0.5 : 0.7)), pillH = whenPx * 1.75, pillGap = px * 0.4;
+  const colors = new Map<string, Rgb>(events.map((e, i) => [e.id, accentOf(e.color, i)]));
+  // The track is graded from event to event: each event's colour at its own place along the axis. It draws on along with the diagram.
+  const ax = lay.axis.b.x - lay.axis.a.x, ay = lay.axis.b.y - lay.axis.a.y, along2 = Math.max(1, ax * ax + ay * ay);
+  const stops = events.flatMap((e) => {
+    const slot = lay.events.get(e.id);
+    return slot ? [{ t: Math.max(0, Math.min(1, ((slot.dot.x - lay.axis.a.x) * ax + (slot.dot.y - lay.axis.a.y) * ay) / along2)), color: colors.get(e.id) as Rgb }] : [];
+  }).sort((p, q) => p.t - q.t);
+  const trackW = Math.max(5, px * 0.55);
   ctx.save();
-  ctx.globalAlpha = d.appear * 0.9;
-  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-  ctx.lineWidth = 2;
+  ctx.globalAlpha = d.appear * 0.85;
+  const track = ctx.createLinearGradient(lay.axis.a.x, lay.axis.a.y, lay.axis.b.x, lay.axis.b.y);
+  if (stops.length === 0) track.addColorStop(0, tone.faint);
+  for (const s of stops) track.addColorStop(s.t, rgbCss(s.color, 1));
+  ctx.strokeStyle = track;
+  ctx.lineWidth = trackW;
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(lay.axis.a.x, lay.axis.a.y);
   ctx.lineTo(lay.axis.b.x, lay.axis.b.y);
   ctx.stroke();
   ctx.restore();
+  // The markers and stems are drawn first and the chips after them, so a stem that runs past another event's chip goes behind it.
+  const later: Array<() => void> = [];
   events.forEach((e, i) => {
     const slot = lay.events.get(e.id);
     const label = labels.get(e.id);
@@ -594,88 +637,127 @@ function drawTimeline(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Se
     const dotBox = env.painter.ease(`${d.key}:${e.key}`, { x: slot.dot.x, y: slot.dot.y, w: 0, h: 0 }, env.dt, seen);
     const dot = { x: dotBox.x, y: dotBox.y };
     const rect = env.painter.ease(`${d.key}:${e.key}:label`, slot.rect, env.dt, seen);
-    const color = accentOf(e.color, e.color === undefined ? 0 : i);
+    const color = colors.get(e.id) ?? accentOf(e.color, i);
     const a = pieceAlpha(e) * d.appear;
     ctx.save();
     glow(ctx, e, color);
     const pop = easeOut(e.appear / 0.5);
     ctx.globalAlpha = a;
-    ctx.fillStyle = theme.surface;
+    // The event's marker on the track: a ring of its colour round a hollow in the face of the panel.
+    const ringR = Math.max(6, px * 0.64);
+    ctx.fillStyle = tone.core;
+    ctx.strokeStyle = rgbCss(color, 1);
+    ctx.lineWidth = Math.max(2.6, px * 0.3);
     ctx.beginPath();
-    ctx.arc(dot.x, dot.y, 8 * pop, 0, Math.PI * 2);
+    ctx.arc(dot.x, dot.y, ringR * pop, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
     ctx.shadowBlur = 0;
-    ctx.fillStyle = rgbCss(color, 1);
-    ctx.beginPath();
-    ctx.arc(dot.x, dot.y, 5.2 * pop, 0, Math.PI * 2);
-    ctx.fill();
     const show = easeOut((e.appear - 0.35) / 0.65);
     if (show > 0) {
       ctx.globalAlpha = a * show;
-      // The stem from the dot to the label.
-      ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-      ctx.lineWidth = 1.4;
+      // The stem from the marker to the chip.
+      ctx.strokeStyle = rgbCss(color, 0.5);
+      ctx.lineWidth = 1.6;
       ctx.beginPath();
       if (lay.horizontal) {
-        ctx.moveTo(dot.x, dot.y + slot.side * 8);
-        ctx.lineTo(dot.x, slot.side === -1 ? rect.y + rect.h + 2 : rect.y - 2);
+        ctx.moveTo(dot.x, dot.y + slot.side * (ringR + 2));
+        ctx.lineTo(dot.x, slot.side === -1 ? rect.y + rect.h : rect.y);
       } else {
-        ctx.moveTo(dot.x + 8, dot.y);
-        ctx.lineTo(rect.x - 3, Math.max(rect.y + 6, Math.min(rect.y + rect.h - 6, dot.y)));
+        ctx.moveTo(dot.x + ringR + 2, dot.y);
+        ctx.lineTo(rect.x, Math.max(rect.y + 6, Math.min(rect.y + rect.h - 6, dot.y)));
       }
       ctx.stroke();
+      later.push(() => {
+      ctx.save();
+      ctx.globalAlpha = a * show;
+      // The chip: tinted, with a fine line of the event's colour.
+      ctx.fillStyle = rgbCss(color, tone.tint);
+      roundRect(ctx, rect.x, rect.y, rect.w, rect.h, Math.min(22, rect.h * 0.3));
+      ctx.fill();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = rgbCss(color, tone.tintLine);
+      ctx.stroke();
       ctx.textBaseline = 'alphabetic';
-      let y = rect.y;
-      const center = lay.horizontal;
+      let y = rect.y + padY;
+      const x = rect.x + padX;
+      if (label.when.length > 0) {
+        // The date in a pill of the colour.
+        ctx.fillStyle = rgbCss(color, 1);
+        roundRect(ctx, x, y, label.pillW, pillH, pillH / 2);
+        ctx.fill();
+        ctx.font = fontAt(theme.titleFont, whenPx);
+        ctx.fillStyle = onAccent(color);
+        ctx.fillText(label.when[0] as string, x + whenPx * 0.7, y + pillH / 2 + whenPx * 0.36);
+        if (label.inline) {
+          // The event itself on the pill's line.
+          ctx.font = fontAt(theme.titleFont, textPx);
+          ctx.fillStyle = tone.ink;
+          ctx.fillText(label.text[0] as string, x + label.pillW + pillGap, y + pillH / 2 + textPx * 0.36);
+          y += Math.max(pillH, textPx * 1.22);
+        } else y += pillH + pillGap;
+      }
       const put = (l: string, font: string, ink: string, size: number, lead: number): void => {
         ctx.font = font;
         ctx.fillStyle = ink;
         y += size * lead * 0.82;
-        const w = ctx.measureText(l).width;
-        ctx.fillText(l, center ? rect.x + (rect.w - w) / 2 : rect.x, y);
+        ctx.fillText(l, x, y);
         y += size * lead * 0.18;
       };
-      for (const l of label.when) put(l, fontAt(theme.titleFont, whenPx), rgbCss(color, 1), whenPx, 1.25);
-      for (const l of label.text) put(l, fontAt(theme.font, textPx), theme.ink, textPx, 1.22);
-      for (const l of label.note) put(l, fontAt(theme.font, notePx), theme.muted, notePx, 1.2);
+      if (!label.inline) for (const l of label.text) put(l, fontAt(theme.titleFont, textPx), tone.ink, textPx, 1.22);
+      for (const l of label.note) put(l, fontAt(theme.font, notePx), tone.muted, notePx, 1.2);
+      ctx.restore();
+      });
     }
     ctx.restore();
   });
+  for (const draw of later) draw();
 }
 
 // ---- Steps -----------------------------------------------------------------------------------------
 
 function drawSteps(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<string>): void {
-  const { ctx } = env;
+  const { ctx, tone } = env;
   const theme = THEME;
   const steps = d.items.filter((i): i is DiagramItemFrame & { def: NodeAction } => i.def.op === 'node');
   if (steps.length === 0) return;
   const lay = stepsLayout(steps.length, area, pad, env.px * 4.4);
+  // The step in hand is the first one not done yet; it is the one lit.
+  const current = steps.findIndex((s) => s.done <= 0.5);
+  const teal = frostAccent(1), blue = frostAccent(0);
   steps.forEach((s, i) => {
     const target = lay.rows[i];
     if (!target || s.appear <= 0) return;
     const row = env.painter.ease(`${d.key}:${s.key}`, target, env.dt, seen);
-    const color = accentOf(s.color, i);
+    const color = s.color !== undefined ? accentOf(s.color, i) : blue;
     const a = pieceAlpha(s) * d.appear;
     const done = s.done;
+    const lit = i === current;
     ctx.save();
     ctx.globalAlpha = a * Math.min(1, s.appear * 1.6);
     ctx.translate((1 - easeOut(s.appear)) * -8, 0);
     glow(ctx, s, color);
-    const r = Math.max(9, Math.min(row.h * 0.32, env.px * 0.95));
-    const cx = row.x + r + 2, cy = row.y + row.h / 2;
-    ctx.fillStyle = done > 0 ? rgbCss(GREEN, done) : 'rgba(255,255,255,0.06)';
-    ctx.strokeStyle = done > 0.5 ? rgbCss(GREEN, 1) : rgbCss(color, 1);
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    // A row is a soft rounded tile: the step in hand tinted with its colour and outlined, the others a neutral tone.
+    const rowR = Math.min(22, row.h * 0.34);
+    const gap = Math.min(5, row.h * 0.06);
+    ctx.fillStyle = lit ? rgbCss(color, tone.tint + 0.03) : tone.row;
+    roundRect(ctx, row.x, row.y + gap, row.w, row.h - gap * 2, rowR);
     ctx.fill();
-    ctx.stroke();
     ctx.shadowBlur = 0;
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = lit ? rgbCss(color, 0.62) : tone.chipLine;
+    ctx.stroke();
+    const r = Math.max(9, Math.min(row.h * 0.3, env.px * 0.95));
+    const cx = row.x + r + Math.max(8, row.h * 0.2), cy = row.y + row.h / 2;
     ctx.textBaseline = 'middle';
     if (done > 0.5) {
-      ctx.strokeStyle = '#10141c';
-      ctx.lineWidth = 2.4;
+      // Done: a teal disc with a white tick.
+      ctx.fillStyle = rgbCss(teal, 1);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(2.2, r * 0.2);
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.beginPath();
@@ -683,14 +765,23 @@ function drawSteps(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<s
       ctx.lineTo(cx - r * 0.1, cy + r * 0.34);
       ctx.lineTo(cx + r * 0.44, cy - r * 0.32);
       ctx.stroke();
-    } else {
-      ctx.font = fontAt(theme.titleFont, r * 1.1);
-      ctx.fillStyle = theme.ink;
+    } else if (lit) discWithNumber(ctx, cx, cy, r, color, String(i + 1));
+    else {
+      // Still to do: a ring and its number, quiet.
+      ctx.strokeStyle = tone.muted;
+      ctx.globalAlpha *= 0.7;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.font = fontAt(theme.titleFont, r * 0.95);
+      ctx.fillStyle = tone.muted;
       const n = String(i + 1);
       ctx.fillText(n, cx - ctx.measureText(n).width / 2, cy + r * 0.05);
+      ctx.globalAlpha /= 0.7;
     }
-    const x = cx + r + env.px * 0.7;
-    const innerW = row.x + row.w - x - 4;
+    const x = cx + r + env.px * 0.75;
+    const innerW = row.x + row.w - x - Math.max(8, row.h * 0.2);
     const px = Math.min(env.px * 1.02, row.h * 0.4);
     const notePx = px * 0.82;
     const measure = (font: string) => (t: string): number => { ctx.font = font; return ctx.measureText(t).width; };
@@ -699,15 +790,15 @@ function drawSteps(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<s
     const total = text.length * px * 1.22 + note.length * notePx * 1.2;
     let y = cy - total / 2;
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = done > 0.5 ? theme.muted : theme.ink;
-    ctx.font = fontAt(theme.font, px);
+    ctx.fillStyle = done > 0.5 ? tone.muted : tone.ink;
+    ctx.font = fontAt(lit ? theme.titleFont : theme.font, px);
     for (const l of text) {
       y += px * 1.0;
       ctx.fillText(l, x, y);
       y += px * 0.22;
     }
     ctx.font = fontAt(theme.font, notePx);
-    ctx.fillStyle = theme.muted;
+    ctx.fillStyle = tone.muted;
     for (const l of note) {
       y += notePx * 1.0;
       ctx.fillText(l, x, y);
@@ -716,7 +807,6 @@ function drawSteps(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Set<s
     ctx.restore();
   });
 }
-
 // ---- Chart -----------------------------------------------------------------------------------------
 
 /** Wraps a chart label without dropping words, splitting long unbroken values only when needed. */
@@ -742,7 +832,7 @@ function chartLabelLines(text: string, measure: (s: string) => number, maxW: num
 }
 
 function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
-  const { ctx } = env;
+  const { ctx, tone } = env;
   const theme = THEME;
   const series = d.items.filter((i): i is DiagramItemFrame & { def: SeriesAction } => i.def.op === 'series');
   const dots = d.items.filter((i): i is DiagramItemFrame & { def: DotAction } => i.def.op === 'dot');
@@ -751,7 +841,10 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
   const data = { series: series.map((s) => ({ pts: s.def.pts as Array<[number, number]> })), dots: dots.map((p) => ({ x: p.def.x, y: p.def.y })), ...(d.def.xrange ? { xrange: d.def.xrange } : {}), ...(d.def.yrange ? { yrange: d.def.yrange } : {}) };
   const probe = chartLayout(data, area, { left: 40, bottom: 30, top: 8, right: 20 });
   const yLabelW = Math.max(0, ...probe.yTicks.map((t) => ctx.measureText(formatTick(t.v, probe.yStep)).width));
-  const labelRoom = Math.max(0, ...series.map((s) => (s.def.label ? Math.min(area.w * 0.28, ctx.measureText(s.def.label).width + 10) : 0)));
+  // The names are drawn in the title font at 1.1 times the tick size, so the room for them is measured in that font.
+  ctx.font = fontAt(theme.titleFont, tickPx * 1.1);
+  const labelRoom = Math.max(0, ...series.map((s) => (s.def.label ? Math.min(area.w * 0.28, ctx.measureText(s.def.label).width + 14) : 0)));
+  ctx.font = fontAt(theme.font, tickPx);
   const baseRoom = {
     left: pad * 0.6 + yLabelW + (d.def.ylabel ? tickPx * 1.5 : 0) + 8,
     bottom: tickPx * 2 + (d.def.xlabel ? tickPx * 1.6 : 0) + 6,
@@ -783,21 +876,20 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
   const chartLabelObstacles: Px[] = [];
   ctx.save();
   ctx.globalAlpha = d.appear;
-  // Grid and axes.
+  // Frost: no frame and no boxed grid, only faint rules across the plot (and a short tick under each x label) and a firmer line at the foot.
   ctx.lineWidth = 1;
-  ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+  ctx.strokeStyle = tone.faint;
   ctx.beginPath();
   for (const t of lay.yTicks) { ctx.moveTo(plot.x, t.px); ctx.lineTo(plot.x + plot.w, t.px); }
-  for (const t of lay.xTicks) { ctx.moveTo(t.px, plot.y); ctx.lineTo(t.px, plot.y + plot.h); }
+  for (const t of lay.xTicks) { ctx.moveTo(t.px, plot.y + plot.h); ctx.lineTo(t.px, plot.y + plot.h + 4); }
   ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-  ctx.lineWidth = 1.6;
+  ctx.strokeStyle = tone.chipLine;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(plot.x, plot.y);
-  ctx.lineTo(plot.x, plot.y + plot.h);
+  ctx.moveTo(plot.x, plot.y + plot.h);
   ctx.lineTo(plot.x + plot.w, plot.y + plot.h);
   ctx.stroke();
-  ctx.fillStyle = theme.muted;
+  ctx.fillStyle = tone.muted;
   ctx.font = fontAt(theme.font, tickPx);
   ctx.textBaseline = 'middle';
   for (const t of lay.yTicks) {
@@ -814,7 +906,7 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
     chartLabelObstacles.push({ x, y: y - tickPx, w, h: tickPx * 1.2 });
   }
   ctx.font = fontAt(theme.font, tickPx * 1.05);
-  ctx.fillStyle = theme.ink;
+  ctx.fillStyle = tone.muted;
   if (d.def.xlabel) {
     const w = ctx.measureText(d.def.xlabel).width, x = plot.x + plot.w / 2 - w / 2, y = plot.y + plot.h + tickPx * 3.2;
     ctx.fillText(d.def.xlabel, x, y);
@@ -831,12 +923,37 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
     chartLabelObstacles.push({ x: cx - tickPx * 0.6, y: cy - w / 2, w: tickPx * 1.2, h: w });
   }
   ctx.restore();
-  // Lines and curves, drawn along from their first point; they stay inside the plot.
+  // Lines and curves, drawn along from their first point; they stay inside the plot. A curve that runs left to right is tinted under, a little less
+  // the more there are; with many series the lines alone carry it.
+  const tintUnder = series.length <= 3 ? [0.3, 0.26, 0.2][series.length - 1] ?? 0 : 0;
+  const pathOf = (s: (typeof series)[number]): Pt[] => {
+    const px = s.def.pts.map(([x, y]) => lay.toPx(x, y));
+    return s.def.curve ? smoothPoints(px) : px;
+  };
+  // The names of the series stand at the ends of their lines; where two ends are close the names are pushed apart, top to bottom, so none is written over another.
+  const spots = new Map<string, { x: number; y: number }>();
+  {
+    ctx.font = fontAt(theme.titleFont, tickPx * 1.1);
+    const lo = plot.y + 6, hi = plot.y + plot.h - 6, gapY = tickPx * 1.3;
+    for (const s of series) {
+      const path = s.def.label ? pathOf(s) : [];
+      const end = path[path.length - 1];
+      if (!s.def.label || !end) continue;
+      const w = ctx.measureText(s.def.label).width;
+      const x = end.x + 8 + w <= area.x + area.w - 4 ? end.x + 8 : end.x - 8 - w;
+      spots.set(s.id, { x, y: Math.max(lo, Math.min(hi, end.y - (x < end.x ? 12 : 0))) });
+    }
+    const order = [...spots.values()].sort((p, q) => p.y - q.y);
+    for (let k = 1; k < order.length; k++) if (order[k]!.y < order[k - 1]!.y + gapY) order[k]!.y = order[k - 1]!.y + gapY;
+    if (order.length > 0 && order[order.length - 1]!.y > hi) {
+      order[order.length - 1]!.y = hi;
+      for (let k = order.length - 2; k >= 0; k--) if (order[k]!.y > order[k + 1]!.y - gapY) order[k]!.y = Math.max(lo, order[k + 1]!.y - gapY);
+    }
+  }
   series.forEach((s, i) => {
     if (s.appear <= 0) return;
     const color = accentOf(s.color, i);
-    const px = s.def.pts.map(([x, y]) => lay.toPx(x, y));
-    const pts = s.def.curve ? smoothPoints(px) : px;
+    const pts = pathOf(s);
     const a = pieceAlpha(s) * d.appear;
     ctx.save();
     ctx.beginPath();
@@ -845,22 +962,36 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.globalAlpha = a;
-    softShadow(ctx);
+    const foot = plot.y + plot.h;
+    if (tintUnder > 0 && pts.length > 1 && pts.every((p, k) => k === 0 || p.x >= pts[k - 1]!.x - 0.5)) {
+      const top = Math.min(...pts.map((p) => p.y));
+      const fill = ctx.createLinearGradient(0, top, 0, foot);
+      fill.addColorStop(0, rgbCss(color, tintUnder));
+      fill.addColorStop(1, rgbCss(color, 0));
+      ctx.globalAlpha = a * easeOut(s.appear);
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.moveTo(pts[0]!.x, foot);
+      for (const p of pts) ctx.lineTo(p.x, Math.min(foot, p.y));
+      ctx.lineTo(pts[pts.length - 1]!.x, foot);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = a;
+    }
     ctx.strokeStyle = rgbCss(color, 1);
-    ctx.lineWidth = 2.2;
+    ctx.lineWidth = Math.max(2.6, env.px * 0.27);
     glow(ctx, s, color);
     const { tip } = strokePartial(ctx, pts, easeOut(s.appear));
     ctx.restore();
-    if (s.def.label && s.appear > 0.8) {
+    const spot = spots.get(s.id);
+    if (s.def.label && s.appear > 0.8 && spot) {
       ctx.save();
       ctx.globalAlpha = a * Math.min(1, (s.appear - 0.8) / 0.2);
       ctx.font = fontAt(theme.titleFont, tickPx * 1.1);
       ctx.fillStyle = rgbCss(color, 1);
       ctx.textBaseline = 'middle';
-      const end = pts[pts.length - 1]!;
       const w = ctx.measureText(s.def.label).width;
-      const x = end.x + 8 + w <= area.x + area.w - 4 ? end.x + 8 : end.x - 8 - w;
-      const y = Math.max(plot.y + 6, Math.min(plot.y + plot.h - 6, end.y - (x < end.x ? 12 : 0)));
+      const { x, y } = spot;
       ctx.fillText(s.def.label, x, y);
       chartLabelObstacles.push({ x: x - 3, y: y - tickPx * 0.75, w: w + 6, h: tickPx * 1.5 });
       ctx.restore();
@@ -900,15 +1031,20 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
     ctx.save();
     ctx.globalAlpha = a;
     glow(ctx, p, color);
-    ctx.fillStyle = '#ffffff';
+    // A point on the chart: a soft halo of its colour, and a white ring of it.
+    const ringR = Math.max(6, env.px * 0.55);
+    ctx.fillStyle = rgbCss(color, 0.22);
     ctx.beginPath();
-    ctx.arc(c.x, c.y, 6.5 * pop, 0, Math.PI * 2);
+    ctx.arc(c.x, c.y, ringR * 2 * pop, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.fillStyle = rgbCss(color, 1);
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = rgbCss(color, 1);
+    ctx.lineWidth = Math.max(2.4, env.px * 0.24);
     ctx.beginPath();
-    ctx.arc(c.x, c.y, 3.6 * pop, 0, Math.PI * 2);
+    ctx.arc(c.x, c.y, ringR * pop, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
     const textLayout = labelLines.get(p.id);
     if (p.def.text && p.appear > 0.5 && textLayout) {
       ctx.globalAlpha = a * Math.min(1, (p.appear - 0.5) / 0.5);
@@ -932,13 +1068,13 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
         ctx.lineTo(end.x, end.y);
         ctx.stroke();
       }
-      ctx.fillStyle = theme.surface;
-      roundRect(ctx, rect.x, rect.y, rect.w, rect.h, px * 0.7);
+      ctx.fillStyle = tone.chip;
+      roundRect(ctx, rect.x, rect.y, rect.w, rect.h, Math.min(rect.h / 2, px * 0.9));
       ctx.fill();
-      ctx.strokeStyle = theme.line;
+      ctx.strokeStyle = rgbCss(labelColor, 0.55);
       ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.fillStyle = theme.ink;
+      ctx.fillStyle = tone.ink;
       ctx.textBaseline = 'middle';
       ctx.font = fontAt(theme.font, px);
       lines.forEach((line, lineIndex) => ctx.fillText(line, rect.x + 6, rect.y + rect.h / 2 + px * 0.03 + (lineIndex - (lines.length - 1) / 2) * px * 1.2));
