@@ -720,6 +720,8 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   }
   if (variant.name === 'joint' && !checkJoint(out, state, path, notes)) return null;
   if (variant.name === 'couple' && !checkCouple(out, state, path, notes)) return null;
+  if (variant.name === 'lever' && !checkLever(out, state, path, notes)) return null;
+  if (variant.name === 'pulley' && !checkPulley(out, state, path, notes)) return null;
   if (variant.name === 'addTube' && out.closed === true && new Set((out.pts as Vec3[]).map((p) => p.join(','))).size < 3) {
     note(notes, 'dropped', `${path}.pts`, 'a closed tube needs at least three distinct points');
     return null;
@@ -892,6 +894,37 @@ function checkCouple(out: Record<string, unknown>, state: SceneState, path: stri
     return false;
   }
   state.follows.set(id, by);
+  return true;
+}
+
+/** A lever is a hinge at a point of its beam: the point must be there. */
+function checkLever(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const id = out.id as string;
+  const fulcrum = (out.fulcrum as string | undefined) ?? 'center';
+  const points = state.bodies.get(id)?.anchors ?? { origin: ZERO };
+  if (!Object.hasOwn(points, fulcrum)) {
+    note(notes, 'dropped', `${path}.fulcrum`, `unknown point "${fulcrum}" on "${id}"; available: ${Object.keys(points).join(', ')}`);
+    return false;
+  }
+  out.fulcrum = fulcrum;
+  state.joints.set(id, 'hinge');
+  return true;
+}
+
+/** A pulley's load slides and follows the wheel, which turns by its own spin: neither may be the other. */
+function checkPulley(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const id = out.id as string;
+  const wheel = out.wheel as string;
+  if (wheel === id) {
+    note(notes, 'dropped', path, 'a pulley\'s load and wheel are different parts');
+    return false;
+  }
+  if (comesBack(state.follows, wheel, id)) {
+    note(notes, 'dropped', `${path}.wheel`, `${id} cannot follow ${wheel}: that follows ${id} already (a coupling loop)`);
+    return false;
+  }
+  state.joints.set(id, 'slide');
+  state.follows.set(id, wheel);
   return true;
 }
 

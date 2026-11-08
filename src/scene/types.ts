@@ -169,6 +169,10 @@ export type LoopAction = { op: 'loop'; id: string; kind?: 'slide' | 'swing' | 'p
 export type JointAction = { op: 'joint'; id: string; kind: 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball'; axis?: 'x' | 'y' | 'z'; dir?: Vec3; pivot?: Vec3; about?: string; limit?: Vec3; min?: number; max?: number; to?: string } & At;
 /** One joint follows another's value: ratio between two of a kind (gear, belt, lever arm), or pitch between a hinge and a slide (units of travel for a turn: a screw, a rack, a rope on a wheel). stop ends it. */
 export type CoupleAction = { op: 'couple'; id: string; by?: string; ratio?: number; pitch?: number; phase?: number; stop?: boolean } & At;
+/** A beam rocking about a fulcrum, in one op: a hinge at a point of the beam and a swing loop. */
+export type LeverAction = { op: 'lever'; id: string; fulcrum?: string; swing?: number; period?: number; phase?: number; axis?: 'x' | 'y' | 'z' } & At;
+/** A rope over a wheel in one op: the wheel turns and the load slides by the rope laid on it. */
+export type PulleyAction = { op: 'pulley'; id: string; wheel: string; radius?: number; rpm?: number } & At;
 export type FlashAction = { op: 'flash'; id: string; by: string; angle: number; span: number; cycle?: number } & At;
 
 // Camera, for the 3D panel.
@@ -187,7 +191,7 @@ export type GoAction = { op: 'go'; kind: 'tab' | 'open' | 'scroll'; x: number; y
 export type Action =
   | Mark | PanelAction | AddAction | DiagramThing | TickAction
   | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | AnchorAction | DetachAction | StyleAction | HighlightAction
-  | CutAction | SpinAction | CrankAction | CamAction | FlashAction | LoopAction | JointAction | CoupleAction
+  | CutAction | SpinAction | CrankAction | CamAction | FlashAction | LoopAction | JointAction | CoupleAction | LeverAction | PulleyAction
   | OrbitAction | ZoomAction | FocusAction | ClearAction | WaitAction | GoAction;
 
 export type Step = { say: string; actions: Action[] };

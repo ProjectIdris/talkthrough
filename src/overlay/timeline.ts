@@ -757,6 +757,32 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       end(0.2);
       return;
     }
+    case 'lever': {
+      // A hinge at the fulcrum and a swing about it, with nothing new in the engine.
+      const o = lookup(plan.objs, a.id, at);
+      if (!o) return;
+      const axis = a.axis ?? 'z';
+      applyAction(plan, { op: 'joint', id: a.id, kind: 'hinge', axis, about: a.fulcrum ?? 'center', at }, at, spinRamp, context);
+      applyAction(plan, { op: 'loop', id: a.id, kind: 'swing', axis, amount: a.swing ?? 20, period: a.period ?? 3, phase: a.phase ?? 0, at }, at, spinRamp, context);
+      return;
+    }
+    case 'pulley': {
+      // The wheel spins; the load slides on y, coupled by the length of rope that comes off a turn.
+      const load = lookup(plan.objs, a.id, at);
+      const wheel = lookup(plan.objs, a.wheel, at);
+      if (!load || !wheel || load.key === wheel.key) return;
+      let radius = a.radius;
+      if (radius === undefined) {
+        const points = anchorsOf({ ...wheel.def, ...(wheel.points ? { points: wheel.points } : {}) } as object);
+        const scale = asVec(valueAt(wheel.scale, at));
+        radius = Math.abs(((points.rim?.[0] ?? 0) - (points.center?.[0] ?? 0)) * scale[0]);
+        if (!(radius > 0)) radius = 1;
+      }
+      applyAction(plan, { op: 'spin', id: a.wheel, rpm: a.rpm ?? 20, at }, at, spinRamp, context);
+      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', axis: 'y', at }, at, spinRamp, context);
+      applyAction(plan, { op: 'couple', id: a.id, by: a.wheel, pitch: 2 * Math.PI * radius, at }, at, spinRamp, context);
+      return;
+    }
     case 'couple': {
       const o = lookup(plan.objs, a.id, at);
       if (!o) return;

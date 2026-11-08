@@ -4922,6 +4922,121 @@
       "additionalProperties": false,
       "description": "One joint follows another: its value is ratio times that of by, plus phase. Use ratio between two of a kind (gear, belt, lever) and pitch between a hinge and a slide (units of travel for one turn: a screw, a rack, a rope on a wheel is 2 x pi x radius). stop ends it."
     },
+    "lever": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "lever"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "fulcrum": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 24 characters"
+        },
+        "swing": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 90"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-3600 to 3600"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "fulcrum",
+        "swing",
+        "period",
+        "phase",
+        "axis",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A beam that rocks about a fulcrum: a hinge at fulcrum, a point of the beam (center, the default, is a seesaw and the first class; left or right, an end, with the load or the effort between it and the other end, is the second and third class; or a point named with anchor), swinging swing degrees each side every period seconds. Attach the load and the effort at points of the beam (parentAnchor) and they rise and fall with it."
+    },
+    "pulley": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "pulley"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "wheel": {
+          "type": "string"
+        },
+        "radius": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.01 to 100"
+        },
+        "rpm": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-600 to 600"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "wheel",
+        "radius",
+        "rpm",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A rope over a wheel: the wheel (wheel) turns rpm turns a minute (default 20, negative the other way) and the load (id) rises by the rope laid on it, 2 x pi x radius for each turn. radius is the rope's radius on the wheel, read from the wheel's size when left out. A winch, a crane drum and a wheel and axle (give the axle's radius) are the same."
+    },
     "cut": {
       "type": "object",
       "properties": {
@@ -5378,6 +5493,12 @@
         },
         {
           "$ref": "#/$defs/couple"
+        },
+        {
+          "$ref": "#/$defs/lever"
+        },
+        {
+          "$ref": "#/$defs/pulley"
         },
         {
           "$ref": "#/$defs/cut"

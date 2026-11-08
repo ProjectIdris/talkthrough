@@ -573,6 +573,23 @@ export const VARIANTS: readonly Variant[] = [
     },
   },
   {
+    name: 'lever', op: 'lever',
+    doc: 'A beam that rocks about a fulcrum: a hinge at fulcrum, a point of the beam (center, the default, is a seesaw and the first class; left or right, an end, with the load or the effort between it and the other end, is the second and third class; or a point named with anchor), swinging swing degrees each side every period seconds. Attach the load and the effort at points of the beam (parentAnchor) and they rise and fall with it.',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, fulcrum: { k: 'str', min: 1, max: 24, opt: true },
+      swing: { k: 'num', min: 1, max: 90, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true },
+      phase: { k: 'num', min: -3600, max: 3600, opt: true }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT,
+    },
+  },
+  {
+    name: 'pulley', op: 'pulley',
+    doc: 'A rope over a wheel: the wheel (wheel) turns rpm turns a minute (default 20, negative the other way) and the load (id) rises by the rope laid on it, 2 x pi x radius for each turn. radius is the rope\'s radius on the wheel, read from the wheel\'s size when left out. A winch, a crane drum and a wheel and axle (give the axle\'s radius) are the same.',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, wheel: { k: 'ref', of: 'object3d' },
+      radius: { k: 'num', min: 0.01, max: 100, opt: true }, rpm: { k: 'num', min: -600, max: 600, opt: true }, at: AT,
+    },
+  },
+  {
     name: 'cut', op: 'cut',
     doc: 'Cut a 3D object and its children open. Choose axis x/y/z or normal [x,y,z], never both. normal is a nonzero local direction with finite components from -100 to 100; magnitude is ignored. to is signed distance along that unit direction from the local origin (not necessarily the center of a hull point cloud); the positive side is removed. Omit direction to keep the active cut direction (initially +z). Direction changes at the action start; only to animates. Closed opaque pieces are capped; open surfaces are not. to 100 removes the cut.',
     fields: { id: { k: 'ref', of: 'object3d' }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, normal: { k: 'vec3', min: -100, max: 100, opt: true, doc: 'nonzero local cut direction; do not combine with axis' }, to: { k: 'num', min: -100, max: 100 }, at: AT, dur: DUR },
