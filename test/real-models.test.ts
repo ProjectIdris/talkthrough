@@ -13,7 +13,7 @@ import { MODELS } from '../src/scene/model-catalogue.ts';
 import type { ModelEntry } from '../src/scene/model-catalogue.ts';
 import { modelScale } from '../src/scene/models.ts';
 import { PanelScene } from '../src/overlay/scene3d.ts';
-import { cornerFor, createModelStore, creditLine, externalReference, failedNote, modelsIn, withoutFailedModels } from '../src/overlay/model-assets.ts';
+import { cornerFor, createModelStore, creditLine, externalReference, failedNote, HEAVY_MODEL_TRIANGLES, modelTriangles, modelsIn, withoutFailedModels } from '../src/overlay/model-assets.ts';
 import type { ModelState, ModelStore } from '../src/overlay/model-assets.ts';
 import { frameAt } from '../src/overlay/timeline.ts';
 // @ts-expect-error plain script modules
@@ -364,4 +364,13 @@ test('a release builds the app with a catalogue that does not list the held mode
     // and the full catalogue of a developer build still has them
     assert.ok(sceneGuide.includes('Real models'));
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('a frame with a dense real model on it is told apart by its triangles, each model once', () => {
+  const scene = validated({ steps: [{ say: 'Heart.', actions: [{ op: 'panel', x: 400, y: 80, w: 500, h: 700 }, { op: 'add', shape: 'model', id: 'h', model: 'heart' }, { op: 'add', shape: 'box', id: 'b', size: [1, 1, 1] }] }] });
+  const frame = frameAt(scene.steps, 0, 5);
+  assert.equal(modelTriangles(frame.objects), heart.built.triangles, 'the model counts once, not once for each of its parts');
+  assert.ok(modelTriangles(frame.objects) >= HEAVY_MODEL_TRIANGLES, 'the heart is dense enough for the light level');
+  const plain = validated({ steps: [{ say: 'Box.', actions: [{ op: 'panel', x: 400, y: 80, w: 500, h: 700 }, { op: 'add', shape: 'box', id: 'b', size: [1, 1, 1] }] }] });
+  assert.equal(modelTriangles(frameAt(plain.steps, 0, 5).objects), 0);
 });

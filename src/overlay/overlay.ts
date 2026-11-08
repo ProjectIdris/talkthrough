@@ -48,7 +48,7 @@ import { followupKeepOut, followupSpot } from './followup-placement.ts';
 import type { CaptionDriver, CaptionState, Rect } from './captions.ts';
 import { readingSeconds } from '../shared/captions.ts';
 import { PanelScene } from './scene3d.ts';
-import { cornerFor, createModelStore, creditLine, failedNote, modelsIn, withoutFailedModels } from './model-assets.ts';
+import { HEAVY_MODEL_TRIANGLES, cornerFor, createModelStore, creditLine, failedNote, modelTriangles, modelsIn, withoutFailedModels } from './model-assets.ts';
 import type { ScreenRect } from './scene3d.ts';
 import type { Frame } from './timeline.ts';
 
@@ -192,6 +192,25 @@ if (renderer && tier !== 'low') {
     finishing = undefined; // the plain render is the fallback
     console.info(`talkthrough: ${tier} tier finishing pass unavailable, drawing plainly`);
   }
+}
+/**
+ * While a dense real model is on the stage the high tier draws with the light level (2x multisampling, half-resolution occlusion): shadows and materials
+ * stay as they are, and a mesh of hundreds of thousands of triangles is not drawn three times at full cost. Built the first time it is needed.
+ */
+let lightFinishing: Finishing | undefined;
+let lightFinishingFailed = false;
+function finishingFor(frame: Frame): Finishing | undefined {
+  if (!renderer || tier !== 'high' || !finishing || lightFinishingFailed || modelTriangles(frame.objects) < HEAVY_MODEL_TRIANGLES) return finishing;
+  if (!lightFinishing) {
+    try {
+      lightFinishing = new Finishing(renderer, panelScene.scene, panelScene.camera, 'light');
+      console.info('talkthrough: high tier uses the light finishing level while a dense real model is on the stage');
+    } catch {
+      lightFinishingFailed = true;
+      return finishing;
+    }
+  }
+  return lightFinishing;
 }
 
 /** Never publish bounds, labels or controls for a model that cannot actually be drawn. */
@@ -383,13 +402,14 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
         renderer.setScissor(r.x, view.height - r.y - r.h, r.w, r.h);
         renderer.setScissorTest(true);
         modelFramesDrawn++;
-        if (finishing?.fits(r)) {
+        const finish = finishingFor(frame);
+        if (finish?.fits(r)) {
           try {
-            finishing.render(panelScene.scene, panelScene.camera, r, view);
+            finish.render(panelScene.scene, panelScene.camera, r, view);
           } catch {
             // The graphics stack would not run it: this tier goes on without, from the next frame.
-            finishing.dispose();
-            finishing = undefined;
+            finish.dispose();
+            if (finish === lightFinishing) { lightFinishing = undefined; lightFinishingFailed = true; } else finishing = undefined;
             renderer.setRenderTarget(null);
             renderer.render(panelScene.scene, panelScene.camera);
           }

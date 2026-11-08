@@ -184,3 +184,18 @@ export function cornerFor(stage: Box, size: { w: number; h: number }, avoid: rea
   }
   return { ...corners[best]!, corner: best };
 }
+
+/** Above this many triangles in the frame's real models, the high tier draws with the light finishing level: a dense mesh pays for every pass of the full one. */
+export const HEAVY_MODEL_TRIANGLES = 100_000;
+
+/** The triangles of the real models the frame holds (each model counted once), from the catalogue. */
+export function modelTriangles(objects: readonly { def: { shape?: string; model?: unknown } }[]): number {
+  const seen = new Set<string>();
+  let total = 0;
+  for (const o of objects) {
+    if (o.def.shape !== 'model') continue;
+    const model = findModel(o.def.model);
+    if (model && !seen.has(model.id)) { seen.add(model.id); total += model.built.triangles; }
+  }
+  return total;
+}
