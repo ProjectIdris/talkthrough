@@ -2,6 +2,29 @@
   "id": "drill",
   "name": "Power drill",
   "description": "A corded power drill with its chuck and trigger, as one textured object",
+  "works": {
+    "how": "A motor spins fast; a planetary gear set slows the spin and raises its turning force; the shaft carries it to the chuck, whose jaws grip the bit; the trigger sets how much current reaches the motor.",
+    "assemblies": [
+      {
+        "name": "planetary",
+        "role": "the gear reduction between the motor and the chuck"
+      }
+    ],
+    "kit": [
+      {
+        "part": "coil",
+        "role": "the winding of the motor"
+      },
+      {
+        "part": "magnet",
+        "role": "the field magnets the winding turns between"
+      },
+      {
+        "part": "shaft",
+        "role": "the shaft from the motor, through the gear set, to the chuck that holds the bit"
+      }
+    ]
+  },
   "aliases": [
     "drill",
     "power drill",

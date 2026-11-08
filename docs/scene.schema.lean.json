@@ -635,7 +635,8 @@
             "block-and-tackle",
             "geneva",
             "escapement",
-            "ratchet"
+            "ratchet",
+            "spring-snap"
           ]
         },
         "variant": {
@@ -3485,6 +3486,7 @@
             "step",
             "ratchet",
             "geneva",
+            "snap",
             "stop",
             null
           ]

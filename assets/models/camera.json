@@ -2,6 +2,19 @@
   "id": "camera",
   "name": "Vintage camera",
   "description": "A vintage bellows-less box camera with its lens and strap, as a textured model",
+  "works": {
+    "how": "Light from the scene enters through the lens, which focuses it on the film or sensor at the back; pressing the release opens the shutter for a set time so the light exposes it, then the shutter closes.",
+    "kit": [
+      {
+        "part": "lens",
+        "role": "focuses the light of the scene"
+      },
+      {
+        "part": "chip",
+        "role": "the sensor or film plane at the back that records the light"
+      }
+    ]
+  },
   "aliases": [
     "camera",
     "vintage camera",

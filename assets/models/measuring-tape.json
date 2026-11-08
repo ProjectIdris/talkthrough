@@ -2,6 +2,21 @@
   "id": "measuring-tape",
   "name": "Measuring tape",
   "description": "A retractable tape measure in its case, as one textured object",
+  "works": {
+    "how": "A flat coiled spring in the case pulls the blade back in; a lock presses on the blade to hold it out, and letting go of the lock lets the spring wind it in.",
+    "assemblies": [
+      {
+        "name": "ratchet",
+        "role": "the lock: a pawl that holds the blade where it is pulled to"
+      }
+    ],
+    "kit": [
+      {
+        "part": "spring",
+        "role": "the coiled return spring in the case"
+      }
+    ]
+  },
   "aliases": [
     "measuring tape",
     "tape measure",

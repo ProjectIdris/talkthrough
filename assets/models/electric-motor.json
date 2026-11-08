@@ -2,6 +2,23 @@
   "id": "electric-motor",
   "name": "Davenport electric motor",
   "description": "Thomas Davenport's 1837 patent model of the first US electric motor, a scan of the museum object",
+  "works": {
+    "how": "Current through a coil makes it an electromagnet, which fixed magnets push and pull so that the shaft turns; a commutator reverses the current each half turn so the push keeps going the same way.",
+    "kit": [
+      {
+        "part": "coil",
+        "role": "the electromagnet on the rotor"
+      },
+      {
+        "part": "magnet",
+        "role": "the fixed magnets that push and pull it"
+      },
+      {
+        "part": "shaft",
+        "role": "the shaft that turns"
+      }
+    ]
+  },
   "aliases": [
     "electric motor",
     "davenport motor",

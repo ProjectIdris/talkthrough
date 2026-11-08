@@ -3766,7 +3766,8 @@
             "block-and-tackle",
             "geneva",
             "escapement",
-            "ratchet"
+            "ratchet",
+            "spring-snap"
           ],
           "description": "a part name; another name is taken to the nearest part"
         },
@@ -4973,6 +4974,7 @@
             "step",
             "ratchet",
             "geneva",
+            "snap",
             "stop",
             null
           ]
@@ -4982,7 +4984,7 @@
             "number",
             "null"
           ],
-          "description": "slide: positive total travel in units; swing: signed degrees each side (negative reverses the swing, zero holds still); pulse: positive size factor (1.3 is 30% bigger, 0.8 smaller); gate: degrees the hinge opens on half of each cycle; float: units it bobs up and down; step: degrees it turns each cycle, in the first quarter, then stands; ratchet: the same in the first half, following a swing of half the amount; geneva: degrees of one slot (360/slots), indexed by a pin that turns once a cycle; -360 to 360"
+          "description": "slide: positive total travel in units; swing: signed degrees each side (negative reverses the swing, zero holds still); pulse: positive size factor (1.3 is 30% bigger, 0.8 smaller); gate: degrees the hinge opens on half of each cycle; float: units it bobs up and down; step: degrees it turns each cycle, in the first quarter, then stands; ratchet: the same in the first half, following a swing of half the amount; geneva: degrees of one slot (360/slots), indexed by a pin that turns once a cycle; snap: degrees it snaps, then is wound back; -360 to 360"
         },
         "damp": {
           "type": [
@@ -5067,7 +5069,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Repeat a motion on any object: slide, swing (about the hinge pivot), pulse (swell), gate, float, or in steps (step, ratchet, geneva), every period seconds (default 2) or by a spinning part. Left out, kind is the joint's. Another loop replaces it; stop ends it. id is an object already in the scene, never a name for the loop."
+      "description": "Repeat a motion on any object: slide, swing (about the hinge pivot), pulse (swell), gate, float, or in steps (step, ratchet, geneva, snap), every period seconds (default 2) or by a spinning part. Left out, kind is the joint's. Another loop replaces it; stop ends it. id is an object already in the scene, never a name for the loop."
     },
     "joint": {
       "type": "object",

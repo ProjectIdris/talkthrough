@@ -31,13 +31,16 @@ test('the hint goes into the text beside the question, ahead of it, and only the
   assert.ok(!questionText(request('explain gears')).includes('real, detailed model'));
 });
 
-test('a how-does-it-work question about a model that holds no mechanism is told to build the mechanism from shapes and show the real one small', () => {
+test('a how-does-it-work question about a model that holds no mechanism is told how it works, to open on the real one at stage size and build the mechanism large beside it (see real-model-works.test.ts for the data)', () => {
   for (const [q, id] of [['How does a mousetrap work?', 'mousetrap'], ['How does a drill work?', 'drill'], ['How does a camera work?', 'camera'], ['How does an alarm clock work?', 'alarm-clock']] as const) {
     const hint = realModelHint(q) ?? '';
     assert.match(hint, new RegExp('(' + id + ')'), q);
-    assert.match(hint, /from shapes and kit parts/);
-    assert.match(hint, /stand small beside it/);
-    assert.ok(!hint.includes('add {shape:model'), 'it is not told to use the model as the subject');
+    assert.match(hint, /How it works: /);
+    assert.match(hint, /step 1 opens on the real model at stage size/);
+    assert.match(hint, /build the working mechanism large and animated beside it/);
+    assert.ok(hint.includes('add {shape:model, id:"<id>", model:"' + id + '", size:10, pos:[-6,0,0]}'), 'the real model comes first, sized to the stage, to the left');
+    assert.ok(hint.includes('pos about [6,0,0]'), 'the mechanism goes to the right');
+    assert.ok(hint.indexOf('step 1 opens on the real model') < hint.indexOf('next steps build the working mechanism'), 'in that order');
   }
   assert.ok(MODELS.every((m) => m.mechanism === false), 'no model holds a working mechanism yet: the flag is generated, and the hint keys on it');
 });

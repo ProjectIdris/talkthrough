@@ -2,6 +2,50 @@
   "id": "alarm-clock",
   "name": "Alarm clock",
   "description": "A twin-bell alarm clock with its glass, hour, minute and second hands, as a textured model",
+  "works": {
+    "how": "A wound mainspring turns a gear train, and an escapement lets the train advance one tooth at a time on the beat of a pendulum or balance, so the hands move steadily: the second hand once a minute, the minute hand once an hour, the hour hand once in twelve hours.",
+    "assemblies": [
+      {
+        "name": "gear-train",
+        "role": "the train from the spring to the hands: each stage slows the turn"
+      },
+      {
+        "name": "escapement",
+        "role": "the escapement that lets the train advance one tooth a beat"
+      }
+    ],
+    "motion": [
+      {
+        "part": "second-hand",
+        "what": "the fastest hand, clockwise about its hub (sped up here so it can be seen)",
+        "action": {
+          "op": "spin",
+          "rpm": -6,
+          "axis": "z"
+        }
+      },
+      {
+        "part": "minute-hand",
+        "what": "one turn for every 60 of the second hand",
+        "action": {
+          "op": "spin",
+          "by": "second-hand",
+          "ratio": 0.016667,
+          "axis": "z"
+        }
+      },
+      {
+        "part": "hour-hand",
+        "what": "one turn for every 12 of the minute hand",
+        "action": {
+          "op": "spin",
+          "by": "minute-hand",
+          "ratio": 0.083333,
+          "axis": "z"
+        }
+      }
+    ]
+  },
   "aliases": [
     "alarm clock",
     "clock",

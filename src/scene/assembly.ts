@@ -120,13 +120,16 @@ export function expandAssembly(name: string, add: Raw): Expansion {
 export function assemblyHint(question: string): string | undefined {
   const named = assembliesNamed(question).slice(0, 2);
   if (named.length === 0) return undefined;
-  const lines = named.map((name) => {
-    const row = ASSEMBLY_ROWS[name]!;
-    const keys = [...new Set(row.pieces.map((p) => p.key.replace(/\{[^}]*\}/g, 'N')))].join(', ');
-    const count = row.n.max > row.n.min ? ` (n sets the ${row.n.what}, ${row.n.min} to ${row.n.max})` : '';
-    return `${name}: add {shape:part, part:"${name}", id:"<id>", size:[x,y,z]} (about [${row.size.join(',')}]) makes ${row.note}${count}, already meshed, attached and moving. Its pieces are <id>-<piece>: ${keys}; drive it through <id>-${row.drive.key}: ${row.drive.what}.`;
-  });
+  const lines = named.map(assemblyLine);
   return `If the question is about a mechanism with a ready assembly, use it rather than building the parts one by one (it gets the meshing, the ratios and the directions right; you may still change, colour, label, explode or cut its pieces, or build your own): ${lines.join(' ')}`;
+}
+
+/** One assembly in a sentence: how to add it, what it makes, what its pieces are called and what drives it. */
+export function assemblyLine(name: string): string {
+  const row = ASSEMBLY_ROWS[name]!;
+  const keys = [...new Set(row.pieces.map((p) => p.key.replace(/\{[^}]*\}/g, 'N')))].join(', ');
+  const count = row.n.max > row.n.min ? ` (n sets the ${row.n.what}, ${row.n.min} to ${row.n.max})` : '';
+  return `${name}: add {shape:part, part:"${name}", id:"<id>", size:[x,y,z]} (about [${row.size.join(',')}]) makes ${row.note}${count}, already meshed, attached and moving. Its pieces are <id>-<piece>: ${keys}; drive it through <id>-${row.drive.key}: ${row.drive.what}.`;
 }
 
 /** A question's wording names an assembly (whole words or phrases of its row): which ones. */

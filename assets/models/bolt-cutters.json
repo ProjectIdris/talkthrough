@@ -2,6 +2,19 @@
   "id": "bolt-cutters",
   "name": "Bolt cutters",
   "description": "Long-handled bolt cutters, as one textured object",
+  "works": {
+    "how": "The long handles are levers: a small push at their ends becomes a large force at the short jaws, because the pivots sit close to the jaws; a compound hinge doubles the gain, and the jaws shear the bolt.",
+    "assemblies": [
+      {
+        "name": "lever",
+        "role": "the handle as a lever, with the pivot near the jaws"
+      },
+      {
+        "name": "four-bar-linkage",
+        "role": "the compound hinge that links the handles to the jaws"
+      }
+    ]
+  },
   "aliases": [
     "bolt cutters",
     "bolt cutter",

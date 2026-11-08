@@ -39,6 +39,31 @@ export const cacheFolder = (m) => join(CACHE_DIR, m.format === 'gltf' ? m.source
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
 
 /** Problems with a manifest, as plain sentences (an empty list means it is sound). */
+const WORKS_ACTION_KEYS = ['op', 'rpm', 'axis', 'by', 'ratio', 'phase', 'kind', 'amount', 'period', 'dur'];
+
+/** Problems with a manifest's account of how the thing works (`works`), as plain sentences. */
+export function worksProblems(w, partKeys) {
+  const out = [];
+  const need = (ok, why) => { if (!ok) out.push(why); };
+  if (w === undefined) return out;
+  need(w && typeof w === 'object' && !Array.isArray(w), 'works must be an object');
+  if (!w || typeof w !== 'object') return out;
+  const text = (v, max) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
+  need(text(w.how, 400), 'works.how is the working in a sentence or two (at most 400 characters)');
+  const list = (v, what, each) => {
+    if (v === undefined) return;
+    need(Array.isArray(v), `works.${what} must be a list`);
+    if (Array.isArray(v)) v.forEach((x, i) => need(x && typeof x === 'object' && each(x), `works.${what}[${i}] is not well formed`));
+  };
+  list(w.assemblies, 'assemblies', (x) => /^[a-z][a-z0-9-]*$/.test(x.name) && text(x.role, 240));
+  list(w.kit, 'kit', (x) => /^[a-z][a-z0-9-]*$/.test(x.part) && text(x.role, 240));
+  list(w.motion, 'motion', (x) => partKeys.includes(x.part) && text(x.what, 240) && x.action && typeof x.action === 'object'
+    && (x.action.op === 'spin' || x.action.op === 'loop') && Object.keys(x.action).every((k) => WORKS_ACTION_KEYS.includes(k))
+    && (x.action.by === undefined || (partKeys.includes(x.action.by) && x.action.by !== x.part)));
+  need((w.assemblies?.length ?? 0) + (w.kit?.length ?? 0) + (w.motion?.length ?? 0) > 0, 'works names no assembly, kit part or motion');
+  return out;
+}
+
 export function manifestProblems(m) {
   const out = [];
   const need = (ok, why) => { if (!ok) out.push(why); };
@@ -97,6 +122,7 @@ export function manifestProblems(m) {
     need(Array.isArray(p.nodes) && p.nodes.length > 0 || p.derive, `part ${p.key} names no ${gltf ? 'node' : 'file'}`);
     if (!gltf) for (const n of p.nodes ?? []) need(fileIds.has(n), `part ${p.key} names ${n}, which is not in files`);
   }
+  if (Array.isArray(m.parts)) for (const w of worksProblems(m.works, m.parts.map((p) => p.key))) out.push(w);
   return out;
 }
 

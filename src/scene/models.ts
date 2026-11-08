@@ -4,6 +4,8 @@
 import { MODELS } from './model-catalogue.ts';
 import type { ModelEntry, ModelPart } from './model-catalogue.ts';
 import type { Vec3 } from './types.ts';
+import { assemblyLine } from './assembly.ts';
+import { ASSEMBLY_ROWS } from './assembly-rows.ts';
 import { closest, norm } from './names.ts';
 import type { Closest } from './names.ts';
 
@@ -30,6 +32,9 @@ export function findPart(model: ModelEntry, name: unknown): ModelPart | undefine
   if (!n) return undefined;
   return model.parts.find((p) => norm(p.key) === n || norm(p.name) === n || p.aliases.some((a) => norm(a) === n));
 }
+
+/** About how wide a real model and the mechanism beside it each stand on the stage (scene units): the size of a ready assembly. */
+const STAGE_ACROSS = 10;
 
 /** The id a part has in a scene: the model's id, a dot, the part's key. */
 export const partId = (model: string, key: string): string => `${model}.${key}`;
@@ -85,5 +90,29 @@ export function realModelHint(question: string): string | undefined {
   const plain = HOW_IT_WORKS.test(question) ? named.find((m) => !m.mechanism) : undefined;
   if (!plain) return undefined;
   const across = Math.round(Math.max(...plain.size) * SCENE_UNITS_PER_METRE * 10) / 10;
+  if (plain.works) return worksHint(plain, across);
   return `If the question is about the ${plain.name.toLowerCase()} itself: a real model of it exists (${plain.id}); it shows how the thing looks and where its parts are, and holds no working mechanism. Build the working mechanism from shapes and kit parts (a cutaway or a simplified working version) and show it large and animated; the real model may stand small beside it, at its own size (about ${across} units across, so leave its size off), so the thing is recognised.`;
+}
+
+/** The action written for a part of the model, as the model should write it: the part's id in the scene (`<id>` is the id the model gives the real model), and `by` named the same way. */
+export function worksAction(model: ModelEntry, motion: NonNullable<NonNullable<ModelEntry['works']>['motion']>[number]): Record<string, unknown> {
+  const { by, ...rest } = motion.action;
+  return { ...rest, id: `<id>.${motion.part}`, ...(by ? { by: `<id>.${by}` } : {}) };
+}
+
+/**
+ * For a how-does-it-work question about a real model that holds no mechanism of its own but whose catalogue entry says how it works: the real model comes first at stage size and the
+ * working mechanism, built from the ready assemblies and kit parts the entry names, and the model's own named parts are moved the way the entry says.
+ */
+function worksHint(model: ModelEntry, across: number): string {
+  const w = model.works!;
+  const out = [`If the question is about the ${model.name.toLowerCase()} itself: a real model of it exists (${model.id}); it shows how the thing looks and where its parts are, but not its inside. How it works: ${w.how} Show it in this order, and plan the steps that way: step 1 opens on the real model at stage size, add {shape:model, id:"<id>", model:"${model.id}", size:${STAGE_ACROSS}, pos:[-${STAGE_ACROSS / 2 + 1},0,0]} (left unsized it stands only about ${across} units across), so the thing is recognised first; the next steps build the working mechanism large and animated beside it, at the right (pos about [${STAGE_ACROSS / 2 + 1},0,0]), and keep the real model on stage.`];
+  const ready = (w.assemblies ?? []).filter((a) => ASSEMBLY_ROWS[a.name]);
+  if (ready.length) out.push(`Ready assemblies for the mechanism (use them rather than building the parts one by one): ${ready.map((a) => `${a.role} - ${assemblyLine(a.name)}`).join(' ')}`);
+  if (w.kit?.length) out.push(`Kit parts for what has no assembly: ${w.kit.map((k) => `${k.part} (${k.role})`).join('; ')}.`);
+  if (w.motion?.length) {
+    const named = (key: string): string => model.parts.find((p) => p.key === key)?.name.toLowerCase() ?? key;
+    out.push(`Move the real model's own parts, writing these with its id in place of <id>: ${w.motion.map((m) => `${named(m.part)} - ${JSON.stringify(worksAction(model, m))} (${m.what})`).join('; ')}.`);
+  }
+  return out.join(' ');
 }
