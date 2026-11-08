@@ -36,6 +36,9 @@ export function findPart(model: ModelEntry, name: unknown): ModelPart | undefine
 /** About how wide a real model and the mechanism beside it each stand on the stage (scene units): the size of a ready assembly. */
 const STAGE_ACROSS = 10;
 
+/** The panel a model and its mechanism side by side are fitted to (scene units, 0 to 1000): wide, not tall, or the pair is fitted by its width and comes out small. */
+const STAGE_PANEL = { w: 880, h: 480 };
+
 /** The id a part has in a scene: the model's id, a dot, the part's key. */
 export const partId = (model: string, key: string): string => `${model}.${key}`;
 
@@ -106,7 +109,7 @@ export function worksAction(model: ModelEntry, motion: NonNullable<NonNullable<M
  */
 function worksHint(model: ModelEntry, across: number): string {
   const w = model.works!;
-  const out = [`If the question is about the ${model.name.toLowerCase()} itself: a real model of it exists (${model.id}); it shows how the thing looks and where its parts are, but not its inside. How it works: ${w.how} Show it in this order, and plan the steps that way: step 1 opens on the real model at stage size, add {shape:model, id:"<id>", model:"${model.id}", size:${STAGE_ACROSS}, pos:[-${STAGE_ACROSS / 2 + 1},0,0]} (left unsized it stands only about ${across} units across), so the thing is recognised first; the next steps build the working mechanism large and animated beside it, at the right (pos about [${STAGE_ACROSS / 2 + 1},0,0]), and keep the real model on stage.`];
+  const out = [`If the question is about the ${model.name.toLowerCase()} itself: a real model of it exists (${model.id}); it shows how the thing looks and where its parts are, but not its inside. How it works: ${w.how} Show it in this order, and plan the steps that way: step 1 opens on the real model at stage size, on a wide panel (about ${STAGE_PANEL.w} by ${STAGE_PANEL.h} units, below the page's heading) so the model and the mechanism stand side by side at a size that reads; add {shape:model, id:"<id>", model:"${model.id}", size:${STAGE_ACROSS}, pos:[-${STAGE_ACROSS / 2 + 1},0,0]} (left unsized it stands only about ${across} units across), so the thing is recognised first; the next steps build the working mechanism large and animated beside it, at the right (start at pos about [${STAGE_ACROSS / 2 + 1},0,0] and build outward). Each assembly gets a new id of its own (an add that reuses an id replaces what was there) and a place clear of the ones before it (a piece fills its size around its pos). Clear nothing: the real model and every assembly already built stay on stage to the end.`];
   const ready = (w.assemblies ?? []).filter((a) => ASSEMBLY_ROWS[a.name]);
   if (ready.length) out.push(`Ready assemblies for the mechanism (use them rather than building the parts one by one): ${ready.map((a) => `${a.role} - ${assemblyLine(a.name)}`).join(' ')}`);
   if (w.kit?.length) out.push(`Kit parts for what has no assembly: ${w.kit.map((k) => `${k.part} (${k.role})`).join('; ')}.`);
