@@ -25,7 +25,7 @@ Hold **Right Ctrl + Right Shift**, ask your question, then release. The picture 
 
 ## Examples
 
-These are saved answer frames from pages used as examples. The first animation above is a separate hand-written scene. Page content shown here comes from Wikipedia or Wikibooks and is available under CC BY-SA 4.0.
+These are saved answer frames from pages used as examples. The first animation above is a separate hand-written scene. The frames below were made with an earlier build, whose diagram panels were always dark; panels now follow the page and are light over a light page. Page content shown here comes from Wikipedia or Wikibooks and is available under CC BY-SA 4.0.
 
 <table>
   <tr>
