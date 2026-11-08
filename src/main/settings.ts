@@ -121,6 +121,8 @@ export type Settings = {
   keepRecord: boolean;
   /** Where the record goes (an absolute folder); unset: a folder named `questions` in the app's data folder. */
   recordFolder?: string;
+  /** Look for a newer Talkthrough on GitHub at start and once a day, and say so quietly in the tray and settings. On by default; nothing is downloaded without a yes. */
+  checkForUpdates: boolean;
 };
 
 /** What each route uses for the detail pass when the settings name no model: a stronger one than the quick answers use. */
@@ -150,6 +152,7 @@ export const DEFAULT_SETTINGS: Settings = {
   controlSnap: false,
   guideNavigation: false,
   keepRecord: false,
+  checkForUpdates: true,
   splitAnswer: 'steps',
   captions: DEFAULT_CAPTION_MODE,
   voiceFirstAudioMs: 10_000,
@@ -264,6 +267,7 @@ export function settingsFromRaw(raw: Record<string, unknown>, warn: (message: st
   const detailEffort = str(raw.detailEffort);
   if (detailEffort) settings.detailEffort = detailEffort;
   if (typeof raw.keepRecord === 'boolean') settings.keepRecord = raw.keepRecord;
+  if (typeof raw.checkForUpdates === 'boolean') settings.checkForUpdates = raw.checkForUpdates;
   const recordFolder = str(raw.recordFolder);
   if (recordFolder) {
     if (isAbsolute(recordFolder)) settings.recordFolder = recordFolder;

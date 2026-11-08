@@ -22,6 +22,9 @@ const api: TalkthroughSettingsApi = {
   micTest: () => ipcRenderer.invoke(SETTINGS_CHANNEL.micTest),
   tools: () => ipcRenderer.invoke(SETTINGS_CHANNEL.tools),
   firstRunDone: (restart) => ipcRenderer.send(SETTINGS_CHANNEL.firstRunDone, restart === true),
+  updateStatus: () => ipcRenderer.invoke(SETTINGS_CHANNEL.updateStatus),
+  updateCheck: () => ipcRenderer.invoke(SETTINGS_CHANNEL.updateCheck),
+  updateInstall: () => ipcRenderer.invoke(SETTINGS_CHANNEL.updateInstall),
   onFocus: (listener) => void ipcRenderer.on(SETTINGS_CHANNEL.focus, (_event, section) => listener(String(section))),
 };
 

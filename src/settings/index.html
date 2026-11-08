@@ -59,6 +59,7 @@
     <label class="opt" data-route="openai"><input type="radio" name="model" value="openai"><span class="what"><span class="name">API key</span><span class="chip" data-chip="openai"></span><div class="hint">An OpenAI API key, stored encrypted for your Windows account.</div></span></label>
     <label class="opt" data-route="local"><input type="radio" name="model" value="local"><span class="what"><span class="name">Local model</span><span class="chip" data-chip="local"></span><div class="hint">A model on this computer, through Ollama or LM Studio.</div></span></label>
   </div>
+  <div class="hint" id="routeHelp" style="margin-top:8px"></div>
   <div class="row" style="margin-top:10px"><div class="what"><div class="lab">Model</div><div class="hint" id="firstModelHint"></div></div><div class="ctl"><input type="text" id="modelName" autocomplete="off" spellcheck="false"></div></div>
   <div class="row hide" data-for="codex"><div class="what"><div class="lab">Fast mode</div><div class="hint">Answers sooner and uses more of your Codex allowance.</div></div><div class="ctl"><input type="checkbox" class="tog" id="codexFast" aria-label="Fast mode"></div></div>
   <div id="keybox" class="hide">
@@ -109,6 +110,12 @@
   <div class="row stack"><div><div class="lab">Windows to skip</div><div class="hint">One name per line. If the window in front has one of these words in its app name or title, holding the keys does nothing: nothing is recorded, captured or sent. The list starts with some password managers.</div></div><textarea id="captureBlocklist" spellcheck="false"></textarea></div>
   <div class="row"><div class="what"><div class="lab">Let a guide act for me</div><div class="hint" id="warnNav"></div></div><div class="ctl"><input type="checkbox" class="tog" id="guideNavigation" aria-label="Let a guide act for me"></div></div>
   <div class="row"><div class="what"><div class="lab">Place marks on real controls</div><div class="hint" id="warnSnap"></div></div><div class="ctl"><input type="checkbox" class="tog" id="controlSnap" aria-label="Place marks on real controls"></div></div>
+</div>
+
+<div class="card" id="sectionUpdates">
+  <div class="ct">Updates</div>
+  <div class="row"><div class="what"><div class="lab">Look for a newer version</div><div class="hint">At start and once a day Talkthrough asks GitHub whether a newer version is out. It only tells you: nothing is downloaded until you say yes.</div></div><div class="ctl"><input type="checkbox" class="tog" id="checkForUpdates" aria-label="Look for a newer version"></div></div>
+  <div class="row"><div class="what"><div class="lab" id="updNow">Checking…</div><div class="hint" id="updHint"></div><progress id="updBar" class="hide" max="1" value="0"></progress></div><div class="ctl"><button id="updCheck" type="button">Check now</button><button id="updInstall" type="button" class="primary hide">Install and restart</button></div></div>
 </div>
 
 <div class="card" id="sectionRecord">

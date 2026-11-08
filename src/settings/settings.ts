@@ -4,7 +4,8 @@
 import { CHORD_KEYS, DEFAULT_HOTKEY, MAX_HOTKEY_KEYS, hotkeyWarning, keyNameOfDom, splitHotkey } from '../shared/chord-keys.ts';
 import { changedKeys, DEFAULT_LOCAL_URL, KNOWN_MODELS, savedMessage, SWITCH_WARNINGS } from '../shared/settings-form.ts';
 import type { Route, SettingsForm } from '../shared/settings-form.ts';
-import type { AudioDevice, ToolsFound } from '../shared/ipc.ts';
+import type { AudioDevice, ToolsFound, UpdateView } from '../shared/ipc.ts';
+import { routeHelp } from '../shared/fault-help.ts';
 
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const text = (id: string): HTMLInputElement => el<HTMLInputElement>(id);
@@ -37,6 +38,7 @@ function arrange(): void {
   shownRoute = route;
   text('modelName').value = names[route];
   text('modelName').placeholder = route === 'local' ? 'The model name on your server, such as gemma3:12b' : '';
+  renderChips();
   for (const tile of document.querySelectorAll<HTMLElement>('#firstTiles .opt')) tile.classList.toggle('sel', tile.dataset.route === route);
   for (const part of document.querySelectorAll<HTMLElement>('[data-for]')) part.classList.toggle('hide', part.dataset.for !== route);
   const detail = select('detailRoute').value;
@@ -121,6 +123,8 @@ function renderChips(): void {
     chip.textContent = word;
     chip.className = `chip ${kind}`.trim();
   }
+  const route = chosenRoute();
+  el('routeHelp').textContent = routeHelp(route, route === 'claude' ? tools.claude : tools.codex);
 }
 
 // ---- The keys: one key, or a chord, recorded by pressing them ----------------------------------------------------------------------------
@@ -253,6 +257,7 @@ function fill(form: SettingsForm): void {
   select('captions').value = form.captions;
   box('keepRecord').checked = form.keepRecord;
   text('recordFolder').value = form.recordFolder;
+  box('checkForUpdates').checked = form.checkForUpdates;
   devicesShown = { mic: form.microphone, micName: form.microphoneName, speaker: form.speaker, speakerName: form.speakerName };
   void fillDevices();
   arrange();
@@ -294,6 +299,7 @@ function collect(): SettingsForm {
     captions: select('captions').value as SettingsForm['captions'],
     keepRecord: box('keepRecord').checked,
     recordFolder: text('recordFolder').value,
+    checkForUpdates: box('checkForUpdates').checked,
   };
 }
 
@@ -413,6 +419,38 @@ el('hearRemove').addEventListener('click', async () => {
   await refreshHearing();
 });
 
+// Updates: what is known, a look now, and the install (the button is the person's yes). Nothing is downloaded before it is pressed.
+let updateTimer: number | undefined;
+function showUpdate(view: UpdateView | null): void {
+  const busy = view?.kind === 'checking' || view?.kind === 'downloading' || view?.kind === 'installing';
+  const offered = view?.kind === 'available' || view?.kind === 'failed';
+  el('sectionUpdates').classList.toggle('hide', view === null);
+  if (view === null) return;
+  const now = el('updNow'), hint = el('updHint'), bar = el<HTMLProgressElement>('updBar');
+  bar.classList.toggle('hide', view.kind !== 'downloading');
+  if (view.kind === 'downloading') bar.value = view.total ? (view.received ?? 0) / view.total : 0;
+  now.textContent = view.kind === 'checking' ? 'Looking…'
+    : view.kind === 'idle' ? `Talkthrough ${view.current} is the newest version found`
+    : view.kind === 'downloading' ? `Downloading Talkthrough ${view.version}…`
+    : view.kind === 'installing' ? `Installing Talkthrough ${view.version}…`
+    : `Talkthrough ${view.version} is out (this is ${view.current})`;
+  hint.textContent = view.kind === 'failed' ? `${view.message ?? 'It did not finish.'} Try again, or get it from the release page: ${view.page}`
+    : view.kind === 'idle' ? (view.checkedAt ? `Last looked at ${new Date(view.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. If it cannot reach GitHub it says nothing.` : 'If it cannot reach GitHub it says nothing.')
+    : offered ? `Installing downloads the installer from GitHub, checks it against the checksum published with the release, runs it and starts Talkthrough again. It waits while a question is being answered. Release page: ${view.page}`
+    : view.kind === 'installing' ? 'Talkthrough will close and start again.' : '';
+  el('updInstall').classList.toggle('hide', !offered);
+  (el('updInstall') as HTMLButtonElement).disabled = busy;
+  (el('updCheck') as HTMLButtonElement).disabled = busy;
+  window.clearTimeout(updateTimer);
+  if (busy) updateTimer = window.setTimeout(() => void window.talkthroughSettings.updateStatus().then(showUpdate, () => undefined), 700);
+}
+el('updCheck').addEventListener('click', () => { showUpdate({ kind: 'checking', current: '' }); void window.talkthroughSettings.updateCheck().then(showUpdate, () => undefined); });
+el('updInstall').addEventListener('click', () => {
+  (el('updInstall') as HTMLButtonElement).disabled = true;
+  void window.talkthroughSettings.updateInstall().then(showUpdate, () => undefined);
+  updateTimer = window.setTimeout(() => void window.talkthroughSettings.updateStatus().then(showUpdate, () => undefined), 400);
+});
+
 // Main can ask for a section to be shown (the Hearing section, from "Set up hearing" on the screen).
 window.talkthroughSettings.onFocus((section) => {
   const card = document.getElementById(`section${section.charAt(0).toUpperCase()}${section.slice(1)}`);
@@ -432,3 +470,4 @@ void window.talkthroughSettings.tools().then((t) => {
 }, () => undefined);
 void refreshKey();
 void refreshHearing();
+void window.talkthroughSettings.updateStatus().then(showUpdate, () => undefined);

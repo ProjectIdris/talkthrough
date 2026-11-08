@@ -16,6 +16,7 @@ import type { Frame, GuideListener, GuideNavigation, GuideOptions } from './guid
 import type { Grid } from '../shared/screen-diff.ts';
 import type { SkipVerdict } from './skip-list.ts';
 import { parseSpoken } from './phrases.ts';
+import { microphoneFault, modelFault } from '../shared/fault-help.ts';
 import type { Box, Point } from '../shared/pen.ts';
 import type { QuestionRecord } from './record.ts';
 
@@ -737,7 +738,7 @@ export function createSession(deps: SessionDeps) {
       r.error = `${source.kind}: ${code}: ${failure instanceof Error ? failure.message : String(failure)}`;
       if (walk) walk.streamEnded();
       else if (begun) send(displayId, { kind: 'end' });
-      return notice(displayId, failure instanceof ModelError && code === 'auth' && failure.message === NO_KEY_MESSAGE ? 'No API key is set.' : source.kind === 'backend' ? backendMessage(code) : modelMessage(code), 'error', source.kind !== 'backend' && (code === 'unavailable' || code === 'auth') ? 'settings' : undefined);
+      return notice(displayId, failure instanceof ModelError && code === 'auth' && failure.message === NO_KEY_MESSAGE ? 'No API key is set.' : source.kind === 'backend' ? backendMessage(code) : modelFault(code, failure instanceof Error ? failure.message : '', source.label), 'error', source.kind !== 'backend' && (code === 'unavailable' || code === 'auth') ? 'settings' : undefined);
     }
     r.steps = shown.length;
     if (written.length > 0) {
@@ -899,7 +900,7 @@ export function createSession(deps: SessionDeps) {
         clip = await deps.media.stopMic();
       } catch (error) {
         r.error = `microphone: ${error instanceof Error ? error.message : String(error)}`;
-        return notice(a.displayId, "I couldn't use the microphone.", 'error');
+        return notice(a.displayId, microphoneFault(error instanceof Error ? error.message : ''), 'error', 'settings');
       }
       if (controller.signal.aborted) return;
       // The strokes are final by now. Draw them onto the frame while the speech is being recognised.
@@ -1236,13 +1237,3 @@ function backendMessage(code: string): string {
   }
 }
 
-function modelMessage(code: string): string {
-  switch (code) {
-    case 'unavailable': return "I couldn't reach the model. Is it installed and signed in?";
-    case 'auth': return 'The model needs you to sign in again.';
-    case 'rate-limited': return "The model's usage limit has been reached for now.";
-    case 'refused': return 'I stopped: the model tried to do something it is not allowed to.';
-    case 'bad-output': return "The model's answer was garbled. Try again?";
-    default: return 'Something went wrong while I was thinking. Try again?';
-  }
-}

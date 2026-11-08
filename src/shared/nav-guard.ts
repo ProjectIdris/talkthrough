@@ -24,6 +24,8 @@ export type NavFacts = {
   enabled: boolean;
   offscreen: boolean;
   password: boolean;
+  /** The window's process runs elevated, or its level could not be read. The helper never answers for such a window; this is a second net, and a missing answer counts as elevated. */
+  elevated: boolean;
   name: string;
   autoId: string;
   help: string;
@@ -77,6 +79,7 @@ export function decideNav(facts: NavFacts | NavFactsError, intent: NavIntent): N
   if (!facts.ok) return { verdict: 'show', why: facts.why };
   const f = facts;
   // Never, whatever the model says.
+  if (f.elevated) return { verdict: 'refuse', why: 'an elevated window' };
   if (f.password) return { verdict: 'refuse', why: 'a password field' };
   if (f.toggle || f.range) return { verdict: 'refuse', why: 'a switch or a value' };
   if (VALUE_TYPES.has(f.ct) || (f.valuePattern && !f.valueReadOnly)) return { verdict: 'refuse', why: `a ${f.ct} holds a value` };

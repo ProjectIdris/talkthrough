@@ -7,6 +7,7 @@ import { UIA_SCRIPT, createUiaReader, parseControls, toDisplayBoxes } from '../s
 import { createHelper } from '../src/main/ps-helper.ts';
 import { fakeChild } from './support/fake-helper-child.ts';
 import { haveElectron, startPage } from './support/electron-page.ts';
+import { windowsHeld } from './support/window-gate.ts';
 
 test('the controls text is read strictly: anything that is not numbers and a type name is dropped', () => {
   const got = parseControls('10,20,80,30,button;5,5,3,3,tabitem;bad;1,2,3,4,Button;1,2,3,4,x y;-10,0,40,20,edit;1,2,3;');
@@ -120,7 +121,7 @@ function openOwnWindow(): Promise<{ child: ChildProcess; hwnd: number; rects: nu
   });
 }
 
-test('on a window of our own the reader finds the buttons, the field and the tabs where the window puts them', { skip: process.platform !== 'win32', timeout: 60000 }, async () => {
+test('on a window of our own the reader finds the buttons, the field and the tabs where the window puts them', { skip: windowsHeld, timeout: 60000 }, async () => {
   const win = await openOwnWindow();
   try {
     const helper = createHelper()!;
@@ -144,7 +145,7 @@ test('on a window of our own the reader finds the buttons, the field and the tab
   }
 });
 
-test('a browser window is never read: the reader answers "browser" before the accessibility API is touched', { skip: process.platform !== 'win32' || !haveElectron, timeout: 90000 }, async () => {
+test('a browser window is never read: the reader answers "browser" before the accessibility API is touched', { skip: windowsHeld || (!haveElectron ? 'Electron is not installed' : false), timeout: 90000 }, async () => {
   const page = await startPage();
   const helper = createHelper()!;
   try {

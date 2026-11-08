@@ -172,3 +172,18 @@ test('a primary that starts just as the time limit comes is the voice (the limit
   assert.equal(r.spare.spoken.length, 0);
   assert.deepEqual(events, ['start']);
 });
+
+test('the caller is told when a server is given up on for failing or being slow, not when it only asked to be left alone', () => {
+  const c = fakeClock();
+  const primary = scripted('server'), spare = scripted('system');
+  const told: string[] = [];
+  const voice = createFallbackVoice({ primary: primary.voice, fallback: spare.voice, firstAudioMs: 2000, clock: c.clock, onGiveUp: (why) => told.push(why) });
+  voice.speak('One.');
+  primary.spoken[0]!.end({ reason: 'error', error: 'the voice server is not reachable' });
+  assert.deepEqual(told, ['the voice server is not reachable']);
+  const b = scripted('busy');
+  const again = createFallbackVoice({ primary: b.voice, fallback: spare.voice, firstAudioMs: 2000, clock: c.clock, onGiveUp: (why) => told.push(why) });
+  again.speak('Two.');
+  b.spoken[0]!.end({ reason: 'error', error: 'busy', retryAfterMs: 5000 });
+  assert.equal(told.length, 1, 'busy is not down');
+});

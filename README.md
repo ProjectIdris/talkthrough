@@ -41,6 +41,8 @@ These are saved answer frames from pages used as examples. The first animation a
 
 Windows may show a SmartScreen warning because the installer is not code-signed. The [Setup guide](docs/setup.md) explains first run and how to build from source.
 
+The installed app looks for a newer release at start and once a day, and tells you quietly in the tray; it downloads and installs one (checked against the release's published checksum) only when you say yes. Turn the checks off in Settings. See [Updates](docs/setup.md#updates).
+
 ## Choose how it runs your model
 
 Talkthrough supports four model routes: your **Codex CLI**, **Claude Code**, an **OpenAI API key**, or a **local OpenAI-compatible vision model** such as Ollama or LM Studio. The local route connects only to an address on your own computer and needs a model that can read screenshots. Configure the route in Settings; the details and data each route receives are in [Setup](docs/setup.md).

@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { SETTINGS_CHANNEL } from '../shared/ipc.ts';
-import type { DeviceList, FirstRunInfo, MicTestResult, SpeechInfo, ToolsFound } from '../shared/ipc.ts';
+import type { DeviceList, FirstRunInfo, MicTestResult, SpeechInfo, ToolsFound, UpdateView } from '../shared/ipc.ts';
 import { testLocalModel } from '../adapters/local-model.ts';
 import { KeyStoreError } from './keystore.ts';
 import type { createKeyStore } from './keystore.ts';
@@ -36,6 +36,8 @@ export type SettingsWindowOptions = {
   modelLine?: () => string;
   /** The person finished (or closed) the first-run window; `restart` is true when what they chose needs the app started again. */
   onFirstRunDone?(restart: boolean): void;
+  /** Updates: where they stand, a look now, and (the person's yes, from the page's button) the install. */
+  updates?: { view(): UpdateView; check(): Promise<UpdateView>; install(): Promise<UpdateView> };
   /** Quit and start again. */
   onRestart(): void;
   /** Called with the settings as saved, so what can take effect at once does. */
@@ -115,6 +117,9 @@ export function createSettingsWindow(options: SettingsWindowOptions) {
     if (!trusted(event) || !options.micTest) return { ok: false, message: 'The microphone test is not available.' };
     return options.micTest().catch(() => ({ ok: false as const, message: 'The microphone could not be used.' }));
   });
+  ipcMain.handle(SETTINGS_CHANNEL.updateStatus, (event): UpdateView | null => (trusted(event) && options.updates ? options.updates.view() : null));
+  ipcMain.handle(SETTINGS_CHANNEL.updateCheck, async (event): Promise<UpdateView | null> => (trusted(event) && options.updates ? options.updates.check() : null));
+  ipcMain.handle(SETTINGS_CHANNEL.updateInstall, async (event): Promise<UpdateView | null> => (trusted(event) && options.updates ? options.updates.install() : null));
   ipcMain.on(SETTINGS_CHANNEL.visualTour, (event) => {
     if (trusted(event)) options.onVisualTour?.();
   });

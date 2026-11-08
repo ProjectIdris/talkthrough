@@ -26,6 +26,8 @@ export type FallbackVoiceOptions = {
   clock?: FallbackClock;
   /** Told when the primary is given up on, and when it is back (for the log). */
   log?(line: string): void;
+  /** Told each time the primary is given up on because it failed or was too slow (not when it only asked to be left alone for a while). */
+  onGiveUp?(why: string): void;
 };
 
 export function createFallbackVoice(options: FallbackVoiceOptions): Voice {
@@ -46,6 +48,7 @@ export function createFallbackVoice(options: FallbackVoiceOptions): Voice {
     const wait = asked !== undefined ? Math.max(1000, asked) : cooldownMs;
     if (asked !== undefined) busyUntil = Math.max(busyUntil, clock.now() + wait);
     else downUntil = Math.max(downUntil, clock.now() + wait);
+    if (asked === undefined) options.onGiveUp?.(why);
     log(`voice: ${primary.id} ${asked !== undefined ? 'is busy' : 'gave no sound'} (${why}); speaking with ${fallback.id} for ${Math.round(wait / 1000)} s`);
   }
 

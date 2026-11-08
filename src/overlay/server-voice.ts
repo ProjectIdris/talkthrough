@@ -30,6 +30,8 @@ export type RoutedVoiceOptions = {
   speaker?: string;
   /** Told once if that speaker could not be used and the default plays. */
   onSinkLost?(why: string): void;
+  /** Told when the voice server did not answer and the system voice spoke instead (each time; the caller says it once). */
+  onServerDown?(why: string): void;
   /** For tests. */
   sink?: AudioSink;
 };
@@ -45,7 +47,7 @@ export function createServerVoice(api: TalkthroughApi['voice'], config: NonNulla
     voice = createFallbackVoice({ primary: timedVoice(createStreamedVoice({ transport: voiceTransport(api, 'system'), sink }), log), fallback: voice, firstAudioMs: config.server === false ? config.firstAudioMs : Math.max(SYSTEM_FIRST_AUDIO_MS, config.firstAudioMs), cooldownMs, log });
   }
   if (config.server !== false) {
-    voice = createFallbackVoice({ primary: timedVoice(createStreamedVoice({ transport: voiceTransport(api), sink }), log), fallback: voice, firstAudioMs: config.firstAudioMs, cooldownMs, log });
+    voice = createFallbackVoice({ primary: timedVoice(createStreamedVoice({ transport: voiceTransport(api), sink }), log), fallback: voice, firstAudioMs: config.firstAudioMs, cooldownMs, log, ...(options.onServerDown ? { onGiveUp: options.onServerDown } : {}) });
   }
   return voice;
 }

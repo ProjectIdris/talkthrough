@@ -44,7 +44,7 @@ export function parseFacts(j: Record<string, unknown> | null): { facts: NavFacts
   return {
     token: str(j.token, 2000),
     facts: {
-      ok: true, ct: str(j.ct, 40).toLowerCase(), enabled: j.enabled === true, offscreen: j.offscreen === true, password: j.password === true,
+      ok: true, ct: str(j.ct, 40).toLowerCase(), enabled: j.enabled === true, offscreen: j.offscreen === true, password: j.password === true, elevated: j.elevated !== false,
       name: str(j.name), autoId: str(j.autoId), help: str(j.help), win: str(j.win), proc: str(j.proc, 80), dlg: str(j.dlg),
       invoke: j.invoke === true, expand, selected: typeof j.selected === 'boolean' ? j.selected : null,
       toggle: j.toggle === true, valuePattern: j.valuePattern === true, valueReadOnly: j.valueReadOnly !== false, range: j.range === true, scroll,

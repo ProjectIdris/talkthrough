@@ -1506,3 +1506,18 @@ test('queued steps do not reset the producer turn action budget', async () => {
   assert.equal(shown.length,238,'the first waiting step consumed two of 240 actions');
   w.session.dispose();
 });
+
+test('a first-time fault says what is wrong and what to do: no Claude Code, not signed in, no microphone', async () => {
+  const failing = (id: string, code: ModelError['code'], message: string) => rig({ model: () => ({ id, ask: async function* () { throw new ModelError(code, message); } }) });
+  const says = async (r: ReturnType<typeof rig>): Promise<string> => { await question(r); return firstNotice(r)?.text ?? ''; };
+  assert.match(await says(failing('claude-haiku-5-5', 'unavailable', 'the claude command was not found')), /Claude Code isn't installed/);
+  assert.match(await says(failing('claude-haiku-5-5', 'auth', 'Not logged in · Please run /login')), /Claude Code isn't signed in.*`claude`/);
+  assert.match(await says(failing('codex:gpt-6', 'auth', 'refresh token was revoked')), /Codex isn't signed in.*`codex login`/);
+  assert.match(await says(failing('openai:gpt-6', 'auth', 'the API refused the key (401)')), /didn't accept the key/);
+  assert.match(await says(failing('local:gemma', 'unavailable', 'the local model server could not be reached at http://127.0.0.1:11434/v1')), /local model server/);
+  const mic = (message: string) => rig({ media: { startMic: async () => undefined, stopMic: async () => { throw new Error(message); }, abortMic: () => undefined, capture: async () => ({ screenshot: { mime: 'image/png', base64: 'AAAA', width: 10, height: 10 }, ms: 5, grabId: 3 }) } as SessionDeps['media'] });
+  const denied = mic('Permission denied by system');
+  assert.match(await says(denied), /not letting Talkthrough use the microphone/);
+  assert.equal(firstNotice(denied)?.action, 'settings');
+  assert.match(await says(mic('Requested device not found')), /No microphone was found/);
+});

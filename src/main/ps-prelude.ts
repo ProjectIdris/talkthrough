@@ -9,6 +9,8 @@
 //    and the window tree), never at the accessibility API.
 
 export const PS_PRELUDE = String.raw`
+using namespace System.Windows.Automation
+using namespace System.Runtime.InteropServices
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Add-Type -AssemblyName UIAutomationClient
@@ -17,8 +19,8 @@ Add-Type -AssemblyName WindowsBase
 
 $ab = [AppDomain]::CurrentDomain.DefineDynamicAssembly((New-Object System.Reflection.AssemblyName 'ttwin'), [System.Reflection.Emit.AssemblyBuilderAccess]::Run)
 $tb = $ab.DefineDynamicModule('ttwin').DefineType('Win', 'Public,Class')
-function Imp($name, $charset, $ret, $params) {
-  $m = $tb.DefinePInvokeMethod($name, 'user32.dll', 'Public,Static,PinvokeImpl', 'Standard', $ret, [Type[]]$params, 'Winapi', $charset)
+function Imp($name, $charset, $ret, $params, $dll = 'user32.dll') {
+  $m = $tb.DefinePInvokeMethod($name, $dll, 'Public,Static,PinvokeImpl', 'Standard', $ret, [Type[]]$params, 'Winapi', $charset)
   $m.SetImplementationFlags('PreserveSig')
 }
 Imp 'SetProcessDPIAware' 'Auto' ([bool]) @()
@@ -27,12 +29,30 @@ Imp 'GetClassNameW' 'Unicode' ([int]) @([IntPtr], [System.Text.StringBuilder], [
 Imp 'WindowFromPoint' 'Auto' ([IntPtr]) @([long])
 Imp 'GetAncestor' 'Auto' ([IntPtr]) @([IntPtr], [uint32])
 Imp 'GetWindow' 'Auto' ([IntPtr]) @([IntPtr], [uint32])
+Imp 'GetWindowThreadProcessId' 'Auto' ([uint32]) @([IntPtr], [uint32].MakeByRefType())
+Imp 'OpenProcess' 'Auto' ([IntPtr]) @([uint32], [bool], [uint32]) 'kernel32.dll'
+Imp 'CloseHandle' 'Auto' ([bool]) @([IntPtr]) 'kernel32.dll'
+Imp 'OpenProcessToken' 'Auto' ([bool]) @([IntPtr], [uint32], [IntPtr].MakeByRefType()) 'advapi32.dll'
+Imp 'GetTokenInformation' 'Auto' ([bool]) @([IntPtr], [int], [IntPtr], [uint32], [uint32].MakeByRefType()) 'advapi32.dll'
 $Win = $tb.CreateType()
 [void]$Win::SetProcessDPIAware()
 
 # The owner-most window of the one at a screen point (so a menu that belongs to a window counts as that window).
 function Root-At($x, $y) { return $Win::GetAncestor($Win::WindowFromPoint(([long]$y -shl 32) -bor ([long]$x -band 0xFFFFFFFFL)), 3) }
 function Front-Window() { return $Win::GetAncestor($Win::GetForegroundWindow(), 3) }
+
+# True when the process runs elevated (an administrator's full token), and also when that cannot be read: the app never acts in a window it cannot show is the person's own level.
+# Windows lets an unelevated process read an elevated one's token only in part, and refuses it for services and the system; every refusal here counts as elevated.
+function Is-Elevated($q) {
+  $r = $true; $h = [IntPtr]::Zero; $t = [IntPtr]::Zero; $b = [Marshal]::AllocHGlobal(4); $n = [uint32]0
+  try {
+    $h = $Win::OpenProcess([uint32]4096, $false, [uint32]$q)
+    if ($Win::OpenProcessToken($h, [uint32]8, [ref]$t) -and $Win::GetTokenInformation($t, 20, $b, [uint32]4, [ref]$n)) { $r = [Marshal]::ReadInt32($b) -ne 0 }
+  } catch { }
+  [Marshal]::FreeHGlobal($b); foreach ($x in $h, $t) { if ($x -ne [IntPtr]::Zero) { [void]$Win::CloseHandle($x) } }
+  return $r
+}
+function Window-Elevated($hwnd) { $p = [uint32]0; [void]$Win::GetWindowThreadProcessId($hwnd, [ref]$p); return (Is-Elevated $p) }
 
 $browserClass = '^(Chrome_|MozillaWindowClass|MozillaDialogClass|MozillaUIWindowClass|Qt\d+\w*QWindow|CefBrowser|Intermediate D3D Window)'
 function Class-Of($h) { $sb = New-Object System.Text.StringBuilder 256; [void]$Win::GetClassNameW($h, $sb, 256); return $sb.ToString() }

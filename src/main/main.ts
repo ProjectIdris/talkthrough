@@ -1,4 +1,5 @@
 import { app, clipboard, dialog, safeStorage, screen, shell } from 'electron';
+import { spawn } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { isCheckRun, parseArgs, realScreenRefusal, wantsSoftware } from './args.ts';
@@ -50,6 +51,7 @@ import { createHelper } from './ps-helper.ts';
 import { createUiaReader, toDisplayBoxes } from './uia.ts';
 import { DEFAULT_LOCAL_BASE_URL, DETAIL_EFFORT, DETAIL_MODELS, DETAIL_TIMEOUT_MS, loadSettings } from './settings.ts';
 import { createTray } from './tray.ts';
+import { createUpdater, trayLine, viewOf } from './updater.ts';
 import { createQuestionRecord, recordDir } from './record.ts';
 import { observeModel } from './record-model.ts';
 import { createTrayStatus } from './tray-state.ts';
@@ -315,9 +317,51 @@ async function main(): Promise<void> {
     overlayPage: join(__dirname, '..', 'overlay', 'index.html'),
     overlayPreload: preload,
   });
+  // Updates: only the installed app of a normal launch looks (a source run, a check run or a hidden one never does). It says so quietly in the
+  // tray and the settings window, and downloads only on the person's yes; never while a question is being asked or answered.
+  let updatesOn = settings.checkForUpdates;
+  const updater = app.isPackaged && !isCheckRun(options) && !options.hidden
+    ? createUpdater({
+      current: app.getVersion(),
+      dir: join(app.getPath('userData'), 'updates'),
+      enabled: () => updatesOn,
+      busy: () => session?.busy() === true,
+      // The installer is the app's own electron-builder one: silent, then it starts the new version (this process quits at once so it can replace the files).
+      runInstaller: (file) => {
+        const child = spawn(file, ['/S', '--updated', '--force-run'], { detached: true, stdio: 'ignore', windowsHide: true });
+        child.on('error', (error) => log(`the update installer could not be started: ${error.message}`));
+        child.unref();
+      },
+      quit: () => quit(),
+      onChange: (status) => {
+        if (status.kind !== lastUpdateKind) {
+          lastUpdateKind = status.kind;
+          if (status.kind === 'available') log(`an update is available: ${status.release.version}`);
+          tray?.refresh();
+        }
+      },
+    })
+    : undefined;
+  let lastUpdateKind = 'idle';
+  const askInstall = async (): Promise<void> => {
+    const status = updater?.status();
+    if (!updater || !status || (status.kind !== 'available' && status.kind !== 'failed')) return;
+    const answer = await dialog.showMessageBox({
+      type: 'question',
+      buttons: ['Install and restart', 'Not now'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Talkthrough update',
+      message: `Install Talkthrough ${status.release.version}?`,
+      detail: 'Talkthrough will download the installer from GitHub, check it against the checksum published with the release, run it and start again.',
+    });
+    if (answer.response === 0) void updater.install();
+  };
   const settingsWindow = createSettingsWindow({
     onVisualTour: () => visualTour.open(),
+    ...(updater ? { updates: { view: () => viewOf(updater.status()), check: async () => viewOf(await updater.check(true)), install: async () => viewOf(await updater.install()) } } : {}),
     onSaved: (form) => {
+      updatesOn = form.checkForUpdates;
       skipList = form.captureBlocklist;
       if (skipList.length > 0) void frontReader.read().catch(() => undefined);
     },
@@ -502,7 +546,7 @@ async function main(): Promise<void> {
         return watchGuideInput({
           down: (p) => { if (onGuideTarget(p)) listener.down(clickOf(p)); else listener.outside?.(clickOf(p)); },
           up: (p) => { if (onGuideTarget(p)) listener.up(clickOf(p)); else listener.cancelClick?.(); },
-          escape: () => listener.escape(), key: () => listener.key?.(),
+          escape: () => listener.escape(), key: () => listener.key?.(), wheel: () => listener.wheel?.(),
         });
       },
       ...(navigator && navConsent
@@ -581,6 +625,7 @@ async function main(): Promise<void> {
   const quit = () => {
     if (quitting) return;
     quitting = true;
+    updater?.stop();
     hotkey?.stop();
     frames?.stop();
     session?.dispose();
@@ -615,6 +660,7 @@ async function main(): Promise<void> {
     onPlaySample: () => playSample(screen.getPrimaryDisplay().id),
     onSettings: () => settingsWindow.open(),
     hotkeyLabel: chord.label,
+    ...(updater ? { updateItem: () => { const line = trayLine(updater.status()); return line ? { ...line, click: () => void askInstall() } : null; } } : {}),
     onPin: () => session?.pin(displayUnderPointer().id),
     onOpenPins: () => {
       mkdirSync(pins.dir, { recursive: true });
@@ -664,6 +710,7 @@ async function main(): Promise<void> {
     }
   }
   log(hotkey ? `ready: hold ${chord.label}` : 'ready (hotkey off)');
+  updater?.start();
   // A first run (no settings file yet and the window never finished), or one asked for: the window that explains the keys and sets up hearing and answers.
   if (options.firstRun || (!isCheckRun(options) && !options.hidden && !prefs.get().firstRunDone && !existsSync(settingsPath))) settingsWindow.openFirstRun();
 
