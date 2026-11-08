@@ -3780,6 +3780,13 @@
           ],
           "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
         },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic; a material name (families: plastic, metal, rubber, electronics, glass, light, paper, body, wood, fabric, liquid, stone, earth, plant, food, ice); another name is taken to the nearest material"
+        },
         "opacity": {
           "type": [
             "number",
@@ -3810,6 +3817,7 @@
         "size",
         "n",
         "color",
+        "material",
         "opacity",
         "at"
       ],

@@ -472,7 +472,7 @@ export const VARIANTS: readonly Variant[] = [
       shape: { k: 'enum', values: ['part'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       part: { k: 'enum', values: PARTS }, variant: { k: 'enum', values: PART_VARIANTS, opt: true },
       size: { k: 'vec3', min: 0.01, max: 100 }, n: { k: 'num', min: 1, max: LIMITS.maxArray, int: true, opt: true },
-      color: COLOR_OPT, opacity: OPACITY, at: AT,
+      color: COLOR_OPT, material: MATERIAL, opacity: OPACITY, at: AT,
     },
   },
   // The real models a build has (a release leaves out those held back; with none there is no such shape).

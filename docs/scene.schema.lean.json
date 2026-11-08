@@ -637,6 +637,9 @@
         "color": {
           "$ref": "#/$defs/1"
         },
+        "material": {
+          "$ref": "#/$defs/1"
+        },
         "opacity": {
           "$ref": "#/$defs/0"
         },
@@ -658,6 +661,7 @@
         "size",
         "n",
         "color",
+        "material",
         "opacity",
         "at"
       ],

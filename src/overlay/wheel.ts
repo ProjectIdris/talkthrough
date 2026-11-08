@@ -22,7 +22,8 @@ export function buildWheel(b: Builder, def: AddPart, d: Detail): void {
     [1, 0.12], [0.995, 0.24], [0.975, 0.36], [0.93, 0.46],
     [0.87, 0.5], [0.80, 0.48], [0.74, 0.42], [0.72, 0.32], [0.72, -0.32],
   ];
-  b.add(latheGeometry(tyre.map(([r, z]) => [r * outer, z * depth]), d.curve * 2), 'rubber', {
+  // A wheel given a material is all of it (a pulley of steel has no black tyre); without one the tread is black rubber.
+  b.add(latheGeometry(tyre.map(([r, z]) => [r * outer, z * depth]), d.curve * 2), 'rubber', def.material ? { tint: true, rot: [90, 0, 0] } : {
     color: [32, 34, 40], rot: [90, 0, 0],
   });
 

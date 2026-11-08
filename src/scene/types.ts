@@ -120,7 +120,7 @@ export type PartKind = OtherPartKind | KitPartName;
 export type PartVariant = 'black' | 'metal' | 'usb' | 'usb3' | 'ethernet' | 'hdmi' | 'usbc' | 'gold' | 'cutaway' | 'finned';
 export type AddPart = {
   op: 'add'; shape: 'part'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; part: PartKind; variant?: PartVariant;
-  size: Vec3; n?: number; color?: Color; opacity?: number;
+  size: Vec3; n?: number; color?: Color; material?: string; opacity?: number;
 } & At;
 /** A real model from the catalogue (a heart, a brain), with its named parts as objects of their own (`<id>.<part>`). `size` is its longest side; with none it has its real size. */
 export type AddModel = {

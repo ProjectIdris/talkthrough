@@ -330,7 +330,7 @@ export class PanelScene {
       case 'part': {
         const built = buildPart(def, this.detail);
         node.obj = built.root;
-        for (const p of built.pieces) this.adoptPiece(node, p);
+        for (const p of built.pieces) this.adoptPiece(node, p, material);
         break;
       }
       case 'sweep': {
@@ -403,9 +403,10 @@ export class PanelScene {
     return lines;
   }
 
-  private adoptPiece(node: Node, p: Piece): void {
+  /** The pieces a part's colour tints are made of the part's own `material` when it names one (a steel pulley is steel all through); the fixed-colour details keep theirs. */
+  private adoptPiece(node: Node, p: Piece, material?: string): void {
     const settings = TIERS[this.tier];
-    const surface = makeSurface(p.surface, settings);
+    const surface = makeSurface(p.tint && material ? material : p.surface, settings);
     p.object.material = surface;
     p.object.castShadow = settings.shadows;
     p.object.receiveShadow = settings.shadows;
