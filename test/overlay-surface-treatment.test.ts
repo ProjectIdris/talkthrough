@@ -154,6 +154,41 @@ test('moving connectors regenerate coordinates with no material churn and determ
   } finally { panel.destroy(); }
 });
 
+test('treated elastic connectors keep the current bulge and endpoint limits through contraction and reverse seeks', () => {
+  for (const tier of ['low', 'mid', 'high'] as const) {
+    const actions = [
+      { ...ends[0], pos: [0, 0, 0] }, { ...ends[1], pos: [0, 4, 0] },
+      { ...connector, kind: 'straight', radius: 0.1, restLength: 4,
+        fromPoint: [0, 0, 0], toPoint: [0, 0, 0], swell: [[0, 0.2], [0.5, 2], [1, 0.2]] },
+    ];
+    const plain = setup(actions, tier);
+    const treated = setup([...actions.slice(0, -1), { ...actions.at(-1), treatment: 'fibres' }], tier);
+    try {
+      const original = treated.mesh.geometry;
+      const shorten = (frame: typeof treated.frame) => evaluate(planStep(frame, { say: 'Shorten.', actions: [{ op: 'move', id: 'b', to: [0, 0.02, 0], dur: 0 }] }), 99);
+      const moved = shorten(treated.frame), plainMoved = shorten(plain.frame);
+      for (const [plainFrame, frame] of [[plain.frame, treated.frame], [plainMoved, moved], [plain.frame, treated.frame]] as const) {
+        plain.panel.sync(plainFrame, 1); treated.panel.sync(frame, 1);
+        const a = plain.mesh.geometry, b = treated.mesh.geometry;
+        for (const name of ['position', 'normal']) assert.deepEqual(b.getAttribute(name).array, a.getAttribute(name).array);
+        assert.deepEqual(b.index!.array, a.index!.array);
+        assert.equal(a.getAttribute('surfaceCoord'), undefined, `${tier}: untreated paths remain unmodified`);
+        assert.ok(b.getAttribute('surfaceCoord'), `${tier}: rebuilt elastic path retains its material coordinates`);
+        const positions = b.getAttribute('position');
+        let widest = 0, low = Infinity, high = -Infinity;
+        for (let i = 0; i < positions.count; i++) {
+          widest = Math.max(widest, Math.hypot(positions.getX(i), positions.getZ(i)));
+          low = Math.min(low, positions.getY(i)); high = Math.max(high, positions.getY(i));
+        }
+        assert.ok(widest > 0.19 && widest <= 0.20001, `${tier}: authored swell is retained without growing past its bound (${widest})`);
+        if (frame === moved) assert.ok(low >= -0.00501 && high <= 0.02501, `${tier}: rounded ends stay within a quarter-span (${low}..${high})`);
+      }
+      assert.deepEqual(treated.mesh.geometry.getAttribute('position').array, original.getAttribute('position').array);
+      assert.deepEqual(treated.mesh.geometry.getAttribute('surfaceCoord').array, original.getAttribute('surfaceCoord').array);
+    } finally { plain.panel.destroy(); treated.panel.destroy(); }
+  }
+});
+
 test('attached tubes regenerate their treatment when an endpoint moves', () => {
   const { panel, frame, mesh } = setup([...ends, { ...tube, pts: [[-2,0,0],[0,0.6,0],[2,0,0]], treatment: 'fibres' }], 'mid', true);
   try {
@@ -279,4 +314,41 @@ test('tiny endpoint motion across an ambiguous initial frame does not jump the m
     panel.sync(frame,1);assert.ok(Math.abs(waveAtRight(before)-a)<1e-5);
   } finally { panel.destroy(); }
   });
+});
+
+test('named fibre materials retain their implicit treatment through contraction and reverse seeks', () => {
+  for (const material of ['muscle', 'tendon', 'rope']) for (const tier of ['low', 'mid', 'high'] as const) {
+    const actions = [
+      { ...ends[0], pos: [0, 0, 0] }, { ...ends[1], pos: [0, 4, 0] },
+      { ...connector, kind: 'straight', radius: 0.1, restLength: 4,
+        fromPoint: [0, 0, 0], toPoint: [0, 0, 0], swell: [[0, 0.2], [0.5, 2], [1, 0.2]] },
+    ];
+    const plain = setup(actions, tier);
+    const treated = setup([...actions.slice(0, -1), { ...actions.at(-1), material }], tier);
+    try {
+      const original = treated.mesh.geometry, originalMaterial = treated.mesh.material;
+      const shorten = (frame: typeof treated.frame) => evaluate(planStep(frame, { say: 'Shorten.', actions: [{ op: 'move', id: 'b', to: [0, 0.02, 0], dur: 0 }] }), 99);
+      const moved = shorten(treated.frame), plainMoved = shorten(plain.frame);
+      for (const [plainFrame, frame] of [[plain.frame, treated.frame], [plainMoved, moved], [plain.frame, treated.frame]] as const) {
+        plain.panel.sync(plainFrame, 1); treated.panel.sync(frame, 1);
+        const a = plain.mesh.geometry, b = treated.mesh.geometry;
+        for (const name of ['position', 'normal']) assert.deepEqual(b.getAttribute(name).array, a.getAttribute(name).array);
+        assert.deepEqual(b.index!.array, a.index!.array);
+        assert.equal(a.getAttribute('surfaceCoord'), undefined, `${tier}: untreated paths remain unmodified`);
+        assert.ok(b.getAttribute('surfaceCoord'), `${material}/${tier}: rebuilt elastic path retains its material coordinates`);
+        assert.equal(treated.mesh.material, originalMaterial);
+        assert.match(patch(originalMaterial as MeshPhysicalMaterial).fragmentShader, /vSurfaceCoord/);
+        const positions = b.getAttribute('position');
+        let widest = 0, low = Infinity, high = -Infinity;
+        for (let i = 0; i < positions.count; i++) {
+          widest = Math.max(widest, Math.hypot(positions.getX(i), positions.getZ(i)));
+          low = Math.min(low, positions.getY(i)); high = Math.max(high, positions.getY(i));
+        }
+        assert.ok(widest > 0.19 && widest <= 0.20001, `${tier}: authored swell is retained without growing past its bound (${widest})`);
+        if (frame === moved) assert.ok(low >= -0.00501 && high <= 0.02501, `${tier}: rounded ends stay within a quarter-span (${low}..${high})`);
+      }
+      assert.deepEqual(treated.mesh.geometry.getAttribute('position').array, original.getAttribute('position').array);
+      assert.deepEqual(treated.mesh.geometry.getAttribute('surfaceCoord').array, original.getAttribute('surfaceCoord').array);
+    } finally { plain.panel.destroy(); treated.panel.destroy(); }
+  }
 });
