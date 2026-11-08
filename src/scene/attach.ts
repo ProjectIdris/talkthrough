@@ -18,19 +18,27 @@ export type Body = {
   parent?: string;
   /** A ready-made part: which one (a gear, a pipe...). */
   part?: string;
+  /** A gear's tooth count. */
+  n?: number;
+  /** A cone (its size is the box it is fitted to; the point is at +y), which is not asked about as a surface but is a round body for couplings. */
+  cone?: boolean;
+  /** When it appears (the `at` of its add), and whether a face of its parent holds it (its `pos` is then an offset, not a place). */
+  at?: number;
+  step?: number;
+  mounted?: boolean;
   /** A gear: its shaft has been asked about (one was added, or something already held its middle). */
   shafted?: boolean;
   /** An opaque closed solid: what lies inside `reach` of its centre cannot be seen (`whole`: all of the part must lie inside, not only its centre). `done` once it has been made see-through. */
   hides?: { reach: number; whole: boolean; at: number; done?: boolean };
 };
 
-type Affine = { r: number[]; t: Vec3 }; // r: row-major 3x3
+export type Affine = { r: number[]; t: Vec3 }; // r: row-major 3x3
 
 const RAD = Math.PI / 180;
 const IDENTITY: Affine = { r: [1, 0, 0, 0, 1, 0, 0, 0, 1], t: [0, 0, 0] };
 
 /** Euler 'XYZ' as the renderer turns objects: R = Rx · Ry · Rz. */
-function rotation(rot: Vec3): number[] {
+export function rotation(rot: Vec3): number[] {
   const [a, b, c] = [rot[0] * RAD, rot[1] * RAD, rot[2] * RAD];
   const [ca, sa, cb, sb, cc, sc] = [Math.cos(a), Math.sin(a), Math.cos(b), Math.sin(b), Math.cos(c), Math.sin(c)];
   return [
@@ -40,7 +48,7 @@ function rotation(rot: Vec3): number[] {
   ];
 }
 
-const apply = (m: Affine, p: Vec3): Vec3 => [
+export const apply = (m: Affine, p: Vec3): Vec3 => [
   m.r[0]! * p[0] + m.r[1]! * p[1] + m.r[2]! * p[2] + m.t[0],
   m.r[3]! * p[0] + m.r[4]! * p[1] + m.r[5]! * p[2] + m.t[1],
   m.r[6]! * p[0] + m.r[7]! * p[1] + m.r[8]! * p[2] + m.t[2],
@@ -81,7 +89,7 @@ export function heldShift(restRot: Vec3, nowRot: Vec3, restScale: Vec3, nowScale
 }
 
 /** The way back from a rotation and a shift (no scale: the language has none on objects). */
-const applyInverse = (m: Affine, p: Vec3): Vec3 => {
+export const applyInverse = (m: Affine, p: Vec3): Vec3 => {
   const q: Vec3 = [p[0] - m.t[0], p[1] - m.t[1], p[2] - m.t[2]];
   return [
     m.r[0]! * q[0] + m.r[3]! * q[1] + m.r[6]! * q[2],
