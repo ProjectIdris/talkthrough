@@ -489,7 +489,7 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
 }
 
 /** Materials that are see-through or give off light of themselves: a solid of one is not a wall. */
-const SEE_THROUGH = /glass|ice|water|gem|crystal|acrylic|clear|liquid|smoke|fog|ghost|jelly|glow|led|ember|neon|lava|fire|flame|light/;
+const SEE_THROUGH = /(?<![a-z])(?:glass|ice|water|gem|crystal|acrylic|clear|liquid|smoke|fog|ghost|jelly|glow|led|ember|neon|lava|fire|flame|lamp)(?![a-z])/;
 
 /**
  * An opaque closed solid (a box, sphere or cylinder, or a hollow shell with no opening cut in it) hides every part inside it for good: the part is never seen, and a pin on it

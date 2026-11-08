@@ -38,3 +38,8 @@ test('a solid box holds a part only if the whole part is inside it', () => {
   assert.deepEqual(run([body, pin]).styled.map((a) => a.id), ['body']);
   assert.deepEqual(run([body, { ...pin, size: [0.6, 3.4, 0.6] }]).styled, [], 'a pin that stands out of the top is seen');
 });
+
+test('a material name is read by its whole words: light-wood or sealed or slice is opaque, glass or neon-tube is not', () => {
+  for (const material of ['light-wood', 'sealed-steel', 'slice-bread']) assert.equal(run([{ ...sclera, material }, lens]).styled.length, 1, material);
+  for (const material of ['glass', 'neon-tube', 'clear-plastic']) assert.deepEqual(run([{ ...sclera, material }, lens]).styled, [], material);
+});
