@@ -484,7 +484,47 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
   } else return;
   const body = state.bodies.get(id);
   if (body) body.anchors = anchorsOf(out);
+  if (body) hideCheck(state, id, name, out, body, path, notes);
   if (state.bodies.get(id)?.shape !== 'group') landLate(state, id, (out.at as number | undefined) ?? 0, path, notes);
+}
+
+/** Materials that are see-through or give off light of themselves: a solid of one is not a wall. */
+const SEE_THROUGH = /(?<![a-z])(?:glass|ice|water|gem|crystal|acrylic|clear|liquid|smoke|fog|ghost|jelly|glow|led|ember|neon|lava|fire|flame|lamp)(?![a-z])/;
+
+/**
+ * An opaque closed solid (a box, sphere or cylinder, or a hollow shell with no opening cut in it) hides every part inside it for good: the part is never seen, and a pin on it
+ * points at nothing. When a part arrives inside such a solid (or the solid arrives round one), the solid is made see-through from then on, so the inside shows.
+ * Only parts that share the solid's parent are asked (their places are in one space); a shell that is cut open is not closed, so it is never touched.
+ */
+function hideCheck(state: SceneState, id: string, name: string, out: Record<string, unknown>, body: Body, path: string, notes: Notes): void {
+  const at = (out.at as number | undefined) ?? 0;
+  const shape = out.shape as string;
+  const size = Array.isArray(out.size) ? (out.size as Vec3) : undefined;
+  const opaque =((out.opacity as number | undefined) ?? 1) >= 0.98 && !SEE_THROUGH.test(String(out.material ?? ''));
+  if (opaque && size && size.every((n) => n > 0)) {
+    if (name === 'addSolid' && (shape === 'box' || shape === 'sphere' || shape === 'cylinder')) body.hides = { reach: Math.min(...size) / 2, whole: true, at };
+    else if (name === 'addShell') {
+      const lat = out.latitude as [number, number] | undefined;
+      const sweep = out.sweep as number | undefined;
+      if ((!lat || lat[1] - lat[0] >= 350) && (sweep === undefined || sweep >= 350)) body.hides = { reach: (Math.min(...size) / 2) * ((out.inner as number | undefined) ?? 0.85), whole: false, at };
+    }
+  }
+  const inside = (wall: Body, part: Body): boolean => {
+    if (!wall.hides || wall.hides.done || part.shape === 'group' || wall.parent !== part.parent) return false;
+    if (part.size && part.size.some((n) => !(n > 0))) return false; // a flat sheet is not a part
+    const reach = wall.hides.whole && part.size ? Math.max(...part.size) / 2 : 0;
+    return Math.hypot(part.pos[0] - wall.pos[0], part.pos[1] - wall.pos[1], part.pos[2] - wall.pos[2]) + reach <= wall.hides.reach * 0.95; // a part as big as the solid is no part inside it
+  };
+  const mend = (wallId: string, wall: Body, partId: string): void => {
+    wall.hides!.done = true;
+    note(notes, 'trimmed', path, `repaired: "${partId}" is inside "${wallId}", which is closed and solid, so it could never be seen; "${wallId}" is made see-through (open a shell with latitude, or cut, to show an inside differently)`);
+    state.after.push({ op: 'style', id: wallId, opacity: 0.3, at: Math.max(at, wall.hides!.at), dur: 0.4 } as unknown as Action);
+  };
+  for (const [other, b] of state.bodies) {
+    if (other === id) continue;
+    if (inside(body, b)) { mend(id, body, other); break; }
+  }
+  for (const [other, b] of state.bodies) if (other !== id && inside(b, body)) mend(other, b, id);
 }
 
 const ends = (pts: readonly Vec3[]): [number, number] => [0, pts.length - 1];

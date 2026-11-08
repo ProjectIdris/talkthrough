@@ -61,3 +61,29 @@ export function resolvePart(model: ModelEntry, name: unknown): { part?: ModelPar
   const c = closest(name, model.parts, (p) => [p.key, p.name, ...p.aliases]);
   return { ...(c.pick ? { part: c.pick } : {}), exact: false, near: c.near };
 }
+
+/** A model with at least this many named parts is one a shape-built stand-in cannot match (a heart's chambers, a brain's lobes); a handful of parts is not. */
+const RICH_MODEL_PARTS = 6;
+
+/** A question about how a thing works or what is inside it (a model that holds no mechanism cannot answer it). */
+const HOW_IT_WORKS = /\b(how|why)\b|\b(work|works|working|mechanism|operate|operates|inside)\b/i;
+
+/**
+ * What to tell a model when the question names a real model, one sentence a question, never in the static guide.
+ * A model with many named parts (a heart, a brain) is the accurate choice, so it is named with some of its parts. A model whose parts hold no working mechanism
+ * (every other one today) is a picture of what a thing looks like, not of how it works: when the question asks how, the mechanism is to be built from shapes
+ * and kit parts, and the real model may stand small beside it so the thing is recognised. Nothing when the question names no model.
+ */
+export function realModelHint(question: string): string | undefined {
+  const text = ` ${norm(question).replace(/[^a-z0-9 ]+/g, ' ').replace(/ +/g, ' ')} `;
+  const named = MODELS.filter((m) => [m.id, m.name, ...m.aliases].some((a) => text.includes(` ${norm(a)} `)));
+  const rich = named.find((m) => m.parts.length >= RICH_MODEL_PARTS && !m.single);
+  if (rich) {
+    const sample = rich.parts.slice(0, 4).map((p) => p.name.toLowerCase()).join(', ');
+    return `If the question is about the ${rich.name.toLowerCase()} itself: the scene language has a real, detailed model of it, ${rich.id} (add {shape:model, model:"${rich.id}"}; its ${rich.parts.length} parts include ${sample}). It is far more accurate than anything built from shapes: use it, and pin, highlight or cut its named parts; add shapes only for what the model does not hold.`;
+  }
+  const plain = HOW_IT_WORKS.test(question) ? named.find((m) => !m.mechanism) : undefined;
+  if (!plain) return undefined;
+  const across = Math.round(Math.max(...plain.size) * SCENE_UNITS_PER_METRE * 10) / 10;
+  return `If the question is about the ${plain.name.toLowerCase()} itself: a real model of it exists (${plain.id}) but it shows how the thing looks and where its parts are, but holds no working mechanism. Build the working mechanism from shapes and kit parts (a cutaway or a simplified working version) and show it large and animated; the real model may stand small beside it, at its own size (about ${across} units across, so leave its size off), so the thing is recognised.`;
+}

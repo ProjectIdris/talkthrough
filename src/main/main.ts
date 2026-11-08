@@ -1,7 +1,7 @@
 import { app, clipboard, dialog, safeStorage, screen, shell } from 'electron';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { isCheckRun, parseArgs, wantsSoftware } from './args.ts';
+import { isCheckRun, parseArgs, realScreenRefusal, wantsSoftware } from './args.ts';
 import { createHttpBackend } from '../adapters/backend.ts';
 import { createClaudeModel } from '../adapters/claude-model.ts';
 import { createCodexModel } from '../adapters/codex-model.ts';
@@ -449,6 +449,8 @@ async function main(): Promise<void> {
         if (await skipped()) throw new Error('the window in front is not to be looked at (the list of windows to skip)');
         const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
         // A stand-in picture goes through the same page as a real grab, so a pen crop works the same way.
+        const refusal = realScreenRefusal(options);
+        if (!captureImage && refusal) throw new Error(refusal);
         const c = captureImage ? await media.captureFromImage(display, captureImage, settings.screenshotEdge) : await shield.around((settled) => media.capture(display, settings.screenshotEdge, settled));
         if (options.saveCapture) writeFileSync(options.saveCapture, Buffer.from(c.screenshot.base64, 'base64'));
         log(`screenshot ${c.screenshot.width}x${c.screenshot.height} (display ${c.nativeWidth}x${c.nativeHeight}) grabbed in ${c.ms} ms`);
@@ -479,6 +481,8 @@ async function main(): Promise<void> {
       capture: async (displayId) => {
         if (await skipped()) throw new Error('the window in front is not to be looked at (the list of windows to skip)');
         const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
+        const refusal = realScreenRefusal(options);
+        if (!captureImage && refusal) throw new Error(refusal);
         const c = captureImage ? await media.captureFromImage(display, captureImage, settings.screenshotEdge) : await shield.around((settled) => media.capture(display, settings.screenshotEdge, settled));
         media.release(c.grabId);
         return { screenshot: c.screenshot, grid: gridOf(c.screenshot) };

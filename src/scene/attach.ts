@@ -16,6 +16,8 @@ export type Body = {
   pos: Vec3;
   rot: Vec3;
   parent?: string;
+  /** An opaque closed solid: what lies inside `reach` of its centre cannot be seen (`whole`: all of the part must lie inside, not only its centre). `done` once it has been made see-through. */
+  hides?: { reach: number; whole: boolean; at: number; done?: boolean };
 };
 
 type Affine = { r: number[]; t: Vec3 }; // r: row-major 3x3

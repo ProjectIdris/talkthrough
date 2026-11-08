@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isCheckRun, parseArgs, parseSize, parseSteps, wantsSoftware } from '../src/main/args.ts';
+import { readFileSync } from 'node:fs';
+import { isCheckRun, parseArgs, parseSize, parseSteps, realScreenRefusal, wantsSoftware } from '../src/main/args.ts';
 
 test('a normal launch has no options set', () => {
   const o = parseArgs(['.']);
@@ -71,4 +72,21 @@ test('the graphics card is the default; software drawing only on --software or T
   assert.equal(wantsSoftware(parseArgs(['.']), { TALKTHROUGH_SOFTWARE: '1' }), true);
   assert.equal(wantsSoftware(parseArgs(['.']), { TALKTHROUGH_GPU: '1' }), false, 'the old explicit switch still works (and means nothing new)');
   assert.equal(isCheckRun(parseArgs(['.', '--software'])), false, 'a person may use it');
+});
+
+test('a check run never looks at the real screen: without a stand-in picture or a tape it is refused, a person\'s own run and a run with either is not', () => {
+  assert.equal(realScreenRefusal(parseArgs(['.'])), undefined, 'a person\'s own run');
+  for (const flags of [['--hidden'], ['--self-chord'], ['--self-chord', '--question', 'q'], ['--silent-voice', '--exit-after-chord', '1'], ['--visible-to-capture', '--question', 'q']]) {
+    assert.match(realScreenRefusal(parseArgs(['.', ...flags])) ?? '', /--capture-image/, flags.join(' '));
+  }
+  assert.equal(realScreenRefusal(parseArgs(['.', '--self-chord', '--question', 'q', '--capture-image', 'page.png'])), undefined, 'a stand-in picture');
+  assert.equal(realScreenRefusal(parseArgs(['.', '--self-chord', '--replay-answer', 'tape.json'])), undefined, 'a tape asks no model and sends nothing');
+});
+
+test('both places the app grabs the real screen ask for the refusal first', () => {
+  const main = readFileSync(new URL('../src/main/main.ts', import.meta.url), 'utf8');
+  const grabs = main.match(/media\.capture\(display/g) ?? [];
+  const guarded = main.match(/realScreenRefusal\(options\)/g) ?? [];
+  assert.equal(grabs.length, 2);
+  assert.ok(guarded.length >= grabs.length, 'each real grab is behind the refusal');
 });

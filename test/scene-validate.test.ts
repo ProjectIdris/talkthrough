@@ -370,7 +370,7 @@ test('a detail state knows the ids on screen: they can be named without being wr
   startTurn(detail);
   const r = validateScene(scene(
     { op: 'pin', id: 'q', on: 'a', text: 'B' }, // `a` named, not written again
-    cube('b', { parent: 'g' }), // a new part under an unwritten holder
+    cube('b', { parent: 'g', pos: [5, 0, 0] }), // a new part under an unwritten holder (clear of the others)
     cube('a', { parent: 'g', size: [2, 2, 2] }), // written again: replaces
     cube('a', { parent: 'g' }), // a second time: refused
     box('p'), // `p` is a pin on screen; a screen box with its id is a different kind: refused

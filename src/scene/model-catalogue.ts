@@ -23,6 +23,8 @@ export type ModelEntry = {
   format: 'obj' | 'gltf';
   /** One object with no parts of its own: label the whole, never explode or cut it. */
   single: boolean;
+  /** Whether its parts hold the thing's working mechanism (so it can show how the thing works), not only how it looks and where its parts are: when false, an answer about how it works builds the mechanism from shapes and may show this small beside it. */
+  mechanism: boolean;
   licence: { id: string; name: string; version: string; url: string };
   /** A model held back from every release (the installer is not built while one is). */
   release: { blocked: boolean; why?: string };
@@ -55,6 +57,7 @@ export const MODELS: readonly ModelEntry[] = [
     },
     "format": "gltf",
     "single": false,
+    "mechanism": false,
     "size": [
       0.131651,
       0.174155,
@@ -225,6 +228,7 @@ export const MODELS: readonly ModelEntry[] = [
     },
     "format": "gltf",
     "single": true,
+    "mechanism": false,
     "size": [
       0.151046,
       0.802581,
@@ -291,6 +295,7 @@ export const MODELS: readonly ModelEntry[] = [
     "credit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
     "format": "obj",
     "single": false,
+    "mechanism": false,
     "size": [
       0.138834,
       0.16596,
@@ -806,6 +811,7 @@ export const MODELS: readonly ModelEntry[] = [
     },
     "format": "gltf",
     "single": false,
+    "mechanism": false,
     "size": [
       0.213902,
       0.077847,
@@ -893,6 +899,7 @@ export const MODELS: readonly ModelEntry[] = [
     },
     "format": "gltf",
     "single": true,
+    "mechanism": false,
     "size": [
       0.18288,
       0.185062,
@@ -955,6 +962,7 @@ export const MODELS: readonly ModelEntry[] = [
     },
     "format": "gltf",
     "single": true,
+    "mechanism": false,
     "size": [
       0.262645,
       0.370017,
@@ -1022,6 +1030,7 @@ export const MODELS: readonly ModelEntry[] = [
     "credit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
     "format": "obj",
     "single": false,
+    "mechanism": false,
     "size": [
       0.115695,
       0.14217,
@@ -1502,6 +1511,7 @@ export const MODELS: readonly ModelEntry[] = [
     },
     "format": "gltf",
     "single": true,
+    "mechanism": false,
     "size": [
       0.040566,
       0.073414,
@@ -1563,6 +1573,7 @@ export const MODELS: readonly ModelEntry[] = [
     },
     "format": "gltf",
     "single": true,
+    "mechanism": false,
     "size": [
       0.054988,
       0.017934,
@@ -1626,6 +1637,7 @@ export const MODELS: readonly ModelEntry[] = [
     },
     "format": "gltf",
     "single": true,
+    "mechanism": false,
     "size": [
       0.169078,
       0.07655,

@@ -225,3 +225,14 @@ export function isCheckRun(options: Options): boolean {
   }
   return false;
 }
+
+/**
+ * Why a check run may not look at the real screen, or nothing. A run started with any development or check option (a self-made key press, a typed
+ * question, a hidden window...) has no person at the keys, so a grab of the display would be whatever happens to be in front, and with a real model
+ * it would be sent. Such a run must be given a stand-in picture (`--capture-image`) or a tape to replay (`--replay-answer`, which asks no model and
+ * sends nothing). The app asks this before every grab of the real screen.
+ */
+export function realScreenRefusal(options: Options): string | undefined {
+  if (!isCheckRun(options) || options.captureImage || options.replayAnswer) return undefined;
+  return 'this is a check run, which never captures the real screen: give it --capture-image <a stand-in screenshot> or --replay-answer <a tape>';
+}
