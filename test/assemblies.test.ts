@@ -16,6 +16,7 @@ type Raw = Record<string, unknown>;
 const SIZES: Record<string, number[]> = {
   'gear-train': [14, 7, 4], 'rack-and-pinion': [12, 5, 2], 'crank-slider': [4.3, 8.3, 3.8], 'cam-follower': [3, 8, 6], lever: [12, 5, 2.4], differential: [12, 8.7, 13],
   planetary: [10, 10, 2], 'four-bar-linkage': [10, 6, 2], 'bicycle-drivetrain': [18, 14, 6], 'block-and-tackle': [7, 12, 2],
+  geneva: [10, 6, 2], escapement: [8, 12, 2], ratchet: [9, 9, 2],
 };
 
 function build(part: string, size: number[], extra: Raw = {}) {
@@ -328,4 +329,77 @@ test('a question that names an assembly is told it, beside the question and neve
   const text = questionText(request);
   assert.ok(text.includes('bicycle-drivetrain') && text.indexOf('ready assembly') < text.indexOf('transcribed from speech'));
   assert.ok(!questionText({ ...request, question: 'explain gears' }).includes('ready assembly'));
+});
+
+// --- intermittent motion: the Geneva drive, the clock escapement and the ratchet and pawl ---
+
+test('Geneva drive: the pin runs in a slot while it is in the wheel, the wheel turns one slot opposite the driver a turn and stands still the rest of it', () => {
+  for (const n of [4, 5, 6]) {
+    const b = built('geneva', [10, 6, 2], { n });
+    const amt = 360 / n, tau = 6; // the driver spins at 10 rpm: one turn in six seconds
+    const wheelAdd = b.add('a-wheel') as Raw, pinAdd = b.add('a-pin') as Raw;
+    const wx = (wheelAdd.pos as number[])[0]!, driverX = ((b.add('a-driver') as Raw).pos as number[])[0]!;
+    const c = wx - driverX, a = Math.abs(((pinAdd.pos as number[])[0]!)); // the pin's circle and the middle-to-middle distance
+    const bReach = a / Math.tan(Math.PI / n);
+    let engaged = 0, still = 0;
+    for (let t = 0.02; t < 2 * tau; t += 0.05) {
+      const w = worldAt(b, t);
+      const local = centre(w('a-pin')).applyMatrix4(w('a-wheel').clone().invert());
+      const dist = Math.hypot(local.x, local.y);
+      const prev = zAngle(worldAt(b, t - 0.01)('a-wheel')), next = zAngle(worldAt(b, t + 0.01)('a-wheel'));
+      if (dist < bReach - 0.03 * a) {
+        engaged++;
+        // the pin's direction from the wheel's middle is along a slot (any one of the n), and it is in the slot's length
+        const dir = (Math.atan2(local.y, local.x) * 180) / Math.PI;
+        const off = Math.min(...Array.from({ length: n }, (_, i) => Math.abs((((dir - (180 + amt / 2 + i * amt)) % 360) + 540) % 360 - 180)));
+        assert.ok(off < 0.6, `n=${n} t=${t.toFixed(2)}: the pin is ${off.toFixed(2)} degrees off a slot`);
+        assert.ok(dist > c - a - 0.05 * a, `n=${n} t=${t.toFixed(2)}: the pin is out of the slot's inner end`);
+      } else if (dist > bReach + 0.002 * a) {
+        still++;
+        assert.ok(Math.abs(next - prev) < 1e-6, `n=${n} t=${t.toFixed(2)}: the wheel stands while the pin is away (${prev} to ${next})`);
+      }
+    }
+    assert.ok(engaged > 10 && still > 10, `n=${n}: the pin engages for part of a turn and is away for the rest (${engaged}, ${still})`);
+    // one slot opposite the driver a turn, and the same each turn
+    const w0 = zAngle(worldAt(b, 0.02)('a-wheel')), w1 = zAngle(worldAt(b, 0.02 + tau)('a-wheel')), w2 = zAngle(worldAt(b, 0.02 + 2 * tau)('a-wheel'));
+    const turn = (x: number) => ((x + 540) % 360) - 180;
+    near(turn(w1 - w0), -amt, 0.01, `n=${n} first turn`);
+    near(turn(w2 - w1), -amt, 0.01, `n=${n} second turn`);
+  }
+});
+
+test('clock escapement: the wheel steps one tooth each time the anchor passes the middle, twice a period, and stands while the anchor is at the end of its swing', () => {
+  const b = built('escapement');
+  const amt = 360 / 30, wheel = (t: number) => zAngle(worldAt(b, t)('a-wheel')), anchor = (t: number) => zAngle(worldAt(b, t)('a-anchor'));
+  for (let k = 0; k < 8; k++) {
+    // between one crossing of the middle and the next (half a period, a second) the wheel has gone on by exactly one tooth
+    const t0 = 0.25 + k * 1, t1 = t0 + 1;
+    near(wheel(t1) - wheel(t0), -amt, 1e-6, `tick ${k}`);
+  }
+  let moving = 0;
+  for (let t = 0.05; t < 6; t += 0.04) {
+    const dw = Math.abs(wheel(t + 0.01) - wheel(t - 0.01));
+    if (Math.abs(anchor(t)) > 5.5) assert.ok(dw < 1e-6, `t=${t.toFixed(2)}: the wheel stands while the anchor is at ${anchor(t).toFixed(1)} degrees`);
+    else if (dw > 1e-3) moving++;
+  }
+  assert.ok(moving > 5, 'the wheel moves while the anchor is near the middle');
+  // the hand is on the wheel: after fifteen beats (fifteen teeth) it has gone half way round
+  near(Math.abs(wheel(0.25 + 15) - wheel(0.25)), 180, 1e-6, 'half a round of the wheel in n/2 beats');
+});
+
+test('ratchet and pawl: the wheel is pushed on a tooth while the lever goes forward, stands when it comes back, and never runs backward', () => {
+  const b = built('ratchet');
+  const p = 360 / 12, wheel = (t: number) => zAngle(worldAt(b, t)('a-wheel')), lever = (t: number) => zAngle(worldAt(b, t)('a-lever'));
+  // the lever swings half a tooth either side: the push is the forward stroke, the wheel keeps pace with the lever through it
+  for (const t of [0.1, 0.2, 0.3, 0.4, 2.1, 2.2, 2.3, 2.4]) near(wheel(t) - wheel(0), lever(t) + (t > 1 ? 0 : 0) - (t > 1 ? lever(2) * 0 : 0) + (t > 1 ? p : 0), 1e-6, `push at ${t}`);
+  let prev = wheel(0);
+  for (let t = 0; t < 8; t += 0.01) {
+    const w = wheel(t);
+    assert.ok(w >= prev - 1e-9, `t=${t.toFixed(2)}: the wheel runs back (${prev} to ${w})`);
+    prev = w;
+  }
+  // a whole number of teeth a cycle, and still through the lever's return stroke
+  near(wheel(2.5) - wheel(0.5), p, 1e-6, 'one tooth a cycle');
+  for (const t of [0.6, 0.8, 1.0, 1.2, 1.4]) near(wheel(t), wheel(0.5), 1e-9, `stands at ${t}`);
+  assert.ok(lever(1.0) < lever(0.5) - 1 && lever(1.5) < -(p / 2) + 1e-6, 'the lever swings back while the wheel stands');
 });

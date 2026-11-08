@@ -60,6 +60,7 @@ function loopValue(l: LoopDef, a: number): { value: number; rock: number } {
   const row = LOOP_ROWS[l.kind];
   const b = row.ease !== undefined && l.start !== undefined ? Math.min(1, Math.max(0, (a - l.start) / row.ease)) : 1;
   const scope = fresh({ a: a * DEG, amount: l.amount, tilt: l.tilt ?? 0, fade: loopFade(l, a), born: row.ease !== undefined ? b * b * (3 - 2 * b) : 1 });
+  if (row.lets) bind(scope, row.lets);
   return { value: num(row.value, scope), rock: row.rock !== undefined ? num(row.rock, scope) : 0 };
 }
 

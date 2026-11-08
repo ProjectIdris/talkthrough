@@ -409,8 +409,115 @@ const blockAndTackle: AssemblyRow = {
   ],
 };
 
+// A Geneva drive: a driver disc with one pin, turning steadily, and a wheel with n slots that the pin moves on by one slot a turn and leaves locked still the rest of it. The wheel is the
+// `geneva` loop kind locked to the driver (it turns the opposite way, one slot of 360/n degrees a turn); the geometry is the true one: the pin is on a circle of radius a, the middle of the
+// wheel is a / sin(180/n) from the driver's, the wheel reaches a / tan(180/n) (where the pin's circle meets a slot's end on) and a slot runs from just inside the pin's nearest to there.
+const genevaDrive: AssemblyRow = {
+  note: 'a Geneva drive: a driver with a pin, turning steadily, and a wheel of n slots (default 4) that the pin moves on one slot a turn and locks still between, turning the other way',
+  aka: ['geneva-drive', 'geneva drive', 'geneva wheel', 'geneva mechanism', 'maltese cross', 'maltese cross mechanism', 'intermittent drive'],
+  asks: ['geneva drive', 'geneva wheel', 'geneva mechanism', 'geneva stop', 'maltese cross', 'maltese cross mechanism', 'intermittent motion', 'indexing drive'],
+  size: [10, 6, 2],
+  n: { default: 4, min: 3, max: 10, what: 'slots' },
+  drive: { key: 'driver', what: 'the driver: change its spin rpm and the wheel indexes faster or slower, one slot a turn' },
+  values: [
+    ['q', 'pi/n'], ['kw', '1.45 + 1/sin(q) + 1/tan(q)'], ['kh', '2*max(1.45, 1/tan(q))'],
+    ['a', 'min(sx/kw, sy/kh)'], ['c', 'a/sin(q)'], ['b', 'a/tan(q)'], ['rd', '1.45*a'],
+    ['xd', 'rd - (rd + c + b)/2'], ['xw', 'xd + c'],
+    ['t', 'min(sz/2.4, a*0.5)'], ['pr', 'a*0.17'], ['inn', 'c - a - pr'], ['amt', '360/n'],
+  ],
+  pieces: [
+    { key: 'driver', shape: 'sphere', size: ['0.7*a', '0.7*a', '0.7*a'], pos: ['xd', 0, 0], color: 'gray' },
+    { key: 'drive-disc', on: 'driver', shape: 'cylinder', size: ['2*rd', '0.8*t', '2*rd'], rot: [90, 0, 0], pos: [0, 0, '-t'], color: 'gray' },
+    { key: 'pin', on: 'driver', shape: 'cylinder', size: ['2*pr', '1.95*t', '2*pr'], rot: [90, 0, 0], pos: ['-a', 0, '-0.425*t'], color: 'orange' },
+    { key: 'wheel', shape: 'group', pos: ['xw', 0, 0] },
+    { key: 'disc', on: 'wheel', shape: 'cylinder', size: ['2*b', 't', '2*b'], rot: [90, 0, 0], tint: true, color: 'blue' },
+    { key: 'slot{i}', for: { as: 'i', count: 'n' }, let: [['s', '(180 + amt/2 + i*amt)*deg']], on: 'wheel', shape: 'box', size: ['b - inn', '2.2*pr', '1.04*t'],
+      pos: ['(b + inn)/2*cos(s)', '(b + inn)/2*sin(s)', 0], rot: [0, 0, 's/deg'], color: 'black' },
+    { key: 'hub', on: 'wheel', shape: 'cylinder', size: ['0.7*a', '1.3*t', '0.7*a'], rot: [90, 0, 0], color: 'gray' },
+  ],
+  anchors: [{ name: 'input', at: ['xd', 0, 't'] }, { name: 'output', at: ['xw', 0, 't'] }],
+  steps: [
+    { op: 'spin', refs: { id: 'driver' }, texts: { axis: 'z' }, fields: { rpm: 10 } },
+    { op: 'loop', refs: { id: 'wheel', by: 'driver' }, texts: { kind: 'geneva', axis: 'z' }, fields: { amount: 'amt', ratio: 1, phase: 180 } },
+  ],
+};
+
+// A clock escapement (the anchor, as in a longcase clock): an escape wheel of n teeth (default 30) with a seconds hand, the anchor that rocks over it with its pendulum, and the pendulum behind.
+// The anchor swings with the pendulum (a period of 2 s); the wheel steps one tooth each time the anchor passes the middle, twice a period, so the hand ticks round once in n half periods.
+const clockEscapement: AssemblyRow = {
+  note: 'a clock escapement: an escape wheel of n teeth (default 30) with a seconds hand, stepping one tooth each beat while the anchor rocks over it with its pendulum (period 2 s)',
+  aka: ['clock-escapement', 'clock escapement', 'anchor escapement', 'pendulum clock', 'escape wheel'],
+  asks: ['clock escapement', 'escapement', 'anchor escapement', 'escape wheel', 'pendulum clock', 'clock tick', 'why does a clock tick', 'how does a clock tick'],
+  size: [8, 12, 2],
+  n: { default: 30, min: 12, max: 40, what: 'teeth' },
+  drive: { key: 'anchor', what: 'the anchor (with the pendulum): change its swing loop, period and amount; the wheel loop steps twice in the anchor period' },
+  values: [
+    ['R', 'min(sx/2.4, sy/3.9)'], ['t', 'min(sz/2.6, R*0.25)'], ['rb', '0.3*R'],
+    ['y1', 'sy/2 - 0.35*R'], ['y0', 'y1 - 1.55*R'], ['yb', 'y0 - R - 1.5*rb'],
+    // The pallets lie on the wheel's rim, 38 degrees either side of the top: from the pivot, a step (xp, yp) to each.
+    ['xp', '0.616*R'], ['yp', '-0.762*R'], ['la', 'sqrt(xp*xp + yp*yp)'], ['ar', 'atan2(yp, xp)/deg'], ['al', 'atan2(yp, -xp)/deg'],
+    ['per', 2], ['amt', '360/n'],
+  ],
+  pieces: [
+    { key: 'wheel', shape: 'group', pos: [0, 'y0', 0] },
+    { key: 'disc', on: 'wheel', shape: 'cylinder', size: ['1.62*R', 't', '1.62*R'], rot: [90, 0, 0], tint: true, color: 'orange' },
+    { key: 'tooth{i}', for: { as: 'i', count: 'n' }, let: [['s', '(i*amt + 90)*deg']], on: 'wheel', shape: 'box', size: ['0.3*R', 'min(0.08*R, 5.4*R/n)', 't'],
+      pos: ['0.88*R*cos(s)', '0.88*R*sin(s)', 0], rot: [0, 0, 's/deg + 25'], color: 'orange' },
+    { key: 'hand', on: 'wheel', shape: 'box', size: ['0.04*R', '0.8*R', '0.5*t'], pos: [0, '0.4*R', '0.7*t'], color: 'red' },
+    { key: 'hub', on: 'wheel', shape: 'cylinder', size: ['0.22*R', '1.8*t', '0.22*R'], rot: [90, 0, 0], color: 'gray' },
+    { key: 'anchor', shape: 'group', pos: [0, 'y1', 0] },
+    { key: 'arm-left', on: 'anchor', shape: 'box', size: ['la', '0.1*R', 't'], pos: ['-xp/2', 'yp/2', 0], rot: [0, 0, 'al'], color: 'blue' },
+    { key: 'arm-right', on: 'anchor', shape: 'box', size: ['la', '0.1*R', 't'], pos: ['xp/2', 'yp/2', 0], rot: [0, 0, 'ar'], color: 'blue' },
+    { key: 'pallet-l', on: 'anchor', shape: 'box', size: ['0.3*R', '0.12*R', 't'], pos: ['-xp', 'yp', 0], rot: [0, 0, 'al + 90'], color: 'teal' },
+    { key: 'pallet-r', on: 'anchor', shape: 'box', size: ['0.3*R', '0.12*R', 't'], pos: ['xp', 'yp', 0], rot: [0, 0, 'ar + 90'], color: 'teal' },
+    { key: 'pivot', on: 'anchor', shape: 'cylinder', size: ['0.2*R', '1.8*t', '0.2*R'], rot: [90, 0, 0], color: 'gray' },
+    { key: 'rod', on: 'anchor', shape: 'box', size: ['0.05*R', 'y1 - yb', '0.5*t'], pos: [0, '(yb - y1)/2', '-1.3*t'], color: 'gray' },
+    { key: 'bob', on: 'anchor', shape: 'cylinder', size: ['2*rb', '0.6*t', '2*rb'], rot: [90, 0, 0], pos: [0, 'yb - y1', '-1.3*t'], color: 'yellow' },
+  ],
+  anchors: [{ name: 'input', at: [0, 'y1', 't'] }, { name: 'output', at: [0, 'y0', 't'] }],
+  steps: [
+    { op: 'loop', refs: { id: 'anchor' }, texts: { kind: 'swing', axis: 'z' }, fields: { amount: 9, period: 'per' } },
+    { op: 'loop', refs: { id: 'wheel' }, texts: { kind: 'step', axis: 'z' }, fields: { amount: '-amt', period: 'per/2', phase: 45 } },
+  ],
+};
+
+// A ratchet and pawl: a wheel of n sawtooth teeth, a lever that swings about the wheel's axle with a pawl that pushes a tooth on during its forward stroke and slips back over the teeth on
+// the return, and a holding pawl that falls into each gap and stops the wheel running back. The wheel is the `ratchet` kind (it follows the lever's travel through the push, then stands);
+// the lever swings half a tooth each side; the holding pawl lifts over a tooth while the wheel is pushed.
+const ratchetPawl: AssemblyRow = {
+  note: 'a ratchet and pawl: a wheel of n sawtooth teeth (default 12) pushed round a tooth at a time by a swinging lever with a pawl, and held by a second pawl that drops into each gap',
+  aka: ['ratchet-and-pawl', 'ratchet and pawl', 'pawl and ratchet', 'ratchet wheel', 'ratchet mechanism'],
+  asks: ['ratchet and pawl', 'pawl and ratchet', 'ratchet wheel', 'ratchet mechanism', 'ratchet', 'pawl', 'ratchet gear'],
+  size: [9, 9, 2],
+  n: { default: 12, min: 6, max: 30, what: 'teeth' },
+  drive: { key: 'lever', what: 'the lever: change its swing amount and period (the wheel loop must follow: amount twice the lever swing, the same period)' },
+  values: [
+    ['R', 'min(sx, sy)/2.7'], ['t', 'min(sz/2.6, R*0.28)'], ['p', '360/n'], ['per', 2],
+    ['hy', '1.25*R'], ['hx', '0.85*R'],
+  ],
+  pieces: [
+    { key: 'wheel', shape: 'group', pos: [0, 0, 0] },
+    { key: 'disc', on: 'wheel', shape: 'cylinder', size: ['1.6*R', 't', '1.6*R'], rot: [90, 0, 0], tint: true, color: 'blue' },
+    { key: 'tooth{i}', for: { as: 'i', count: 'n' }, let: [['s', '(i*p)*deg']], on: 'wheel', shape: 'box', size: ['0.3*R', 'min(0.1*R, 4.5*R/n)', 't'],
+      pos: ['0.86*R*cos(s)', '0.86*R*sin(s)', 0], rot: [0, 0, 's/deg + 28'], color: 'blue' },
+    { key: 'hub', on: 'wheel', shape: 'cylinder', size: ['0.3*R', '2.6*t', '0.3*R'], rot: [90, 0, 0], color: 'gray' },
+    { key: 'lever', shape: 'group', pos: [0, 0, 't*0.9'] },
+    { key: 'arm', on: 'lever', shape: 'box', size: ['1.9*R', '0.16*R', '0.5*t'], pos: ['0.85*R', 0, 0], color: 'orange' },
+    { key: 'push', on: 'lever', shape: 'box', size: ['0.4*R', '0.12*R', '0.6*t'], pos: ['0.95*R', '-0.1*R', 0], rot: [0, 0, 28], color: 'red' },
+    { key: 'hold', shape: 'group', pos: ['hx', 'hy', 0] },
+    { key: 'hold-arm', on: 'hold', shape: 'box', size: ['0.754*R', '0.13*R', 't'], pos: ['-0.35*R', '-0.14*R', 0], rot: [0, 0, 22], color: 'teal' },
+    { key: 'hold-pin', on: 'hold', shape: 'cylinder', size: ['0.2*R', '1.6*t', '0.2*R'], rot: [90, 0, 0], color: 'gray' },
+  ],
+  anchors: [{ name: 'input', at: ['1.7*R', 0, 't'] }, { name: 'output', at: [0, 0, 't'] }],
+  steps: [
+    { op: 'loop', refs: { id: 'lever' }, texts: { kind: 'swing', axis: 'z' }, fields: { amount: 'p/2', period: 'per' } },
+    { op: 'loop', refs: { id: 'wheel' }, texts: { kind: 'ratchet', axis: 'z' }, fields: { amount: 'p', period: 'per' } },
+    { op: 'loop', refs: { id: 'hold' }, texts: { kind: 'gate', axis: 'z' }, fields: { amount: -10, period: 'per', phase: 90 } },
+  ],
+};
+
 const rows = {
-  'gear-train': gearTrain, 'rack-and-pinion': rackAndPinion, 'crank-slider': crankSlider, 'cam-follower': camFollower, lever: leverRow, differential, planetary, 'four-bar-linkage': fourBar, 'bicycle-drivetrain': bicycle, 'block-and-tackle': blockAndTackle,
+  'gear-train': gearTrain, 'rack-and-pinion': rackAndPinion, 'crank-slider': crankSlider, 'cam-follower': camFollower, lever: leverRow, differential, planetary, 'four-bar-linkage': fourBar, 'bicycle-drivetrain': bicycle, 'block-and-tackle': blockAndTackle, geneva: genevaDrive, escapement: clockEscapement, ratchet: ratchetPawl,
 } satisfies Record<string, AssemblyRow>;
 export type AssemblyName = keyof typeof rows;
 export const ASSEMBLY_ROWS: Readonly<Record<string, AssemblyRow>> = rows;
