@@ -1866,6 +1866,11 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
       if (a.op === 'add' && a.shape !== 'stream' && a.shape !== 'array' && a.parent !== undefined && ((a as { parentAnchor?: string }).parentAnchor !== undefined || (a as { selfAnchor?: string }).selfAnchor !== undefined)) {
         mountedChildrenAt.set(a.parent, Math.max(mountedChildrenAt.get(a.parent) ?? 0, a.at ?? 0));
       }
+      // A shaft the validator added through a gear, written again in this same step, is replaced for good: the added one leaves the step, so it never holds two adds of one id.
+      if (a.op === 'add' && state.made?.has(a.id)) {
+        const earlier = kept.findIndex((k) => k.op === 'add' && k.id === a.id);
+        if (earlier >= 0) kept.splice(earlier, 1);
+      }
       kept.push(a);
       events.action(a, i > 0);
     }
