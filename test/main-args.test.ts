@@ -58,6 +58,7 @@ test('a check can ask for more detail a while after the first answer', () => {
 test('a run with any development or check option is a check run (it takes no system-wide key); a person\'s own run is not', () => {
   assert.equal(isCheckRun(parseArgs(['.'])), false);
   assert.equal(isCheckRun(parseArgs(['.', '--gpu', '--log-steps', '--settings', 'prefs.json'])), false, 'options a person may use');
+  assert.equal(isCheckRun(parseArgs(['--updated', '--force-run'])), false, 'the installer starts the new version with these: it must still be a normal run, which looks for updates');
   const flags: string[][] = [['--self-chord'], ['--capture-image', 'page.png'], ['--exit-after-chord', '1'], ['--hidden'], ['--silent-voice'], ['--fake-mic'], ['--play-sample'], ['--no-hotkey'],
     ['--frames-dir', 'f'], ['--question', 'q'], ['--backdrop', 'b.png'], ['--max-seconds', '5'], ['--save-pen', 'p'], ['--fake-stroke', '1,1 2,2'], ['--chord-hold', '3000'], ['--detail-after', '2']];
   for (const flag of flags) assert.equal(isCheckRun(parseArgs(['.', ...flag])), true, flag.join(' '));
