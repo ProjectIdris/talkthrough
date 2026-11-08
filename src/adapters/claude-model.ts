@@ -38,7 +38,7 @@ export type ClaudeModelOptions = {
 
 type Json = Record<string, unknown>;
 
-export function claudeArgs(model: string, effort: string, schema: unknown, promptFile: string): string[] {
+export function claudeArgs(model: string, effort: string, promptFile: string): string[] {
   return [
     '-p',
     '--input-format', 'stream-json',
@@ -56,8 +56,20 @@ export function claudeArgs(model: string, effort: string, schema: unknown, promp
     '--no-session-persistence',
     // In a file, not on the command line: the scene guide is long and the command line is not.
     '--system-prompt-file', promptFile,
-    '--json-schema', JSON.stringify(schema),
+    // The schema is not here: see claudeInitializeLine.
   ];
+}
+
+const INIT_REQUEST = 'talkthrough-init';
+
+/**
+ * The schema, sent as the first line on the process's input. `--json-schema` takes it inline in the command line, which on Windows holds about 32,000
+ * characters, a ceiling the language's own growth was reaching. The Agent SDK (the package that drives this same executable) sends the schema in its
+ * opening control request, as here. **That is the SDK's protocol, not a documented command-line flag**, checked against claude 2.1.302 (the session then
+ * offers only StructuredOutput and the answer comes through it, to this schema); the reply, a control_response, is read for an error and otherwise ignored.
+ */
+export function claudeInitializeLine(schema: unknown): string {
+  return JSON.stringify({ type: 'control_request', request_id: INIT_REQUEST, request: { subtype: 'initialize', jsonSchema: schema } }) + '\n';
 }
 
 /** Null when the session lists nothing but the structured-output channel; otherwise what was found. */
@@ -86,7 +98,7 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
     workDir ??= mkdtempSync(join(tmpdir(), 'talkthrough-model-'));
     const promptFile = join(workDir, 'instructions.txt');
     writeFileSync(promptFile, systemPrompt());
-    const proc = spawn(resolveCommand('claude', options.command), [...(options.prefixArgs ?? []), ...claudeArgs(modelName, effort, schema, promptFile)], {
+    const proc = spawn(resolveCommand('claude', options.command), [...(options.prefixArgs ?? []), ...claudeArgs(modelName, effort, promptFile)], {
       cwd: workDir,
       env: childEnv(),
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -94,6 +106,7 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
     });
     proc.stdin.on('error', () => undefined);
     proc.on('error', () => undefined); // reported by whoever uses it
+    proc.stdin.write(claudeInitializeLine(schema)); // before the question, which is written when it is asked
     return { proc, key: schemaKey };
   }
 
@@ -173,6 +186,11 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
 
       const onEvent = (event: Json) => {
         if (finished) return;
+        if (event.type === 'control_response') {
+          const reply = (event.response ?? {}) as Json;
+          if (reply.subtype === 'error') fail(new ModelError('unavailable', `claude did not take the schema: ${String(reply.error ?? 'no reason given').slice(0, 200)}`));
+          return;
+        }
         if (event.type === 'system' && event.subtype === 'init') {
           const problem = initProblem(event);
           if (problem) fail(new ModelError('refused', `refusing to continue: ${problem}`));

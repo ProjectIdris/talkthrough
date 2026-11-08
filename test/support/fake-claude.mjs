@@ -16,7 +16,20 @@ const whole = [
 ];
 let answer = JSON.stringify({ steps: whole, escalate: process.env.FAKE_ESCALATE ?? null });
 
-createInterface({ input: process.stdin }).once('line', (line) => {
+// The schema arrives first, as the SDK's opening control request; the question is the next line.
+let gotSchema = false;
+const lines = createInterface({ input: process.stdin });
+lines.on('line', function onLine(line) {
+  if (line.includes('"type":"control_request"')) {
+    gotSchema = line.includes('"jsonSchema"');
+    send({ type: 'control_response', response: { subtype: process.env.FAKE_INIT === 'error' ? 'error' : 'success', request_id: 'talkthrough-init', response: {}, ...(process.env.FAKE_INIT === 'error' ? { error: 'no thanks' } : {}) } });
+    return;
+  }
+  lines.off('line', onLine);
+  if (process.env.FAKE_REQUIRE_SCHEMA && !gotSchema) {
+    send({ type: 'result', subtype: 'success', is_error: false, result: 'plain text, the schema was not sent' });
+    return;
+  }
   const asked = line.includes('Write only step 1 now') ? 'first' : line.includes('Step 1 of this answer is already drawn') ? 'rest' : 'whole';
   const chain = line.match(/Write step (\d+) only/);
   if (process.env.FAKE_CHAIN) {

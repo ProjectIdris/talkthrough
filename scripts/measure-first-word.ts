@@ -16,7 +16,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { claudeArgs } from '../src/adapters/claude-model.ts';
+import { claudeArgs, claudeInitializeLine } from '../src/adapters/claude-model.ts';
 import { childEnv, questionText, systemPrompt } from '../src/adapters/subscription-shared.ts';
 import { sceneSchemaLean } from '../src/scene/index.ts';
 
@@ -33,7 +33,7 @@ if (mode === 'call' && Number(at('max-calls', '0')) < 1) { console.error('a call
 const dir = mkdtempSync(join(tmpdir(), 'tt-fw-'));
 const promptFile = join(dir, 'instructions.txt');
 writeFileSync(promptFile, systemPrompt());
-const flags = claudeArgs('claude-haiku-5-5', effort, sceneSchemaLean, promptFile);
+const flags = claudeArgs('claude-haiku-5-5', effort, promptFile);
 const debugFile = at('debug-file');
 if (debugFile) flags.push('--debug-file', debugFile);
 const thinking = at('thinking');
@@ -49,6 +49,7 @@ const ms = (from: number) => `${(performance.now() - from).toFixed(0).padStart(6
 let sentAt = 0;
 const proc = spawn(command, flags, { cwd: dir, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
 console.log(`spawned pid ${proc.pid}`);
+proc.stdin.write(claudeInitializeLine(sceneSchemaLean));
 let buf = '';
 let said = '';
 let sayDone = false;

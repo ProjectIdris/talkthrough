@@ -116,6 +116,30 @@ test('claude: steps arrive one by one from the structured-output stream', async 
   }
 });
 
+test('claude: the schema is sent on the input before the question, not in the command line (the fake answers in plain text when it is not)', async () => {
+  process.env.FAKE_MODE = 'ok';
+  process.env.FAKE_REQUIRE_SCHEMA = '1';
+  const model = createClaudeModel({ command: process.execPath, prefixArgs: [fakeClaude] });
+  try {
+    assert.equal((await collect(model)).filter((o) => o.type === 'step').length, 2);
+  } finally {
+    delete process.env.FAKE_REQUIRE_SCHEMA;
+    await model.close?.();
+  }
+});
+
+test('claude: a reply to the schema that says it was not taken refuses the question, with the reason', async () => {
+  process.env.FAKE_MODE = 'ok';
+  process.env.FAKE_INIT = 'error';
+  const model = createClaudeModel({ command: process.execPath, prefixArgs: [fakeClaude], timeoutMs: 5000 });
+  try {
+    await assert.rejects(collect(model), /did not take the schema: no thanks/);
+  } finally {
+    delete process.env.FAKE_INIT;
+    await model.close?.();
+  }
+});
+
 test('claude: an init message that lists any tool but the structured-output channel is refused', async () => {
   assert.equal(initProblem({ tools: ['StructuredOutput'], mcp_servers: [], slash_commands: [] }), null);
   assert.match(initProblem({ tools: ['StructuredOutput', 'Bash'] }) ?? '', /Bash/);
@@ -194,7 +218,7 @@ test('codex: a process that is alive but silent cannot hang a question (timeout,
 });
 
 test('claude: the default command line stays well under the Windows limit and carries no prompt text', () => {
-  const args = claudeArgs('claude-haiku-5-5', 'low', sceneSchemaLean, 'C:/x/instructions.txt');
+  const args = claudeArgs('claude-haiku-5-5', 'low', 'C:/x/instructions.txt');
   const length = args.join(' ').length;
   assert.ok(length < 30_000, `command line is ${length} characters`);
   assert.ok(!args.join(' ').includes('You are Talkthrough'));
