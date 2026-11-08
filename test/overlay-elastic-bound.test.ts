@@ -98,3 +98,16 @@ for (const s of [[1, 4, 1], [4, 1, 4], [1.5, 0.7, 0.5]]) {
     assert.ok(Math.abs(widest(geo) - 0.75 * 0.3) < 1e-3, `radius ${widest(geo)} in the cord's own space (3/4 of the 0.3 part width is ${0.75 * 0.3})`);
   });
 }
+
+// A group turned (any way) around the parts and the cord: the part's box is built in the cord's own space, not boxed in the world and boxed again.
+for (const turn of [[0, 30, 0], [0, 0, 45], [20, 50, 70]]) {
+  test(`a bulge is bounded by the part width across the cord inside a group turned ${turn.join(', ')}`, () => {
+    const inGroup = (extra: object) => ({ ...extra, parent: 'g' });
+    const geo = geometryOf([
+      group('g'),
+      inGroup(plate('a', 0, 0.3)), inGroup(plate('b', 2, 0.3)), inGroup(cord({ radius: 0.1, restLength: 100 })),
+      { op: 'turn', id: 'g', to: turn, dur: 0 },
+    ]);
+    assert.ok(Math.abs(widest(geo) - 0.75 * 0.3) < 1e-3, `radius ${widest(geo)} in the cord's own space (3/4 of the 0.3 part width is ${0.75 * 0.3})`);
+  });
+}

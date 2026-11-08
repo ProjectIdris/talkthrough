@@ -46,19 +46,25 @@ export function buildConnector(node: FlowNode, o: ObjectFrame, addMesh: AddMesh,
 
 const box = new Box3(), boxSize = new Vector3();
 
-const corner = new Vector3();
+const corner = new Vector3(), toSpace = new Matrix4();
 
 /**
  * How wide a part stands across the line from one anchor to the other: the widest of its bounding box's sides that the line does not run along. The box is
- * the part's, taken into the space the line is in (the connector's own, which may hang from a group scaled differently on each axis), and a and b are in it too.
+ * built in the space the line is in (the connector's own, which may hang from a group turned or scaled any way): each drawn piece's own box, its corners
+ * taken through the piece's place and into that space, so nothing is boxed twice. a and b are in that space too.
  */
 function partWidth(obj: Object3D, a: Vector3, b: Vector3, into: Matrix4): number {
-  box.setFromObject(obj);
-  if (!box.isEmpty()) {
-    const world = box.clone();
-    box.makeEmpty();
-    for (const x of [world.min.x, world.max.x]) for (const y of [world.min.y, world.max.y]) for (const z of [world.min.z, world.max.z]) box.expandByPoint(corner.set(x, y, z).applyMatrix4(into));
-  }
+  box.makeEmpty();
+  obj.traverse((o) => {
+    const geometry = (o as Mesh).geometry as BufferGeometry | undefined;
+    if (!(o as Mesh).isMesh || !geometry) return;
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    const g = geometry.boundingBox;
+    if (!g || g.isEmpty()) return;
+    o.updateWorldMatrix(true, false);
+    toSpace.multiplyMatrices(into, o.matrixWorld);
+    for (const x of [g.min.x, g.max.x]) for (const y of [g.min.y, g.max.y]) for (const z of [g.min.z, g.max.z]) box.expandByPoint(corner.set(x, y, z).applyMatrix4(toSpace));
+  });
   // A part with nothing drawn in it (a bare group) says nothing about width: it bounds nothing.
   if (box.isEmpty()) return Infinity;
   box.getSize(boxSize);
