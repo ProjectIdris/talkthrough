@@ -1670,19 +1670,19 @@
           "absentCases": 19,
           "searchErrors": 0,
           "hitRate": 0.9111111111111111,
-          "top1Accuracy": 0.8666666666666667,
-          "meanReciprocalRank": 0.8888888888888888,
+          "top1Accuracy": 0.8222222222222222,
+          "meanReciprocalRank": 0.8666666666666667,
           "macroRecall": 0.9,
           "microRecall": 0.9230769230769231,
-          "microPrecision": 0.7792207792207793,
+          "microPrecision": 0.75,
           "expectedTargets": 65,
-          "retrievedCards": 77,
+          "retrievedCards": 80,
           "relevantRetrieved": 60,
           "correctAbstentions": 15,
           "falsePositiveCases": 4,
           "abstentionAccuracy": 0.7894736842105263,
           "emptyRelevantCases": 4,
-          "maxResponseBytes": 2872,
+          "maxResponseBytes": 3081,
           "budgetViolations": 0
         },
         "byCategory": {
@@ -1734,19 +1734,19 @@
             "absentCases": 0,
             "searchErrors": 0,
             "hitRate": 0.8666666666666667,
-            "top1Accuracy": 0.8333333333333334,
-            "meanReciprocalRank": 0.85,
+            "top1Accuracy": 0.7666666666666667,
+            "meanReciprocalRank": 0.8166666666666667,
             "macroRecall": 0.85,
             "microRecall": 0.8717948717948718,
-            "microPrecision": 0.7555555555555555,
+            "microPrecision": 0.723404255319149,
             "expectedTargets": 39,
-            "retrievedCards": 45,
+            "retrievedCards": 47,
             "relevantRetrieved": 34,
             "correctAbstentions": 0,
             "falsePositiveCases": 0,
             "abstentionAccuracy": null,
             "emptyRelevantCases": 4,
-            "maxResponseBytes": 2872,
+            "maxResponseBytes": 3081,
             "budgetViolations": 0
           },
           "mixed": {
@@ -1759,15 +1759,15 @@
             "meanReciprocalRank": 1,
             "macroRecall": 1,
             "microRecall": 1,
-            "microPrecision": 1,
+            "microPrecision": 0.8888888888888888,
             "expectedTargets": 8,
-            "retrievedCards": 8,
+            "retrievedCards": 9,
             "relevantRetrieved": 8,
             "correctAbstentions": 0,
             "falsePositiveCases": 0,
             "abstentionAccuracy": null,
             "emptyRelevantCases": 0,
-            "maxResponseBytes": 1561,
+            "maxResponseBytes": 1758,
             "budgetViolations": 0
           },
           "negation": {
@@ -1799,19 +1799,19 @@
             "absentCases": 19,
             "searchErrors": 0,
             "hitRate": 0.9111111111111111,
-            "top1Accuracy": 0.8666666666666667,
-            "meanReciprocalRank": 0.8888888888888888,
+            "top1Accuracy": 0.8222222222222222,
+            "meanReciprocalRank": 0.8666666666666667,
             "macroRecall": 0.9,
             "microRecall": 0.9230769230769231,
-            "microPrecision": 0.7792207792207793,
+            "microPrecision": 0.75,
             "expectedTargets": 65,
-            "retrievedCards": 77,
+            "retrievedCards": 80,
             "relevantRetrieved": 60,
             "correctAbstentions": 15,
             "falsePositiveCases": 4,
             "abstentionAccuracy": 0.7894736842105263,
             "emptyRelevantCases": 4,
-            "maxResponseBytes": 2872,
+            "maxResponseBytes": 3081,
             "budgetViolations": 0
           }
         },
@@ -2460,16 +2460,19 @@
             ],
             "rationale": "The described mechanism includes an engine poppet valve and coil spring.",
             "returnedIds": [
+              "coil",
               "spring",
               "valve"
             ],
             "missingIds": [],
-            "unexpectedIds": [],
-            "precision": 1,
+            "unexpectedIds": [
+              "coil"
+            ],
+            "precision": 0.6666666666666666,
             "recall": 1,
-            "reciprocalRank": 1,
+            "reciprocalRank": 0.5,
             "correctAbstention": null,
-            "responseBytes": 1622,
+            "responseBytes": 2384,
             "withinBudget": true,
             "truncated": false,
             "error": null
@@ -2510,19 +2513,21 @@
             ],
             "rationale": "The enclosing casing and lobed timing shaft are both requested.",
             "returnedIds": [
+              "shaft",
               "camshaft",
               "housing",
               "crankshaft"
             ],
             "missingIds": [],
             "unexpectedIds": [
+              "shaft",
               "crankshaft"
             ],
-            "precision": 0.6666666666666666,
+            "precision": 0.5,
             "recall": 1,
-            "reciprocalRank": 1,
+            "reciprocalRank": 0.5,
             "correctAbstention": null,
-            "responseBytes": 2416,
+            "responseBytes": 3081,
             "withinBudget": true,
             "truncated": false,
             "error": null
@@ -2994,15 +2999,18 @@
             ],
             "rationale": "The rolling-element support is available; fasteners are not.",
             "returnedIds": [
-              "bearing"
+              "bearing",
+              "bolt"
             ],
             "missingIds": [],
-            "unexpectedIds": [],
-            "precision": 1,
+            "unexpectedIds": [
+              "bolt"
+            ],
+            "precision": 0.5,
             "recall": 1,
             "reciprocalRank": 1,
             "correctAbstention": null,
-            "responseBytes": 1023,
+            "responseBytes": 1758,
             "withinBudget": true,
             "truncated": false,
             "error": null
@@ -11770,6 +11778,7 @@
         "Electron/renderer startup and the negative control occur before the request clock.",
         "Pixel detection and offscreen readback add instrumentation cost; do not treat this as production latency."
       ]
-    }
+    },
+    "keptParts": "The independent-v4 candidate is recorded again after twelve parts joined the catalogue (pulley, sprocket, bevel-gear, rack, shaft, frame-plate, turbine, coil, magnet, ramp, fulcrum, bolt). Three cases differ from the frozen record because the part now exists: iv4-027 (a helical coil is also a coil), iv4-029 (a rotating shaft is also a shaft), iv4-052 (a threaded bolt is a bolt). The baseline and the other corpora are as frozen."
   }
 }

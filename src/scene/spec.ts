@@ -5,6 +5,7 @@ import { kitParts } from './kit-presets.ts';
 import type { KitPartName } from './kit-presets.ts';
 import { MATERIAL_NAMES } from './material-library.ts';
 import { MODELS } from './model-catalogue.ts';
+import { OTHER_PARTS as OTHER_PART_NAMES, partGuide } from './part-library.ts';
 import { JOINT_ROWS, LOOP_ROWS } from './movement-rows.ts';
 import type { OtherPartKind, PartKind } from './types.ts';
 
@@ -103,7 +104,9 @@ export type Field =
   | { k: 'pts'; min: number; max: number; lo: number; hi: number; opt?: boolean; doc?: string }
   | { k: 'enum'; values: readonly string[]; opt?: boolean; doc?: string }
   /** A material by name: its own, an alias or a close name is taken to the material meant (material-library.ts), so the schema holds a plain text and the guide the families. */
-  | { k: 'material'; opt?: boolean; doc?: string };
+  | { k: 'material'; opt?: boolean; doc?: string }
+  /** A ready-made part by name: its own, another name it is known by or a close name is taken to the part meant (part-library.ts); the schema lists the parts. */
+  | { k: 'part'; values: readonly string[]; opt?: boolean; doc?: string };
 
 export type Variant = {
   /** Unique name of this variant. */
@@ -153,9 +156,9 @@ const DRAW: Field = { k: 'num', min: 0, max: 1, opt: true, doc: 'how much is dra
 
 export const SOLID_SHAPES = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'] as const;
 /** The parts that are not in the kit table (drawn by their own code); the kit parts follow, as the table has them. A new kit row is a part with no change here. */
-const OTHER_PARTS: OtherPartKind[] = ['chip', 'header', 'port', 'lens', 'screen', 'button', 'fan', 'wheel'];
+const OTHER_PARTS: readonly OtherPartKind[] = OTHER_PART_NAMES;
 export const PARTS: readonly PartKind[] = [...OTHER_PARTS, ...(kitParts() as KitPartName[])];
-export const PART_VARIANTS = ['black', 'metal', 'usb', 'usb3', 'ethernet', 'hdmi', 'usbc', 'gold', 'cutaway', 'finned'] as const;
+export const PART_VARIANTS = ['black', 'metal', 'usb', 'usb3', 'ethernet', 'hdmi', 'usbc', 'gold', 'cutaway', 'finned', 'block', 'ducted'] as const;
 
 /** The real models' shape, offered only when the build has a model. */
 const ADD_MODEL: Variant = {
@@ -467,10 +470,10 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addPart', op: 'add', shapes: ['part'], creates: 'group',
-    doc: 'A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Their anchors and origin work for pins, connectors and parentAnchor/selfAnchor. Attached by a face of its parent (right, top, front...), a part turns to face out of it unless you give rot; faces: port, lens, screen +z, chip, header, button, fan +y.',
+    doc: 'A ready-made part fitted to the box size [x,y,z]. ' + partGuide() + ' Anchors (and origin) serve pins, connectors, attaching; numbered: pin1 to pinN (crankshaft n>1), hole1 to holeN. On a face of its parent (right, top...) a part turns to face out unless rot is given; +z faces: port, lens, screen; +y: chip, header, button, fan.',
     fields: {
       shape: { k: 'enum', values: ['part'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
-      part: { k: 'enum', values: PARTS }, variant: { k: 'enum', values: PART_VARIANTS, opt: true },
+      part: { k: 'part', values: PARTS }, variant: { k: 'enum', values: PART_VARIANTS, opt: true },
       size: { k: 'vec3', min: 0.01, max: 100 }, n: { k: 'num', min: 1, max: LIMITS.maxArray, int: true, opt: true },
       color: COLOR_OPT, material: MATERIAL, opacity: OPACITY, at: AT,
     },

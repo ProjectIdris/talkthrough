@@ -24,6 +24,7 @@ import type { Rgb } from './timeline.ts';
 /** The colours a row can name. */
 const PALETTE: Readonly<Record<string, Rgb>> = {
   steel: [176, 182, 194], darkSteel: [92, 98, 110], bright: [214, 219, 228], ceramic: [238, 240, 244], liner: [78, 84, 96], rubber: [38, 40, 46], section: SECTION,
+  copper: [184, 115, 51], north: [208, 54, 54], south: [52, 92, 208],
 };
 
 /** An outline (and optional holes) pushed out `depth` along z, centred on z = 0, with a small rounding. */

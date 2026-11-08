@@ -45,7 +45,7 @@ test('all public IDs remain discoverable and mixed requests keep supported parts
   for (const c of partCards) assert.equal(ids(c.id)[0], c.id, c.id);
   assert.deepEqual(ids('a gear, a bearing, a screw and a flexible cable'), ['bearing', 'gear']);
   assert.deepEqual(ids('a clear glass sphere'), []);
-  assert.deepEqual(ids('a plate and a threaded bolt'), []);
+  assert.deepEqual(ids('a plate and a threaded bolt'), ['bolt']);
 });
 
 test('request verbs are not mistaken for the depicted display object', () => {

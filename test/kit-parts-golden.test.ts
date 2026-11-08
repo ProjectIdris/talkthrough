@@ -72,7 +72,7 @@ test('the mechanism kit builds exactly what was recorded, part by part', () => {
 });
 
 test('every kit part in the table is a part of the scene language and is covered by the recording', () => {
-  const mechanism = kitParts();
+  const mechanism = kitParts().slice(0, 13); // the thirteen first rows; the rows added since are recorded in kit-new-parts.test.ts
   for (const p of mechanism) assert.ok(PARTS.includes(p as never), `${p} is a part`);
   for (const p of mechanism) assert.ok(sets.some(([label]) => label.startsWith(p)), `${p} is recorded`);
 });

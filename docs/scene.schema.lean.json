@@ -610,7 +610,19 @@
             "bearing",
             "pipe",
             "elbow",
-            "housing"
+            "housing",
+            "pulley",
+            "sprocket",
+            "bevel-gear",
+            "rack",
+            "shaft",
+            "frame-plate",
+            "turbine",
+            "coil",
+            "magnet",
+            "ramp",
+            "fulcrum",
+            "bolt"
           ]
         },
         "variant": {
@@ -625,6 +637,8 @@
             "gold",
             "cutaway",
             "finned",
+            "block",
+            "ducted",
             null
           ]
         },
