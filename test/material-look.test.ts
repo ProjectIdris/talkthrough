@@ -4,6 +4,7 @@ import { MeshPhysicalMaterial, ShaderLib } from 'three';
 import { TIERS, makeSurface } from '../src/overlay/materials.ts';
 import type { Tier } from '../src/overlay/materials.ts';
 import { materialRow } from '../src/scene/material-library.ts';
+import { readFileSync } from 'node:fs';
 
 // What light does inside a material (surface-look.ts): the glow of flesh and wax, the depth of water, the shape of what shines, the finish that tells one
 // bright metal from another. The stock shader is three's own, so these tests patch it for real and look for what each layer must have put in.
@@ -37,7 +38,7 @@ test('each layer patches the stage it needs in three\'s own physical shader', ()
   const water = compile(makeSurface('water', TIERS.mid)).fragmentShader;
   for (const part of ['diffuseColor.a = clamp(diffuseColor.a * mix(0.6, 1.3, fr)', 'normal = normalize(abs(fDet) * normal - vGrad)', 'smoothstep(0.1, 0.85, -normal.y)']) assert.ok(water.includes(part), part);
   const ember = compile(makeSurface('ember', TIERS.high));
-  assert.match(ember.fragmentShader, /lookCrack = mix\(smoothstep\(0\.66, 0\.9, ridge\)/);
+  assert.match(ember.fragmentShader, /lookCrack = mix\(smoothstep\(0\.8, 0\.95, ridge\)/);
   assert.match(ember.fragmentShader, /totalEmissiveRadiance = mix\(hot \* 0\.06/);
   assert.match(ember.vertexShader, /vLookP = position/);
   const lens = compile(makeSurface('led', TIERS.mid)).fragmentShader;
@@ -82,4 +83,10 @@ test('water is a liquid with depth, and the soft and organic materials have the 
   }
   for (const name of ['organ', 'vessel', 'nerve', 'petal', 'fruit', 'butter', 'sugar', 'wax', 'fat']) assert.match(key(name, 'mid'), /MICRO_PATTERN/, `${name} has a surface pattern`);
   assert.doesNotMatch(key('organ', 'low'), /MICRO_PATTERN/, 'low has no patterns');
+});
+
+test('a recipe sets how strongly it shows the room only through `env`: three ignores a material\'s own envMapIntensity when the room is the scene\'s environment', () => {
+  const source = readFileSync(new URL('../src/overlay/materials.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(source.replace(/\/\*\*[\s\S]*?\*\//g, ''), /envMapIntensity/, 'no recipe carries the dead value');
+  for (const name of ['steel', 'glass', 'water', 'gold', 'plastic']) assert.equal(makeSurface(name, TIERS.mid).envMapIntensity, 1, name);
 });

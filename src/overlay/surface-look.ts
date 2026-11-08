@@ -33,12 +33,12 @@ float lookNoise(vec3 p) {
 // An ember: the colour is the glow of its cracks, the crust between is nearly black. The cracks are where a smooth noise crosses its middle value.
 const CRUST_COLOUR = `
   {
-    float cs = 3.2;
+    float cs = 6.0;
     float n = lookNoise(vLookP * cs) * 0.62 + lookNoise(vLookP * cs * 2.3 + 5.0) * 0.38;
     float ridge = 1.0 - abs(n * 2.0 - 1.0);
     float foot = max(length(dFdx(vLookP)), length(dFdy(vLookP))) * cs * 2.3;
     // from far the cracks blend to their average, so the surface does not crawl
-    lookCrack = mix(smoothstep(0.66, 0.9, ridge), 0.42, smoothstep(0.3, 0.7, foot));
+    lookCrack = mix(smoothstep(0.8, 0.95, ridge), 0.18, smoothstep(0.3, 0.7, foot));
     diffuseColor.rgb = mix(vec3(0.045, 0.03, 0.026), diffuseColor.rgb, lookCrack);
   }`;
 // A lens or a tube is lit from inside: its body takes little of the room's light, so the glow carries the colour.
