@@ -707,8 +707,16 @@
         },
         "model": {
           "enum": [
+            "alarm-clock",
+            "bolt-cutters",
             "brain",
-            "heart"
+            "camera",
+            "drill",
+            "electric-motor",
+            "heart",
+            "measuring-tape",
+            "mousetrap",
+            "telegraph-key"
           ]
         },
         "parent": {
