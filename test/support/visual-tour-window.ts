@@ -1,3 +1,4 @@
+import * as electron from 'electron';
 import { app, BrowserWindow, ipcMain, WebContentsView } from 'electron';
 import assert from 'node:assert/strict';
 import { writeFileSync, mkdirSync, existsSync, copyFileSync } from 'node:fs';
@@ -138,6 +139,12 @@ void app.whenReady().then(async () => {
   assert.equal((await failedState()).busy, false, 'resizing a failed startup must not enter an unbounded busy state');
   assert.equal((await failedState()).error, loadError);
   unavailable.dispose();
+  // Every window of this run was made off every display, never took focus, and still painted (the waits above would have timed out otherwise).
+  const watched = (electron as unknown as { windowWatch(): { windows: number; samples: number; onDisplay: number; focused: number } }).windowWatch();
+  console.log('WINDOW_WATCH', JSON.stringify(watched));
+  assert.ok(watched.windows >= 6 && watched.samples > 100, 'the windows were watched');
+  assert.equal(watched.onDisplay, 0, 'no window was ever on a display');
+  assert.equal(watched.focused, 0, 'no window ever took focus');
   console.log('TOUR_CHECKS_PASSED: navigation, four real scenes, network blocked, sender isolation, window reuse, minimum size, no voice, cleanup and reopen');
   app.exit(0);
 }).catch(error => { console.error(error); app.exit(1); });
