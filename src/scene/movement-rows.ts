@@ -97,3 +97,109 @@ export const FLASH_ROW = {
   ] as Lets,
   opacity: 'opacity*v',
 };
+
+// ---- Joints ---------------------------------------------------------------------------------------------------------------------------
+// A joint is what freedom a part has. The facts about each kind that the validator, the timeline and the pose pass all need are one row each, so none of them
+// carries its own list of kinds.
+
+export type JointRow = {
+  /** What the joint is in the pose pass: a turn about an axis through a pivot, a slide, a turn about all three axes (a ball), or a ride with another part. */
+  motion: 'turn' | 'slide' | 'ball' | 'ride';
+  /** The turn is about the part's own axis through its own middle (a forearm, a screw), after its rest orientation, not about the parent's axis. */
+  own: boolean;
+  /** The axis (0 x, 1 y, 2 z) it takes when none is written. */
+  axis: 0 | 1 | 2;
+  /** The loop kind a loop on it takes when it names none. */
+  loop: 'swing' | 'slide' | undefined;
+  /** Whether it may name a point of the part to turn about (`about`), and a limit for each axis. */
+  about: boolean;
+  limit: boolean;
+  /** What it is when coupled to or by another part: a turn or a slide; none for a ride. A ball is not coupled at all. */
+  as: 'turn' | 'slide' | undefined;
+  coupled: boolean;
+};
+
+const joints = {
+  hinge: { motion: 'turn', own: false, axis: 2, loop: 'swing', about: true, limit: false, as: 'turn', coupled: true },
+  slide: { motion: 'slide', own: false, axis: 1, loop: 'slide', about: false, limit: false, as: 'slide', coupled: true },
+  fixed: { motion: 'ride', own: false, axis: 1, loop: undefined, about: false, limit: false, as: undefined, coupled: true },
+  pivot: { motion: 'turn', own: true, axis: 1, loop: 'swing', about: false, limit: false, as: 'turn', coupled: true },
+  ball: { motion: 'ball', own: false, axis: 1, loop: 'swing', about: true, limit: true, as: undefined, coupled: false },
+} satisfies Record<string, JointRow>;
+
+export type JointName = keyof typeof joints;
+export const JOINT_ROWS: Readonly<Record<JointName, JointRow>> = joints;
+export const jointRow = (kind: string | undefined): JointRow | undefined => (kind !== undefined && Object.hasOwn(JOINT_ROWS, kind) ? JOINT_ROWS[kind as JointName] : undefined);
+
+/**
+ * A coupling makes one part's value from another's. By ratio it is the same kind of freedom as the part it follows (a gear, a belt, a chain, a lever's ratio):
+ * `b` (the value of the driver) times `ratio`, plus `phase`. By pitch it changes kind: a turn gives a slide of `pitch` units a whole turn (a screw, a rope on a
+ * wheel), a slide gives a turn of 360 degrees for `pitch` units. `by` is what the driver is, `to` what the part becomes ('same' as the driver).
+ */
+export type CoupleRow = { by: 'turn' | 'slide' | 'any'; to: 'turn' | 'slide' | 'same'; value: string };
+export const COUPLE_ROWS = {
+  ratio: { by: 'any', to: 'same', value: 'ratio*b + phase' },
+  screw: { by: 'turn', to: 'slide', value: 'pitch*b/360 + phase' },
+  unscrew: { by: 'slide', to: 'turn', value: '360*b/pitch + phase' },
+} as const satisfies Record<string, CoupleRow>;
+/** The row a coupling takes: by ratio, or by pitch from a turn or from a slide. */
+export const coupleRow = (pitched: boolean, driver: 'turn' | 'slide'): CoupleRow => (!pitched ? COUPLE_ROWS.ratio : driver === 'turn' ? COUPLE_ROWS.screw : COUPLE_ROWS.unscrew);
+/** What the coupled part's freedom is, given the driver's. */
+export const coupleAs = (row: CoupleRow, driver: 'turn' | 'slide'): 'turn' | 'slide' => (row.to === 'same' ? driver : row.to);
+
+// ---- Muscle ---------------------------------------------------------------------------------------------------------------------------
+/**
+ * A muscle contracts to a fraction of its relaxed length along a cycle, and the pulled part's joint turns to make it so. The cycle is a half cosine of the
+ * driver's angle `a` (0 relaxed, 1 most contracted); the target length is the relaxed length `rest` less `contract` (held to 0..1) of it, by the cycle. Where the
+ * joint has to be to make that length is a geometric inverse and stays code (motion.ts): it walks the joint in `walk` steps of its range from rest the way that
+ * shortens the muscle, then halves the stretch between `bisect` times. `low` and `high` are the range when the joint gives none.
+ */
+export const MUSCLE_ROW = {
+  cycle: '(1 - cos(a))/2',
+  target: 'rest*(1 - max(0, min(1, contract))*cycle)',
+  low: -170, high: 170, walk: 96, bisect: 40,
+};
+
+// ---- Wave -----------------------------------------------------------------------------------------------------------------------------
+/**
+ * A wave along a tube puts a factor on its radius: `count` crests spaced evenly, each `width` of the length across, `phase` laps along. Per crest `j`: its place
+ * `c`, the distance `d` from it in half-widths, and a half-cosine bump inside one; the strongest crest counts. Inputs: `u`, `phase`, `count`, `width`, `amount`.
+ */
+export const WAVE_ROW = {
+  half: 'max(0.01, width/2)',
+  place: '(((phase + j/count) % 1) + 1) % 1',
+  reach: 'abs(u - c)/half',
+  bump: '0.5*(1 + cos(pi*d))',
+  factor: '1 + (amount - 1)*bump',
+};
+
+// ---- Stream markers -------------------------------------------------------------------------------------------------------------------
+/**
+ * The markers of a stream (dots, dashes, arrows along a path): marker `i` of `count` is `phase` laps along and `i/count` of a lap behind; it grows in over the first
+ * and out over the last 6% of the path (a smoothstep), and the colour goes from one to the other across a stretch 0.24 wide round `shiftAt`.
+ */
+export const STREAM_ROW = {
+  place: [['p', '(phase + i/count) % 1']] as Lets,
+  at: 'p < 0 ? p + 1 : p',
+  size: [['k1', 'max(0, min(1, u/0.06))'], ['k2', 'max(0, min(1, (1 - u)/0.06))']] as Lets,
+  grow: '(k1*k1*(3 - 2*k1))*(k2*k2*(3 - 2*k2))',
+  shift: [['k0', 'max(0, min(1, (u - (shiftAt - 0.12))/0.24))'], ['k', 'k0*k0*(3 - 2*k0)']] as Lets,
+  mix: 'from + (to - from)*k',
+};
+
+// ---- A drop ---------------------------------------------------------------------------------------------------------------------------
+/**
+ * A drop is a constant pull: the first fall is the square of the time (in units of the first fall's), and each bounce `k` goes up and comes down in `span` of
+ * them, `bounce` being the speed it keeps, reaching that squared. The bounces stop at `bounces` or when one would take under `least`. `seconds` is the first
+ * fall's time for a drop of `height` units (about 0.8 s for 4), times everything the bounces add.
+ */
+export const FALL_ROW = {
+  bounce: 'max(0, min(0.8, b))',
+  bounces: 5,
+  least: 0.04,
+  span: '2*pow(bounce, k)',
+  first: 't*t',
+  rise: '1 - pow(bounce, 2*k)*(1 - x*x)',
+  across: '(2*t)/span - 1',
+  seconds: '0.4*sqrt(max(0.1, abs(height)))',
+};

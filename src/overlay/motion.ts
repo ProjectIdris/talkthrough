@@ -11,8 +11,8 @@
 
 import type { AddAction, Vec3 } from '../scene/types.ts';
 import { crankThrow, pistonPinDrop, rodEnds } from './mechanism-geometry.ts';
-import { CAM_ROW, CRANK_ROW, FLASH_ROW, LOOP_ROWS, bind, fresh, num } from '../scene/movement-rows.ts';
-import type { LoopName } from '../scene/movement-rows.ts';
+import { CAM_ROW, CRANK_ROW, FLASH_ROW, JOINT_ROWS, LOOP_ROWS, MUSCLE_ROW, bind, coupleAs, coupleRow, fresh, num } from '../scene/movement-rows.ts';
+import type { JointName, LoopName } from '../scene/movement-rows.ts';
 
 const DEG = Math.PI / 180;
 
@@ -70,7 +70,7 @@ function loopValue(l: LoopDef, a: number): { value: number; rock: number } {
  * loop (a swing in degrees, a slide in units) or a coupling to another object's value: ratio x that value + phase, or, between a hinge and a slide,
  * `pitch` units of travel for a whole turn. Every value is a function of the angles, so frames, clips and the live page agree.
  */
-export type JointKind = 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball';
+export type JointKind = JointName;
 export type JointDef = { key: number; kind: JointKind; axis: Axis; dir: Vec3 | null; pivot: Vec3; min: number | undefined; max: number | undefined; toKey: number | null; /** ball: how far each axis may turn each way, degrees. */ limit: Vec3 | null };
 export type CoupleDef = { key: number; byKey: number; ratio: number; pitch: number | undefined; phase: number };
 
@@ -177,7 +177,7 @@ const lengthOf = (a: Vec3, b: Vec3): number => Math.hypot(a[0] - b[0], a[1] - b[
 function muscleEnd(o: PoseObject, j: JointDef, to: Vec3, q: number): Vec3 {
   const s = o.scale ?? [1, 1, 1];
   const local: Vec3 = [to[0] * s[0], to[1] * s[1], to[2] * s[2]];
-  if (j.kind === 'pivot') {
+  if (JOINT_ROWS[j.kind].own) {
     const v = applyM(matOf(turnedLocal(o.rot, j.axis, q)), local);
     return [o.pos[0] + v[0], o.pos[1] + v[1], o.pos[2] + v[2]];
   }
@@ -251,14 +251,14 @@ export function muscleRest(objects: readonly PoseObject[], m: MuscleDef, joint: 
 function muscleValue(m: MuscleDef, byKey: ReadonlyMap<number, PoseObject>, posed: ReadonlyMap<number, Pose>, pulled: PoseObject, joint: JointDef, cycle: number): number | undefined {
   const w = muscleWorld(byKey, posed, m, pulled);
   if (!w) return undefined;
-  const lo = joint.min ?? -170, hi = joint.max ?? 170;
+  const lo = joint.min ?? MUSCLE_ROW.low, hi = joint.max ?? MUSCLE_ROW.high;
   const dist = (q: number): number => lengthOf(w.a, upThrough(w.up, muscleEnd(pulled, joint, m.to, q)));
   const q0 = Math.max(lo, Math.min(hi, 0));
-  const target = dist(0) * (1 - Math.max(0, Math.min(1, m.contract)) * cycle);
+  const target = num(MUSCLE_ROW.target, fresh({ rest: dist(0), contract: m.contract, cycle }));
   const d0 = dist(q0);
   if (target >= d0) return q0;
   // Walk from rest the way it shortens, to the first place it stops shortening.
-  const step = (hi - lo) / 96;
+  const step = (hi - lo) / MUSCLE_ROW.walk;
   const eps = step / 2;
   const dir = dist(Math.min(hi, q0 + eps)) < dist(Math.max(lo, q0 - eps)) ? 1 : -1;
   let qm = q0, dm = d0;
@@ -270,7 +270,7 @@ function muscleValue(m: MuscleDef, byKey: ReadonlyMap<number, PoseObject>, posed
   }
   if (target <= dm) return qm;
   let near = q0, far = qm;
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < MUSCLE_ROW.bisect; i++) {
     const mid = (near + far) / 2;
     if (dist(mid) > target) near = mid;
     else far = mid;
@@ -319,8 +319,8 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
   const jointOf = new Map(motion.joints.map((j) => [j.key, j] as const));
   for (const s of motion.spins) {
     const o = byKey.get(s.key);
-    const jk = jointOf.get(s.key)?.kind;
-    if (!o || jk === 'hinge' || jk === 'pivot' || jk === 'ball') continue; // a joint is turned by the joint pass, about its own axis and pivot
+    const jm = jointOf.has(s.key) ? JOINT_ROWS[jointOf.get(s.key)!.kind].motion : undefined;
+    if (!o || jm === 'turn' || jm === 'ball') continue; // a joint is turned by the joint pass, about its own axis and pivot
     const spun = edit(s.key);
     spun.rot = turned(o.rot, s.axis, s.angle);
     const hub = hubOf(o);
@@ -386,17 +386,17 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
   const muscleOf = new Map((motion.muscles ?? []).map((m) => [m.key, m] as const));
   const angleOf = new Map(motion.spins.map((s) => [s.key, s.angle] as const));
   /** The kind of freedom an object has, if it has one (its joint, else what its loop or coupling needs). */
-  const kindOf = (key: number, depth = 0): 'hinge' | 'slide' | undefined => {
+  const kindOf = (key: number, depth = 0): 'turn' | 'slide' | undefined => {
     const j = jointOf.get(key);
-    if (j) return j.kind === 'fixed' || j.kind === 'ball' ? undefined : j.kind === 'pivot' ? 'hinge' : j.kind;
+    if (j) return JOINT_ROWS[j.kind].as;
     const l = loopOf.get(key);
-    if (l) return LOOP_ROWS[l.kind].motion === 'slide' ? 'slide' : LOOP_ROWS[l.kind].motion === 'turn' ? 'hinge' : undefined;
+    if (l) return LOOP_ROWS[l.kind].motion === 'slide' ? 'slide' : LOOP_ROWS[l.kind].motion === 'turn' ? 'turn' : undefined;
     const c = coupleOf.get(key);
     if (c && depth < 8) {
-      const by = kindOf(c.byKey, depth + 1) ?? 'hinge';
-      return c.pitch === undefined ? by : by === 'hinge' ? 'slide' : 'hinge';
+      const by = kindOf(c.byKey, depth + 1) ?? 'turn';
+      return coupleAs(coupleRow(c.pitch !== undefined, by), by);
     }
-    return angleOf.has(key) ? 'hinge' : undefined;
+    return angleOf.has(key) ? 'turn' : undefined;
   };
   const memo = new Map<number, number | undefined>();
   /** The value of an object's joint now: degrees for a hinge, units for a slide; undefined when nothing drives it. */
@@ -410,12 +410,12 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
       // A muscle pulls its part: the value is where its joint must be for the connector to be as short as the cycle says. Its holder's pose is the one so far.
       const pulled = byKey.get(key), joint = jointOf.get(key);
       const a = angleOf.get(loopDriver(key));
-      if (pulled && joint && (joint.kind === 'hinge' || joint.kind === 'pivot') && a !== undefined) v = muscleValue(mu, byKey, out, pulled, joint, (1 - Math.cos(a * DEG)) / 2);
+      if (pulled && joint && JOINT_ROWS[joint.kind].motion === 'turn' && a !== undefined) v = muscleValue(mu, byKey, out, pulled, joint, num(MUSCLE_ROW.cycle, fresh({ a: a * DEG })));
     } else if (c) {
       const b = depth < 8 ? valueOf(c.byKey, depth + 1) : undefined; // a coupling that comes round to itself is cut here
       if (b !== undefined) {
-        const by = kindOf(c.byKey) ?? 'hinge';
-        v = c.pitch === undefined ? c.ratio * b + c.phase : by === 'hinge' ? (c.pitch * b) / 360 + c.phase : (360 * b) / c.pitch + c.phase;
+        const by = kindOf(c.byKey) ?? 'turn';
+        v = num(coupleRow(c.pitch !== undefined, by).value, fresh({ b, ratio: c.ratio, pitch: c.pitch ?? 0, phase: c.phase }));
       }
     } else if (l && isFreedom(l)) {
       const a = angleOf.get(loopDriver(key));
@@ -430,7 +430,7 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
   for (const key of driven) {
     const o = byKey.get(key);
     const joint = jointOf.get(key);
-    if (!o || joint?.kind === 'fixed' || joint?.kind === 'ball') continue;
+    if (!o || (joint && (JOINT_ROWS[joint.kind].motion === 'ride' || JOINT_ROWS[joint.kind].motion === 'ball'))) continue;
     const kind = kindOf(key);
     let q = valueOf(key, 0);
     if (kind === undefined || q === undefined) continue;
@@ -440,17 +440,17 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     if (joint?.max !== undefined) q = Math.min(joint.max, q);
     const pose = edit(key);
     if (kind === 'slide') {
-      const axis = joint ? joint.axis : loop ? loop.axis : 1;
+      const axis = joint ? joint.axis : loop ? loop.axis : JOINT_ROWS.slide.axis;
       const unit: Vec3 = joint?.dir ? unitOf(joint.dir) : axis === 0 ? [1, 0, 0] : axis === 1 ? [0, 1, 0] : [0, 0, 1];
       const p = pose.pos ?? o.pos;
       pose.pos = [p[0] + unit[0] * q, p[1] + unit[1] * q, p[2] + unit[2] * q];
-    } else if (joint?.kind === 'pivot') {
+    } else if (joint && JOINT_ROWS[joint.kind].own) {
       // About the part's own axis through its own middle: the turn comes after the rest orientation, not about the parent's axis.
       pose.rot = turnedLocal(pose.rot ?? o.rot, joint.axis, q);
       const hub = hubOf(o);
       if (hub) turnedAboutPoint(pose, o, hub, joint.axis, q);
     } else {
-      const axis = joint ? joint.axis : loop ? loop.axis : 2;
+      const axis = joint ? joint.axis : loop ? loop.axis : JOINT_ROWS.hinge.axis;
       let pivot: Vec3 = joint ? joint.pivot : loop ? loop.pivot : [0, 0, 0];
       if (pivot[0] === 0 && pivot[1] === 0 && pivot[2] === 0) pivot = hubOf(o) ?? pivot;
       if (!joint && loop?.pivotKey !== undefined) {
@@ -475,7 +475,7 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
   // A ball joint turns about all three axes of the parent, x first, then y, then z, about its pivot point (its attached point when it names none and
   // is attached): each axis is a swing loop of its own and/or a spin about that axis, held to the limit on that axis.
   for (const j of motion.joints) {
-    if (j.kind !== 'ball') continue;
+    if (JOINT_ROWS[j.kind].motion !== 'ball') continue;
     const o = byKey.get(j.key);
     if (!o) continue;
     const q: Vec3 = [0, 0, 0];
@@ -519,7 +519,7 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
   // A fixed joint rides with the object it is fixed to: its move and its turn, about that object's middle (chains settle in a few passes).
   for (let pass = 0; pass < 4; pass++) {
     for (const j of motion.joints) {
-      if (j.kind !== 'fixed' || j.toKey === null) continue;
+      if (JOINT_ROWS[j.kind].motion !== 'ride' || j.toKey === null) continue;
       const o = byKey.get(j.key);
       const to = byKey.get(j.toKey);
       const moved = out.get(j.toKey);

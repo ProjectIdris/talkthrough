@@ -6,7 +6,7 @@ export type Value = number | string | boolean;
 export type Scope = { [name: string]: unknown };
 
 const FUNCTIONS: Record<string, (...a: number[]) => number> = {
-  min: Math.min, max: Math.max, abs: Math.abs, cos: Math.cos, sin: Math.sin, atan2: Math.atan2, floor: Math.floor, sqrt: Math.sqrt, pow: Math.pow,
+  min: Math.min, max: Math.max, abs: Math.abs, cos: Math.cos, sin: Math.sin, atan2: Math.atan2, tan: Math.tan, floor: Math.floor, sqrt: Math.sqrt, pow: Math.pow,
 };
 
 type Node = (scope: Scope) => Value;

@@ -5,7 +5,7 @@ import { kitParts } from './kit-presets.ts';
 import type { KitPartName } from './kit-presets.ts';
 import { MATERIAL_NAMES } from './material-library.ts';
 import { MODELS } from './model-catalogue.ts';
-import { LOOP_ROWS } from './movement-rows.ts';
+import { JOINT_ROWS, LOOP_ROWS } from './movement-rows.ts';
 import type { OtherPartKind, PartKind } from './types.ts';
 
 export const PALETTE = [
@@ -610,7 +610,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'joint', op: 'joint',
     doc: 'Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), pivot (turns about its own long axis, axis y by default, through its own middle: a forearm, a screw, a tap), ball (turns about all three axes about its pivot point, held to limit [x,y,z] degrees each way: a shoulder, a hip; one swing loop or spin per axis drives it), fixed (rides with to). about names the point to turn about (any point of the part: left, top, a named one) instead of pivot. min and max hold its value. It moves when spin, loop or couple drives it.',
     fields: {
-      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['hinge', 'slide', 'fixed', 'pivot', 'ball'] }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true },
+      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: Object.keys(JOINT_ROWS) }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true },
       dir: { k: 'vec3', ...WORLD, opt: true, doc: 'slide: the direction, [x,y,z]' }, pivot: { k: 'vec3', ...WORLD, opt: true, doc: 'hinge or ball: from the object to the point it turns about' },
       about: { k: 'str', min: 1, max: 24, opt: true, doc: 'hinge or ball: a point of the object by name (built in, a kit part own or one named with anchor) to turn about, instead of pivot' },
       limit: { k: 'vec3', min: 0, max: 360, opt: true, doc: 'ball: how far each axis may turn each way, degrees [x,y,z]' },
