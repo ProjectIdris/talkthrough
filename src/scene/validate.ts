@@ -919,10 +919,19 @@ function checkLever(out: Record<string, unknown>, state: SceneState, path: strin
 /** A muscle is a connector with an end on the part it pulls, and that part has a hinge or pivot for it to turn; its other end is on the part's holder or beside it. */
 function checkMuscle(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
   const id = out.id as string;
-  const pulls = out.pulls as string;
+  let pulls = out.pulls as string;
   const conn = state.connectors?.get(id);
   if (!conn) {
     note(notes, 'dropped', path, `muscle needs id to be a connector (add one with shape connector first); "${id}" is not`);
+    return false;
+  }
+  // The end may be said as from or to, the connector's own names for them, when no part has that id.
+  if ((pulls === 'from' || pulls === 'to') && !state.ids.has(pulls)) {
+    pulls = conn[pulls];
+    out.pulls = pulls;
+  }
+  if (!state.ids.has(pulls)) {
+    note(notes, 'dropped', `${path}.pulls`, `unknown id "${pulls}" (the ends of "${id}" are ${conn.from} and ${conn.to})`);
     return false;
   }
   if (conn.from !== pulls && conn.to !== pulls) {

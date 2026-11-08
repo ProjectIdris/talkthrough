@@ -5002,7 +5002,8 @@
           "type": "string"
         },
         "pulls": {
-          "type": "string"
+          "type": "string",
+          "description": "the id of the part it pulls (an end of the connector), or from or to for that end; up to 40 characters"
         },
         "contract": {
           "type": [
@@ -5043,7 +5044,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A connector that is a muscle: it shortens by contract (0 to 1, default 0.3) of its relaxed length and lengthens again every period seconds (default 2), and the part it pulls (pulls, one of its two ends, with a hinge or pivot joint with min and max to hold it) is turned by it, not beside it. Its other end must be on the part that holds pulls, or beside it. Join the ends with fromPoint and toPoint or fromAnchor and toAnchor; its belly swells as it shortens (swell). id is the connector."
+      "description": "A connector that is a muscle: it shortens by contract (0 to 1, default 0.3) of its relaxed length and lengthens again every period seconds (default 2), and the part it pulls (pulls, the id of one of its two ends, or from or to, with a hinge or pivot joint with min and max to hold it) is turned by it, not beside it. Its other end must be on the part that holds pulls, or beside it. Join the ends with fromPoint and toPoint or fromAnchor and toAnchor; its belly swells as it shortens (swell). id is the connector."
     },
     "pulley": {
       "type": "object",

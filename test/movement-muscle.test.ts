@@ -69,6 +69,12 @@ test('a muscle replaces a loop on the part, and a loop after it replaces the mus
   assert.ok(Math.abs(span(second.plan, 1) - span(second.plan, 0) * (1 - 0.25 * 0.5)) > 0.05, 'and the muscle no longer does');
 });
 
+test('the end can be said as from or to, the connector own names for them', () => {
+  const { plan, issues } = run(upper, fore(), bicep(), hinge(), { op: 'muscle', id: 'bicep', pulls: 'to', contract: 0.25, period: 4 });
+  assert.deepEqual(issues, []);
+  assert.ok(Math.abs(span(plan, 2) - span(plan, 0) * 0.75) < 1e-4, 'the part at the to end is pulled');
+});
+
 test('a muscle that cannot work is refused with the reason', () => {
   const reason = (...actions: unknown[]): string => {
     const checked = validateStep({ say: 'x', actions }, createSceneState());
