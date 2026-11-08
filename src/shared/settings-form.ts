@@ -58,11 +58,13 @@ export type SettingsForm = {
   keepRecord: boolean;
   /** Where the record goes: a full folder path; empty: a folder in the app's own data folder. */
   recordFolder: string;
+  /** Look for a newer version at start and once a day (nothing is downloaded without a yes). */
+  checkForUpdates: boolean;
 };
 
 export const FORM_KEYS: ReadonlyArray<keyof SettingsForm> = [
   'model', 'codexModel', 'claudeModel', 'openaiModel', 'localModel', 'localBaseUrl', 'codexFast', 'laterRoute', 'laterModel', 'microphone', 'microphoneName', 'speaker', 'speakerName', 'detailRoute', 'detailModel',
-  'voiceServerUrl', 'voiceServerVoice', 'speechServerUrl', 'hotkey', 'captureBlocklist', 'guideNavigation', 'controlSnap', 'splitAnswer', 'captions', 'keepRecord', 'recordFolder',
+  'voiceServerUrl', 'voiceServerVoice', 'speechServerUrl', 'hotkey', 'captureBlocklist', 'guideNavigation', 'controlSnap', 'splitAnswer', 'captions', 'keepRecord', 'recordFolder', 'checkForUpdates',
 ];
 
 /** What main answers a save with. */

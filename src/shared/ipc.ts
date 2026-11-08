@@ -288,7 +288,27 @@ export const SETTINGS_CHANNEL = {
   firstRunDone: 'tt:first-run-done',
   /** main -> settings page: scroll to this section (the Hearing section, from "Set up hearing"). */
   focus: 'tt:settings-focus',
+  /** Updates: where it stands, look now, and (on the person's yes) download and install. Each answers with an UpdateView. */
+  updateStatus: 'tt:update-status',
+  updateCheck: 'tt:update-check',
+  updateInstall: 'tt:update-install',
 } as const;
+
+/** What the settings page is told about updates. */
+export type UpdateView = {
+  kind: 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'failed';
+  /** The version that is running. */
+  current: string;
+  /** The newer version, when one is offered. */
+  version?: string;
+  /** The release's page on GitHub. */
+  page?: string;
+  received?: number;
+  total?: number;
+  message?: string;
+  /** When the last look was made (milliseconds since 1970). */
+  checkedAt?: number;
+};
 
 /** One device the system lists. `id` is what is stored and handed back to getUserMedia or setSinkId. */
 export type AudioDevice = { id: string; name: string };
@@ -344,6 +364,12 @@ export interface TalkthroughSettingsApi {
   firstRunDone(restart: boolean): void;
   /** Main asks the page to show a section (it is the Hearing section after "Set up hearing"). */
   onFocus(listener: (section: string) => void): void;
+  /** Where updates stand; null when the app has no updater. */
+  updateStatus(): Promise<UpdateView | null>;
+  /** Look for a newer version now. */
+  updateCheck(): Promise<UpdateView | null>;
+  /** The person said yes: download the installer, check it against the release checksum, run it and restart. */
+  updateInstall(): Promise<UpdateView | null>;
 }
 
 export interface TalkthroughApi {

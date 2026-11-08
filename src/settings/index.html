@@ -111,6 +111,12 @@
   <div class="row"><div class="what"><div class="lab">Place marks on real controls</div><div class="hint" id="warnSnap"></div></div><div class="ctl"><input type="checkbox" class="tog" id="controlSnap" aria-label="Place marks on real controls"></div></div>
 </div>
 
+<div class="card" id="sectionUpdates">
+  <div class="ct">Updates</div>
+  <div class="row"><div class="what"><div class="lab">Look for a newer version</div><div class="hint">At start and once a day Talkthrough asks GitHub whether a newer version is out. It only tells you: nothing is downloaded until you say yes.</div></div><div class="ctl"><input type="checkbox" class="tog" id="checkForUpdates" aria-label="Look for a newer version"></div></div>
+  <div class="row"><div class="what"><div class="lab" id="updNow">Checking…</div><div class="hint" id="updHint"></div><progress id="updBar" class="hide" max="1" value="0"></progress></div><div class="ctl"><button id="updCheck" type="button">Check now</button><button id="updInstall" type="button" class="primary hide">Install and restart</button></div></div>
+</div>
+
 <div class="card" id="sectionRecord">
   <div class="ct">Record of questions</div>
   <div class="row"><div class="what"><div class="lab">Keep a record of each question</div><div class="hint" id="warnRecord"></div></div><div class="ctl"><input type="checkbox" class="tog" id="keepRecord" aria-label="Keep a record of each question"></div></div>

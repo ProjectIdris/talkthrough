@@ -42,15 +42,22 @@ export function createTray(handlers: {
   /** Whether a picture of the screen is kept with pins; the tray shows it as a ticked item. */
   pinScreenshot(): boolean;
   onPinScreenshot(on: boolean): void;
+  /** The line about updates, when there is something to say: a newer version, its download, a failure. Clicking asks the person (main shows the question). */
+  updateItem?(): { label: string; enabled: boolean; click(): void } | null;
   /** Guide mode may act for the person (open a tab, a menu, scroll): a pause for all of it, and the Yes it asks for the first time. */
   guideActions?: { paused(): boolean; setPaused(on: boolean): void; asking(): boolean; answer(yes: boolean): void };
 }): Tray & { refresh(): void; /** Shows what the app is doing: the icon, the first line of the menu and the tip. */ setState(state: TrayState): void } {
   let state: TrayState = 'ready';
   const tray = new Tray(trayIcon(state));
   tray.setToolTip(`Talkthrough: ${TRAY_LINES[state]}`);
+  const updateEntries = (): MenuItemConstructorOptions[] => {
+    const item = handlers.updateItem?.();
+    return item ? [{ type: 'separator' }, { label: item.label, enabled: item.enabled, click: item.click }] : [];
+  };
   const build = () => Menu.buildFromTemplate([
       { label: TRAY_LINES[state], enabled: false, icon: dotIcon(state) },
       { label: `Hold ${handlers.hotkeyLabel} to ask`, enabled: false },
+      ...updateEntries(),
       { type: 'separator' },
       { label: 'Pin this answer', click: handlers.onPin },
       { label: 'Include the screenshot in pins', type: 'checkbox', checked: handlers.pinScreenshot(), click: (item) => { handlers.onPinScreenshot(item.checked); tray.setContextMenu(build()); } },

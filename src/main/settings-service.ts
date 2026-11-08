@@ -39,6 +39,7 @@ export function formFromSettings(s: Settings): SettingsForm {
     captions: s.captions,
     keepRecord: s.keepRecord,
     recordFolder: s.recordFolder ?? '',
+    checkForUpdates: s.checkForUpdates,
   };
 }
 
@@ -55,7 +56,7 @@ function readForm(input: unknown, complain: (message: string) => void): Settings
   let ok = true;
   for (const key of FORM_KEYS) {
     const v = raw[key];
-    const want = key === 'codexFast' || key === 'guideNavigation' || key === 'controlSnap' || key === 'keepRecord' ? 'boolean' : key === 'captureBlocklist' ? 'list' : 'string';
+    const want = key === 'codexFast' || key === 'guideNavigation' || key === 'controlSnap' || key === 'keepRecord' || key === 'checkForUpdates' ? 'boolean' : key === 'captureBlocklist' ? 'list' : 'string';
     const right = want === 'list' ? Array.isArray(v) && v.every((x) => typeof x === 'string') : typeof v === want;
     if (!right) {
       complain(`Nothing was saved: "${key}" was missing or of the wrong kind.`);
@@ -182,5 +183,6 @@ function formToRaw(form: SettingsForm): Record<string, unknown> {
   put('captions', form.captions, d.captions);
   put('keepRecord', form.keepRecord, d.keepRecord);
   put('recordFolder', form.recordFolder, undefined);
+  put('checkForUpdates', form.checkForUpdates, d.checkForUpdates);
   return out;
 }
