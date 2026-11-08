@@ -109,6 +109,13 @@ test('the guide asks for a short first step and its example keeps to it', () => 
   assert.ok(JSON.stringify(sceneGuideExample).length < 1500, 'the example stays lean (a door attached by its hinge edge was added to teach attaching)');
 });
 
+test('the guide asks for a stage with room (about 60 percent of the screen height) and its example stages are that tall, since a model copies the example and the screen is wider than tall', () => {
+  assert.ok(sceneGuide.includes('about 60 percent of the screen height (h near 600)'), 'the guide says how tall');
+  const panels = (sceneGuideExample as { steps: { actions: Array<{ op: string; w?: number; h?: number }> }[] }).steps.flatMap((s) => s.actions.filter((a) => a.op === 'panel'));
+  assert.ok(panels.length > 0);
+  for (const p of panels) assert.ok((p.h ?? 0) >= 560 && (p.w ?? 1000) < (p.h ?? 0), `the example stage is taller than wide and at least 56 percent of the height: ${p.w}x${p.h}`);
+});
+
 test('the guide says the question sets the task and the page is material, never a subject (no talk of where knowledge comes from), that a figure adds what the page lacks, and that a label starts beside its point', () => {
   const rule = sceneGuide.split(String.fromCharCode(10)).find((l) => l.startsWith('- The question sets the task'));
   assert.ok(rule, 'a rule of its own');
