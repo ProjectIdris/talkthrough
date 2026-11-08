@@ -172,3 +172,16 @@ test('parts placed by a face of their holder are not moved (their place is an of
   assert.deepEqual(r.moves, []);
   assert.deepEqual(r.repairs.filter((n) => n.includes('turns with')), []);
 });
+
+test('a belt round two wheels gives each a steel shaft through its middle, once; a wheel with a shaft of the scene through it gets none', () => {
+  const wheel = (id: string, pos: number[], size: number): Act => ({ op: 'add', shape: 'part', part: 'wheel', id, pos, size: [size, size, 0.4], n: 6, at: 0.3 });
+  const belt = { op: 'add', shape: 'connector', id: 'belt', from: 'a', to: 'b', kind: 'wrapped', radius: 0.05, at: 1 };
+  const r = run([wheel('a', [-2, 0, 0], 2), wheel('b', [2, 0, 0], 1), belt]);
+  assert.deepEqual(r.acts.filter((a) => a.op === 'add' && String(a.id).endsWith('-shaft')).map((a) => [a.id, a.parent]), [['a-shaft', 'a'], ['b-shaft', 'b']]);
+  const rod = { op: 'add', shape: 'cylinder', id: 'rod', pos: [-2, 0, 0], rot: [90, 0, 0], size: [0.3, 3, 0.3], at: 0.1 };
+  const held = run([rod, wheel('a', [-2, 0, 0], 2), wheel('b', [2, 0, 0], 1), belt]);
+  assert.deepEqual(held.acts.filter((a) => a.op === 'add' && String(a.id).endsWith('-shaft')).map((a) => a.id), ['b-shaft']);
+  const rope = run([wheel('a', [-2, 0, 0], 2), wheel('b', [2, 0, 0], 1), { ...belt, kind: 'straight', fromSide: 'top', toSide: 'top' }]);
+  assert.equal(rope.find('belt').kind, 'wrapped', 'the strand made a belt');
+  assert.equal(rope.acts.filter((a) => a.op === 'add' && String(a.id).endsWith('-shaft')).length, 2, 'and the belt it became has its shafts');
+});

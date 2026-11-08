@@ -507,19 +507,25 @@ function mountGear(state: SceneState, id: string, out: Record<string, unknown>):
   if (((out.opacity as number | undefined) ?? 1) < 0.5) state.bodies.get(id)!.shafted = true; // a see-through gear is left alone
   const gears = [...state.bodies].filter(([, b]) => b.part === 'gear');
   if (gears.length < 2) return;
-  for (const [gid, body] of gears) {
-    if (body.shafted) continue;
-    body.shafted = true;
-    if (!body.size || body.size.some((n) => !(n > 0)) || middleHeld(state.bodies, gid, 'gear')) continue;
-    const shaft = `${gid}-shaft`;
-    if (state.ids.has(shaft)) continue;
-    // The shaft is an object of the scene like any other (it can be named, styled or cleared); a scene that writes the same id replaces it.
-    state.ids.set(shaft, 'solid'); state.parents.set(shaft, gid); state.depth.set(shaft, (state.depth.get(gid) ?? 0) + 1);
-    (state.replaceable ??= new Set()).add(shaft); (state.made ??= new Map()).set(shaft, gid);
-    const [sx, , sz] = body.size;
-    const d = Math.max(0.05, sx * 0.16);
-    state.after.push({ op: 'add', shape: 'cylinder', id: shaft, parent: gid, pos: [0, 0, 0], rot: [90, 0, 0], size: [d, Math.max(sz! * 4, sx * 0.5), d], material: 'steel', at: Math.max((out.at as number | undefined) ?? 0, 0) } as unknown as Action);
-  }
+  for (const [gid, body] of gears) shaftThrough(state, gid, body, (out.at as number | undefined) ?? 0);
+}
+
+/**
+ * A thin steel shaft through the middle of a gear or wheel (a part about z) that no solid of the scene already holds the middle of: a child of the part, so it
+ * goes with it, round, so a turning part does not show it turning. Once for each part. A wheel that a belt or chain runs round gets one as a gear does.
+ */
+function shaftThrough(state: SceneState, gid: string, body: Body, at: number): void {
+  if (body.shafted) return;
+  body.shafted = true;
+  if (!body.size || body.size.some((n) => !(n > 0)) || middleHeld(state.bodies, gid, body.part ?? 'gear')) return;
+  const shaft = `${gid}-shaft`;
+  if (state.ids.has(shaft)) return;
+  // The shaft is an object of the scene like any other (it can be named, styled or cleared); a scene that writes the same id replaces it.
+  state.ids.set(shaft, 'solid'); state.parents.set(shaft, gid); state.depth.set(shaft, (state.depth.get(gid) ?? 0) + 1);
+  (state.replaceable ??= new Set()).add(shaft); (state.made ??= new Map()).set(shaft, gid);
+  const [sx, , sz] = body.size;
+  const d = Math.max(0.05, sx * 0.16);
+  state.after.push({ op: 'add', shape: 'cylinder', id: shaft, parent: gid, pos: [0, 0, 0], rot: [90, 0, 0], size: [d, Math.max(sz! * 4, sx * 0.5), d], material: 'steel', at: Math.max(at, 0) } as unknown as Action);
 }
 
 /** Materials that are see-through or give off light of themselves: a solid of one is not a wall. */
@@ -1153,6 +1159,8 @@ function fitConnector(out: Record<string, unknown>, state: SceneState, path: str
   const id = out.id as string;
   const from = out.from as string, to = out.to as string;
   const kind = (out.kind as string | undefined) ?? 'straight';
+  const beltShafts = (): void => { for (const end of [from, to]) { const b = state.bodies.get(end); if (b?.part === 'wheel') shaftThrough(state, end, b, (out.at as number | undefined) ?? 0); } };
+  if (kind === 'wrapped') { beltShafts(); return true; }
   if (kind !== 'straight') return true;
   const fromSide = out.fromSide as string | undefined, toSide = out.toSide as string | undefined;
   const loose = out.fromPoint !== undefined || out.toPoint !== undefined || out.fromAnchor !== undefined || out.toAnchor !== undefined;
@@ -1165,6 +1173,7 @@ function fitConnector(out: Record<string, unknown>, state: SceneState, path: str
       return false;
     }
     out.kind = 'wrapped';
+    beltShafts();
     delete out.fromSide;
     delete out.toSide;
     note(notes, 'trimmed', path, `repaired: ${id} runs along the ${fromSide} of both ${from} and ${to}, which differ in size, so it would cut through the larger; it is made a belt round both (kind wrapped), whose strands touch each rim along a tangent`);
