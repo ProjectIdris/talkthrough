@@ -2,8 +2,10 @@
 // Change a field here and both follow; docs/scene-language.md describes the same table.
 
 import { kitParts } from './kit-presets.ts';
+import type { KitPartName } from './kit-presets.ts';
 import { MATERIAL_NAMES } from './material-library.ts';
 import { LOOP_ROWS } from './movement-rows.ts';
+import type { OtherPartKind, PartKind } from './types.ts';
 
 export const PALETTE = [
   'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink', 'white', 'gray', 'black',
@@ -148,8 +150,8 @@ const DRAW: Field = { k: 'num', min: 0, max: 1, opt: true, doc: 'how much is dra
 
 export const SOLID_SHAPES = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'] as const;
 /** The parts that are not in the kit table (drawn by their own code); the kit parts follow, as the table has them. A new kit row is a part with no change here. */
-const OTHER_PARTS = ['chip', 'header', 'port', 'lens', 'screen', 'button', 'fan', 'wheel'];
-export const PARTS: readonly string[] = [...OTHER_PARTS, ...kitParts()];
+const OTHER_PARTS: OtherPartKind[] = ['chip', 'header', 'port', 'lens', 'screen', 'button', 'fan', 'wheel'];
+export const PARTS: readonly PartKind[] = [...OTHER_PARTS, ...(kitParts() as KitPartName[])];
 export const PART_VARIANTS = ['black', 'metal', 'usb', 'usb3', 'ethernet', 'hdmi', 'usbc', 'gold', 'cutaway', 'finned'] as const;
 
 export const VARIANTS: readonly Variant[] = [

@@ -56,7 +56,7 @@ export type KitRow = {
 const SIDES: Loop = { as: 'side', in: [-1, 1] };
 const ring = (o: E, i: E) => ({ ring: [o, i] as const });
 
-export const KIT_PRESETS: Readonly<Record<string, KitRow>> = {
+const presets = {
   // A block with a bore, optionally cut open to show inside (a hatched section), optionally finned (n fins).
   'cylinder-block': {
     settings: { n: { default: 6 } },
@@ -282,7 +282,12 @@ export const KIT_PRESETS: Readonly<Record<string, KitRow>> = {
         at: [{ for: [{ as: 'i', in: [-1, 1] }, { as: 'j', in: [-1, 1] }], p: ['i*(sx/2 - t*1.1)', 'j*(sy/2 - t*1.1)', 'sz/2 - t*0.1'] }] },
     ],
   },
-};
+} satisfies Record<string, KitRow>;
+
+/** The names of the kit parts the table has today. */
+export type KitPartName = keyof typeof presets;
+/** The table, indexed by any name (a part that is not in the kit has no row). */
+export const KIT_PRESETS: Readonly<Record<string, KitRow>> = presets;
 
 /** The kit parts in the table, in its order (read when asked, so a row added to the table is a part). */
 export const kitParts = (): string[] => Object.keys(KIT_PRESETS);

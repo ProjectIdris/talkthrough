@@ -2,6 +2,7 @@
 // A validated action never carries null: absent optional fields are simply missing.
 
 import type { DiagramKind } from './spec.ts';
+import type { KitPartName } from './kit-presets.ts';
 import type { MaterialName } from './material-library.ts';
 export type { DiagramKind } from './spec.ts';
 
@@ -112,8 +113,10 @@ export type AddPath = {
   op: 'add'; shape: 'line' | 'arrow'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; color?: Color; draw?: number; opacity?: number;
   attach?: [AttachEnd | null, AttachEnd | null];
 } & At;
-/** A part's name: one of `PARTS` in spec.ts (the other parts and the rows of the kit table), checked when a scene is read. */
-export type PartKind = string;
+/** The parts drawn by their own code (the rest are the rows of the kit table). */
+export type OtherPartKind = 'chip' | 'header' | 'port' | 'lens' | 'screen' | 'button' | 'fan' | 'wheel';
+/** A part's name: the parts above and the kit table's rows (a row added to the table is a part at run time; this type knows the rows there are today). */
+export type PartKind = OtherPartKind | KitPartName;
 export type PartVariant = 'black' | 'metal' | 'usb' | 'usb3' | 'ethernet' | 'hdmi' | 'usbc' | 'gold' | 'cutaway' | 'finned';
 export type AddPart = {
   op: 'add'; shape: 'part'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; part: PartKind; variant?: PartVariant;
