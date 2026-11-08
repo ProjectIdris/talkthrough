@@ -68,36 +68,36 @@ export type SurfaceFinish = { roughness?: number; metalness?: number; clearcoat?
 type Surface = { color?: Color; material?: Material; edges?: boolean; opacity?: number } & SurfaceFinish;
 export type SolidShape = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'plane';
 export type AddSolid = {
-  op: 'add'; shape: SolidShape; id: string; parent?: string; explode?: Vec3; pos?: Vec3; size: Vec3; rot?: Vec3; bevel?: number;
+  op: 'add'; shape: SolidShape; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; size: Vec3; rot?: Vec3; bevel?: number;
 } & Surface & At;
 /** A closed hollow section of a concentric ellipsoid; inner is a radial scale, not uniform wall thickness. */
 export type AddShell = {
-  op: 'add'; shape: 'shell'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3;
+  op: 'add'; shape: 'shell'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3;
   size: Vec3; inner?: number; latitude?: Vec2; sweep?: number;
 } & Surface & At;
 export type AddExtrude = {
-  op: 'add'; shape: 'extrude'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; holes?: Vec2[][]; taper?: number; shift?: Vec2; depth: number; bevel?: number;
+  op: 'add'; shape: 'extrude'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; holes?: Vec2[][]; taper?: number; shift?: Vec2; depth: number; bevel?: number;
 } & Surface & At;
 export type AddHull = {
-  op: 'add'; shape: 'hull'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[];
+  op: 'add'; shape: 'hull'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[];
 } & Surface & At;
 export type AddLathe = {
-  op: 'add'; shape: 'lathe'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; profile: Vec2[]; sides?: number; sweep?: number;
+  op: 'add'; shape: 'lathe'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; profile: Vec2[]; sides?: number; sweep?: number;
 } & Surface & At;
 /** Open bicubic sheet, 16 control points in four row-major rows. */
 export type AddPatch = {
-  op: 'add'; shape: 'patch'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[];
+  op: 'add'; shape: 'patch'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[];
 } & Surface & At;
 /** A closed polygon carried along a smooth open path. up sets its initial +y direction. */
 export type AddSweep = {
-  op: 'add'; shape: 'sweep'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; pts: Vec3[]; up?: Vec3; smooth?: boolean;
+  op: 'add'; shape: 'sweep'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; pts: Vec3[]; up?: Vec3; smooth?: boolean;
 } & Surface & At;
 /** Independently shaped convex end sections, joined by matching vertex indices. */
 export type AddLoft = {
-  op: 'add'; shape: 'loft'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; endOutline: Vec2[]; depth: number; smooth?: boolean;
+  op: 'add'; shape: 'loft'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; endOutline: Vec2[]; depth: number; smooth?: boolean;
 } & Surface & At;
 export type AddBlob = {
-  op: 'add'; shape: 'blob'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[]; sizes: Vec3[]; soft?: number;
+  op: 'add'; shape: 'blob'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[]; sizes: Vec3[]; soft?: number;
 } & Surface & At;
 /** An end of a tube or line that lies on a 3D part: the part and the point on it (in the part's own space), which the end keeps wherever the part goes. Set by the validator, never written. */
 export type AttachEnd = { to: string; at: Vec3 };
@@ -119,15 +119,16 @@ export type AddPart = {
 } & At;
 export type AddArray = { op: 'add'; shape: 'array'; id: string; of: string; count: number; step?: Vec3; turn?: Vec3 } & At;
 export type AddText = {
-  op: 'add'; shape: 'text'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; text: string; height: number; color: Color;
+  op: 'add'; shape: 'text'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; text: string; height: number; color: Color;
 } & At;
-export type AddGroup = { op: 'add'; shape: 'group'; id: string; parent?: string; parentAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3 } & At;
+export type AddGroup = { op: 'add'; shape: 'group'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3 } & At;
 
 export type Side = 'left' | 'right' | 'top' | 'bottom' | 'front' | 'back';
 /** A rope, belt, wire, chain or pipe between two objects, drawn as a tube that follows them as they move. */
 export type AddConnector = {
   op: 'add'; shape: 'connector'; id: string; parent?: string; from: string; to: string; kind?: 'straight' | 'slack' | 'wrapped';
   fromSide?: Side; toSide?: Side; fromAnchor?: string; toAnchor?: string; sag?: number; radius?: number; draw?: number;
+  fromPoint?: Vec3; toPoint?: Vec3; swell?: Vec2[]; restLength?: number;
 } & Surface & At;
 /** Markers that travel along a path, a connector, or an edge of a flow diagram. */
 export type StreamMark = 'dot' | 'dash' | 'arrow';
@@ -145,6 +146,10 @@ export type MoveAction = { op: 'move'; id: string; to: Vec3 } & Timing;
 export type AlongAction = { op: 'along'; id: string; pts: Vec3[] } & Timing;
 export type ExplodeAction = { op: 'explode'; id: string; to: number } & Timing;
 export type RevealAction = { op: 'reveal'; id: string; to: number } & Timing;
+/** Names a point on a 3D object, in its own space, for parts to be attached at (the object's built-in points need no declaring). */
+export type AnchorAction = { op: 'anchor'; id: string; name: string; pos: Vec3 } & At;
+/** Lets an attached part go: from then it is placed on its own, where it was, and no join line is drawn. */
+export type DetachAction = { op: 'detach'; id: string } & Timing;
 export type TurnAction = { op: 'turn'; id: string; to: Vec3 } & Timing;
 export type ScaleAction = { op: 'scale'; id: string; to: Vec3 } & Timing;
 export type StyleAction = { op: 'style'; id: string; color?: Color; opacity?: number } & Timing;
@@ -178,7 +183,7 @@ export type GoAction = { op: 'go'; kind: 'tab' | 'open' | 'scroll'; x: number; y
 
 export type Action =
   | Mark | PanelAction | AddAction | DiagramThing | TickAction
-  | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | StyleAction | HighlightAction
+  | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | AnchorAction | DetachAction | StyleAction | HighlightAction
   | CutAction | SpinAction | CrankAction | CamAction | FlashAction | LoopAction | JointAction | CoupleAction
   | OrbitAction | ZoomAction | FocusAction | ClearAction | WaitAction | GoAction;
 

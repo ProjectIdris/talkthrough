@@ -9,7 +9,11 @@ The surface normals now come from the profile and angular topology rather than g
 - An explicitly closed profile shares its first/last join when the bend is gentle. Repeated points do not create a new crease. A line along the rotation axis has no drawable surface and does not influence neighboring surfaces.
 - A rounded pole shares its axial normal where all angular sectors lie within the crease threshold. A pointed cone or low-sided facet keeps its distinct directions.
 
-The generated positions, triangle order, UVs, side counts, material controls and scene instructions are unchanged. No extra triangles, dependency, network request or generated code is added. Existing motion, arrays, transforms and disposal still use the ordinary scene path.
+For already outward-facing profiles, the generated positions, triangle order, UVs, side counts, material controls and scene instructions are unchanged. No extra triangles, dependency, network request or generated code is added. Existing motion, arrays, transforms and disposal still use the ordinary scene path.
+
+## Closed full-lathe direction
+
+A simple full-lathe profile with both ends on the axis, or an exact repeated closing point, has its signed area normalized before triangle construction. Closed solids therefore face outward in either authored direction, including the walls facing a hollow ring’s cavity. Reversing a closed profile changes its triangle order and normals, not its shape. Open sheets keep their authored sidedness; zero-area or self-intersecting input is not repaired by this change. The paired `samples/scenes/lathe-winding.json` sample covers solid and hollow forms from front and reverse views.
 
 ## Example
 

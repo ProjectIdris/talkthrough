@@ -169,11 +169,14 @@ test('full and lean model schemas and compact guide expose the mounting contract
     assert.ok(defs.addPart!.properties.parentAnchor);
     assert.ok(defs.addPart!.properties.selfAnchor);
     assert.ok(defs.addGroup!.properties.parentAnchor);
-    assert.equal(defs.addGroup!.properties.selfAnchor, undefined);
+    assert.ok(defs.addGroup!.properties.selfAnchor);
+    assert.ok(defs.addSolid!.properties.parentAnchor, 'every 3D shape can be attached');
+    assert.ok(defs.addBlob!.properties.selfAnchor);
+    for (const v of ['addHull', 'addPatch', 'addSweep', 'addLoft', 'addShell', 'addText']) assert.ok(defs[v]!.properties.parentAnchor, `${v} can be attached too`);
   }
   assert.ok(sceneGuide.includes('parentAnchor'));
   assert.ok(sceneGuide.includes('selfAnchor'));
-  assert.ok(sceneGuide.includes('parent frame'));
+  assert.ok(sceneGuide.includes('stays attached whatever moves'));
   assert.ok(sceneGuide.includes('pipe: top,bottom'));
   assert.ok(sceneGuide.includes('pin1 through pinN'));
 });
@@ -223,4 +226,19 @@ test('replacement bounds are deferred when inherited transforms can change the r
   const result = validateStep(step(part('child', 'pipe', { size: [1, 100, 1], parent: 'base', parentAnchor: 'top', selfAnchor: 'bottom', pos: [0, 1, 0] })), createDetailState(state));
   assert.deepEqual(result.issues, []);
   assert.equal(result.step!.actions.length, 1);
+});
+
+test('the muscle the guide describes is kept with its swell as written there, and dropped with a single number for it', () => {
+  const guideSwell = /swell (\[\[[^\]]*\](?:,\[[^\]]*\])*\])/.exec(sceneGuide);
+  assert.ok(guideSwell, 'the guide gives the swell as a list of pairs');
+  const swell = JSON.parse(guideSwell![1]!) as unknown;
+  const connector = (extra: object) => step(
+    { op: 'add', shape: 'cylinder', id: 'bone', size: [0.3, 2, 0.3] },
+    { op: 'add', shape: 'cylinder', id: 'fore', size: [0.3, 2, 0.3], pos: [0, -2, 0] },
+    { op: 'add', shape: 'connector', id: 'muscle', from: 'bone', to: 'fore', fromPoint: [0, -0.5, 0.2], toPoint: [0, 0.5, 0.2], radius: 0.1, ...extra },
+  );
+  const kept = validateStep(connector({ swell }), createSceneState());
+  assert.ok(kept.step!.actions.some((a) => 'id' in a && a.id === 'muscle'), `kept: ${JSON.stringify(kept.issues)}`);
+  const dropped = validateStep(connector({ swell: 0.4 }), createSceneState());
+  assert.ok(!dropped.step!.actions.some((a) => 'id' in a && a.id === 'muscle'), 'a lone number is not a profile');
 });

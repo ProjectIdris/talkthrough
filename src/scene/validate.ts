@@ -13,6 +13,7 @@ import { prepareShell, SHELL_DETAIL } from './shell.ts';
 import type { ShellTier } from './shell.ts';
 import { nearestPaletteColor } from './colors.ts';
 import { attachTolerance, landOn, mountPosition } from './attach.ts';
+import { anchorsOf } from './anchors.ts';
 import { resolvePartGeometry } from './part-geometry.ts';
 import { resolveHullPoints } from './hull-points.ts';
 import type { Body } from './attach.ts';
@@ -362,7 +363,7 @@ function checkMount(out: Record<string, unknown>, state: SceneState, path: strin
   if (parent === undefined) return bad('parent', 'anchor placement requires parent');
   if (parent === out.id || isUnder(state, parent, out.id as string)) return bad('parent', 'anchor placement would create a parent cycle');
   const parentAnchors = bodyAt(bodies, parent, (out.at as number | undefined) ?? 0)?.anchors ?? { origin: ZERO };
-  const selfAnchors = out.shape === 'part' ? resolvePartGeometry(out as AddPart).anchors : { origin: ZERO };
+  const selfAnchors = anchorsOf(out);
   const parentName = (out.parentAnchor as string | undefined) ?? 'origin';
   const selfName = (out.selfAnchor as string | undefined) ?? 'origin';
   if (!Object.hasOwn(parentAnchors, parentName)) return bad('parentAnchor', `unknown anchor "${parentName}" on "${parent}"; available: ${Object.keys(parentAnchors).join(', ')}`);
@@ -390,10 +391,14 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
   else if (name === 'addBlob') state.bodies.set(id, { shape: 'blob', pts: out.pts as Vec3[], sizes: out.sizes as Vec3[], ...place });
   else if (name === 'addExtrude' || name === 'addHull' || name === 'addLathe' || name === 'addShell' || name === 'addLoft' || name === 'addSweep' || name === 'addPatch' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addTube' || (name === 'addPath' && shape === 'line')) {
+    // A tube or line has its ends (start, end) for parts to be attached at, in the space it hangs from.
+    if (name === 'addTube' || name === 'addPath') state.bodies.set(id, { shape: 'group', anchors: anchorsOf(out), pos: ZERO, rot: ZERO, ...(typeof out.parent === 'string' ? { parent: out.parent } : {}) });
     if (name === 'addTube' && out.closed === true) return; // A loop has no endpoints to attach.
     holdEnds(state, id, out, path, notes);
     return;
   } else return;
+  const body = state.bodies.get(id);
+  if (body) body.anchors = anchorsOf(out);
   if (state.bodies.get(id)?.shape !== 'group') landLate(state, id, (out.at as number | undefined) ?? 0, path, notes);
 }
 
@@ -665,6 +670,10 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   for (const key of ownKeys(input)) {
     if (key !== 'op' && !(key in variant.fields)) note(notes, 'trimmed', `${path}.${key.slice(0, 40)}`, 'unknown field ignored');
   }
+  if (variant.name === 'anchor') {
+    if (!nameAnchor(out, state, path, notes)) return null;
+    out.at = parentFirstAt.get(out.id as string) ?? 0; // the name exists from when its object does, so a part scheduled then can use it
+  }
   if (variant.name === 'style' && out.color === undefined && out.opacity === undefined) {
     note(notes, 'dropped', path, 'style needs a colour or an opacity');
     return null;
@@ -695,6 +704,10 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   }
   if (variant.name === 'addConnector' && out.from === out.to) {
     note(notes, 'dropped', path, 'a connector joins two different objects (from and to are the same)');
+    return null;
+  }
+  if (variant.name === 'addConnector' && out.kind === 'wrapped' && ['fromPoint', 'toPoint', 'swell', 'restLength'].some(k => out[k] !== undefined)) {
+    note(notes, 'dropped', path, 'local endpoint points, swell and restLength require a straight or slack connector, not a wrapped belt');
     return null;
   }
   if (variant.name === 'addStream' && out.period === 0) {
@@ -769,6 +782,23 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
 function comesBack(links: ReadonlyMap<string, string>, from: string, start: string): boolean {
   for (let cur: string | undefined = from, n = 0; cur !== undefined && n < 64; cur = links.get(cur), n++) if (cur === start) return true;
   return false;
+}
+
+/** A named point on an object, in its own space: on record with the object's others, so a later part can be attached at it. */
+function nameAnchor(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const id = out.id as string;
+  const name = out.name as string;
+  const body = state.bodies.get(id);
+  if (!body) {
+    note(notes, 'dropped', path, `"${id}" has no shape to name a point on (a text, array or mark cannot have one)`);
+    return false;
+  }
+  if (name === 'origin') {
+    note(notes, 'dropped', `${path}.name`, 'origin is always the object\'s own zero; choose another name');
+    return false;
+  }
+  body.anchors = { ...(body.anchors ?? { origin: ZERO }), [name]: out.pos as Vec3 };
+  return true;
 }
 
 /** A joint: a fixed one needs the object it rides with (never in a ride that comes round to itself), limits run low to high; then it is on record. */
@@ -975,7 +1005,7 @@ export function beginLiveStep(state: SceneState, events: LiveStepEvents, index: 
         versions.push({ at: a.at ?? 0, body: state.bodies.get(a.id) });
         bodies.set(a.id, versions);
       }
-      if (a.op === 'add' && (a.shape === 'part' || a.shape === 'group') && a.parent !== undefined && (a.parentAnchor !== undefined || (a.shape === 'part' && a.selfAnchor !== undefined))) {
+      if (a.op === 'add' && a.shape !== 'stream' && a.shape !== 'array' && a.parent !== undefined && ((a as { parentAnchor?: string }).parentAnchor !== undefined || (a as { selfAnchor?: string }).selfAnchor !== undefined)) {
         mountedChildrenAt.set(a.parent, Math.max(mountedChildrenAt.get(a.parent) ?? 0, a.at ?? 0));
       }
       kept.push(a);
