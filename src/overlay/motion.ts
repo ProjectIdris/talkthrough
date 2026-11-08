@@ -28,8 +28,15 @@ export type FlashDef = { key: number; byKey: number; angle: number; span: number
  * `loopDriver(key)` (below zero, so it never meets an object): free, it turns once a period; locked, it follows another part. The pose is a function
  * of that angle (the cosine of it: 1 at the far end, so a part locked to a crank is at the top when the crank pin is).
  */
-export type LoopKind = 'slide' | 'swing' | 'pulse';
-export type LoopDef = { key: number; kind: LoopKind; axis: Axis; amount: number; pivot: Vec3 };
+export type LoopKind = 'slide' | 'swing' | 'pulse' | 'gate' | 'float';
+/**
+ * `gate` swings a hinge open on one half of the cycle and shuts it on the other (a one-way valve); `float` bobs the object up and down by `amount`
+ * units and rocks it `tilt` degrees about z (a boat on water). `damp` is the number of cycles for the motion to fall to a third (it settles); `start` is the
+ * angle the loop began at, which the fall is counted from.
+ */
+export type LoopDef = { key: number; kind: LoopKind; axis: Axis; amount: number; pivot: Vec3; damp?: number; start?: number; tilt?: number; /** A swing about the middle of this object, wherever it stands (a pendulum hung from a part): the pivot is worked out each frame. */ pivotKey?: number };
+/** How much of its swing a damped free loop still has when its angle is `a`: one for a loop that does not settle. */
+export const loopFade = (l: LoopDef, a: number): number => (l.damp !== undefined && l.start !== undefined ? Math.exp(-Math.max(0, (a - l.start) / 360) / l.damp) : 1);
 /** The key of the angle that drives the loop on object `key`; the same call gives the object back from the driver's key. */
 export const loopDriver = (key: number): number => -1 - key;
 /**
@@ -38,7 +45,10 @@ export const loopDriver = (key: number): number => -1 - key;
  */
 const BALL_BASE = -10_000_000;
 export const ballDriver = (key: number, axis: Axis): number => BALL_BASE - key * 3 - axis;
-export const driverOwner = (driver: number): number => (driver <= BALL_BASE ? Math.floor((BALL_BASE - driver) / 3) : -1 - driver);
+/** The angle that drives the wave on a tube: its own key range, below the rest. */
+const WAVE_BASE = -1_000_000_000;
+export const waveDriver = (key: number): number => WAVE_BASE - key;
+export const driverOwner = (driver: number): number => (driver <= WAVE_BASE ? WAVE_BASE - driver : driver <= BALL_BASE ? Math.floor((BALL_BASE - driver) / 3) : -1 - driver);
 /** Where a free loop's angle starts, so it begins at rest: the cosine is 0 for slide and swing, and the pulse is at its smallest. */
 export const loopStart = (kind: LoopKind): number => (kind === 'pulse' ? 180 : 270);
 
@@ -58,10 +68,15 @@ export type CoupleDef = { key: number; byKey: number; ratio: number; pitch: numb
  * turns the part's hinge or pivot to make it so. The cycle (0 relaxed to 1 most contracted) is the cosine of the angle kept under `loopDriver(key)`.
  */
 export type MuscleDef = { key: number; holderKey: number; connectorKey: number; from: Vec3; to: Vec3; contract: number };
-export type Motion = { spins: SpinState[]; cranks: CrankDef[]; cams: CamDef[]; flashes: FlashDef[]; loops: LoopDef[]; joints: JointDef[]; couples: CoupleDef[]; muscles?: MuscleDef[] };
+/**
+ * A wave travelling along a tube: a swell (amount above 1) or a squeeze (below 1) of its radius, width (a fraction of the length) across, `count` of them spaced
+ * evenly. Where it is is the angle kept under `waveDriver(key)`, in laps, the same as a stream's markers: a crest and a marker of the same period are together.
+ */
+export type WaveDef = { key: number; amount: number; width: number; count: number };
+export type Motion = { spins: SpinState[]; cranks: CrankDef[]; cams: CamDef[]; flashes: FlashDef[]; loops: LoopDef[]; joints: JointDef[]; couples: CoupleDef[]; muscles?: MuscleDef[]; waves?: WaveDef[] };
 export type Pose = { pos?: Vec3; rot?: Vec3; opacity?: number; /** A multiplier on the object's own scale. */ scale?: Vec3 };
 
-export const emptyMotion = (): Motion => ({ spins: [], cranks: [], cams: [], flashes: [], loops: [], joints: [], couples: [], muscles: [] });
+export const emptyMotion = (): Motion => ({ spins: [], cranks: [], cams: [], flashes: [], loops: [], joints: [], couples: [], muscles: [], waves: [] });
 
 // ---- Spins over time ------------------------------------------------------------------------------
 
@@ -364,7 +379,7 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     const j = jointOf.get(key);
     if (j) return j.kind === 'fixed' || j.kind === 'ball' ? undefined : j.kind === 'pivot' ? 'hinge' : j.kind;
     const l = loopOf.get(key);
-    if (l) return l.kind === 'slide' ? 'slide' : l.kind === 'swing' ? 'hinge' : undefined;
+    if (l) return l.kind === 'slide' ? 'slide' : l.kind === 'swing' || l.kind === 'gate' ? 'hinge' : undefined;
     const c = coupleOf.get(key);
     if (c && depth < 8) {
       const by = kindOf(c.byKey, depth + 1) ?? 'hinge';
@@ -391,16 +406,16 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
         const by = kindOf(c.byKey) ?? 'hinge';
         v = c.pitch === undefined ? c.ratio * b + c.phase : by === 'hinge' ? (c.pitch * b) / 360 + c.phase : (360 * b) / c.pitch + c.phase;
       }
-    } else if (l && l.kind !== 'pulse') {
+    } else if (l && l.kind !== 'pulse' && l.kind !== 'float') {
       const a = angleOf.get(loopDriver(key));
-      if (a !== undefined) v = (Math.cos(a * DEG) * l.amount) / (l.kind === 'slide' ? 2 : 1);
+      if (a !== undefined) v = l.kind === 'gate' ? Math.max(0, Math.cos(a * DEG)) * l.amount : (Math.cos(a * DEG) * l.amount * loopFade(l, a)) / (l.kind === 'slide' ? 2 : 1);
     } else {
       v = angleOf.get(key);
     }
     memo.set(key, v);
     return v;
   };
-  const driven = new Set<number>([...jointOf.keys(), ...coupleOf.keys(), ...muscleOf.keys(), ...[...loopOf.values()].filter((l) => l.kind !== 'pulse').map((l) => l.key)]);
+  const driven = new Set<number>([...jointOf.keys(), ...coupleOf.keys(), ...muscleOf.keys(), ...[...loopOf.values()].filter((l) => l.kind !== 'pulse' && l.kind !== 'float').map((l) => l.key)]);
   for (const key of driven) {
     const o = byKey.get(key);
     const joint = jointOf.get(key);
@@ -423,7 +438,16 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
       pose.rot = turnedLocal(pose.rot ?? o.rot, joint.axis, q);
     } else {
       const axis = joint ? joint.axis : loop ? loop.axis : 2;
-      const pivot: Vec3 = joint ? joint.pivot : loop ? loop.pivot : [0, 0, 0];
+      let pivot: Vec3 = joint ? joint.pivot : loop ? loop.pivot : [0, 0, 0];
+      if (!joint && loop?.pivotKey !== undefined) {
+        // The middle of the part it hangs from, taken to the world and into the space this part sits in, less where this part is.
+        const held = chainOf(byKey, out, loop.pivotKey), home = chainOf(byKey, out, o.parentKey);
+        if (held && (home || o.parentKey === null)) {
+          const there = downThrough(home ?? [], upThrough(held, [0, 0, 0]));
+          const here = pose.pos ?? o.pos;
+          pivot = [there[0] - here[0], there[1] - here[1], there[2] - here[2]];
+        }
+      }
       pose.rot = turned(pose.rot ?? o.rot, axis, q);
       const [px, py, pz] = pivot;
       if (px !== 0 || py !== 0 || pz !== 0) {
@@ -465,10 +489,25 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     const o = byKey.get(l.key);
     const a = angleOf.get(loopDriver(l.key));
     if (!o || a === undefined) continue;
-    const m = 1 + (l.amount - 1) * ((1 + Math.cos(a * DEG)) / 2);
+    const m = 1 + (l.amount - 1) * ((1 + Math.cos(a * DEG)) / 2) * loopFade(l, a);
     const pose = edit(l.key);
     const base = pose.scale ?? [1, 1, 1];
     pose.scale = [base[0] * m, base[1] * m, base[2] * m];
+  }
+  // A float bobs the object up and down and rocks it from side to side about z, a quarter of a cycle apart, on top of whatever else has moved it.
+  for (const l of motion.loops) {
+    if (l.kind !== 'float') continue;
+    const o = byKey.get(l.key);
+    const a = angleOf.get(loopDriver(l.key));
+    if (!o || a === undefined) continue;
+    // It eases in over the first half turn, so it begins at rest whatever the angle it begins at.
+    const born = l.start !== undefined ? Math.min(1, Math.max(0, (a - l.start) / 180)) : 1;
+    const f = loopFade(l, a) * born * born * (3 - 2 * born);
+    const pose = edit(l.key);
+    const p = pose.pos ?? o.pos;
+    pose.pos = [p[0], p[1] + Math.cos(a * DEG) * l.amount * f, p[2]];
+    const r = pose.rot ?? o.rot;
+    pose.rot = turned(r, 2, Math.sin(a * DEG) * (l.tilt ?? 0) * f);
   }
   // A fixed joint rides with the object it is fixed to: its move and its turn, about that object's middle (chains settle in a few passes).
   for (let pass = 0; pass < 4; pass++) {

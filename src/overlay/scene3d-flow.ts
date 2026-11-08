@@ -3,10 +3,10 @@ import { setPathSurfaceCoordinates, treatmentOf } from './surface-treatment.ts';
 // (connector.ts), rebuilt only when they have moved; a stream is a few markers placed along a path from the stream's lap count (stream.ts).
 // Both are redone on every frame after the scene's matrices are up to date, so they follow the parts they hang on, however those were moved.
 
-import { Box3, BufferGeometry, ConeGeometry, CylinderGeometry, Group, Matrix4, Mesh, Quaternion, SphereGeometry, Vector3 } from 'three';
+import { Box3, BufferGeometry, ConeGeometry, CylinderGeometry, Group, Matrix4, Mesh, Quaternion, Sphere, SphereGeometry, Vector3 } from 'three';
 import type { Object3D } from 'three';
 import type { Rgb } from '../scene/colors.ts';
-import type { AddConnector, AddPath, AddStream, AddTube, Vec3 } from '../scene/types.ts';
+import type { AddConnector, AddForce, AddParticles, AddPath, AddStream, AddTube, Vec2, Vec3 } from '../scene/types.ts';
 import { arcPoint, beltPoints, endPoint, ropePoints, roundOf } from './connector.ts';
 import { drawFraction, swellAt, tubeGeometry } from './geometry.ts';
 import { applySurface, setSurfaceOpacity } from './materials.ts';
@@ -26,6 +26,12 @@ export type FlowNode = {
   connector?: { mesh: Mesh; signature: string };
   stream?: { markers: Mesh[]; kind: 'dot' | 'dash' | 'arrow' };
   attached?: { base: Vec3[]; along: number[]; signature: string };
+  /** A tube a wave runs along: what it was last drawn with, and its bounds at rest (so the camera does not breathe with the swell). */
+  wave?: { signature: string; sphere: Sphere; box: Box3 };
+  /** A cloud of particles: where each starts, where it ends up and how it jostles. */
+  particles?: { beads: Mesh[]; start: Vec3[]; end: Vec3[]; shake: Array<{ freq: Vec3; phase: Vec3 }> };
+  /** A force arrow: its shaft and head. */
+  force?: { shaft: Mesh; head: Mesh };
 };
 export type AddMesh = (geo: BufferGeometry, surface: string | undefined, edges: boolean) => Mesh;
 
@@ -325,5 +331,183 @@ export function updateStreams(nodes: ReadonlyMap<number, FlowNode>, frame: Frame
         applySurface(piece.surface, piece.color, node.alpha, 0, undefined);
       }
     });
+  }
+}
+
+// ---- Waves along a tube ----------------------------------------------------------------------------------------------------------
+
+/** The factor a wave puts on the radius at `u` (0 to 1 along the tube), crests `count` apiece, each `width` of the length across, `phase` laps along. */
+export function waveFactor(u: number, phase: number, count: number, width: number, amount: number): number {
+  let bump = 0;
+  const half = Math.max(0.01, width / 2);
+  for (let j = 0; j < count; j++) {
+    const c = (((phase + j / count) % 1) + 1) % 1;
+    const d = Math.abs(u - c) / half;
+    if (d < 1) bump = Math.max(bump, 0.5 * (1 + Math.cos(Math.PI * d)));
+  }
+  return 1 + (amount - 1) * bump;
+}
+
+/**
+ * A tube with a wave on it is drawn again with its radius swelled (or squeezed) along its length, the crest where the laps say. The same laps run a stream's
+ * markers, so a marker and a crest of the same period are together. A tube that has lost its wave is drawn as it was authored. A closed loop takes no wave.
+ */
+export function updateWaves(nodes: ReadonlyMap<number, FlowNode>, frame: Frame, radial: number): void {
+  for (const o of frame.objects) {
+    if (o.shape !== 'tube') continue;
+    const node = nodes.get(o.key);
+    const def = o.def as AddTube;
+    if (!node?.path || def.closed === true || (!o.wave && !node.wave)) continue;
+    const sampled = node.path.sampled;
+    const n = sampled.length;
+    if (n < 2) continue;
+    const swell: Vec2[] = [];
+    const w = o.wave;
+    for (let i = 0; i < n; i++) {
+      const u = i / (n - 1);
+      const base = def.swell ? swellAt(def.swell, u) : 1;
+      swell.push([u, base * (w ? waveFactor(u, w.phase, w.count, w.width, w.amount) : 1)]);
+    }
+    const signature = w ? swell.map((p) => Math.round(p[1] * 400)).join(',') + ':' + n : '';
+    if (!node.wave) {
+      const rest = node.path.geo;
+      if (!rest.boundingSphere) rest.computeBoundingSphere();
+      if (!rest.boundingBox) rest.computeBoundingBox();
+      node.wave = { signature: '\u0000', sphere: (rest.boundingSphere as Sphere).clone(), box: (rest.boundingBox as Box3).clone() };
+    }
+    if (signature !== node.wave.signature) {
+      const geo = tubeGeometry(sampled, def.radius, def.flat ?? 1, radial, w ? swell : def.swell);
+      setPathSurfaceCoordinates(geo, treatmentOf(def));
+      geo.boundingSphere = node.wave.sphere.clone();
+      geo.boundingBox = node.wave.box.clone();
+      const mesh = node.obj.children[0] as Mesh;
+      const old = node.path.geo;
+      mesh.geometry = geo;
+      const at = node.geometries.indexOf(old);
+      if (at >= 0) node.geometries[at] = geo;
+      else node.geometries.push(geo);
+      old.dispose();
+      node.path.geo = geo;
+      node.wave.signature = signature;
+    }
+    drawFraction(node.path.geo, o.draw);
+    if (!w) delete node.wave;
+  }
+}
+
+// ---- Particles that spread ----------------------------------------------------------------------------------------------------------
+
+const MAX_PARTICLES = 80;
+const unit = (s: number): number => {
+  // A fixed pseudo-random number from 0 to 1 for a seed (the same every time, so a frame grab and the live page agree).
+  const x = Math.sin(s * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+const smooth = (k: number): number => {
+  const x = Math.max(0, Math.min(1, k));
+  return x * x * (3 - 2 * x);
+};
+
+export function buildParticles(node: FlowNode, o: ObjectFrame, addMesh: AddMesh): void {
+  const def = o.def as AddParticles;
+  const count = Math.max(1, Math.min(MAX_PARTICLES, def.count ?? 30));
+  const shift = def.shift ?? [0, 0, 0];
+  const geo = new SphereGeometry(0.5, 12, 9);
+  const group = new Group();
+  const beads: Mesh[] = [];
+  const start: Vec3[] = [], end: Vec3[] = [];
+  const shake: Array<{ freq: Vec3; phase: Vec3 }> = [];
+  for (let i = 0; i < count; i++) {
+    const m = addMesh(geo, 'bead', false);
+    group.add(m);
+    beads.push(m);
+    const r = (k: number): number => unit(i * 7.31 + k * 13.17) - 0.5;
+    start.push([r(1) * def.from[0], r(2) * def.from[1], r(3) * def.from[2]]);
+    end.push([shift[0] + r(4) * def.to[0], shift[1] + r(5) * def.to[1], shift[2] + r(6) * def.to[2]]);
+    shake.push({ freq: [1 + unit(i + 0.1) * 2, 1 + unit(i + 0.2) * 2, 1 + unit(i + 0.3) * 2], phase: [unit(i + 0.4) * 6.283, unit(i + 0.5) * 6.283, unit(i + 0.6) * 6.283] });
+  }
+  node.obj = group;
+  node.particles = { beads, start, end, shake };
+}
+
+/** Puts the particles where the spread (the object's draw) and the jostle (its laps) say. */
+export function updateParticles(nodes: ReadonlyMap<number, FlowNode>, frame: Frame): void {
+  for (const o of frame.objects) {
+    if (o.shape !== 'particles') continue;
+    const node = nodes.get(o.key);
+    const cloud = node?.particles;
+    if (!node || !cloud) continue;
+    const def = o.def as AddParticles;
+    const k = smooth(o.draw);
+    const jostle = def.jitter ?? 0.12;
+    const laps = o.phase ?? 0;
+    const size = def.size ?? 0.14;
+    cloud.beads.forEach((m, i) => {
+      const a = cloud.start[i] as Vec3, b = cloud.end[i] as Vec3, s = cloud.shake[i] as { freq: Vec3; phase: Vec3 };
+      m.position.set(
+        a[0] + (b[0] - a[0]) * k + jostle * Math.sin(2 * Math.PI * (laps * s.freq[0] + s.phase[0] / 6.283)),
+        a[1] + (b[1] - a[1]) * k + jostle * Math.sin(2 * Math.PI * (laps * s.freq[1] + s.phase[1] / 6.283)),
+        a[2] + (b[2] - a[2]) * k + jostle * Math.sin(2 * Math.PI * (laps * s.freq[2] + s.phase[2] / 6.283)),
+      );
+      m.scale.setScalar(size);
+    });
+  }
+}
+
+// ---- Force arrows -----------------------------------------------------------------------------------------------------------------
+
+export function buildForce(node: FlowNode, o: ObjectFrame, addMesh: AddMesh): void {
+  void o;
+  const group = new Group();
+  const shaft = addMesh(new CylinderGeometry(0.5, 0.5, 1, 14), 'plastic', false);
+  const head = addMesh(new ConeGeometry(0.5, 1, 18), 'plastic', false);
+  group.add(shaft, head);
+  node.obj = group;
+  node.force = { shaft, head };
+}
+
+const dirV = new Vector3(), startV = new Vector3(), mid = new Vector3();
+
+/**
+ * Puts each force arrow on the part it acts on: it starts at a point of the part and points the way the scene says, whatever the part does (gravity stays
+ * down as the part turns), strength units long (the object's scale and pulse make it more or less) and thicker the stronger.
+ */
+export function updateForces(nodes: ReadonlyMap<number, FlowNode>, frame: Frame): void {
+  const byId = new Map<string, ObjectFrame>();
+  for (const o of frame.objects) byId.set(o.id, o);
+  for (const o of frame.objects) {
+    if (o.shape !== 'force') continue;
+    const node = nodes.get(o.key);
+    const arrow = node?.force;
+    if (!node || !arrow) continue;
+    const def = o.def as AddForce;
+    const host = byId.get(def.on);
+    const hostNode = host && nodes.get(host.key);
+    if (!host || !hostNode || !hostNode.obj.visible) {
+      node.obj.visible = false;
+      continue;
+    }
+    // It is placed in the scene's own space: its own place and turn are not used.
+    node.obj.position.set(0, 0, 0);
+    node.obj.rotation.set(0, 0, 0);
+    node.obj.scale.set(1, 1, 1);
+    node.obj.updateWorldMatrix(true, false);
+    const inverse = new Matrix4().copy(node.obj.matrixWorld).invert();
+    endPoint(hostNode.obj, host.def, undefined, def.point, hostNode.anchors, startV);
+    startV.applyMatrix4(inverse);
+    dirV.set(def.dir[0], def.dir[1], def.dir[2]).transformDirection(inverse);
+    const grown = o.pose?.scale ?? [1, 1, 1];
+    const strength = Math.max(0.02, def.strength * ((o.scale[0] + o.scale[1] + o.scale[2]) / 3) * ((grown[0] + grown[1] + grown[2]) / 3));
+    const length = strength;
+    const r = 0.05 + 0.025 * Math.min(strength, 8);
+    const headLen = Math.min(length * 0.45, 0.35 + 3 * r);
+    const shaftLen = Math.max(0.001, length - headLen);
+    quat.setFromUnitVectors(UP, dirV);
+    arrow.shaft.quaternion.copy(quat);
+    arrow.head.quaternion.copy(quat);
+    arrow.shaft.scale.set(2 * r, shaftLen, 2 * r);
+    arrow.head.scale.set(4.4 * r, headLen, 4.4 * r);
+    arrow.shaft.position.copy(mid.copy(startV).addScaledVector(dirV, shaftLen / 2));
+    arrow.head.position.copy(mid.copy(startV).addScaledVector(dirV, shaftLen + headLen / 2));
   }
 }

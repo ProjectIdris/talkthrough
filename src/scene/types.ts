@@ -137,12 +137,18 @@ export type AddConnector = {
 export type StreamMark = 'dot' | 'dash' | 'arrow';
 export type AddStream = {
   op: 'add'; shape: 'stream'; id: string; along: string; mark?: StreamMark; count?: number; size?: number; color?: Color; toColor?: Color;
-  shiftAt?: number; period?: number; by?: string; ratio?: number; opacity?: number;
+  shiftAt?: number; period?: number; by?: string; ratio?: number; opacity?: number; surge?: number; beat?: number;
 } & At;
 /** A stream on an edge of a flat diagram: what the timeline makes of an AddStream whose `along` is an edge. Never written by the model. */
 export type StreamPiece = { op: 'stream'; id: string; along: string; mark?: StreamMark; count?: number; color?: Color; toColor?: Color; shiftAt?: number; period?: number; opacity?: number } & At;
 
-export type AddAction = AddSolid | AddShell | AddExtrude | AddHull | AddLathe | AddLoft | AddSweep | AddPatch | AddBlob | AddTube | AddPath | AddConnector | AddStream | AddPart | AddArray | AddText | AddGroup;
+/** A cloud of particles that spread from one box to a larger one (diffusion). The reveal op takes it from crowded (0) to spread (1). */
+export type AddParticles = { op: 'add'; shape: 'particles'; id: string; parent?: string; pos?: Vec3; count?: number; from: Vec3; to: Vec3; shift?: Vec3; size?: number; jitter?: number; period?: number; color?: Color; draw?: number; opacity?: number } & At;
+/** An arrow for a force on a part: strength units long, pointing the way dir does in the scene, from a point of the part. */
+export type AddForce = { op: 'add'; shape: 'force'; id: string; parent?: string; on: string; point?: string; dir: Vec3; strength: number; color?: Color; opacity?: number } & At;
+/** Field lines drawn as arrows round a point (a magnet, a charge, a mass, two plates); the timeline makes them. */
+export type AddField = { op: 'add'; shape: 'field'; id: string; parent?: string; pos?: Vec3; kind: 'dipole' | 'radial' | 'uniform'; axis?: 'x' | 'y'; size?: number; count?: number; gap?: number; flip?: boolean; color?: Color; opacity?: number } & At;
+export type AddAction = AddSolid | AddShell | AddExtrude | AddHull | AddLathe | AddLoft | AddSweep | AddPatch | AddBlob | AddTube | AddPath | AddConnector | AddStream | AddParticles | AddForce | AddField | AddPart | AddArray | AddText | AddGroup;
 
 // Tweens and changes on existing ids.
 export type MoveAction = { op: 'move'; id: string; to: Vec3 } & Timing;
@@ -164,7 +170,7 @@ export type CutAction = { op: 'cut'; id: string; axis?: 'x' | 'y' | 'z'; normal?
 export type CrankAction = { op: 'crank'; id: string; shaft: string; rod?: string; pin?: number } & At;
 export type CamAction = { op: 'cam'; id: string; by: string; lift?: number; open?: number; phase?: number } & At;
 /** A repeating motion that is not a full turn, for any object: slide along an axis, swing about a pivot, or pulse in size. Its own period, or locked to a spinning part with by. */
-export type LoopAction = { op: 'loop'; id: string; kind?: 'slide' | 'swing' | 'pulse' | 'stop'; axis?: 'x' | 'y' | 'z'; amount?: number; period?: number; by?: string; ratio?: number; phase?: number; pivot?: Vec3 } & At;
+export type LoopAction = { op: 'loop'; id: string; kind?: 'slide' | 'swing' | 'pulse' | 'gate' | 'float' | 'stop'; axis?: 'x' | 'y' | 'z'; amount?: number; period?: number; by?: string; ratio?: number; phase?: number; pivot?: Vec3; damp?: number; tilt?: number; /** Never written by the model: the part a pendulum hangs from, which the pivot follows. */ pivotOn?: string } & At;
 /** A freedom of an object: a hinge about a pivot, a slide along an axis or a direction, or riding rigidly with another object. It moves nothing until a driver (spin, loop) or a coupling sets its value. */
 export type JointAction = { op: 'joint'; id: string; kind: 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball'; axis?: 'x' | 'y' | 'z'; dir?: Vec3; pivot?: Vec3; about?: string; limit?: Vec3; min?: number; max?: number; to?: string } & At;
 /** One joint follows another's value: ratio between two of a kind (gear, belt, lever arm), or pitch between a hinge and a slide (units of travel for a turn: a screw, a rack, a rope on a wheel). stop ends it. */
@@ -174,7 +180,20 @@ export type LeverAction = { op: 'lever'; id: string; fulcrum?: string; swing?: n
 /** A connector that pulls the part it is on: it contracts between its two points and the part's hinge or pivot is turned to make it so. */
 export type MuscleAction = { op: 'muscle'; id: string; pulls: string; contract?: number; period?: number; phase?: number } & At;
 /** A rope over a wheel in one op: the wheel turns and the load slides by the rope laid on it. */
-export type PulleyAction = { op: 'pulley'; id: string; wheel: string; radius?: number; rpm?: number; axis?: 'x' | 'y' | 'z' } & At;
+export type PulleyAction = { op: 'pulley'; id: string; wheel: string; radius?: number; rpm?: number; axis?: 'x' | 'y' | 'z'; min?: number; max?: number } & At;
+/** Gravity and its kin, illustrated, each in one op over the loops, joints and couplings: a weight hanging and swinging, bobbing on a spring, floating, falling and bouncing. */
+export type PendulumAction = { op: 'pendulum'; id: string; from?: string; pivot?: Vec3; swing?: number; period?: number; damp?: number; axis?: 'x' | 'y' | 'z' } & At;
+export type OscillateAction = { op: 'oscillate'; id: string; amount?: number; period?: number; damp?: number; axis?: 'x' | 'y' | 'z' } & At;
+export type FloatAction = { op: 'float'; id: string; bob?: number; tilt?: number; period?: number; damp?: number } & At;
+export type DropAction = { op: 'drop'; id: string; to: number; bounce?: number } & Timing;
+/** A chamber that squeezes and refills behind one-way valves. */
+export type PumpAction = { op: 'pump'; id: string; inlet?: string; outlet?: string; squeeze?: number; open?: number; period?: number; hinge?: string; axis?: 'x' | 'y' | 'z' } & At;
+/** The last simple machines: a load on a slope, a wedge pushing a part aside, a screw and its nut. */
+export type InclineAction = { op: 'incline'; id: string; ramp?: string; angle?: number; travel?: number; period?: number } & At;
+export type WedgeAction = { op: 'wedge'; id: string; drives: string; angle?: number; travel?: number; period?: number; axis?: 'x' | 'y' | 'z' } & At;
+export type ScrewAction = { op: 'screw'; id: string; screw: string; pitch?: number; rpm?: number; axis?: 'x' | 'y' | 'z'; min?: number; max?: number } & At;
+/** A wave running along a tube. */
+export type WaveAction = { op: 'wave'; id: string; amount?: number; width?: number; count?: number; period?: number; stop?: boolean } & At;
 export type FlashAction = { op: 'flash'; id: string; by: string; angle: number; span: number; cycle?: number } & At;
 
 // Camera, for the 3D panel.
@@ -194,6 +213,7 @@ export type Action =
   | Mark | PanelAction | AddAction | DiagramThing | TickAction
   | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | AnchorAction | DetachAction | StyleAction | HighlightAction
   | CutAction | SpinAction | CrankAction | CamAction | FlashAction | LoopAction | JointAction | CoupleAction | LeverAction | PulleyAction | MuscleAction
+  | WaveAction | PendulumAction | OscillateAction | FloatAction | DropAction | PumpAction | InclineAction | WedgeAction | ScrewAction
   | OrbitAction | ZoomAction | FocusAction | ClearAction | WaitAction | GoAction;
 
 export type Step = { say: string; actions: Action[] };

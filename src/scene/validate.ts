@@ -39,6 +39,8 @@ export type SceneState = {
   spins: Map<string, 'x' | 'y' | 'z'>;
   /** The two ends of each connector made so far: a muscle is one of them. */
   connectors?: Map<string, { from: string; to: string }>;
+  /** The tubes made so far, and whether each is a closed loop: a wave runs along an open tube. */
+  tubes?: Map<string, { closed: boolean }>;
   /** The min and max each joint was given: a muscle on a joint with no room to turn cannot move it. */
   jointRanges?: Map<string, { min?: number; max?: number }>;
   /** The parts a muscle pulls: a loop or coupling written for one is dropped (the muscle drives it) until a loop stop frees it. */
@@ -86,7 +88,7 @@ export function createSceneState(): SceneState {
 export function createDetailState(onScreen: SceneState): SceneState {
   return {
     ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides), spins: new Map(onScreen.spins),
-    bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [], connectors: new Map(onScreen.connectors ?? []), muscled: new Set(onScreen.muscled ?? []), jointRanges: new Map(onScreen.jointRanges ?? []),
+    bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [], connectors: new Map(onScreen.connectors ?? []), tubes: new Map(onScreen.tubes ?? []), muscled: new Set(onScreen.muscled ?? []), jointRanges: new Map(onScreen.jointRanges ?? []),
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
     ...(onScreen.stage ? { stage: { ...onScreen.stage } } : {}),
   };
@@ -497,11 +499,27 @@ function fitStage(raw: Record<string, unknown>, state: SceneState, path: string,
   return next;
 }
 
-function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>, mountedChildrenAt: ReadonlyMap<string, number>, bodies: BodyVersions): Action | null {
-  if (!isObject(raw)) {
+/**
+ * A shape written as the op (op "force" for add with shape force, as a model has done): read as the add it was meant to be, with a note.
+ * This is general: any shape name an `add` takes (sphere, tube, array, group, connector, ...) written as an op is rewritten the same way,
+ * each with its own note; a name that is no op and no shape stays dropped, and so does an op that also gives a different shape.
+ */
+function shapeAsOp(raw: object, path: string, notes: Notes): object {
+  const op = own(raw, 'op');
+  if (typeof op !== 'string' || VARIANTS.some((v) => v.op === op)) return raw;
+  const shape = own(raw, 'shape');
+  if (shape !== undefined && shape !== null) return raw;
+  if (!VARIANTS.some((v) => v.op === 'add' && (v.shapes as readonly string[] | undefined)?.includes(op))) return raw;
+  note(notes, 'trimmed', path, `repaired: op "${op}" read as add with shape ${op}`);
+  return { ...raw, op: 'add', shape: op };
+}
+
+function validateAction(rawIn: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>, mountedChildrenAt: ReadonlyMap<string, number>, bodies: BodyVersions): Action | null {
+  if (!isObject(rawIn)) {
     note(notes, 'dropped', path, 'action is not an object');
     return null;
   }
+  const raw = shapeAsOp(rawIn, path, notes);
   const variant = pickVariant(raw);
   if (typeof variant === 'string') {
     note(notes, 'dropped', path, variant);
@@ -712,7 +730,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
       note(notes, 'dropped', path, 'loop needs an amount');
       return null;
     }
-    const [low, high] = kind === 'slide' ? [0.01, 100] : kind === 'swing' ? [-180, 180] : [0.1, 5];
+    const [low, high] = kind === 'slide' || kind === 'float' ? [0.01, 100] : kind === 'swing' ? [-180, 180] : kind === 'gate' ? [-170, 170] : [0.1, 5];
     const held = Math.min(high, Math.max(low, amount));
     if (held !== amount) {
       note(notes, 'clamped', `${path}.amount`, `${kind} amount ${amount} held to ${held}`);
@@ -736,6 +754,20 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   if (variant.name === 'lever' && !checkLever(out, state, path, notes)) return null;
   if (variant.name === 'pulley' && !checkPulley(out, state, path, notes)) return null;
   if (variant.name === 'muscle' && !checkMuscle(out, state, path, notes)) return null;
+  if (variant.name === 'pendulum' && out.from === undefined && out.pivot === undefined) {
+    note(notes, 'dropped', path, 'pendulum needs from (the part it hangs from) or pivot (the hang point, from the weight)');
+    return null;
+  }
+  if (variant.name === 'pendulum' && out.from === out.id) {
+    note(notes, 'dropped', `${path}.from`, 'a pendulum hangs from a different part');
+    return null;
+  }
+  if (variant.name === 'wave' && !checkWave(out, state, path, notes)) return null;
+  if (variant.name === 'addForce' && !checkForce(out, state, path, notes)) return null;
+  if (variant.name === 'pump' && !checkPump(out, state, path, notes)) return null;
+  if (variant.name === 'incline' && !checkIncline(out, state, path, notes)) return null;
+  if (variant.name === 'wedge' && !checkMachine(out, state, path, notes, 'drives', 'slide')) return null;
+  if (variant.name === 'screw' && !checkMachine(out, state, path, notes, 'screw', 'slide')) return null;
   if (variant.name === 'addTube' && out.closed === true && new Set((out.pts as Vec3[]).map((p) => p.join(','))).size < 3) {
     note(notes, 'dropped', `${path}.pts`, 'a closed tube needs at least three distinct points');
     return null;
@@ -791,6 +823,8 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     else state.parts.delete(id);
     if (variant.name === 'addConnector') (state.connectors ??= new Map()).set(id, { from: out.from as string, to: out.to as string });
     else state.connectors?.delete(id);
+    if (variant.name === 'addTube') (state.tubes ??= new Map()).set(id, { closed: out.closed === true });
+    else state.tubes?.delete(id);
     state.parents.set(id, parent);
     state.depth.set(id, parent === undefined ? 1 : (state.depth.get(parent) ?? 0) + 1);
     holdBody(state, variant.name, out, path, notes, mountedPos);
@@ -973,6 +1007,107 @@ function checkMuscle(out: Record<string, unknown>, state: SceneState, path: stri
     note(notes, 'trimmed', `${path}.pulls`, `the joint of "${pulls}" can turn only ${Math.max(0, range.max - range.min)} degrees (min ${range.min}, max ${range.max}): the muscle cannot move it; give it min and max wide enough for the way it pulls (like -120 to 120)`);
   }
   (state.muscled ??= new Set()).add(pulls);
+  return true;
+}
+
+/** A wave runs along a tube that is open at its ends. */
+function checkWave(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const id = out.id as string;
+  const tube = state.tubes?.get(id);
+  if (!tube) {
+    note(notes, 'dropped', path, `a wave runs along a tube: "${id}" is not one (add a tube first, or run a stream along a line)`);
+    return false;
+  }
+  if (tube.closed) {
+    note(notes, 'dropped', path, `"${id}" is a closed loop: a wave needs a tube open at both ends (a stream can run round a loop)`);
+    return false;
+  }
+  if (out.period === 0) {
+    delete out.period;
+    note(notes, 'trimmed', `${path}.period`, 'period 0 would not move; the default is used');
+  }
+  return true;
+}
+
+/** A force arrow starts at a point of the part it acts on and points somewhere. */
+function checkForce(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const dir = out.dir as Vec3;
+  if (Math.hypot(dir[0], dir[1], dir[2]) < 1e-6) {
+    note(notes, 'dropped', `${path}.dir`, 'a force needs a direction: [0,-1,0] is down');
+    return false;
+  }
+  const on = out.on as string;
+  const point = out.point as string | undefined;
+  const points = state.bodies.get(on)?.anchors;
+  if (point !== undefined && points && !Object.hasOwn(points, point)) {
+    note(notes, 'dropped', `${path}.point`, `unknown point "${point}" on "${on}"; available: ${Object.keys(points).join(', ')}`);
+    return false;
+  }
+  return true;
+}
+
+/** A pump has a chamber and at least one valve, all different parts; each valve is a hinge. */
+function checkPump(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const id = out.id as string;
+  const valves = ['inlet', 'outlet'].filter((k) => out[k] !== undefined);
+  if (valves.length === 0) {
+    note(notes, 'dropped', path, 'pump needs an inlet or an outlet valve (the parts that open and shut)');
+    return false;
+  }
+  if (out.inlet !== undefined && out.inlet === out.outlet) {
+    note(notes, 'dropped', path, 'the inlet and the outlet of a pump are different parts');
+    return false;
+  }
+  for (const k of valves) {
+    if (out[k] === id) {
+      note(notes, 'dropped', `${path}.${k}`, 'a valve is a different part from the chamber');
+      return false;
+    }
+  }
+  const points = (key: string): Record<string, unknown> | undefined => state.bodies.get(out[key] as string)?.anchors;
+  const hinge = (out.hinge as string | undefined) ?? 'left';
+  for (const k of valves) {
+    const known = points(k);
+    if (known && !Object.hasOwn(known, hinge)) {
+      note(notes, 'dropped', `${path}.hinge`, `unknown point "${hinge}" on "${out[k] as string}"; available: ${Object.keys(known).join(', ')}`);
+      return false;
+    }
+  }
+  for (const k of valves) state.joints.set(out[k] as string, 'hinge');
+  return true;
+}
+
+/** An inclined plane needs its slope: the ramp it lies on, or an angle. */
+function checkIncline(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  if (out.ramp === undefined && out.angle === undefined) {
+    note(notes, 'dropped', path, 'incline needs ramp (the sloping part) or angle (degrees of slope)');
+    return false;
+  }
+  if (out.ramp === out.id) {
+    note(notes, 'dropped', `${path}.ramp`, 'the load and the ramp are different parts');
+    return false;
+  }
+  state.joints.set(out.id as string, 'slide');
+  return true;
+}
+
+/** A wedge and the part it drives, or a screw and its nut: two different parts, the second following the first. */
+function checkMachine(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes, other: string, kind: 'slide'): boolean {
+  const id = out.id as string;
+  const mate = out[other] as string;
+  if (mate === id) {
+    note(notes, 'dropped', path, `${id} and ${mate} are different parts`);
+    return false;
+  }
+  const follower = other === 'drives' ? mate : id;
+  const leader = other === 'drives' ? id : mate;
+  if (comesBack(state.follows, leader, follower)) {
+    note(notes, 'dropped', `${path}.${other}`, `${follower} cannot follow ${leader}: that follows ${follower} already (a coupling loop)`);
+    return false;
+  }
+  state.joints.set(follower, kind);
+  if (other === 'drives') state.joints.set(id, 'slide');
+  state.follows.set(follower, leader);
   return true;
 }
 

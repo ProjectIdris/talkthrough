@@ -31,7 +31,9 @@ import { TAG_HEIGHT_FACTOR, tagTextPx } from './theme.ts';
 import { convexHull } from './labels.ts';
 import type { Pt } from './labels.ts';
 import type { Piece } from './parts.ts';
+import { sweptPoses } from './timeline.ts';
 import type { FocusFrame, Frame, ObjectFrame, Rgb } from './timeline.ts';
+import type { Pose } from './motion.ts';
 import { spreadPosition, userOffsets } from './explode.ts';
 import type { Part } from './explode.ts';
 import { PATCH_SEGMENTS } from '../scene/patch.ts';
@@ -39,7 +41,7 @@ import { patchGeometry, patchEdges } from './patch.ts';
 import { Cutaway } from './cutaway.ts';
 import { anchorsOf } from '../scene/anchors.ts';
 import { latheSectorEdges, latheSectorGeometry } from './lathe-sector.ts';
-import { buildConnector, buildStream, updateAttached, updateConnectors, updateStreams } from './scene3d-flow.ts';
+import { buildConnector, buildForce, buildParticles, buildStream, updateAttached, updateConnectors, updateForces, updateParticles, updateStreams, updateWaves } from './scene3d-flow.ts';
 import type { FlowNode } from './scene3d-flow.ts';
 
 /** The longer side of the stage sees this many degrees; the shorter side follows from its shape, so a wide stage does not skew what sits at its edges. */
@@ -115,6 +117,9 @@ type Node = {
   /** A connector's tube and what it was last built from; a stream's markers (see scene3d-flow.ts). */
   connector?: FlowNode['connector'];
   stream?: FlowNode['stream'];
+  wave?: FlowNode['wave'];
+  particles?: FlowNode['particles'];
+  force?: FlowNode['force'];
   /** A tube or line with an end on a part: its points as drawn at rest (see scene3d-flow.ts). */
   attached?: FlowNode['attached'];
 };
@@ -155,6 +160,9 @@ export class PanelScene {
   private fitClock: number | undefined;
   /** The visible parts' bounding spheres and box corners at rest (no machine pose, no pulse), worked out in `sync` for the camera's fit. */
   private restSpheres: PartHull[] = [];
+  /** The parts' spheres and boxes at the poses a running machine takes over its cycle (see `sweptPoses`), kept while the machine and its parts are as they were. */
+  private sweepHulls: PartHull[] = [];
+  private sweepKey = '';
   /** Where the text sprites were put on screen by the last `tidyTexts` (window pixels): what is drawn includes them. */
   private textRects: ScreenRect[] = [];
   private settling = false;
@@ -256,7 +264,7 @@ export class PanelScene {
       return mesh;
     };
     switch (def.shape) {
-      case 'group': case 'array': break;
+      case 'group': case 'array': case 'field': break;
       case 'hull': {
         const result = buildHullGeometry(def.pts);
         if (result.ok) node.obj = addMesh(result.geometry, material, def.edges !== false);
@@ -296,6 +304,8 @@ export class PanelScene {
       case 'tube': case 'line': case 'arrow': this.buildPath(node, o, addMesh); break;
       case 'connector': buildConnector(node, o, addMesh, this.detail.radial); break;
       case 'stream': buildStream(node, o, addMesh); break;
+      case 'particles': buildParticles(node, o, addMesh); break;
+      case 'force': buildForce(node, o, addMesh); break;
       default: {
         const geo = this.solidGeometry(def);
         if (def.shape === 'blob') shadeByHeight(geo);
@@ -413,7 +423,9 @@ export class PanelScene {
   private buildPath(node: Node, o: ObjectFrame, addMesh: AddMesh): void {
     const def = o.def as { shape: string; pts: Vec3[]; radius?: number; flat?: number; swell?: Array<[number, number]>; closed?: boolean; material?: string };
     const tube = def.shape === 'tube';
-    const radius = tube ? def.radius ?? PATH_RADIUS : PATH_RADIUS;
+    // A field line (made by the timeline) is finer than an arrow the model draws, and counts in the fit of the camera: the lines are the picture.
+    const fine = (def as { fine?: boolean }).fine === true;
+    const radius = tube ? def.radius ?? PATH_RADIUS : fine ? PATH_RADIUS * 0.8 : PATH_RADIUS;
     const loop = tube && def.closed ? closedTubeGeometry(def.pts, radius, def.flat ?? 1, this.detail.radial, this.detail.tube, def.swell) : undefined;
     const sampled = loop?.sampled ?? samplePath(def.pts, tube, this.detail.tube);
     const geo = loop?.geo ?? tubeGeometry(sampled, radius, tube ? def.flat ?? 1 : 1, this.detail.radial, tube ? def.swell : undefined);
@@ -423,6 +435,7 @@ export class PanelScene {
     let head: Mesh | undefined;
     if (def.shape === 'arrow') {
       head = addMesh(new ConeGeometry(PATH_RADIUS * 3.4, 0.55, 20), 'plastic', false);
+      if (fine) head.scale.setScalar(0.85);
       group.add(head);
     }
     node.obj = group;
@@ -430,7 +443,7 @@ export class PanelScene {
     for (let i = 1; i < sampled.length; i++) length += Math.hypot(sampled[i]![0] - sampled[i - 1]![0], sampled[i]![1] - sampled[i - 1]![1], sampled[i]![2] - sampled[i - 1]![2]);
     // Closed loops are model geometry, even when thin; only open trailing cables
     // may stay outside the camera fit and the bounds that enable rendering.
-    node.path = { geo, sampled, head, body: tube && (def.closed === true || radius >= 0.04 * length) };
+    node.path = { geo, sampled, head, body: fine || (tube && (def.closed === true || radius >= 0.04 * length)) };
   }
 
   private buildText(node: Node, o: ObjectFrame): void {
@@ -567,14 +580,27 @@ export class PanelScene {
       layout(offsets, true);
       this.scene.updateMatrixWorld(true);
       this.restSpheres = this.partSpheres();
+      this.sweepHulls = this.sweptHulls(frame, offsets, spreads);
       layout(offsets);
     }
     this.scene.updateMatrixWorld(true);
-    if (!frame.objects.some((o) => o.pose || o.pulse !== 0)) this.restSpheres = this.partSpheres();
+    if (!frame.objects.some((o) => o.pose || o.pulse !== 0)) {
+      this.restSpheres = this.partSpheres();
+      // Nothing is moving yet but something will be, later in this step: the camera is already fitted to it.
+      this.sweepHulls = frame.ahead ? this.sweptHulls(frame, offsets, spreads) : [];
+      if (!frame.ahead) this.sweepKey = '';
+      else {
+        layout(offsets);
+        this.scene.updateMatrixWorld(true);
+      }
+    }
     // Connectors and streams are placed from where their parts now are; what hangs on a connector then needs its matrices again.
     updateAttached(this.nodes, frame, this.detail.radial, PATH_RADIUS);
     if (updateConnectors(this.nodes, frame, this.detail.radial)) this.scene.updateMatrixWorld(true);
+    updateWaves(this.nodes, frame, this.detail.radial);
     updateStreams(this.nodes, frame);
+    updateParticles(this.nodes, frame);
+    updateForces(this.nodes, frame);
     this.scene.updateMatrixWorld(true);
     this.aim(frame, aspect, view, standBack);
     if (view) this.tidyTexts(view);
@@ -666,17 +692,23 @@ export class PanelScene {
     line.visible = node.obj.visible;
   }
 
+  /** Where a part stands and how big it is: its own values, or a machine's pose in their place; swell is what a pulse loop multiplies its scale by. */
+  private place(node: Node, o: ObjectFrame, parentSpread: number, offset: Vec3 | undefined, pose: Pose | undefined, swell: Vec3 | undefined, grow: number): void {
+    const at = spreadPosition(pose?.pos ?? o.pos, (o.def as { explode?: Vec3 }).explode, parentSpread);
+    const rot = pose?.rot ?? o.rot;
+    node.obj.position.set(at[0] + (offset?.[0] ?? 0), at[1] + (offset?.[1] ?? 0), at[2] + (offset?.[2] ?? 0));
+    node.obj.rotation.copy(new Euler(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'XYZ'));
+    const loop = swell ?? [1, 1, 1];
+    node.obj.scale.set(node.baseScale.x * o.scale[0] * loop[0] * grow, node.baseScale.y * o.scale[1] * loop[1] * grow, node.baseScale.z * o.scale[2] * loop[2] * grow);
+  }
+
   private apply(node: Node, o: ObjectFrame, parentSpread: number, offset?: Vec3, rest = false): void {
     const pulse = rest ? 0 : o.pulse;
     const pose = rest ? undefined : o.pose;
     const grow = 1 + 0.07 * pulse;
     // Spread by the model's own explode, then by the person's control; a machine's pose stands in for the rest values.
-    const at = spreadPosition(pose?.pos ?? o.pos, (o.def as { explode?: Vec3 }).explode, parentSpread);
     const rot = pose?.rot ?? o.rot;
-    node.obj.position.set(at[0] + (offset?.[0] ?? 0), at[1] + (offset?.[1] ?? 0), at[2] + (offset?.[2] ?? 0));
-    node.obj.rotation.copy(new Euler(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'XYZ'));
-    const loop = o.pose?.scale ?? [1, 1, 1]; // a pulse loop swells it on top of its own scale
-    node.obj.scale.set(node.baseScale.x * o.scale[0] * loop[0] * grow, node.baseScale.y * o.scale[1] * loop[1] * grow, node.baseScale.z * o.scale[2] * loop[2] * grow);
+    this.place(node, o, parentSpread, offset, pose, o.pose?.scale, grow); // a pulse loop swells it on top of its own scale
     if (!node.anchorsFrom || node.anchorsFrom.def !== o.def || node.anchorsFrom.points !== o.points) {
       node.anchors = anchorsOf(o.points ? { ...o.def, points: o.points } : o.def);
       node.anchorsFrom = { def: o.def, points: o.points };
@@ -707,7 +739,7 @@ export class PanelScene {
       if (head) {
         const { p, dir } = pointAlong(node.path.sampled, o.draw);
         const d = new Vector3(dir[0], dir[1], dir[2]);
-        head.position.set(p[0], p[1], p[2]).addScaledVector(d, -0.2);
+        head.position.set(p[0], p[1], p[2]).addScaledVector(d, -0.2 * head.scale.y);
         head.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), d);
         head.visible = o.draw > 0.02;
       }
@@ -731,7 +763,14 @@ export class PanelScene {
     // The distance comes from a sphere round the visible parts; it also takes in an opened (exploded) model, which is
     // laid out by now, so the camera stands back for it without being told.
     const az = cam.az * DEG, el = Math.max(-89, Math.min(89, cam.el)) * DEG;
-    const fit = this.eased(this.fitTarget(az, el, tan, aspect), view?.now);
+    // A sweep may reach the screen's edge, not only the stage's: how much wider than the stage that is, each way, from the stage's middle.
+    const room = { x: 1, y: 1 };
+    if (view) {
+      const cx = view.rect.x + view.rect.w / 2, cy = view.rect.y + view.rect.h / 2;
+      room.x = Math.max(1, (0.96 * Math.min(cx, view.width - cx)) / (view.rect.w / 2));
+      room.y = Math.max(1, (0.96 * Math.min(cy, view.height - cy)) / (view.rect.h / 2));
+    }
+    const fit = this.eased(this.fitTarget(az, el, tan, aspect, room), view?.now);
     let base = (FRAMING_UNITS / 2 / (aspect >= 1 ? 1 : aspect)) / tan;
     if (fit) base = Math.max(MIN_FIT_DISTANCE, fit.radius);
     void standBack;
@@ -831,7 +870,7 @@ export class PanelScene {
   private partSpheres(): PartHull[] {
     const spheres: PartHull[] = [];
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream || node.particles || node.force) continue;
       for (const p of node.pieces) {
         const mesh = p.object as Mesh;
         const geo = mesh.geometry;
@@ -849,6 +888,32 @@ export class PanelScene {
       }
     }
     return spheres;
+  }
+
+  /**
+   * The parts' spheres and boxes at each of the poses a running machine takes over its cycle: the camera fits the stage to all of them with the rest ones, so
+   * a part that swings out of its rest shape does not leave the stage. Taken again only when the parts or the machine change (a part appears, moves, or
+   * a loop or joint is written), never as the machine runs, so the camera stands still over the cycle.
+   */
+  private sweptHulls(frame: Frame, offsets: Map<number, Vec3> | undefined, spreads: ReadonlyMap<number, number>): PartHull[] {
+    const q = (v: readonly number[], k: number): string => v.map((x) => Math.round(x * k)).join(',');
+    const m = frame.ahead ?? frame.motion;
+    const key = frame.objects.map((o) => `${o.key}:${o.parentKey}:${q(o.pos, 4)}:${q(o.rot, 1)}:${q(o.scale, 4)}:${o.opacity * o.appear * o.fade > 0.003 ? 1 : 0}`).join('|')
+      + '#' + JSON.stringify([m.cranks, m.cams, m.loops, m.joints, m.couples, m.muscles, m.spins.map((s) => [s.key, s.axis, s.rate !== 0, s.lock ?? null])]);
+    if (key === this.sweepKey) return this.sweepHulls;
+    this.sweepKey = key;
+    const hulls: PartHull[] = [];
+    for (const set of sweptPoses(frame)) {
+      for (const o of frame.objects) {
+        const node = this.nodes.get(o.key);
+        if (!node) continue;
+        const pose = set.get(o.key);
+        this.place(node, o, o.parentKey !== null ? spreads.get(o.parentKey) ?? 0 : 0, offsets?.get(o.key), pose, pose?.scale, 1);
+      }
+      this.scene.updateMatrixWorld(true);
+      hulls.push(...this.partSpheres());
+    }
+    return hulls;
   }
 
   /**
@@ -927,22 +992,22 @@ export class PanelScene {
    * margin. A tall or long model fills its stage instead of leaving it mostly empty, and, being made from the rest pose, it does not breathe
    * when a part pulses or a machine moves. Never further than the all-round sphere would put it.
    */
-  private fitTarget(az: number, el: number, tan: number, aspect: number): { center: Vector3; radius: number } | undefined {
-    const parts = this.restSpheres;
-    if (parts.length === 0) return undefined;
+  private fitTarget(az: number, el: number, tan: number, aspect: number, room = { x: 1, y: 1 }): { center: Vector3; radius: number } | undefined {
+    const groups: Array<[PartHull[], number, number]> = [[this.restSpheres, 1, 1], [this.sweepHulls, room.x, room.y]];
+    if (this.restSpheres.length === 0) return undefined;
     const lo = new Vector3(Infinity, Infinity, Infinity), hi = new Vector3(-Infinity, -Infinity, -Infinity);
-    for (const p of parts) for (const c of p.corners) { lo.min(c); hi.max(c); }
+    for (const [parts] of groups) for (const p of parts) for (const c of p.corners) { lo.min(c); hi.max(c); }
     const center = lo.add(hi).multiplyScalar(0.5);
     const toCam = new Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
     const right = new Vector3().crossVectors(new Vector3(0, 1, 0), toCam);
     if (right.lengthSq() < 1e-9) right.set(1, 0, 0);
     right.normalize();
     const up = new Vector3().crossVectors(toCam, right).normalize();
-    const tanY = tan, tanX = tan * aspect;
-    const kx = Math.sqrt(1 + tanX * tanX), ky = Math.sqrt(1 + tanY * tanY);
     const rel = new Vector3();
     let dist = 0;
-    for (const { sphere: s, corners } of parts) {
+    for (const [parts, sx, sy] of groups) for (const { sphere: s, corners } of parts) {
+      const tanY = tan * sy, tanX = tan * aspect * sx;
+      const kx = Math.sqrt(1 + tanX * tanX), ky = Math.sqrt(1 + tanY * tanY);
       // Each part needs the nearer of what its box asks and what its bounding sphere asks: a long thin part is held by its box, a round one by its sphere.
       let byBox = 0;
       for (const c of corners) {

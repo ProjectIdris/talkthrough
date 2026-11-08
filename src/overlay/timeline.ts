@@ -11,12 +11,14 @@ import { anchorsOf } from '../scene/anchors.ts';
 import { resolvePartGeometry } from '../scene/part-geometry.ts';
 import { PALETTE_RGB } from '../scene/colors.ts';
 import { MATERIAL_LIBRARY } from '../scene/material-library.ts';
-import { advanceMotion, ballDriver, muscleRest, crankPinKey, crankPinSize, driverOwner, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, restPoint, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
-import type { CamDef, CoupleDef, CrankDef, FlashDef, JointDef, LoopDef, Motion, MuscleDef, Pose, SpinPlan } from './motion.ts';
+import { advanceMotion, ballDriver, muscleRest, crankPinKey, crankPinSize, driverOwner, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, restPoint, waveDriver, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
+import type { CamDef, CoupleDef, CrankDef, FlashDef, JointDef, LoopDef, Motion, MuscleDef, Pose, SpinPlan, WaveDef } from './motion.ts';
 import { applyDiagramAction, clearDiagrams, diagramPlanFrom, diagramTimes, emptyDiagramPlan, evaluateDiagrams, pulseDiagramThing, styleDiagramThing } from './diagram-plan.ts';
 import type { DiagramFrame, DiagramPlan } from './diagram-plan.ts';
 import { mechanismColor } from './part-colors.ts';
 import { pathLength, smoothPath } from './shapes.ts';
+import { fallCurve, fallSeconds } from './fall.ts';
+import { fieldLines } from '../scene/field-lines.ts';
 import type { Rgb } from '../scene/colors.ts';
 import type { Action, AddAction, AddConnector, Mark, Step, StreamPiece, Vec3 } from '../scene/types.ts';
 
@@ -52,6 +54,8 @@ export function defaultColor(def: AddAction): Rgb {
     }
   }
   if (def.shape === 'stream') return [240, 244, 250];
+  if (def.shape === 'force') return [226, 92, 72];
+  if (def.shape === 'particles') return [96, 150, 232];
   const material = 'material' in def ? def.material : undefined;
   // A connector with no material is a plain grey cord; one that names a material (a muscle, a rope) has that material's colour.
   if (def.shape === 'connector' && material === undefined) return [104, 108, 118];
@@ -126,6 +130,8 @@ export type ObjectFrame = {
   draw: number;
   /** A stream: how many laps its markers have run, whole and part (their places along the path are a function of this alone). */
   phase?: number;
+  /** A wave running along a tube: the laps it has run, how big a swell (above 1) or squeeze (below) at the crest, how wide a fraction of the tube and how many at once. */
+  wave?: { phase: number; amount: number; width: number; count: number };
   /** How far apart its parts are pushed: 0 assembled; its children sit at pos * (1 + spread). */
   spread: number;
   /** Where a machine has put it just now (a turning part, a piston, a valve, a glow); drawn in place of pos, rot and opacity. */
@@ -153,6 +159,11 @@ export type Frame = {
   userCut?: number;
   /** What is turning, and how the parts are tied to it. */
   motion: Motion;
+  /**
+   * The machine as it will be later in the same step, when something in it has not started turning yet (a loop written to begin a few seconds in): the camera
+   * fits the stage to it from the start, so the model is not drawn large and then made smaller when the machine starts.
+   */
+  ahead?: Motion;
 };
 
 export function emptyFrame(): Frame {
@@ -164,7 +175,7 @@ export function emptyFrame(): Frame {
 
 // ---- Tracks: a property over time -----------------------------------------------------------
 
-type Seg = { start: number; dur: number; from: number[]; to: number[]; /** A smooth path from the start through these points to the end. */ curve?: number[][] };
+type Seg = { start: number; dur: number; from: number[]; to: number[]; /** A smooth path from the start through these points to the end. */ curve?: number[][]; /** Falls to the end with a constant pull and bounces this high (0 to 0.8) instead of easing. */ fall?: number };
 type Track = { init: number[]; segs: Seg[] };
 
 const track = (init: readonly number[]): Track => ({ init: [...init], segs: [] });
@@ -202,7 +213,7 @@ function valueAt(tr: Track, t: number): number[] {
     else break;
   }
   if (!seg) return [...tr.init];
-  const p = ease(progress(t, seg.start, seg.dur));
+  const p = seg.fall !== undefined ? fallCurve(progress(t, seg.start, seg.dur), seg.fall) : ease(progress(t, seg.start, seg.dur));
   if (seg.curve && p < 1) return catmull(seg.curve, p);
   return seg.to.map((to, i) => {
     const from = seg.from[i] ?? to;
@@ -262,6 +273,7 @@ export type StepPlan = {
   joints: JointDef[];
   couples: CoupleDef[];
   muscles: MuscleDef[];
+  waves: WaveDef[];
   nextKey: number;
   /** Authored seconds until the last action has finished. */
   duration: number;
@@ -375,7 +387,7 @@ function buildStep(base: Frame, step: Step, authored?: AuthoredStep, targets?: M
     az: track([base.camera.az]), el: track([base.camera.el]), zoom: track([base.camera.zoom]),
     focus: { init: base.camera.focus.key, segs: [] },
     pulses: [], nextKey: base.nextKey, duration: 0,
-    spins: base.motion.spins.map(spinPlanFrom), cranks: [...base.motion.cranks], cams: [...base.motion.cams], flashes: [...base.motion.flashes], loops: [...base.motion.loops], joints: [...base.motion.joints], couples: [...base.motion.couples], muscles: [...(base.motion.muscles ?? [])],
+    spins: base.motion.spins.map(spinPlanFrom), cranks: [...base.motion.cranks], cams: [...base.motion.cams], flashes: [...base.motion.flashes], loops: [...base.motion.loops], joints: [...base.motion.joints], couples: [...base.motion.couples], muscles: [...(base.motion.muscles ?? [])], waves: [...(base.motion.waves ?? [])],
   };
   for (const m of base.marks) {
     plan.marks.push({
@@ -538,6 +550,10 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
         end(APPEAR_SECONDS);
         return;
       }
+      if (a.shape === 'field') {
+        addField(plan, a, at, end);
+        return;
+      }
       const parent = 'parent' in a && a.parent !== undefined ? lookup(plan.objs, a.parent, at) : undefined;
       // Raw scenes can bypass validation. A missing holder must not silently make a child a root.
       if ('parent' in a && a.parent !== undefined && !parent) return;
@@ -565,7 +581,7 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
         scale: track([1, 1, 1]),
         color: track(given !== undefined ? parseColor(given) : defaultColor(a)),
         opacity: track([('opacity' in a && a.opacity !== undefined) ? a.opacity : 1]),
-        draw: track([('draw' in a && a.draw !== undefined) ? a.draw : 1]), spread: track([0]),
+        draw: track([('draw' in a && a.draw !== undefined) ? a.draw : a.shape === 'particles' ? 0 : 1]), spread: track([0]),
       };
       if (replaced?.points) fresh.points = { ...replaced.points };
       if (replaced) replaceObject(plan, replaced, fresh, at);
@@ -574,6 +590,14 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
         // Replacement inheritance above is presentation-timed; mounts keep their logical base pose.
         fresh.rot = track(authoredMount.rot);
         fresh.scale = track(authoredMount.scale);
+      }
+      if (a.shape === 'particles') {
+        // The jostle runs on its own clock, an angle kept like a stream's laps.
+        const driver = loopDriver(fresh.key);
+        plan.spins = plan.spins.filter((x) => x.key !== driver);
+        const sp = spinPlanFrom({ key: driver, axis: 2, angle: 0, rate: 0 });
+        plan.spins.push(sp);
+        setRate(sp, at, 360 / (a.period ?? 1.5), 0, 2);
       }
       end(replaced ? REPLACE_SECONDS : APPEAR_SECONDS);
       return;
@@ -733,14 +757,19 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       if (kind === undefined) return;
       // One loop to an object: the later one replaces the earlier (and `stop` is only that replacement left empty). A ball joint has one for each axis.
       const ball = joint?.kind === 'ball';
-      const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : kind === 'swing' ? 2 : 1;
+      const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : kind === 'swing' || kind === 'gate' ? 2 : 1;
       const driver = ball ? ballDriver(o.key, axis) : loopDriver(o.key);
       plan.muscles = plan.muscles.filter((m) => m.key !== o.key);
       plan.loops = plan.loops.filter((l) => l.key !== o.key || (ball && l.axis !== axis));
       plan.spins = plan.spins.filter((s) => s.key !== driver);
       if (kind !== 'stop') {
-        plan.loops.push({ key: o.key, kind, axis, amount: a.amount ?? 1, pivot: a.pivot ? asVec(a.pivot) : [0, 0, 0] });
-        const sp = spinPlanFrom({ key: driver, axis: 2, angle: loopStart(kind) + (by ? 0 : a.phase ?? 0), rate: 0 });
+        const start = loopStart(kind) + (by ? 0 : a.phase ?? 0);
+        plan.loops.push({
+          key: o.key, kind, axis, amount: a.amount ?? 1, pivot: a.pivot ? asVec(a.pivot) : [0, 0, 0],
+          ...(a.pivotOn !== undefined && lookup(plan.objs, a.pivotOn, at) ? { pivotKey: (lookup(plan.objs, a.pivotOn, at) as ObjInst).key } : {}),
+          ...(!by && a.damp !== undefined ? { damp: a.damp } : {}), ...(!by && (a.damp !== undefined || kind === 'float') ? { start } : {}), ...(kind === 'float' ? { tilt: a.tilt ?? 4 } : {}),
+        });
+        const sp = spinPlanFrom({ key: driver, axis: 2, angle: start, rate: 0 });
         plan.spins.push(sp);
         if (by) setLock(sp, at, { byKey: by.key, ratio: a.ratio ?? 1, phase: a.phase ?? 0 }, 2);
         else setRate(sp, at, 360 / (a.period ?? 2), 0, 2);
@@ -787,15 +816,115 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
         if (!(radius > 0)) radius = 1;
       }
       // It turns about its own axis: a cylinder's is its long one, as it lies; a kit wheel or anything else turns as a disc seen from the front, about z.
-      let axis = a.axis;
-      if (axis === undefined && wheel.def.shape === 'cylinder') {
-        const v = restPoint(asVec(valueAt(wheel.rot, at)), [1, 1, 1], [0, 1, 0]);
-        const big = Math.max(Math.abs(v[0]), Math.abs(v[1]), Math.abs(v[2]));
-        axis = Math.abs(v[0]) === big ? 'x' : Math.abs(v[1]) === big ? 'y' : 'z';
-      }
+      const axis = a.axis ?? (wheel.def.shape === 'cylinder' ? longAxis(wheel, at).axis : undefined);
       applyAction(plan, { op: 'spin', id: a.wheel, rpm: a.rpm ?? 20, axis: axis ?? 'z', at }, at, spinRamp, context);
-      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', axis: 'y', at }, at, spinRamp, context);
+      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', axis: 'y', ...(a.min !== undefined ? { min: a.min } : {}), ...(a.max !== undefined ? { max: a.max } : {}), at }, at, spinRamp, context);
       applyAction(plan, { op: 'couple', id: a.id, by: a.wheel, pitch: 2 * Math.PI * radius, at }, at, spinRamp, context);
+      return;
+    }
+    case 'wave': {
+      // A swell or squeeze that runs along a tube; its place is an angle kept like a stream's laps, so a marker of the same period rides the crest.
+      const tube = lookup(plan.objs, a.id, at);
+      if (!tube || tube.def.shape !== 'tube') return;
+      const driver = waveDriver(tube.key);
+      plan.waves = plan.waves.filter((w) => w.key !== tube.key);
+      plan.spins = plan.spins.filter((s) => s.key !== driver);
+      if (a.stop !== true) {
+        plan.waves.push({ key: tube.key, amount: a.amount ?? 1.6, width: a.width ?? 0.2, count: a.count ?? 1 });
+        const sp = spinPlanFrom({ key: driver, axis: 2, angle: 0, rate: 0 });
+        plan.spins.push(sp);
+        setRate(sp, at, 360 / (a.period ?? STREAM_PERIOD), 0, 2);
+      }
+      end(0.2);
+      return;
+    }
+    case 'pendulum': {
+      // A swing about the hang point, let go at the far end, with the period a longer string asks for.
+      const o = lookup(plan.objs, a.id, at);
+      if (!o) return;
+      // Hung from a part, the pivot is that part's middle wherever it is (worked out each frame, through any parents); the string's length, for the period, is read from where both stand now.
+      const holder = a.from !== undefined && !a.pivot ? lookup(plan.objs, a.from, at) : undefined;
+      if (!a.pivot && !holder) return;
+      const reach = a.pivot ? asVec(a.pivot) : (rootPos(plan, holder as ObjInst, at).map((v, i) => v - (rootPos(plan, o, at)[i] as number)) as Vec3);
+      const length = Math.hypot(reach[0], reach[1], reach[2]);
+      applyAction(plan, { op: 'loop', id: a.id, kind: 'swing', axis: a.axis ?? 'z', amount: a.swing ?? 25, period: a.period ?? Math.max(0.8, Math.min(6, 1.6 * Math.sqrt(length))), ...(a.pivot ? { pivot: asVec(a.pivot) } : { pivotOn: a.from }), phase: 90, ...(a.damp !== undefined ? { damp: a.damp } : {}), at }, at, spinRamp, context);
+      return;
+    }
+    case 'oscillate': {
+      // A slide let go at the low end; amount is the travel each way, a slide's is the whole.
+      applyAction(plan, { op: 'loop', id: a.id, kind: 'slide', axis: a.axis ?? 'y', amount: 2 * (a.amount ?? 0.5), period: a.period ?? 1.5, phase: 270, ...(a.damp !== undefined ? { damp: a.damp } : {}), at }, at, spinRamp, context);
+      return;
+    }
+    case 'float': {
+      applyAction(plan, { op: 'loop', id: a.id, kind: 'float', amount: a.bob ?? 0.15, tilt: a.tilt ?? 4, period: a.period ?? 3, ...(a.damp !== undefined ? { damp: a.damp } : {}), at }, at, spinRamp, context);
+      return;
+    }
+    case 'drop': {
+      const o = lookup(plan.objs, a.id, at);
+      if (!o || !aliveAt(o, at)) return;
+      context.targets?.set(a, o);
+      const from = valueAt(o.pos, at);
+      const bounce = a.bounce ?? 0.3;
+      const seconds = 'dur' in a && a.dur !== undefined ? a.dur : fallSeconds((from[1] ?? 0) - a.to, bounce);
+      o.pos.segs.push({ start: at, dur: seconds, from, to: [from[0] ?? 0, a.to, from[2] ?? 0], fall: bounce });
+      end(seconds);
+      return;
+    }
+    case 'pump': {
+      // The chamber squeezes and refills; the outlet flap opens while it squeezes and the inlet while it refills, all on the one cycle (the same period from the same start).
+      const chamber = lookup(plan.objs, a.id, at);
+      if (!chamber) return;
+      const period = a.period ?? 1.2;
+      const open = a.open ?? 70;
+      const axis = a.axis ?? 'z';
+      applyAction(plan, { op: 'loop', id: a.id, kind: 'pulse', amount: a.squeeze ?? 0.7, period, at }, at, spinRamp, context);
+      const flap = (id: string | undefined, phase: number): void => {
+        if (id === undefined || !lookup(plan.objs, id, at)) return;
+        applyAction(plan, { op: 'joint', id, kind: 'hinge', axis, about: a.hinge ?? 'left', at }, at, spinRamp, context);
+        applyAction(plan, { op: 'loop', id, kind: 'gate', axis, amount: open, period, phase, at }, at, spinRamp, context);
+      };
+      // The chamber's cycle starts at 180 degrees (relaxed) and shrinks to 360; a flap opens on the cosine of its own angle, so the outlet's angle runs a quarter turn ahead
+      // of the chamber's (open while it shrinks) and the inlet's a quarter turn behind (open while it grows back).
+      flap(a.outlet, 0);
+      flap(a.inlet, -180);
+      return;
+    }
+    case 'incline': {
+      // The load slides along the slope, a tilted slide joint with a loop on it.
+      const load = lookup(plan.objs, a.id, at);
+      const ramp = a.ramp !== undefined ? lookup(plan.objs, a.ramp, at) : undefined;
+      if (!load || (a.ramp !== undefined && (!ramp || ramp.key === load.key))) return;
+      const along: Vec3 = ramp ? restPoint(asVec(valueAt(ramp.rot, at)), [1, 1, 1], [1, 0, 0]) : [Math.cos(((a.angle ?? 0) * Math.PI) / 180), Math.sin(((a.angle ?? 0) * Math.PI) / 180), 0];
+      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', dir: along, at }, at, spinRamp, context);
+      applyAction(plan, { op: 'loop', id: a.id, kind: 'slide', amount: a.travel ?? 4, period: a.period ?? 4, at }, at, spinRamp, context);
+      return;
+    }
+    case 'wedge': {
+      // The wedge slides in and out along its axis; the part it drives slides across it by tan(angle) of that, to the side it lies on.
+      const wedge = lookup(plan.objs, a.id, at);
+      const block = lookup(plan.objs, a.drives, at);
+      if (!wedge || !block || wedge.key === block.key) return;
+      const axis = a.axis ?? 'y';
+      const across = axis === 'y' ? 'x' : 'y';
+      const slot = across === 'x' ? 0 : 1;
+      const side = (asVec(valueAt(block.pos, at))[slot] as number) >= (asVec(valueAt(wedge.pos, at))[slot] as number) ? 1 : -1;
+      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', axis, at }, at, spinRamp, context);
+      applyAction(plan, { op: 'loop', id: a.id, kind: 'slide', amount: a.travel ?? 2, period: a.period ?? 3, at }, at, spinRamp, context);
+      applyAction(plan, { op: 'joint', id: a.drives, kind: 'slide', axis: across, at }, at, spinRamp, context);
+      applyAction(plan, { op: 'couple', id: a.drives, by: a.id, ratio: Math.tan(((a.angle ?? 20) * Math.PI) / 180) * side * (axis === 'y' ? -1 : 1), at }, at, spinRamp, context);
+      return;
+    }
+    case 'screw': {
+      // The screw turns about its length; the nut slides along that, by the pitch for each turn.
+      const nut = lookup(plan.objs, a.id, at);
+      const screw = lookup(plan.objs, a.screw, at);
+      if (!nut || !screw || nut.key === screw.key) return;
+      const long = screw.def.shape === 'cylinder' ? longAxis(screw, at) : { axis: 'y' as const, dir: [0, 1, 0] as Vec3 };
+      const axis = a.axis ?? long.axis;
+      const dir: Vec3 = a.axis === undefined ? long.dir : a.axis === 'x' ? [1, 0, 0] : a.axis === 'y' ? [0, 1, 0] : [0, 0, 1];
+      applyAction(plan, { op: 'spin', id: a.screw, rpm: a.rpm ?? 30, axis, at }, at, spinRamp, context);
+      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', dir, ...(a.min !== undefined ? { min: a.min } : {}), ...(a.max !== undefined ? { max: a.max } : {}), at }, at, spinRamp, context);
+      applyAction(plan, { op: 'couple', id: a.id, by: a.screw, pitch: a.pitch ?? 0.5, at }, at, spinRamp, context);
       return;
     }
     case 'muscle': {
@@ -909,6 +1038,7 @@ function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number)
   for (const sp of plan.spins) {
     if (sp.key === old.key) sp.key = fresh.key;
     if (sp.key === loopDriver(old.key)) sp.key = loopDriver(fresh.key);
+    if (sp.key === waveDriver(old.key)) sp.key = waveDriver(fresh.key);
     for (const axis of [0, 1, 2] as const) if (sp.key === ballDriver(old.key, axis)) sp.key = ballDriver(fresh.key, axis);
     if (sp.lock) sp.lock.byKey = to(sp.lock.byKey);
   }
@@ -919,6 +1049,7 @@ function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number)
   plan.joints = plan.joints.map((j) => ({ ...j, key: to(j.key), toKey: j.toKey === null ? null : to(j.toKey) }));
   plan.couples = plan.couples.map((c) => ({ ...c, key: to(c.key), byKey: to(c.byKey) }));
   plan.muscles = plan.muscles.map((m) => ({ ...m, key: to(m.key), holderKey: to(m.holderKey), connectorKey: to(m.connectorKey) }));
+  plan.waves = plan.waves.map((w) => ({ ...w, key: to(w.key) }));
   // The new one sits where the old one was in the list, so parents still come before their children.
   plan.objs.splice(plan.objs.indexOf(old) + 1, 0, fresh);
   plan.duration = Math.max(plan.duration, at + REPLACE_SECONDS);
@@ -926,6 +1057,32 @@ function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number)
 
 /** Seconds a stream's markers take for the whole way when the scene gives no period. */
 export const STREAM_PERIOD = 4;
+
+/** Where an object's origin stands in the scene, adding up its place and its parents', each as the object is mounted (turns and scales of parents are left out: this is for lengths only, such as a string's). */
+function rootPos(plan: StepPlan, o: ObjInst, at: number, depth = 0): Vec3 {
+  const own = asVec(valueAt(o.pos, at));
+  const parent = o.parentKey !== null ? plan.objs.find((p) => p.key === o.parentKey) : undefined;
+  if (!parent || depth > 8) return own;
+  let local = own;
+  if (hasMount(o.def)) {
+    const d = o.def as { parentAnchor?: string; selfAnchor?: string };
+    const from = anchorsOf({ ...parent.def, ...(parent.points ? { points: parent.points } : {}) })[d.parentAnchor ?? 'origin'];
+    const mine = anchorsOf({ ...o.def, ...(o.points ? { points: o.points } : {}) })[d.selfAnchor ?? 'origin'];
+    if (from && mine) local = mountPosition(from, mine, asVec(valueAt(o.rot, at)), own, asVec(valueAt(o.scale, at)));
+  }
+  const base = rootPos(plan, parent, at, depth + 1);
+  return [base[0] + local[0], base[1] + local[1], base[2] + local[2]];
+}
+
+/** The axis a cylinder lies along (the letter, and the unit direction it points in, in its parent's space). */
+function longAxis(o: ObjInst, at: number): { axis: 'x' | 'y' | 'z'; dir: Vec3 } {
+  const v = restPoint(asVec(valueAt(o.rot, at)), [1, 1, 1], [0, 1, 0]);
+  const big = Math.max(Math.abs(v[0]), Math.abs(v[1]), Math.abs(v[2]));
+  const i = Math.abs(v[0]) === big ? 0 : Math.abs(v[1]) === big ? 1 : 2;
+  const dir: Vec3 = [0, 0, 0];
+  dir[i] = (v[i] as number) < 0 ? -1 : 1;
+  return { axis: i === 0 ? 'x' : i === 1 ? 'y' : 'z', dir };
+}
 
 /**
  * A stream: markers running along a path on the 3D stage (it hangs from the path, so it goes with it) or along an arrow of a flat diagram. Its laps are
@@ -962,6 +1119,37 @@ function addStream(plan: StepPlan, a: Extract<AddAction, { shape: 'stream' }>, a
   plan.spins.push(sp);
   if (by && by.key !== key) setLock(sp, at, { byKey: by.key, ratio: a.ratio ?? 1, phase: 0 }, 2);
   else setRate(sp, at, 360 / (a.period ?? STREAM_PERIOD), 0, 2);
+}
+
+/** Field lines: a group, and an arrow for each line, drawn on together. Written again, the old lines go. */
+function addField(plan: StepPlan, a: Extract<AddAction, { shape: 'field' }>, at: number, end: (len: number) => void): void {
+  const parent = a.parent !== undefined ? lookup(plan.objs, a.parent, at) : undefined;
+  if (a.parent !== undefined && !parent) return;
+  const before = lookup(plan.objs, a.id, at);
+  if (before) {
+    for (const d of [before, ...descendants(plan, before.key, at)]) {
+      d.diedAt = at;
+      d.wipe = REPLACE_SECONDS;
+    }
+  }
+  const color = parseColor(a.color ?? 'teal');
+  const group: ObjInst = {
+    key: plan.nextKey++, id: a.id, parentKey: parent ? parent.key : before ? before.parentKey : null, def: a, bornAt: at, diedAt: undefined,
+    pos: track(a.pos ?? [0, 0, 0]), rot: track([0, 0, 0]), scale: track([1, 1, 1]), color: track(color), opacity: track([a.opacity ?? 1]),
+    draw: track([1]), spread: track([0]),
+  };
+  plan.objs.push(group);
+  fieldLines(a).forEach((pts, i) => {
+    const id = `${a.id}.${i + 1}`;
+    const line: ObjInst = {
+      key: plan.nextKey++, id, parentKey: group.key, def: { op: 'add', shape: 'arrow', id, pts, fine: true } as unknown as AddAction, bornAt: at, diedAt: undefined,
+      pos: track([0, 0, 0]), rot: track([0, 0, 0]), scale: track([1, 1, 1]), color: track(color), opacity: track([a.opacity ?? 1]),
+      draw: track([0]), spread: track([0]),
+    };
+    tweenTo(line.draw, at, 0.9, [1]);
+    plan.objs.push(line);
+  });
+  end(0.9);
 }
 
 /** Makes the copies of an array: the original joins a new group, and each further copy sits in a pivot that carries the step and turn. */
@@ -1118,6 +1306,8 @@ export function evaluate(plan: StepPlan, t: number): Frame {
     });
   }
   const motion = motionOf(plan, objects, spinTime, diagrams);
+  const coming = spinTime < plan.duration ? motionOf(plan, objects, plan.duration, diagrams) : undefined;
+  const ahead = coming && coming.spins.some((s) => s.rate !== 0 && !motion.spins.some((m) => m.key === s.key && m.rate !== 0)) ? coming : undefined;
   applyPoses(objects, motion);
   applyPhases(objects, motion);
   let panel: Frame['panel'] = null;
@@ -1127,7 +1317,7 @@ export function evaluate(plan: StepPlan, t: number): Frame {
     panel = { rect: { x: r[0] ?? 0, y: r[1] ?? 0, w: r[2] ?? 0, h: r[3] ?? 0 }, appear: appearOf(p, t), fade: fadeOf(p, t), frame: p.frame };
   }
   return {
-    panel, marks, diagrams: phasedDiagrams(diagrams, motion), objects, nextKey: plan.nextKey, motion,
+    panel, marks, diagrams: phasedDiagrams(diagrams, motion), objects, nextKey: plan.nextKey, motion, ...(ahead ? { ahead } : {}),
     camera: {
       az: valueAt(plan.az, t)[0] ?? 0, el: valueAt(plan.el, t)[0] ?? 0, zoom: valueAt(plan.zoom, t)[0] ?? 1,
       focus: focusAt(plan.focus, t),
@@ -1180,7 +1370,7 @@ function parentsFirst(objs: readonly ObjInst[]): readonly ObjInst[] {
 
 /** What is turning at time `t`, and what is tied to it, limited to what is still on the stage. */
 function motionOf(plan: StepPlan, objects: readonly ObjectFrame[], t: number, diagrams: readonly DiagramFrame[] = []): Motion {
-  if (plan.spins.length + plan.cranks.length + plan.cams.length + plan.flashes.length + plan.loops.length + plan.joints.length + plan.couples.length + plan.muscles.length === 0) return emptyMotion();
+  if (plan.spins.length + plan.cranks.length + plan.cams.length + plan.flashes.length + plan.loops.length + plan.joints.length + plan.couples.length + plan.muscles.length + plan.waves.length === 0) return emptyMotion();
   const alive = new Set(objects.map((o) => o.key));
   for (const d of diagrams) for (const it of d.items) if (it.def.op === 'stream') alive.add(it.key);
   // A loop's angle (under a key below zero) lives as long as the object it moves.
@@ -1195,6 +1385,7 @@ function motionOf(plan: StepPlan, objects: readonly ObjectFrame[], t: number, di
     joints: plan.joints.filter((j) => alive.has(j.key) && (j.toKey === null || alive.has(j.toKey))),
     couples: plan.couples.filter((c) => both(c.key, c.byKey)),
     muscles: plan.muscles.filter((m) => both(m.key, m.holderKey) && alive.has(m.connectorKey)),
+    waves: plan.waves.filter((w) => alive.has(w.key)),
   };
 }
 
@@ -1202,9 +1393,22 @@ function motionOf(plan: StepPlan, objects: readonly ObjectFrame[], t: number, di
 function applyPhases(objects: ObjectFrame[], motion: Motion): void {
   if (motion.spins.length === 0) return;
   const angles = new Map(motion.spins.map((s) => [s.key, s.angle] as const));
+  const waves = new Map((motion.waves ?? []).map((w) => [w.key, w] as const));
   for (const o of objects) {
-    const angle = o.shape === 'stream' ? angles.get(loopDriver(o.key)) : undefined;
-    if (angle !== undefined) o.phase = angle / 360;
+    const angle = o.shape === 'stream' || o.shape === 'particles' ? angles.get(loopDriver(o.key)) : undefined;
+    if (angle !== undefined) {
+      o.phase = angle / 360;
+      const def = o.def as { surge?: number; beat?: number; period?: number; by?: string };
+      // A flow that comes in beats: the markers speed up and slow down once a beat, which is a smooth bend of the laps (the speed is 1 + surge x cosine of the beat).
+      if (o.shape === 'stream' && def.surge !== undefined && def.by === undefined) {
+        const period = def.period ?? STREAM_PERIOD;
+        const beat = def.beat ?? 1;
+        o.phase += ((def.surge * beat) / (2 * Math.PI * period)) * Math.sin((2 * Math.PI * o.phase * period) / beat);
+      }
+    }
+    const wave = waves.get(o.key);
+    const where = wave ? angles.get(waveDriver(o.key)) : undefined;
+    if (wave && where !== undefined) o.wave = { phase: where / 360, amount: wave.amount, width: wave.width, count: wave.count };
   }
 }
 
@@ -1251,7 +1455,7 @@ function holdMount(o: ObjectFrame, pose: Pose, motion: Motion): void {
   if (motion.joints.some((j) => j.key === o.key && (j.kind === 'fixed' || pivot(j.pivot)))) return;
   // A pivot turns a part about its own axis through its own middle: its attached point stays only if that point is on the axis, so it is left to the joint.
   if (motion.joints.some((j) => j.key === o.key && j.kind === 'pivot')) return;
-  if (motion.loops.some((l) => l.key === o.key && pivot(l.pivot))) return;
+  if (motion.loops.some((l) => l.key === o.key && (pivot(l.pivot) || l.pivotKey !== undefined))) return;
   const grown: Vec3 = [o.scale[0] * (pose.scale?.[0] ?? 1), o.scale[1] * (pose.scale?.[1] ?? 1), o.scale[2] * (pose.scale?.[2] ?? 1)];
   const shift = heldShift(o.rot, pose.rot ?? o.rot, o.scale, grown, o.mount.self);
   const base = pose.pos ?? o.pos;
@@ -1279,6 +1483,40 @@ export function withMotion(frame: Frame, seconds: number, from: Motion = frame.m
   applyPoses(objects, motion);
   applyPhases(objects, motion);
   return { ...frame, objects, diagrams: phasedDiagrams(frame.diagrams, motion), motion };
+}
+
+/** How many poses a swept fit takes of a running machine (see `sweptPoses`). */
+export const SWEEP_SAMPLES = 40;
+/** The longest a cycle is sampled over, seconds: a slower one is seen in part. */
+const SWEEP_LONGEST = 60;
+
+/**
+ * The poses a running machine takes over its whole cycle, for the camera to fit the stage to everything the model does and not only to how it stands at
+ * rest (a wing flapped out of its rest shape, a door swung toward the viewer). A pure function of the frame's motion and not of the time it is asked at:
+ * every turning angle is put back to its start and run on by moments spread over the slowest cycle (one that does not meet a faster one's rhythm), so
+ * the same machine gives the same set at any moment and the camera does not breathe. It reads the machine the frame will have later in its step (`ahead`)
+ * when something has not started yet, so a loop written to begin at 3 s is fitted from 0. A frame with nothing turning, now or later in the step, gives none.
+ */
+export function sweptPoses(frame: Frame, count = SWEEP_SAMPLES): Array<ReadonlyMap<number, Pose>> {
+  const motion = frame.ahead ?? frame.motion;
+  const running = motion.spins.filter((s) => s.rate !== 0);
+  if (running.length === 0) return [];
+  const span = Math.min(SWEEP_LONGEST, Math.max(...running.map((s) => 360 / Math.abs(s.rate))));
+  const base: Motion = { ...motion, spins: motion.spins.map((s) => (s.rate !== 0 && !s.lock ? { ...s, angle: 0 } : s)) };
+  const bare = frame.objects.map((o) => {
+    const { pose: _gone, ...rest } = o;
+    return rest as ObjectFrame;
+  });
+  const out: Array<ReadonlyMap<number, Pose>> = [];
+  const golden = 0.6180339887498949;
+  for (let j = 0; j < count; j++) {
+    const objects = bare.map((o) => ({ ...o }));
+    applyPoses(objects, advanceMotion(base, span * ((j * golden) % 1)));
+    const placed = new Map<number, Pose>();
+    for (const o of objects) if (o.pose) placed.set(o.key, o.pose);
+    out.push(placed);
+  }
+  return out;
 }
 
 /** How far in and out the person may zoom the 3D panel: the scene language's own limits, so a wheel step never moves a scene's own zoom. */
