@@ -85,5 +85,5 @@ export function realModelHint(question: string): string | undefined {
   const plain = HOW_IT_WORKS.test(question) ? named.find((m) => !m.mechanism) : undefined;
   if (!plain) return undefined;
   const across = Math.round(Math.max(...plain.size) * SCENE_UNITS_PER_METRE * 10) / 10;
-  return `If the question is about the ${plain.name.toLowerCase()} itself: a real model of it exists (${plain.id}) but it shows how the thing looks and where its parts are, but holds no working mechanism. Build the working mechanism from shapes and kit parts (a cutaway or a simplified working version) and show it large and animated; the real model may stand small beside it, at its own size (about ${across} units across, so leave its size off), so the thing is recognised.`;
+  return `If the question is about the ${plain.name.toLowerCase()} itself: a real model of it exists (${plain.id}); it shows how the thing looks and where its parts are, and holds no working mechanism. Build the working mechanism from shapes and kit parts (a cutaway or a simplified working version) and show it large and animated; the real model may stand small beside it, at its own size (about ${across} units across, so leave its size off), so the thing is recognised.`;
 }
