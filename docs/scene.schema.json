@@ -4448,6 +4448,13 @@
             null
           ]
         },
+        "onlyAxis": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "with rpm 0: stop only a spin about axis, and leave any other as it is"
+        },
         "at": {
           "type": [
             "number",
@@ -4471,6 +4478,7 @@
         "ratio",
         "phase",
         "axis",
+        "onlyAxis",
         "at",
         "dur"
       ],
@@ -4761,7 +4769,9 @@
           "enum": [
             "hinge",
             "slide",
-            "fixed"
+            "fixed",
+            "pivot",
+            "ball"
           ]
         },
         "axis": {
@@ -4790,7 +4800,24 @@
           "items": {
             "type": "number"
           },
-          "description": "hinge: from the object to the point it turns about; [x,y,z], each -100 to 100"
+          "description": "hinge or ball: from the object to the point it turns about; [x,y,z], each -100 to 100"
+        },
+        "about": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "hinge or ball: a point of the object by name (built in, a kit part own or one named with anchor) to turn about, instead of pivot; up to 24 characters"
+        },
+        "limit": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "ball: how far each axis may turn each way, degrees [x,y,z]; [x,y,z], each 0 to 360"
         },
         "min": {
           "type": [
@@ -4828,13 +4855,15 @@
         "axis",
         "dir",
         "pivot",
+        "about",
+        "limit",
         "min",
         "max",
         "to",
         "at"
       ],
       "additionalProperties": false,
-      "description": "Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it."
+      "description": "Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), pivot (turns about its own long axis, axis y by default, through its own middle: a forearm, a screw, a tap), ball (turns about all three axes about its pivot point, held to limit [x,y,z] degrees each way: a shoulder, a hip; one swing loop or spin per axis drives it), fixed (rides with to). about names the point to turn about (any point of the part: left, top, a named one) instead of pivot. min and max hold its value. It moves when spin, loop or couple drives it."
     },
     "couple": {
       "type": "object",
@@ -4900,6 +4929,187 @@
       ],
       "additionalProperties": false,
       "description": "One joint follows another: its value is ratio times that of by, plus phase. Use ratio between two of a kind (gear, belt, lever) and pitch between a hinge and a slide (units of travel for one turn: a screw, a rack, a rope on a wheel is 2 x pi x radius). stop ends it."
+    },
+    "lever": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "lever"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "fulcrum": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 24 characters"
+        },
+        "swing": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 90"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-3600 to 3600"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "fulcrum",
+        "swing",
+        "period",
+        "phase",
+        "axis",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A beam that rocks about a fulcrum: a hinge at fulcrum, a point of the beam (center, the default, is a seesaw and the first class; left or right, an end, with the load or the effort between it and the other end, is the second and third class; or a point named with anchor), swinging swing degrees each side every period seconds. Attach the load and the effort at points of the beam (parentAnchor) and they rise and fall with it."
+    },
+    "muscle": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "muscle"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "pulls": {
+          "type": "string",
+          "description": "the id of the part it pulls (an end of the connector), or from or to for that end; up to 40 characters"
+        },
+        "contract": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.02 to 0.9"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-3600 to 3600"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "pulls",
+        "contract",
+        "period",
+        "phase",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A connector that is a muscle: it shortens by contract (a fraction of its relaxed length, 0.02 to 0.9, default 0.2) and lengthens again every period seconds (default 2), and the part it pulls (pulls, the id of one of its two ends, or from or to, with a hinge or pivot joint with min and max to hold it) is turned by it, not beside it. Join the ends with fromPoint and toPoint or fromAnchor and toAnchor; its belly swells as it shortens (swell). id is the connector."
+    },
+    "pulley": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "pulley"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "wheel": {
+          "type": "string"
+        },
+        "radius": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.01 to 100"
+        },
+        "rpm": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-600 to 600"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ],
+          "description": "the axis the wheel turns about: left out, a cylinder turns about its own long axis as it lies and anything else about z"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "wheel",
+        "radius",
+        "rpm",
+        "axis",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A rope over a wheel: the wheel (wheel) turns rpm turns a minute (default 20, negative the other way) and the load (id) rises by the rope laid on it, 2 x pi x radius for each turn. radius is the rope's radius on the wheel, read from the wheel's size when left out. A winch, a crane drum and a wheel and axle (give the axle's radius) are the same."
     },
     "cut": {
       "type": "object",
@@ -5357,6 +5567,15 @@
         },
         {
           "$ref": "#/$defs/couple"
+        },
+        {
+          "$ref": "#/$defs/lever"
+        },
+        {
+          "$ref": "#/$defs/muscle"
+        },
+        {
+          "$ref": "#/$defs/pulley"
         },
         {
           "$ref": "#/$defs/cut"

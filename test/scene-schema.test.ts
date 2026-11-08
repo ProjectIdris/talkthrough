@@ -16,8 +16,8 @@ test('the lean schema is the same structure without descriptions, and just as st
   const text = JSON.stringify(sceneSchemaLean);
   assert.ok(!text.includes('"description"'));
   assert.ok(text.length < JSON.stringify(sceneSchema).length * 0.7);
-  // The lean schema also leaves out `explode` and `loop.pivot` (see LEAN_OMITS in schema.ts): they are in the full schema and the validator only.
-  const omittedIn: Record<string, string[]> = { loop: ['pivot'] };
+  // The lean schema also leaves out `explode`, `loop.pivot` and `spin.onlyAxis` (see LEAN_OMITS in schema.ts): they are in the full schema and the validator only.
+  const omittedIn: Record<string, string[]> = { loop: ['pivot'], spin: ['onlyAxis'] };
   let omitted = new Set(['explode']);
   const strip = (v: unknown): unknown => Array.isArray(v) ? v.map(strip)
     : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'description').map(([k, x]) => {
