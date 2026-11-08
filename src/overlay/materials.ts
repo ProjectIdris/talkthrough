@@ -5,6 +5,7 @@
 import { Color, DoubleSide, MeshPhysicalMaterial } from 'three';
 import type { Material } from 'three';
 import type { SurfaceFinish } from '../scene/types.ts';
+import { applyMicroSurface } from './surface-micro.ts';
 import { fitTint } from '../scene/material-library.ts';
 import type { MaterialName } from '../scene/material-library.ts';
 import type { Rgb } from './timeline.ts';
@@ -23,12 +24,16 @@ export type TierSettings = {
   maxPixelRatio: number;
   /** Clear coat on glossy surfaces. */
   clearcoat: boolean;
+  /** The finest surface (surface-micro.ts): 0 none, 1 a variation of roughness, 2 that and a fine bump. */
+  micro: 0 | 1 | 2;
+  /** A circuit board's own surface: 0 plain, 1 traces and pads, 2 with silkscreen. */
+  board: 0 | 1 | 2;
 };
 
 export const TIERS: Record<Tier, TierSettings> = {
-  low: { msaa: false, shadows: false, shadowMapSize: 512, edges: false, maxPixelRatio: 1, clearcoat: false },
-  mid: { msaa: true, shadows: true, shadowMapSize: 1024, edges: true, maxPixelRatio: 1.5, clearcoat: true },
-  high: { msaa: true, shadows: true, shadowMapSize: 2048, edges: true, maxPixelRatio: 2, clearcoat: true },
+  low: { msaa: false, shadows: false, shadowMapSize: 512, edges: false, maxPixelRatio: 1, clearcoat: false, micro: 0, board: 1 },
+  mid: { msaa: true, shadows: true, shadowMapSize: 1024, edges: true, maxPixelRatio: 1.5, clearcoat: true, micro: 1, board: 2 },
+  high: { msaa: true, shadows: true, shadowMapSize: 2048, edges: true, maxPixelRatio: 2, clearcoat: true, micro: 2, board: 2 },
 };
 
 /** The surfaces a scene can name, and two the parts kit uses inside itself: painted metal and rough cast metal. */
@@ -40,40 +45,47 @@ type Recipe = {
   opacity?: number; envMapIntensity?: number; emissive?: number; doubleSided?: boolean;
   /** A soft light along the edges that turn from the viewer (cloth, skin, tissue). */
   sheen?: number;
+  /** The finest surface: how far roughness swings, how many cycles to a unit, and the strength of the fine bump. */
+  micro?: { rough: number; grain: number; bump: number };
+  /** The surface is a circuit board's (solder mask, traces, pads, silkscreen). */
+  board?: boolean;
 };
 
 const RECIPES: Record<SurfaceName, Recipe> = {
-  plastic: { roughness: 0.46, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.4 },
-  metal: { roughness: 0.3, metalness: 1, envMapIntensity: 1.1 },
-  rubber: { roughness: 0.92, metalness: 0 },
-  pcb: { roughness: 0.52, metalness: 0, clearcoat: 0.55, clearcoatRoughness: 0.3 },
+  plastic: { roughness: 0.4, metalness: 0, clearcoat: 0.12, clearcoatRoughness: 0.35, micro: { rough: 0.14, grain: 26, bump: 0.5 } },
+  metal: { roughness: 0.32, metalness: 1, envMapIntensity: 1.1, micro: { rough: 0.1, grain: 70, bump: 0.3 } },
+  rubber: { roughness: 0.88, metalness: 0, micro: { rough: 0.1, grain: 34, bump: 0.9 } },
+  pcb: { roughness: 0.38, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.3, micro: { rough: 0.1, grain: 30, bump: 0.3 }, board: true },
   glass: { roughness: 0.04, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, opacity: 0.34, envMapIntensity: 1.5, doubleSided: true },
   glow: { roughness: 0.6, metalness: 0, emissive: 1.25 },
   // A marker that travels along a pipe: a little self-light so it stays bright, but shaded and glossy so it reads as a bead on a pale or see-through tube.
   bead: { roughness: 0.3, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.1, emissive: 0.4 },
   paper: { roughness: 0.96, metalness: 0, doubleSided: true },
   // Living tissue: soft and a little wet, a gentle sheen over a matte body.
-  tissue: { roughness: 0.62, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.55, sheen: 0.8 },
+  tissue: { roughness: 0.62, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.55, sheen: 0.8, micro: { rough: 0.07, grain: 12, bump: 0.15 } },
   // Living and organic: matte to softly wet, in the colours their names ask for, none of them shiny plastic.
-  bone: { roughness: 0.58, metalness: 0, clearcoat: 0.12, clearcoatRoughness: 0.55 },
-  muscle: { roughness: 0.55, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.45, sheen: 0.5 },
+  bone: { roughness: 0.58, metalness: 0, clearcoat: 0.12, clearcoatRoughness: 0.55, micro: { rough: 0.07, grain: 12, bump: 0.15 } },
+  muscle: { roughness: 0.55, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.45, sheen: 0.5, micro: { rough: 0.07, grain: 12, bump: 0.15 } },
   tendon: { roughness: 0.38, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.3, sheen: 0.4 },
-  skin: { roughness: 0.6, metalness: 0, clearcoat: 0.18, clearcoatRoughness: 0.6, sheen: 0.7 },
+  skin: { roughness: 0.6, metalness: 0, clearcoat: 0.18, clearcoatRoughness: 0.6, sheen: 0.7, micro: { rough: 0.07, grain: 12, bump: 0.15 } },
   // Metals and their kin: the plain metal's recipe, tuned.
-  steel: { roughness: 0.28, metalness: 1, envMapIntensity: 1.1 },
-  iron: { roughness: 0.55, metalness: 0.9, envMapIntensity: 0.95 },
-  brass: { roughness: 0.26, metalness: 1, envMapIntensity: 1.1 },
-  copper: { roughness: 0.3, metalness: 1, envMapIntensity: 1.1 },
-  wood: { roughness: 0.8, metalness: 0, clearcoat: 0.12, clearcoatRoughness: 0.7 },
+  steel: { roughness: 0.3, metalness: 1, envMapIntensity: 1.1, micro: { rough: 0.1, grain: 70, bump: 0.3 } },
+  iron: { roughness: 0.5, metalness: 0.92, envMapIntensity: 0.95, micro: { rough: 0.16, grain: 36, bump: 0.8 } },
+  brass: { roughness: 0.28, metalness: 1, envMapIntensity: 1.1, micro: { rough: 0.1, grain: 66, bump: 0.25 } },
+  copper: { roughness: 0.3, metalness: 1, envMapIntensity: 1.1, micro: { rough: 0.1, grain: 66, bump: 0.25 } },
+  wood: { roughness: 0.75, metalness: 0, clearcoat: 0.12, clearcoatRoughness: 0.7, micro: { rough: 0.14, grain: 22, bump: 0.6 } },
   rope: { roughness: 0.95, metalness: 0, sheen: 0.4 },
   water: { roughness: 0.05, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, opacity: 0.58, envMapIntensity: 1.3, doubleSided: true },
   // Painted metal: a little of the metal under the paint shows in the shine, and the lacquer over it is glassy.
-  enamel: { roughness: 0.34, metalness: 0.55, clearcoat: 1, clearcoatRoughness: 0.12, envMapIntensity: 1.1 },
+  enamel: { roughness: 0.34, metalness: 0.55, clearcoat: 1, clearcoatRoughness: 0.12, envMapIntensity: 1.1, micro: { rough: 0.06, grain: 30, bump: 0.2 } },
   // Sand-cast metal: rough and even, with no mirror in it.
-  cast: { roughness: 0.42, metalness: 1, envMapIntensity: 1.05 },
+  cast: { roughness: 0.46, metalness: 1, envMapIntensity: 1.05, micro: { rough: 0.18, grain: 30, bump: 0.9 } },
   // The flat cut face of a part drawn already cut open (hatched, see `hatched`).
   section: { roughness: 0.7, metalness: 0.1 },
 };
+
+/** Every surface the renderer has a recipe for (the library's materials and the kit's own). */
+export const SURFACE_NAMES = Object.keys(RECIPES) as SurfaceName[];
 
 export type Surface = MeshPhysicalMaterial & { userData: { base: number; glow: number; name?: string } };
 
@@ -94,6 +106,9 @@ export function makeSurface(name: string | undefined, tier: TierSettings, finish
   m.opacity = m.userData.base;
   m.depthWrite = !m.transparent;
   if (name === 'section') hatched(m);
+  else if ((tier.micro > 0 && r.micro) || (tier.board > 0 && r.board)) {
+    if ((r.opacity ?? 1) >= 1 && !r.emissive) applyMicroSurface(m, { rough: tier.micro > 0 && r.micro ? r.micro.rough : 0, grain: r.micro?.grain ?? 30, bump: tier.micro > 1 && r.micro ? r.micro.bump : 0, board: r.board ? tier.board : 0 });
+  }
   return m;
 }
 

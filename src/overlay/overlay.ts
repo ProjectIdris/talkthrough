@@ -4,7 +4,7 @@
 // Everything is data-driven by validated scenes (see src/scene).
 
 import { NeutralToneMapping, PMREMGenerator, SRGBColorSpace, VSMShadowMap, WebGLRenderer } from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { StudioEnvironment } from './studio.ts';
 import { FADE_AFTER_MS } from '../shared/ipc.ts';
 import type { DisplayInfo, SceneMessage } from '../shared/ipc.ts';
 import type { Action, Mark, Scene } from '../scene/types.ts';
@@ -164,9 +164,9 @@ function createRenderer(): WebGLRenderer | undefined {
     candidate.shadowMap.enabled = settings.shadows;
     candidate.shadowMap.type = VSMShadowMap;
     const pmrem = new PMREMGenerator(candidate);
-    const room = new RoomEnvironment();
+    const room = new StudioEnvironment();
     try {
-      panelScene.setEnvironment(pmrem.fromScene(room, 0.04).texture, 0.8);
+      panelScene.setEnvironment(pmrem.fromScene(room, 0.04).texture, 1.0);
     } finally {
       room.dispose();
       pmrem.dispose();
@@ -182,15 +182,15 @@ function createRenderer(): WebGLRenderer | undefined {
 }
 const renderer = createRenderer();
 
-/** The high tier's occlusion and smoothing; absent on the others, and if the graphics stack will not run it. */
+/** The occlusion (and, on the high tier, the smoothing): full on high, lighter on mid, absent on low, and if the graphics stack will not run it. */
 let finishing: Finishing | undefined;
-if (renderer && tier === 'high') {
+if (renderer && tier !== 'low') {
   try {
-    finishing = new Finishing(renderer, panelScene.scene, panelScene.camera);
-    console.info('talkthrough: high tier finishing pass on');
+    finishing = new Finishing(renderer, panelScene.scene, panelScene.camera, tier === 'high' ? 'full' : 'light');
+    console.info(`talkthrough: ${tier} tier finishing pass on`);
   } catch {
     finishing = undefined; // the plain render is the fallback
-    console.info('talkthrough: high tier finishing pass unavailable, drawing plainly');
+    console.info(`talkthrough: ${tier} tier finishing pass unavailable, drawing plainly`);
   }
 }
 
@@ -382,6 +382,7 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
         renderer.setViewport(0, 0, view.width, view.height);
         renderer.setScissor(r.x, view.height - r.y - r.h, r.w, r.h);
         renderer.setScissorTest(true);
+        modelFramesDrawn++;
         if (finishing?.fits(r)) {
           try {
             finishing.render(panelScene.scene, panelScene.camera, r, view);
@@ -1786,5 +1787,45 @@ window.talkthrough.onScene((message) => {
     console.error('overlay: could not play the scene', error);
   }
 });
+/**
+ * The graphics card builds a shader program the first time something is drawn with it, which put most of a second on the first model of a run (the
+ * finishing pass's programs, and one per kind of surface). The overlay is up long before anyone asks, so they are built once now, out of sight: the
+ * surfaces' programs are started together and waited for without blocking the page, then a small window is drawn through the same path a model takes
+ * (which builds the finishing pass's own) and cleared; if an answer's model has been drawn by then there is nothing left to build and nothing is drawn. The solids are in the scene only while that is being started or drawn, never across a pause.
+ */
+let modelFramesDrawn = 0;
+async function prewarm(): Promise<void> {
+  if (!renderer) return;
+  const started = performance.now();
+  const drawnBefore = modelFramesDrawn;
+  const group = panelScene.prewarmGroup();
+  try {
+    panelScene.scene.add(group);
+    const built = renderer.compileAsync(panelScene.scene, panelScene.camera);
+    panelScene.scene.remove(group);
+    await built;
+    const programs = performance.now() - started;
+    // A model drawn in the meantime has built the finishing pass's programs itself, and the clearing below would wipe it off the canvas.
+    if (modelFramesDrawn !== drawnBefore) return;
+    const rect = { x: 0, y: 0, w: 64, h: 64 };
+    panelScene.scene.add(group);
+    renderer.setViewport(0, 0, view.width, view.height);
+    renderer.setScissor(0, Math.max(0, view.height - rect.h), rect.w, rect.h);
+    renderer.setScissorTest(true);
+    if (finishing?.fits(rect)) finishing.render(panelScene.scene, panelScene.camera, rect, view);
+    else renderer.render(panelScene.scene, panelScene.camera);
+    console.info(`talkthrough: prewarm built the surfaces in ${Math.round(programs)} ms and the finishing in ${Math.round(performance.now() - started - programs)} ms`);
+  } catch (error) {
+    console.info('talkthrough: prewarm skipped', error);
+  } finally {
+    panelScene.scene.remove(group);
+    if (modelFramesDrawn === drawnBefore) {
+      renderer.setRenderTarget(null);
+      renderer.setScissorTest(false);
+      renderer.clear();
+    }
+  }
+}
 resize();
+void prewarm();
 window.talkthrough.ready();
