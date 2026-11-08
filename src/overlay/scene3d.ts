@@ -1214,12 +1214,32 @@ export class PanelScene {
         let beyond = false;
         try { beyond = reverse.intersectObjects(target, false).some(allowed); }
         finally { for (const [m, side] of sides) m.side = side; }
+        // A point inside a solid made of overlapping closed pieces (the middle of a kit wheel: a barrel with a cap set into each end) has a closed piece's
+        // near face between it and the camera, yet it is not behind anything: going on away from the camera the ray leaves more solids than it enters.
+        if (beyond && this.insideSolid(world, away, target)) beyond = false;
         if (beyond) continue;
       }
       this.pinWarnings.delete(key);
       return { x: ((ndc.x + 1) / 2) * width, y: ((1 - ndc.y) / 2) * height, visible: true };
     }
     return hidden();
+  }
+
+  /** Whether a point lies inside a closed solid among these meshes: going on from it in `away`, the ray leaves more of their closed surfaces than it enters. */
+  private insideSolid(world: Vector3, away: Vector3, meshes: readonly Mesh[]): boolean {
+    const sides = new Map<Material, Material['side']>();
+    for (const mesh of meshes) for (const m of (Array.isArray(mesh.material) ? mesh.material : [mesh.material])) {
+      if (!sides.has(m)) { sides.set(m, m.side); m.side = DoubleSide; }
+    }
+    try {
+      let net = 0;
+      for (const hit of new Raycaster(world.clone(), away.clone()).intersectObjects(meshes as Mesh[], false)) {
+        if (!hit.face) continue;
+        const normal = hit.face.normal.clone().transformDirection((hit.object as Mesh).matrixWorld);
+        net += normal.dot(away) > 0 ? 1 : -1; // leaving a solid (its normal points on along the ray) or entering one
+      }
+      return net > 0;
+    } finally { for (const [m, side] of sides) m.side = side; }
   }
 
   /** The window rectangle the model fills, and the part of the page its shadow touches too; undefined when there is no model. */
