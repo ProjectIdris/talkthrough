@@ -1,5 +1,5 @@
 // The real models' meshes in the overlay page: loaded once from the app's own files, checked against the hash the catalogue pins, and kept as named parts.
-// Nothing here reaches a network: the bytes come from a file next to the page (`connect-src file:` in the page's policy), a file whose hash is not the
+// Nothing here reaches a network: the bytes come from a file next to the page (`connect-src file:` in the page's policy; `blob:` too, which is how three reads the images inside a model file, and a blob is only ever something this page made), a file whose hash is not the
 // catalogue's, or that points at anything outside itself, is refused, and a model that cannot be loaded leaves its parts empty so the scene still plays.
 
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
