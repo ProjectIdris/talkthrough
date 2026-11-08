@@ -134,7 +134,7 @@ test('a plain shape that fits only as a plain shape gives way to the one ready-m
   const follower = run(part('p', 'piston'), part('v', 'valve'), part('cams', 'camshaft'), { op: 'cam', id: 'p', by: 'cams' });
   assert.equal(follower.ofOp('cam')[0]?.id, 'p');
   // with no ready-made piston the plain shape is still taken
-  const plain = run(cyl('p'), part('cs', 'crankshaft'), { op: 'crank', id: 'p', shaft: 'cs' });
+  const plain = run(cyl('p'), part('cs', 'crankshaft', { pos: [0, -6, 0] }), { op: 'crank', id: 'p', shaft: 'cs' }); // the shaft below the piston, not buried in it
   assert.equal(plain.ofOp('crank')[0]?.id, 'p');
   assert.deepEqual(plain.issues, []);
 });

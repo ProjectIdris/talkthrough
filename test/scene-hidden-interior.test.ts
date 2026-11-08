@@ -43,3 +43,12 @@ test('a material name is read by its whole words: light-wood or sealed or slice 
   for (const material of ['light-wood', 'sealed-steel', 'slice-bread']) assert.equal(run([{ ...sclera, material }, lens]).styled.length, 1, material);
   for (const material of ['glass', 'neon-tube', 'clear-plastic']) assert.deepEqual(run([{ ...sclera, material }, lens]).styled, [], material);
 });
+
+test('a shaft through a solid wheel, or a hub no bigger than its thickness, is not a part hidden inside it', () => {
+  const wheel = { op: 'add', shape: 'cylinder', id: 'wheel', parent: 'g', pos: [0, 0, 0], size: [4, 0.5, 4], color: 'gray', at: 0.3 };
+  const shaft = { op: 'add', shape: 'cylinder', id: 'shaft', parent: 'g', pos: [0, 0, 0], size: [0.4, 2, 0.4], color: 'silver', at: 0.6 };
+  assert.deepEqual(run([wheel, shaft]).styled, []);
+  assert.deepEqual(run([shaft, wheel]).styled, []);
+  // a part really buried in a thick solid is still found
+  assert.equal(run([{ ...wheel, size: [4, 4, 4] }, { ...shaft, size: [0.4, 0.4, 0.4] }]).styled.length, 1);
+});
