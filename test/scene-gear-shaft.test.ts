@@ -40,3 +40,23 @@ test('a see-through gear gets no shaft, and a gear drawn alone first gets its sh
   const second = validateStep({ say: 'y', actions: [gear('g2', [1, 0, 0], { at: 0 })] }, state);
   assert.deepEqual((second.step?.actions ?? []).filter((a) => a.op === 'add').map((a) => (a as unknown as { id: string }).id), ['g2', 'g1-shaft', 'g2-shaft']);
 });
+
+test('a gear inside a housing gets its shafts whichever is written first; a shaft through it still holds it', () => {
+  const housing = { op: 'add', shape: 'box', id: 'case', pos: [0, 0, 0], size: [8, 5, 3], at: 0.1 };
+  assert.deepEqual(run([housing, gear('g1', [-1, 0, 0]), gear('g2', [1, 0, 0])]).shafts.map((s) => s.id), ['g1-shaft', 'g2-shaft'], 'the case is round the gears, not through them');
+  assert.deepEqual(run([gear('g1', [-1, 0, 0]), gear('g2', [1, 0, 0]), housing]).shafts.map((s) => s.id), ['g1-shaft', 'g2-shaft'], 'and written last, the same');
+  const rod = { op: 'add', shape: 'cylinder', id: 'rod', pos: [-1, 0, 0], rot: [90, 0, 0], size: [0.3, 3, 0.3], at: 0.2 };
+  assert.deepEqual(run([housing, rod, gear('g1', [-1, 0, 0]), gear('g2', [1, 0, 0])]).shafts.map((s) => s.id), ['g2-shaft'], 'a rod through g1 inside the case still holds it');
+});
+
+test('a shaft the scene writes under the name of an added one replaces it, with a note; the added one can be named, styled or cleared', () => {
+  const state = createSceneState();
+  const first = validateStep({ say: 'x', actions: [{ op: 'panel', x: 100, y: 100, w: 800, h: 800 }, gear('g1', [-1, 0, 0]), gear('g2', [1, 0, 0]), { op: 'style', id: 'g2-shaft', color: 'red', at: 1 }] }, state);
+  assert.deepEqual(first.issues, [], 'a shaft added for a gear is an id of the scene');
+  const own = { op: 'add', shape: 'cylinder', id: 'g1-shaft', parent: 'g1', rot: [90, 0, 0], size: [0.3, 4, 0.3] };
+  const second = validateStep({ say: 'y', actions: [own] }, state);
+  assert.deepEqual(second.issues.map((i) => [i.kind, i.message]), [['trimmed', 'repaired: "g1-shaft" is the shaft added through gear "g1"; this replaces it']]);
+  assert.equal(second.step?.actions.some((a) => a.op === 'add' && a.id === 'g1-shaft'), true, 'the scene\'s own shaft is kept');
+  const third = validateStep({ say: 'z', actions: [{ ...own, size: [0.2, 4, 0.2] }] }, state);
+  assert.equal(third.issues.some((i) => i.kind === 'dropped'), true, 'and is in use like any id, written a third time it is refused');
+});

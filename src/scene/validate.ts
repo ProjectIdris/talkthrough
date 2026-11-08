@@ -68,6 +68,8 @@ export type SceneState = {
    * any other and cannot be written a third time. Ids named but never written again stay valid to refer to.
    */
   replaceable?: Set<string>;
+  /** The shafts the validator itself added through a gear (id, then the gear): a scene that writes one of them replaces it, with a note. */
+  made?: Map<string, string>;
   /** Set when the ids on screen may be replaced by an ordinary answer (not a detail pass, which does it by design): each replacement is then said in a note. */
   replaceNote?: boolean;
   /** The size of the 3D stage as last written (a stage written with no size takes it). */
@@ -507,6 +509,9 @@ function mountGear(state: SceneState, id: string, out: Record<string, unknown>):
     if (!body.size || body.size.some((n) => !(n > 0)) || middleHeld(state.bodies, gid, 'gear')) continue;
     const shaft = `${gid}-shaft`;
     if (state.ids.has(shaft)) continue;
+    // The shaft is an object of the scene like any other (it can be named, styled or cleared); a scene that writes the same id replaces it.
+    state.ids.set(shaft, 'solid'); state.parents.set(shaft, gid); state.depth.set(shaft, (state.depth.get(gid) ?? 0) + 1);
+    (state.replaceable ??= new Set()).add(shaft); (state.made ??= new Map()).set(shaft, gid);
     const [sx, , sz] = body.size;
     const d = Math.max(0.05, sx * 0.16);
     state.after.push({ op: 'add', shape: 'cylinder', id: shaft, parent: gid, pos: [0, 0, 0], rot: [90, 0, 0], size: [d, Math.max(sz! * 4, sx * 0.5), d], material: 'steel', at: Math.max((out.at as number | undefined) ?? 0, 0) } as unknown as Action);
@@ -1000,7 +1005,9 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
       note(notes, 'dropped', path, `scene already holds ${LIMITS.maxObjects} objects`);
       return null;
     }
-    if (replacing && state.replaceNote) note(notes, 'trimmed', path, `repaired: "${id}" was already on screen; this replaces it (clear it first to start it over)`);
+    const madeFor = state.made?.get(id);
+    if (replacing && madeFor !== undefined) note(notes, 'trimmed', path, `repaired: "${id}" is the shaft added through gear "${madeFor}"; this replaces it`);
+    else if (replacing && state.replaceNote) note(notes, 'trimmed', path, `repaired: "${id}" was already on screen; this replaces it (clear it first to start it over)`);
     state.replaceable?.delete(id);
     const parent = (variant.attach ? out[variant.attach] : out.parent) as string | undefined;
     state.ids.set(id, kind);

@@ -209,13 +209,21 @@ export function landOn(bodies: ReadonlyMap<string, Body>, holder: string | undef
   return best;
 }
 
-/** Whether the middle of body `id` lies inside a solid of the scene other than itself and the ready-made parts `skipPart` names (a box, cylinder, sphere or blob, as it stands turned and placed). */
+/**
+ * Whether the middle of the round body `id` (a disc about its z axis, `size[0]` across) is held by a solid of the scene other than itself and the ready-made parts
+ * `skipPart` names (a box, cylinder, sphere or blob, as it stands turned and placed): a shaft or hub through it, a plate it is let into. A solid that holds the middle and the
+ * rim all round (a housing or a case the disc stands inside) is round it, not through it, and does not hold it.
+ */
 export function middleHeld(bodies: ReadonlyMap<string, Body>, id: string, skipPart: string): boolean {
-  const world = apply(worldOf(bodies, id), [0, 0, 0]);
+  const here = worldOf(bodies, id);
+  const world = apply(here, [0, 0, 0]);
+  const r = (bodies.get(id)?.size?.[0] ?? 0) * 0.45;
+  const rim = r > 0 ? ([[r, 0, 0], [-r, 0, 0], [0, r, 0], [0, -r, 0]] as Vec3[]).map((p) => apply(here, p)) : [];
   for (const [other, b] of bodies) {
     if (other === id || b.shape === 'group' || b.part === skipPart) continue;
-    const hit = hitOf(b, applyInverse(worldOf(bodies, other), world));
-    if (hit && hit.dist <= 0) return true;
+    const m = worldOf(bodies, other);
+    const holds = (p: Vec3): boolean => { const hit = hitOf(b, applyInverse(m, p)); return hit !== undefined && hit.dist <= 0; };
+    if (holds(world) && !(rim.length > 0 && rim.every(holds))) return true;
   }
   return false;
 }
