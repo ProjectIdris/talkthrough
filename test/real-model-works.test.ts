@@ -62,7 +62,7 @@ test('a how-does-it-work question names the real model, its assemblies and kit p
   const clock = realModelHint('How does an alarm clock work?') ?? '';
   assert.match(clock, /gear-train: add \{shape:part, part:"gear-train"/);
   assert.match(clock, /escapement: add \{shape:part, part:"escapement"/);
-  assert.match(clock, /add \{shape:model, id:"<id>", model:"alarm-clock"\}/);
+  assert.match(clock, /add \{shape:model, id:"<id>", model:"alarm-clock", size:10, pos:\[-6,0,0\]\}/);
   assert.match(clock, /minute hand - \{[^}]*"id":"<id>\.minute-hand"[^}]*"by":"<id>\.second-hand"/);
   const drill = realModelHint('How does a drill work?') ?? '';
   assert.match(drill, /planetary: add \{shape:part, part:"planetary"/);

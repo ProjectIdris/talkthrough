@@ -22,7 +22,7 @@ The fetch reads only the files the manifests name, by byte range out of the sour
 
 A model is the outside: it shows how a thing looks and where its parts are, not its inside. So a manifest may carry `works`, the working mechanism that explains it, as data: `how` (a sentence or two, at most 400 characters), `assemblies` (ready assemblies from the scene language's rows to build beside it, each with its role), `kit` (kit parts for what has no assembly) and `motion` (how the model's own named parts move: a part, what it does, and one `spin` or `loop` action). `npm run assets` checks it (every action key is one the scene language has, a `by` driver is another part of the same model) and writes it into `src/scene/model-catalogue.ts`; a test checks that every assembly, kit part and part it names exists.
 
-When a question is about a thing that has such a model, the how-it-works hint names that data: build the mechanism large and moving, with the real model standing beside it at its own size so the thing is recognised, and move the model's own parts as the data says. A part of a model may drive another with `by` (the minute hand follows the second hand at a sixtieth, the hour hand the minute hand at a twelfth).
+When a question is about a thing that has such a model, the how-it-works hint names that data: open on the real model at stage size so the thing is recognised, then build the mechanism large and moving beside it, and move the model's own parts as the data says. A part of a model may drive another with `by` (the minute hand follows the second hand at a sixtieth, the hour hand the minute hand at a twelfth).
 
 ## Textured objects (glTF)
 

@@ -33,6 +33,9 @@ export function findPart(model: ModelEntry, name: unknown): ModelPart | undefine
   return model.parts.find((p) => norm(p.key) === n || norm(p.name) === n || p.aliases.some((a) => norm(a) === n));
 }
 
+/** About how wide a real model and the mechanism beside it each stand on the stage (scene units): the size of a ready assembly. */
+const STAGE_ACROSS = 10;
+
 /** The id a part has in a scene: the model's id, a dot, the part's key. */
 export const partId = (model: string, key: string): string => `${model}.${key}`;
 
@@ -98,12 +101,12 @@ export function worksAction(model: ModelEntry, motion: NonNullable<NonNullable<M
 }
 
 /**
- * For a how-does-it-work question about a real model that holds no mechanism of its own but whose catalogue entry says how it works: the real model stands small beside the
- * working mechanism, which is built from the ready assemblies and kit parts the entry names, and the model's own named parts are moved the way the entry says.
+ * For a how-does-it-work question about a real model that holds no mechanism of its own but whose catalogue entry says how it works: the real model comes first at stage size and the
+ * working mechanism, built from the ready assemblies and kit parts the entry names, and the model's own named parts are moved the way the entry says.
  */
 function worksHint(model: ModelEntry, across: number): string {
   const w = model.works!;
-  const out = [`If the question is about the ${model.name.toLowerCase()} itself: a real model of it exists (${model.id}); it shows how the thing looks and where its parts are, but not its inside. How it works: ${w.how} Show that: build the working mechanism large and animated, and let the real model stand beside it at its own size (about ${across} units across, so leave its size off) as add {shape:model, id:"<id>", model:"${model.id}"}, so the thing is recognised.`];
+  const out = [`If the question is about the ${model.name.toLowerCase()} itself: a real model of it exists (${model.id}); it shows how the thing looks and where its parts are, but not its inside. How it works: ${w.how} Show it in this order, and plan the steps that way: step 1 opens on the real model at stage size, add {shape:model, id:"<id>", model:"${model.id}", size:${STAGE_ACROSS}, pos:[-${STAGE_ACROSS / 2 + 1},0,0]} (left unsized it stands only about ${across} units across), so the thing is recognised first; the next steps build the working mechanism large and animated beside it, at the right (pos about [${STAGE_ACROSS / 2 + 1},0,0]), and keep the real model on stage.`];
   const ready = (w.assemblies ?? []).filter((a) => ASSEMBLY_ROWS[a.name]);
   if (ready.length) out.push(`Ready assemblies for the mechanism (use them rather than building the parts one by one): ${ready.map((a) => `${a.role} - ${assemblyLine(a.name)}`).join(' ')}`);
   if (w.kit?.length) out.push(`Kit parts for what has no assembly: ${w.kit.map((k) => `${k.part} (${k.role})`).join('; ')}.`);
