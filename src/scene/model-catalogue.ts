@@ -17,6 +17,18 @@ export type ModelPart = {
   /** Where the part goes in metres when the model is exploded (a hand lifts off its face), from where it sits; without it, outward from the middle. */
   explode?: Vec3;
 };
+/** One scene action (spin or loop) for a part of the model; by, when there is one, is the key of another part of the same model. */
+export type WorksAction = { op: 'spin' | 'loop'; rpm?: number; axis?: 'x' | 'y' | 'z'; by?: string; ratio?: number; phase?: number; kind?: string; amount?: number; period?: number; dur?: number };
+export type ModelWorks = {
+  /** The working, in a sentence or two. */
+  how: string;
+  /** Ready assemblies (assembly-rows.ts) to build beside the model, each with what it stands for here. */
+  assemblies?: Array<{ name: string; role: string }>;
+  /** Kit parts to build what has no assembly, each with what it stands for here. */
+  kit?: Array<{ part: string; role: string }>;
+  /** How its own named parts move: the action to write for the part, and what it shows. */
+  motion?: Array<{ part: string; what: string; action: WorksAction }>;
+};
 export type ModelEntry = {
   id: string; name: string; description: string; aliases: string[];
   /** obj: parts built from a source's meshes and drawn in a flat colour; gltf: the artist's own textured materials, passed through. */
@@ -25,6 +37,8 @@ export type ModelEntry = {
   single: boolean;
   /** Whether its parts hold the thing's working mechanism (so it can show how the thing works), not only how it looks and where its parts are: when false, an answer about how it works builds the mechanism from shapes and may show this small beside it. */
   mechanism: boolean;
+  /** How the thing works, as data, for a question about how it works: the ready assemblies to build beside the model, the kit parts for what has none, and how its own named parts move. */
+  works?: ModelWorks;
   licence: { id: string; name: string; version: string; url: string };
   /** A model held back from every release (the installer is not built while one is). */
   release: { blocked: boolean; why?: string };
@@ -58,6 +72,50 @@ export const MODELS: readonly ModelEntry[] = [
     "format": "gltf",
     "single": false,
     "mechanism": false,
+    "works": {
+      "how": "A wound mainspring turns a gear train, and an escapement lets the train advance one tooth at a time on the beat of a pendulum or balance, so the hands move steadily: the second hand once a minute, the minute hand once an hour, the hour hand once in twelve hours.",
+      "assemblies": [
+        {
+          "name": "gear-train",
+          "role": "the train from the spring to the hands: each stage slows the turn"
+        },
+        {
+          "name": "escapement",
+          "role": "the escapement that lets the train advance one tooth a beat"
+        }
+      ],
+      "motion": [
+        {
+          "part": "second-hand",
+          "what": "the fastest hand, clockwise about its hub (sped up here so it can be seen)",
+          "action": {
+            "op": "spin",
+            "rpm": -6,
+            "axis": "z"
+          }
+        },
+        {
+          "part": "minute-hand",
+          "what": "one turn for every 60 of the second hand",
+          "action": {
+            "op": "spin",
+            "by": "second-hand",
+            "ratio": 0.016667,
+            "axis": "z"
+          }
+        },
+        {
+          "part": "hour-hand",
+          "what": "one turn for every 12 of the minute hand",
+          "action": {
+            "op": "spin",
+            "by": "minute-hand",
+            "ratio": 0.083333,
+            "axis": "z"
+          }
+        }
+      ]
+    },
     "size": [
       0.131651,
       0.174155,
@@ -229,6 +287,19 @@ export const MODELS: readonly ModelEntry[] = [
     "format": "gltf",
     "single": true,
     "mechanism": false,
+    "works": {
+      "how": "The long handles are levers: a small push at their ends becomes a large force at the short jaws, because the pivots sit close to the jaws; a compound hinge doubles the gain, and the jaws shear the bolt.",
+      "assemblies": [
+        {
+          "name": "lever",
+          "role": "the handle as a lever, with the pivot near the jaws"
+        },
+        {
+          "name": "four-bar-linkage",
+          "role": "the compound hinge that links the handles to the jaws"
+        }
+      ]
+    },
     "size": [
       0.151046,
       0.802581,
@@ -812,6 +883,19 @@ export const MODELS: readonly ModelEntry[] = [
     "format": "gltf",
     "single": false,
     "mechanism": false,
+    "works": {
+      "how": "Light from the scene enters through the lens, which focuses it on the film or sensor at the back; pressing the release opens the shutter for a set time so the light exposes it, then the shutter closes.",
+      "kit": [
+        {
+          "part": "lens",
+          "role": "focuses the light of the scene"
+        },
+        {
+          "part": "chip",
+          "role": "the sensor or film plane at the back that records the light"
+        }
+      ]
+    },
     "size": [
       0.213902,
       0.077847,
@@ -900,6 +984,29 @@ export const MODELS: readonly ModelEntry[] = [
     "format": "gltf",
     "single": true,
     "mechanism": false,
+    "works": {
+      "how": "A motor spins fast; a planetary gear set slows the spin and raises its turning force; the shaft carries it to the chuck, whose jaws grip the bit; the trigger sets how much current reaches the motor.",
+      "assemblies": [
+        {
+          "name": "planetary",
+          "role": "the gear reduction between the motor and the chuck"
+        }
+      ],
+      "kit": [
+        {
+          "part": "coil",
+          "role": "the winding of the motor"
+        },
+        {
+          "part": "magnet",
+          "role": "the field magnets the winding turns between"
+        },
+        {
+          "part": "shaft",
+          "role": "the shaft from the motor, through the gear set, to the chuck that holds the bit"
+        }
+      ]
+    },
     "size": [
       0.18288,
       0.185062,
@@ -963,6 +1070,23 @@ export const MODELS: readonly ModelEntry[] = [
     "format": "gltf",
     "single": true,
     "mechanism": false,
+    "works": {
+      "how": "Current through a coil makes it an electromagnet, which fixed magnets push and pull so that the shaft turns; a commutator reverses the current each half turn so the push keeps going the same way.",
+      "kit": [
+        {
+          "part": "coil",
+          "role": "the electromagnet on the rotor"
+        },
+        {
+          "part": "magnet",
+          "role": "the fixed magnets that push and pull it"
+        },
+        {
+          "part": "shaft",
+          "role": "the shaft that turns"
+        }
+      ]
+    },
     "size": [
       0.262645,
       0.370017,
@@ -1512,6 +1636,21 @@ export const MODELS: readonly ModelEntry[] = [
     "format": "gltf",
     "single": true,
     "mechanism": false,
+    "works": {
+      "how": "A flat coiled spring in the case pulls the blade back in; a lock presses on the blade to hold it out, and letting go of the lock lets the spring wind it in.",
+      "assemblies": [
+        {
+          "name": "ratchet",
+          "role": "the lock: a pawl that holds the blade where it is pulled to"
+        }
+      ],
+      "kit": [
+        {
+          "part": "spring",
+          "role": "the coiled return spring in the case"
+        }
+      ]
+    },
     "size": [
       0.040566,
       0.073414,
@@ -1574,6 +1713,15 @@ export const MODELS: readonly ModelEntry[] = [
     "format": "gltf",
     "single": true,
     "mechanism": false,
+    "works": {
+      "how": "A torsion spring is bent back and held cocked by a catch, and the bait holds the trigger; when the mouse tugs the bait the catch slips and the spring swings the hammer bar over onto the base in a fraction of a second.",
+      "assemblies": [
+        {
+          "name": "spring-snap",
+          "role": "the spring, hammer, catch and trigger of the trap"
+        }
+      ]
+    },
     "size": [
       0.054988,
       0.017934,
@@ -1638,6 +1786,21 @@ export const MODELS: readonly ModelEntry[] = [
     "format": "gltf",
     "single": true,
     "mechanism": false,
+    "works": {
+      "how": "Pressing the lever closes a contact and completes the circuit, sending a pulse of current; letting go lets a spring open it again, and short and long presses make the dots and dashes.",
+      "assemblies": [
+        {
+          "name": "lever",
+          "role": "the key arm pivoting about its fulcrum"
+        }
+      ],
+      "kit": [
+        {
+          "part": "spring",
+          "role": "the spring that lifts the key and opens the contact"
+        }
+      ]
+    },
     "size": [
       0.169078,
       0.07655,

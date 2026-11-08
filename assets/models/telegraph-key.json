@@ -2,6 +2,21 @@
   "id": "telegraph-key",
   "name": "Morse-Vail telegraph key",
   "description": "A Morse-Vail telegraph key from about 1844, a scan of the museum object",
+  "works": {
+    "how": "Pressing the lever closes a contact and completes the circuit, sending a pulse of current; letting go lets a spring open it again, and short and long presses make the dots and dashes.",
+    "assemblies": [
+      {
+        "name": "lever",
+        "role": "the key arm pivoting about its fulcrum"
+      }
+    ],
+    "kit": [
+      {
+        "part": "spring",
+        "role": "the spring that lifts the key and opens the contact"
+      }
+    ]
+  },
   "aliases": [
     "telegraph key",
     "morse key",

@@ -12,7 +12,7 @@ import type { ObjectKind } from './spec.ts';
 import type { SceneState } from './validate.ts';
 
 /** What the scene knows of one id. */
-export type PartInfo = { id: string; kind: ObjectKind; /** The ready-made part it is, when it is one (a group made by `add` part is not a group). */ part: string | undefined; parent: string | undefined };
+export type PartInfo = { id: string; kind: ObjectKind; /** The ready-made part it is, when it is one (a group made by `add` part is not a group). */ part: string | undefined; parent: string | undefined; /** A named part of a real model (a clock's hand): it turns and can drive another part, though it is held as a group. */ ofModel?: boolean };
 
 export type Binding = {
   /** The field of the action. */
@@ -46,7 +46,7 @@ const primitive = (i: PartInfo): boolean => i.part === undefined && (i.kind === 
 const isPart = (name: string) => (i: PartInfo): boolean => i.part === name || primitive(i);
 
 /** Anything that can turn or drive another part: not a group, a cylinder block or a housing (they hold the machine; they are not in it). */
-const mover = (i: PartInfo): boolean => !(i.part === undefined && i.kind === 'group') && i.part !== 'cylinder-block' && i.part !== 'housing' && !SCREEN_KINDS.has(i.kind);
+const mover = (i: PartInfo): boolean => i.ofModel === true || !(i.part === undefined && i.kind === 'group') && i.part !== 'cylinder-block' && i.part !== 'housing' && !SCREEN_KINDS.has(i.kind);
 
 // A cam's follower is a valve or any other part that is not what holds the machine (the guide says any follower), so it only repairs what cannot be one.
 
@@ -92,7 +92,9 @@ function pickPath(said: string | undefined, state: SceneState): string | undefin
 
 const infoOf = (state: SceneState, id: string): PartInfo | undefined => {
   const kind = state.ids.get(id);
-  return kind === undefined ? undefined : { id, kind, part: state.parts.get(id), parent: state.parents.get(id) };
+  if (kind === undefined) return undefined;
+  const parent = state.parents.get(id);
+  return { id, kind, part: state.parts.get(id), parent, ...(parent !== undefined && state.models?.has(parent) && id.startsWith(`${parent}.`) ? { ofModel: true } : {}) };
 };
 
 /** The words of an id, lower case ("intake-valve" gives intake and valve); words that name no one part are left out. */

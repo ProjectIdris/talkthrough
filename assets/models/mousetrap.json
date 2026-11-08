@@ -2,6 +2,15 @@
   "id": "mousetrap",
   "name": "Mousetrap",
   "description": "A wooden snap mousetrap with its spring bar, as one textured object",
+  "works": {
+    "how": "A torsion spring is bent back and held cocked by a catch, and the bait holds the trigger; when the mouse tugs the bait the catch slips and the spring swings the hammer bar over onto the base in a fraction of a second.",
+    "assemblies": [
+      {
+        "name": "spring-snap",
+        "role": "the spring, hammer, catch and trigger of the trap"
+      }
+    ]
+  },
   "aliases": [
     "mousetrap",
     "mouse trap",

@@ -19,6 +19,7 @@ export function catalogueSource(manifests) {
     single: m.parts.length === 1,
     // Whether the model's parts hold the thing's working mechanism, so it can show how the thing works; none does today (a clock's hands turn, but its gears and bell are not modelled).
     mechanism: m.mechanism === true,
+    ...(m.works ? { works: m.works } : {}),
     size: m.built.size, realLengthMetres: m.scale.realLengthMetres ?? Math.max(...m.built.size), caveats: m.caveats ?? [],
     built: { file: m.built.file, bytes: m.built.bytes, sha256: m.built.sha256, triangles: m.built.triangles },
     parts: m.parts.map((p) => ({
@@ -46,6 +47,18 @@ export type ModelPart = {
   /** Where the part goes in metres when the model is exploded (a hand lifts off its face), from where it sits; without it, outward from the middle. */
   explode?: Vec3;
 };
+/** One scene action (spin or loop) for a part of the model; by, when there is one, is the key of another part of the same model. */
+export type WorksAction = { op: 'spin' | 'loop'; rpm?: number; axis?: 'x' | 'y' | 'z'; by?: string; ratio?: number; phase?: number; kind?: string; amount?: number; period?: number; dur?: number };
+export type ModelWorks = {
+  /** The working, in a sentence or two. */
+  how: string;
+  /** Ready assemblies (assembly-rows.ts) to build beside the model, each with what it stands for here. */
+  assemblies?: Array<{ name: string; role: string }>;
+  /** Kit parts to build what has no assembly, each with what it stands for here. */
+  kit?: Array<{ part: string; role: string }>;
+  /** How its own named parts move: the action to write for the part, and what it shows. */
+  motion?: Array<{ part: string; what: string; action: WorksAction }>;
+};
 export type ModelEntry = {
   id: string; name: string; description: string; aliases: string[];
   /** obj: parts built from a source's meshes and drawn in a flat colour; gltf: the artist's own textured materials, passed through. */
@@ -54,6 +67,8 @@ export type ModelEntry = {
   single: boolean;
   /** Whether its parts hold the thing's working mechanism (so it can show how the thing works), not only how it looks and where its parts are: when false, an answer about how it works builds the mechanism from shapes and may show this small beside it. */
   mechanism: boolean;
+  /** How the thing works, as data, for a question about how it works: the ready assemblies to build beside the model, the kit parts for what has none, and how its own named parts move. */
+  works?: ModelWorks;
   licence: { id: string; name: string; version: string; url: string };
   /** A model held back from every release (the installer is not built while one is). */
   release: { blocked: boolean; why?: string };
