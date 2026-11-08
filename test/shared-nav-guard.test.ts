@@ -6,7 +6,7 @@ import type { NavFacts, NavIntent } from '../src/shared/nav-guard.ts';
 const base: NavFacts = {
   ok: true, ct: 'tabitem', enabled: true, offscreen: false, password: false, name: 'Appearance', autoId: '', help: '',
   win: 'Settings', proc: 'app', dlg: '', invoke: false, expand: '', selected: false,
-  toggle: false, valuePattern: false, valueReadOnly: true, range: false, scroll: null,
+  elevated: false, toggle: false, valuePattern: false, valueReadOnly: true, range: false, scroll: null,
 };
 const f = (over: Partial<NavFacts>): NavFacts => ({ ...base, ...over });
 const TAB: NavIntent = { kind: 'tab' };
@@ -106,4 +106,11 @@ test('the words said before acting name what is about to happen', () => {
   assert.equal(announcement('open'), "I'll open that menu for you.");
   assert.equal(announcement('scroll'), "I'll scroll down for you.");
   assert.equal(announcement('scroll', 'up'), "I'll scroll up for you.");
+});
+
+test('a window that runs elevated, or whose level was not read, is refused for every kind of move, even one that would otherwise be done', () => {
+  for (const intent of [TAB, OPEN, SCROLL]) {
+    assert.deepEqual(decideNav(f({ elevated: true }), intent), { verdict: 'refuse', why: 'an elevated window' }, intent.kind);
+  }
+  assert.equal(decideNav(f({}), TAB).verdict, 'do', 'the same tab at a normal level is done');
 });

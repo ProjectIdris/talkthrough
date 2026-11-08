@@ -502,7 +502,7 @@ async function main(): Promise<void> {
         return watchGuideInput({
           down: (p) => { if (onGuideTarget(p)) listener.down(clickOf(p)); else listener.outside?.(clickOf(p)); },
           up: (p) => { if (onGuideTarget(p)) listener.up(clickOf(p)); else listener.cancelClick?.(); },
-          escape: () => listener.escape(), key: () => listener.key?.(),
+          escape: () => listener.escape(), key: () => listener.key?.(), wheel: () => listener.wheel?.(),
         });
       },
       ...(navigator && navConsent

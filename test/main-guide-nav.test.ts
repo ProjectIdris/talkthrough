@@ -123,11 +123,12 @@ test('without a navigation the go is ignored and the step is a plain wait', asyn
   assert.equal((r.sent.at(-1) as { status: string }).status, 'waiting');
 });
 
-test('a key, Escape, a click or the pointer moving during the beat stops the move; the step goes on as a plain wait', async () => {
+test('a key, Escape, a click, the mouse wheel or the pointer moving during the beat stops the move; the step goes on as a plain wait', async () => {
   const cases: Array<[string, (l: GuideListener) => void, boolean]> = [
     ['a key', (l) => l.key?.(), false],
     ['Escape', (l) => l.escape(), false],
     ['a click', (l) => l.down({ x: 800, y: 800, displayId: 7 }), false],
+    ['the mouse wheel', (l) => l.wheel?.(), false],
   ];
   for (const [name, stop] of cases) {
     const f = fakeNav();
@@ -372,6 +373,29 @@ test('a pause stops the move: no question, no act; a pause during the question i
   await r3.settle();
   assert.equal(b.acted.length, 0, 'paused during the beat');
   assert.equal(r3.g.active, true);
+});
+
+test('the mouse wheel while the app asks for its yes answers no: no move, the card goes away, no yes is remembered; a wheel with no move coming changes nothing', async () => {
+  const c = consented();
+  const r = rig(SAME, c.nav);
+  r.g.push(goStep('open the tab'));
+  await r.settle();
+  assert.equal(c.consent.pending(), true, 'asking');
+  r.listener.wheel?.();
+  await r.settle();
+  assert.equal(c.consent.pending(), false, 'the question is closed');
+  assert.equal(c.acted.length, 0, 'nothing was done');
+  assert.equal(c.consent.given(), false, 'no yes is remembered');
+  assert.equal(consentTexts(r).at(-1), null, 'the card is gone');
+  assert.equal(r.g.active, true);
+  // a step with no go is only a wait: a wheel turn is nothing to it
+  const p = rig(SAME, fakeNav().nav);
+  p.g.push(plainStep('click here'));
+  await p.settle();
+  p.listener.wheel?.();
+  await p.settle();
+  assert.equal(p.g.active, true);
+  assert.equal((p.sent.at(-1) as { status: string }).status, 'waiting');
 });
 
 test('the walk ending while the question is open closes it', async () => {
