@@ -10,6 +10,7 @@ import { heldShift, mountPosition } from '../scene/attach.ts';
 import { anchorsOf } from '../scene/anchors.ts';
 import { findModel, modelScale } from '../scene/models.ts';
 import { resolvePartGeometry } from '../scene/part-geometry.ts';
+import { loopRow } from '../scene/movement-rows.ts';
 import { PALETTE_RGB } from '../scene/colors.ts';
 import { MATERIAL_LIBRARY } from '../scene/material-library.ts';
 import { advanceMotion, ballDriver, muscleRest, crankPinKey, crankPinSize, driverOwner, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, restPoint, waveDriver, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
@@ -773,7 +774,7 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       if (kind === undefined) return;
       // One loop to an object: the later one replaces the earlier (and `stop` is only that replacement left empty). A ball joint has one for each axis.
       const ball = joint?.kind === 'ball';
-      const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : kind === 'swing' || kind === 'gate' ? 2 : 1;
+      const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : loopRow(kind)?.axis ?? 1;
       const driver = ball ? ballDriver(o.key, axis) : loopDriver(o.key);
       plan.muscles = plan.muscles.filter((m) => m.key !== o.key);
       plan.loops = plan.loops.filter((l) => l.key !== o.key || (ball && l.axis !== axis));

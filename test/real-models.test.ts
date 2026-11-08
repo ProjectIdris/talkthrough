@@ -14,6 +14,7 @@ import type { BufferGeometry, Mesh } from 'three';
 import { createSceneState, sceneGuide, validateScene } from '../src/scene/index.ts';
 import type { Scene } from '../src/scene/index.ts';
 import { MODELS } from '../src/scene/model-catalogue.ts';
+import { LOOP_ROWS } from '../src/scene/movement-rows.ts';
 import type { ModelEntry } from '../src/scene/model-catalogue.ts';
 import { modelScale } from '../src/scene/models.ts';
 import { PanelScene } from '../src/overlay/scene3d.ts';
@@ -588,4 +589,28 @@ test('nothing of ours or of a machine is in the files that are committed for the
     }
   }
   assert.deepEqual(problems, []);
+});
+
+test('every turning movement row (a swing, a gate, any row that turns) turns a hand on its hub, not about its middle', () => {
+  const clock = MODELS.find((m) => m.id === 'alarm-clock')!;
+  const scale = modelScale(clock, 8);
+  const part = clock.parts.find((p) => p.key === 'minute-hand')!;
+  const offset = [0, 1].map((k) => (part.hub![k]! - part.center[k]!) * scale);
+  const turning = Object.entries(LOOP_ROWS).filter(([, row]) => row.motion === 'turn').map(([kind]) => kind);
+  assert.ok(turning.length >= 2, 'the swing and the gate turn');
+  for (const kind of turning) {
+    const scene = validated({ steps: [{ say: 'x', actions: [{ op: 'panel', x: 100, y: 60, w: 800, h: 880 }, { op: 'add', shape: 'model', id: 'k', model: 'alarm-clock', size: 8 }, { op: 'loop', id: 'k.minute-hand', kind, amount: 60, period: 2, axis: 'z' }] }] });
+    const at = (t: number) => frameAt(scene.steps, 0, t).objects.find((o) => o.id === 'k.minute-hand')!;
+    const rest = at(0);
+    let moved = 0;
+    for (let t = 0; t <= 4; t += 0.25) {
+      const o = at(t);
+      const pos = o.pose?.pos ?? o.pos;
+      const angle = ((o.pose?.rot?.[2] ?? o.rot[2]) * Math.PI) / 180;
+      moved = Math.max(moved, Math.abs(angle));
+      const hx = pos[0] + offset[0]! * Math.cos(angle) - offset[1]! * Math.sin(angle), hy = pos[1] + offset[0]! * Math.sin(angle) + offset[1]! * Math.cos(angle);
+      assert.ok(Math.hypot(hx - (rest.pos[0] + offset[0]!), hy - (rest.pos[1] + offset[1]!)) < 1e-6, `${kind}: the hub stays put at t=${t}`);
+    }
+    assert.ok(moved > 0.3, `${kind} really turned it`);
+  }
 });
