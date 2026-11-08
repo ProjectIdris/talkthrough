@@ -454,3 +454,10 @@ test('a textured model\'s surface carries its colour map on every tier, its othe
   // the tiers' budgets: smaller textures and fewer maps on the lower one
   assert.ok(TIERS.low.modelTexture < TIERS.mid.modelTexture && TIERS.low.modelMaps === 'colour' && TIERS.mid.modelMaps === 'full');
 });
+
+test('the page may read the blobs the model loader makes for a textured model\'s images, and nothing but files and blobs', () => {
+  // Seen once the hard way: without blob: every texture was refused and every textured model drew white.
+  const html = readFileSync(join(import.meta.dirname, '..', 'src', 'overlay', 'index.html'), 'utf8');
+  const connect = /connect-src ([^"';]+)/.exec(html)![1]!.trim().split(/\s+/);
+  assert.deepEqual(connect.sort(), ['blob:', 'file:']);
+});
