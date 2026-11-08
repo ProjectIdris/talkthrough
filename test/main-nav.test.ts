@@ -9,9 +9,9 @@ import type { NavIntent } from '../src/shared/nav-guard.ts';
 import { fakeChild } from './support/fake-helper-child.ts';
 import { haveElectron, startPage } from './support/electron-page.ts';
 import { openNavWindow } from './support/nav-window.ts';
+import { windowsHeld } from './support/window-gate.ts';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const onWindows = process.platform === 'win32';
 
 test('the navigation function can do three things and nothing else: no click, key, value, toggle, collapse, pointer move or invoke', () => {
   for (const banned of ['SendKeys', 'SendInput', 'mouse_event', 'keybd_event', 'SetCursorPos', 'SetValue', 'Toggle()', '.Collapse', 'SetFocus', 'Start-Process', 'Invoke-WebRequest', 'Invoke-Expression', 'iex ', 'DoDefaultAction', 'LegacyIAccessible', 'WindowPattern', 'Close()', '.Invoke(']) {
@@ -73,7 +73,7 @@ async function guarded(nav: Navigator, point: { x: number; y: number }, intent: 
   return { p, d, acted };
 }
 
-test('on a window of our own: a tab is selected, a submenu is opened, an area is scrolled; and nothing else is ever touched', { skip: !onWindows, timeout: 120000 }, async () => {
+test('on a window of our own: a tab is selected, a submenu is opened, an area is scrolled; and nothing else is ever touched', { skip: windowsHeld, timeout: 120000 }, async () => {
   const win = await openNavWindow();
   const helper = createHelper({ nav: true })!;
   try {
@@ -142,7 +142,7 @@ test('on a window of our own: a tab is selected, a submenu is opened, an area is
   }
 });
 
-test('the script acts only on the very control it was shown, only in the window in front, and only when the point is a place it can see', { skip: !onWindows, timeout: 90000 }, async () => {
+test('the script acts only on the very control it was shown, only in the window in front, and only when the point is a place it can see', { skip: windowsHeld, timeout: 90000 }, async () => {
   const win = await openNavWindow();
   const helper = createHelper({ nav: true })!;
   try {
@@ -170,7 +170,7 @@ test('the script acts only on the very control it was shown, only in the window 
   }
 });
 
-test('a browser window (here an Electron page of our own) is never looked into, nor acted on: not a tab, not a link, not a scroll', { skip: !onWindows ? 'Windows only' : !haveElectron ? 'Electron is not installed' : false, timeout: 90000 }, async (t) => {
+test('a browser window (here an Electron page of our own) is never looked into, nor acted on: not a tab, not a link, not a scroll', { skip: windowsHeld || (!haveElectron ? 'Electron is not installed' : false), timeout: 90000 }, async (t) => {
   const page = await startPage();
   const helper = createHelper({ nav: true })!;
   try {
@@ -200,7 +200,7 @@ test('a browser window (here an Electron page of our own) is never looked into, 
   }
 });
 
-test('a helper started without navigation answers a navigation request with nothing done, whatever it is asked', { skip: !onWindows, timeout: 90000 }, async () => {
+test('a helper started without navigation answers a navigation request with nothing done, whatever it is asked', { skip: windowsHeld, timeout: 90000 }, async () => {
   const win = await openNavWindow();
   const helper = createHelper()!;
   try {
