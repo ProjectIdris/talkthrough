@@ -69,6 +69,31 @@ test('a muscle replaces a loop on the part, and a loop after it replaces the mus
   assert.ok(Math.abs(span(second.plan, 1) - span(second.plan, 0) * (1 - 0.25 * 0.5)) > 0.05, 'and the muscle no longer does');
 });
 
+/** A point of an object in the world: up through its parents, each as the frame has it placed. */
+const world = (f: Frame, id: string, local: readonly number[]): Vector3 => {
+  let o: Frame['objects'][number] | undefined = obj(f, id);
+  const p = new Vector3(...local);
+  while (o) {
+    const pos = o.pose?.pos ?? o.pos, rot = o.pose?.rot ?? o.rot;
+    p.multiply(new Vector3(...o.scale)).applyMatrix4(matrix(rot)).add(new Vector3(...pos));
+    o = o.parentKey === null ? undefined : f.objects.find((x) => x.key === o!.parentKey);
+  }
+  return p;
+};
+
+test('the two ends can hang on different branches of the scene: the holder need not be the pulled parent or beside it', () => {
+  const group = { op: 'add', shape: 'group', id: 'arm', pos: [1, 2, 0] };
+  const humerus = { op: 'add', shape: 'box', id: 'upper', size: [1, 4, 1], parent: 'arm' };
+  const elbow = { op: 'add', shape: 'sphere', id: 'elbow', size: [1, 1, 1], parent: 'arm', pos: [0, -2.4, 0] };
+  const forearm = { op: 'add', shape: 'box', id: 'fore', size: [0.8, 3, 0.8], parent: 'elbow', parentAnchor: 'bottom', selfAnchor: 'top' };
+  const conn = { op: 'add', shape: 'connector', id: 'bicep', parent: 'arm', from: 'upper', to: 'fore', fromPoint: [0.6, -0.5, 0], toPoint: [0.5, 0.2, 0] };
+  const { plan, issues } = run(group, humerus, elbow, forearm, conn, { op: 'joint', id: 'fore', kind: 'hinge', about: 'top', axis: 'z', min: -120, max: 120 }, { op: 'muscle', id: 'bicep', pulls: 'fore', contract: 0.25, period: 4 });
+  assert.deepEqual(issues, []);
+  const gap = (t: number) => { const f = evaluate(plan, t); return world(f, 'upper', [0.6, -0.5, 0]).distanceTo(world(f, 'fore', [0.5, 0.2, 0])); };
+  assert.ok(Math.abs(gap(2) - gap(0) * 0.75) < 1e-3, `${gap(2)} is not 3/4 of ${gap(0)}`);
+  assert.ok(Math.abs(rotOf(evaluate(plan, 2), 'fore')[2]) > 5, 'the forearm is turned');
+});
+
 test('the end can be said as from or to, the connector own names for them', () => {
   const { plan, issues } = run(upper, fore(), bicep(), hinge(), { op: 'muscle', id: 'bicep', pulls: 'to', contract: 0.25, period: 4 });
   assert.deepEqual(issues, []);
@@ -83,6 +108,4 @@ test('a muscle that cannot work is refused with the reason', () => {
   assert.match(reason(upper, fore(), hinge(), { op: 'muscle', id: 'upper', pulls: 'fore' }), /id to be a connector/);
   assert.match(reason(upper, fore(), bicep(), hinge(), { op: 'add', shape: 'box', id: 'far', size: [1, 1, 1], pos: [5, 0, 0] }, { op: 'muscle', id: 'bicep', pulls: 'far' }), /not an end of connector/);
   assert.match(reason(upper, fore(), bicep(), { op: 'muscle', id: 'bicep', pulls: 'fore' }), /hinge or pivot joint/);
-  const other = { op: 'add', shape: 'box', id: 'far', size: [1, 1, 1], pos: [5, 0, 0] };
-  assert.match(reason(upper, fore(), other, bicep({ from: 'far' }), hinge(), { op: 'muscle', id: 'bicep', pulls: 'fore' }), /same parent/);
 });

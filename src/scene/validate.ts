@@ -943,11 +943,6 @@ function checkMuscle(out: Record<string, unknown>, state: SceneState, path: stri
     note(notes, 'dropped', `${path}.pulls`, `a muscle turns a hinge or pivot joint: give "${pulls}" one first (joint hinge about its end, or pivot) with min and max`);
     return false;
   }
-  const holder = conn.from === pulls ? conn.to : conn.from;
-  if (holder !== state.parents.get(pulls) && state.parents.get(holder) !== state.parents.get(pulls)) {
-    note(notes, 'dropped', path, `the other end of the muscle, "${holder}", must be on the part that holds "${pulls}" or beside it (the same parent)`);
-    return false;
-  }
   return true;
 }
 

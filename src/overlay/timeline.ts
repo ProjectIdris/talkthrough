@@ -806,7 +806,7 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       plan.couples = plan.couples.filter((c) => c.key !== pulled.key);
       const driver = loopDriver(pulled.key);
       plan.spins = plan.spins.filter((s) => s.key !== driver);
-      plan.muscles.push({ key: pulled.key, holderKey: holder.key, connectorKey: conn.key, from: heldEnd, to: pullEnd, contract: a.contract ?? 0.3 });
+      plan.muscles.push({ key: pulled.key, holderKey: holder.key, connectorKey: conn.key, from: heldEnd, to: pullEnd, contract: a.contract ?? 0.2 });
       const sp = spinPlanFrom({ key: driver, axis: 2, angle: a.phase ?? 0, rate: 0 });
       plan.spins.push(sp);
       setRate(sp, at, 360 / (a.period ?? 2), 0, 2);
@@ -1211,10 +1211,9 @@ function applyPoses(objects: ObjectFrame[], motion: Motion): void {
   // A muscle whose connector does not say how long it is relaxed is relaxed as it stands, so its belly swells as it shortens (the frame's copy of the connector carries it).
   for (const m of motion.muscles ?? []) {
     const conn = objects.find((o) => o.key === m.connectorKey);
-    const holder = objects.find((o) => o.key === m.holderKey), pulled = objects.find((o) => o.key === m.key);
     const joint = motion.joints.find((j) => j.key === m.key);
-    if (!conn || !holder || !pulled || !joint || (conn.def as AddConnector).restLength !== undefined) continue;
-    const rest = muscleRest(holder, pulled, joint, m.from, m.to);
+    if (!conn || !joint || (conn.def as AddConnector).restLength !== undefined) continue;
+    const rest = muscleRest(objects, m, joint);
     if (rest !== undefined && rest > 0.01) conn.def = { ...conn.def, restLength: rest } as AddConnector;
   }
   for (const o of objects) {

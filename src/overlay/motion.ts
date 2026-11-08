@@ -160,20 +160,45 @@ function muscleEnd(o: PoseObject, j: JointDef, to: Vec3, q: number): Vec3 {
   return [o.pos[0] + j.pivot[0] - t[0] + v[0], o.pos[1] + j.pivot[1] - t[1] + v[1], o.pos[2] + j.pivot[2] - t[2] + v[2]];
 }
 
-/** The far end of a muscle, in the pulled part's space: a point of its holder, which is the part's parent or sits beside it. Undefined when it is neither. */
-function muscleHold(h: PoseObject, o: PoseObject, from: Vec3, at?: { pos?: Vec3; rot?: Vec3 }): Vec3 | undefined {
-  if (h.key === o.parentKey) return from;
-  if (h.parentKey !== o.parentKey) return undefined;
-  const s = h.scale ?? [1, 1, 1];
-  const v = applyM(matOf(at?.rot ?? h.rot), [from[0] * s[0], from[1] * s[1], from[2] * s[2]]);
-  const p = at?.pos ?? h.pos;
-  return [p[0] + v[0], p[1] + v[1], p[2] + v[2]];
+/**
+ * The far end of a muscle, in the space the pulled part is placed in: a point of the holder, taken up through the holder's parents to the top of the scene
+ * (each as it stands now, `posed` where the machine has moved it) and down again through the pulled part's parents. The holder may be anywhere in the scene.
+ */
+function muscleHold(byKey: ReadonlyMap<number, PoseObject>, posed: ReadonlyMap<number, Pose>, holderKey: number, pulled: PoseObject, from: Vec3): Vec3 | undefined {
+  const step = (key: number): { pos: Vec3; m: M3; s: Vec3 } | undefined => {
+    const o = byKey.get(key);
+    if (!o) return undefined;
+    const at = posed.get(key);
+    return { pos: at?.pos ?? o.pos, m: matOf(at?.rot ?? o.rot), s: o.scale ?? [1, 1, 1] };
+  };
+  let p = from;
+  for (let key: number | null = holderKey, n = 0; key !== null && n < 64; n++) {
+    const t = step(key);
+    if (!t) return undefined;
+    const v = applyM(t.m, [p[0] * t.s[0], p[1] * t.s[1], p[2] * t.s[2]]);
+    p = [t.pos[0] + v[0], t.pos[1] + v[1], t.pos[2] + v[2]];
+    key = byKey.get(key)?.parentKey ?? null;
+  }
+  const down: number[] = [];
+  for (let key = pulled.parentKey, n = 0; key !== null && n < 64; n++) {
+    down.push(key);
+    key = byKey.get(key)?.parentKey ?? null;
+  }
+  for (const key of down.reverse()) {
+    const t = step(key);
+    if (!t) return undefined;
+    const v = applyM(transposeM(t.m), [p[0] - t.pos[0], p[1] - t.pos[1], p[2] - t.pos[2]]);
+    p = [v[0] / (t.s[0] || 1), v[1] / (t.s[1] || 1), v[2] / (t.s[2] || 1)];
+  }
+  return p;
 }
 
 /** How long a muscle is when relaxed: the distance between its ends with the joint at its rest value. */
-export function muscleRest(holder: PoseObject, pulled: PoseObject, joint: JointDef, from: Vec3, to: Vec3): number | undefined {
-  const a = muscleHold(holder, pulled, from);
-  return a ? lengthOf(a, muscleEnd(pulled, joint, to, 0)) : undefined;
+export function muscleRest(objects: readonly PoseObject[], m: MuscleDef, joint: JointDef): number | undefined {
+  const byKey = new Map(objects.map((o) => [o.key, o] as const));
+  const pulled = byKey.get(m.key);
+  const a = pulled ? muscleHold(byKey, new Map(), m.holderKey, pulled, m.from) : undefined;
+  return pulled && a ? lengthOf(a, muscleEnd(pulled, joint, m.to, 0)) : undefined;
 }
 
 /**
@@ -181,8 +206,8 @@ export function muscleRest(holder: PoseObject, pulled: PoseObject, joint: JointD
  * the way that shortens the muscle, to where the muscle is shortest inside the joint's limits; the target length is found between the two by bisection.
  * A target shorter than that stays at the shortest, one longer than the relaxed length stays at rest. Pure in its inputs.
  */
-function muscleValue(m: MuscleDef, holder: PoseObject, pulled: PoseObject, joint: JointDef, cycle: number, held?: { pos?: Vec3; rot?: Vec3 }): number | undefined {
-  const a = muscleHold(holder, pulled, m.from, held);
+function muscleValue(m: MuscleDef, byKey: ReadonlyMap<number, PoseObject>, posed: ReadonlyMap<number, Pose>, pulled: PoseObject, joint: JointDef, cycle: number): number | undefined {
+  const a = muscleHold(byKey, posed, m.holderKey, pulled, m.from);
   if (!a) return undefined;
   const lo = joint.min ?? -170, hi = joint.max ?? 170;
   const dist = (q: number): number => lengthOf(a, muscleEnd(pulled, joint, m.to, q));
@@ -341,9 +366,9 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     const mu = muscleOf.get(key);
     if (mu) {
       // A muscle pulls its part: the value is where its joint must be for the connector to be as short as the cycle says. Its holder's pose is the one so far.
-      const pulled = byKey.get(key), holder = byKey.get(mu.holderKey), joint = jointOf.get(key);
+      const pulled = byKey.get(key), joint = jointOf.get(key);
       const a = angleOf.get(loopDriver(key));
-      if (pulled && holder && joint && (joint.kind === 'hinge' || joint.kind === 'pivot') && a !== undefined) v = muscleValue(mu, holder, pulled, joint, (1 - Math.cos(a * DEG)) / 2, out.get(mu.holderKey));
+      if (pulled && joint && (joint.kind === 'hinge' || joint.kind === 'pivot') && a !== undefined) v = muscleValue(mu, byKey, out, pulled, joint, (1 - Math.cos(a * DEG)) / 2);
     } else if (c) {
       const b = depth < 8 ? valueOf(c.byKey, depth + 1) : undefined; // a coupling that comes round to itself is cut here
       if (b !== undefined) {
