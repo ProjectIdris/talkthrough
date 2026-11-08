@@ -29,6 +29,20 @@ test('a shape written as the op (op force, field, particles) is read as the add 
   assert.equal((cloud.step?.actions[0] as { shape?: string } | undefined)?.shape, 'particles', JSON.stringify(cloud.issues));
 });
 
+test('any shape name written as an op is rewritten, each with a note (sphere, tube, array, group too)', () => {
+  const box = { op: 'add', shape: 'box', id: 'b', size: [1, 1, 1] };
+  for (const written of [
+    { op: 'sphere', id: 's', size: [1, 1, 1] },
+    { op: 'group', id: 'g' },
+    { op: 'tube', id: 't', pts: [[0, 0, 0], [0, 2, 0]], radius: 0.2 },
+    { op: 'array', id: 'a', of: 'b', count: 3, step: [1, 0, 0] },
+  ]) {
+    const r = check(box, written);
+    assert.equal((r.step?.actions[1] as { shape?: string } | undefined)?.shape, written.op, `${written.op}: ${JSON.stringify(r.issues)}`);
+    assert.ok(r.issues.some((i) => new RegExp(`op "${written.op}" read as add with shape ${written.op}`).test(i.message)), `${written.op} has its note`);
+  }
+});
+
 test('a name that is no shape stays dropped, and so does an op whose shape is given as something else', () => {
   const nothing = check({ op: 'frobnicate', id: 'f' });
   assert.ok(nothing.issues.some((i) => /unknown action "frobnicate"/.test(i.message)), JSON.stringify(nothing.issues));

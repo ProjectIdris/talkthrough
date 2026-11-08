@@ -499,7 +499,11 @@ function fitStage(raw: Record<string, unknown>, state: SceneState, path: string,
   return next;
 }
 
-/** A shape written as the op (op "force" for add with shape force, as a model has done): read as the add it was meant to be, with a note. */
+/**
+ * A shape written as the op (op "force" for add with shape force, as a model has done): read as the add it was meant to be, with a note.
+ * This is general: any shape name an `add` takes (sphere, tube, array, group, connector, ...) written as an op is rewritten the same way,
+ * each with its own note; a name that is no op and no shape stays dropped, and so does an op that also gives a different shape.
+ */
 function shapeAsOp(raw: object, path: string, notes: Notes): object {
   const op = own(raw, 'op');
   if (typeof op !== 'string' || VARIANTS.some((v) => v.op === op)) return raw;

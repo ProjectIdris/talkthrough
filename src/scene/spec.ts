@@ -617,7 +617,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'muscle', op: 'muscle',
-    doc: 'A connector that is a muscle: it shortens by contract (a fraction of its relaxed length, 0.02 to 0.9) and lengthens again every period seconds, turning the part it pulls (pulls, the id of one of its two ends, or from or to; that part needs a hinge or pivot joint with min and max). Join the ends with fromPoint and toPoint or fromAnchor and toAnchor; its belly swells as it shortens (swell). id is the connector.',
+    doc: 'A connector that is a muscle: it shortens by contract (a fraction of its relaxed length, 0.02 to 0.9; 0.1 to 0.25 for a limb) and lengthens again every period seconds, turning the part it pulls (pulls, the id of one of its two ends, or from or to; that part needs a hinge or pivot joint with min and max). Join the ends with fromPoint and toPoint or fromAnchor and toAnchor; its belly swells as it shortens (swell). id is the connector.',
     fields: {
       id: { k: 'ref', of: 'object3d' }, pulls: { k: 'str', min: 1, max: 40, doc: 'the id of the part it pulls (an end of the connector), or from or to for that end' },
       contract: { k: 'num', min: 0.02, max: 0.9, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true },
