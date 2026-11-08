@@ -66,6 +66,17 @@
         "glow",
         "paper",
         "tissue",
+        "bone",
+        "muscle",
+        "tendon",
+        "skin",
+        "steel",
+        "iron",
+        "brass",
+        "copper",
+        "wood",
+        "rope",
+        "water",
         null
       ]
     },

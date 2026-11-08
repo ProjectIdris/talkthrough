@@ -1148,9 +1148,20 @@
             "glow",
             "paper",
             "tissue",
+            "bone",
+            "muscle",
+            "tendon",
+            "skin",
+            "steel",
+            "iron",
+            "brass",
+            "copper",
+            "wood",
+            "rope",
+            "water",
             null
           ],
-          "description": "surface, default plastic"
+          "description": "named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic"
         },
         "roughness": {
           "type": [
@@ -1349,9 +1360,20 @@
             "glow",
             "paper",
             "tissue",
+            "bone",
+            "muscle",
+            "tendon",
+            "skin",
+            "steel",
+            "iron",
+            "brass",
+            "copper",
+            "wood",
+            "rope",
+            "water",
             null
           ],
-          "description": "surface, default plastic"
+          "description": "named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic"
         },
         "roughness": {
           "type": [
@@ -1561,9 +1583,20 @@
             "glow",
             "paper",
             "tissue",
+            "bone",
+            "muscle",
+            "tendon",
+            "skin",
+            "steel",
+            "iron",
+            "brass",
+            "copper",
+            "wood",
+            "rope",
+            "water",
             null
           ],
-          "description": "surface, default plastic"
+          "description": "named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic"
         },
         "roughness": {
           "type": [
@@ -1745,9 +1778,20 @@
             "glow",
             "paper",
             "tissue",
+            "bone",
+            "muscle",
+            "tendon",
+            "skin",
+            "steel",
+            "iron",
+            "brass",
+            "copper",
+            "wood",
+            "rope",
+            "water",
             null
           ],
-          "description": "surface, default plastic"
+          "description": "named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic"
         },
         "roughness": {
           "type": [
@@ -1931,9 +1975,20 @@
             "glow",
             "paper",
             "tissue",
+            "bone",
+            "muscle",
+            "tendon",
+            "skin",
+            "steel",
+            "iron",
+            "brass",
+            "copper",
+            "wood",
+            "rope",
+            "water",
             null
           ],
-          "description": "surface, default plastic"
+          "description": "named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic"
         },
         "roughness": {
           "type": [
@@ -2105,9 +2160,20 @@
             "glow",
             "paper",
             "tissue",
+            "bone",
+            "muscle",
+            "tendon",
+            "skin",
+            "steel",
+            "iron",
+            "brass",
+            "copper",
+            "wood",
+            "rope",
+            "water",
             null
           ],
-          "description": "surface, default plastic"
+          "description": "named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic"
         },
         "roughness": {
           "type": [
@@ -2304,9 +2370,20 @@
             "glow",
             "paper",
             "tissue",
+            "bone",
+            "muscle",
+            "tendon",
+            "skin",
+            "steel",
+            "iron",
+            "brass",
+            "copper",
+            "wood",
+            "rope",
+            "water",
             null
           ],
-          "description": "surface, default plastic"
+          "description": "named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic"
         },
         "roughness": {
           "type": [
@@ -2500,9 +2577,20 @@
             "glow",
             "paper",
             "tissue",
+            "bone",
+            "muscle",
+            "tendon",
+            "skin",
+            "steel",
+            "iron",
+            "brass",
+            "copper",
+            "wood",
+            "rope",
+            "water",
             null
           ],
-          "description": "surface, default plastic"
+          "description": "named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic"
         },
         "roughness": {
           "type": [
@@ -2692,9 +2780,20 @@
             "glow",
             "paper",
             "tissue",
+            "bone",
+            "muscle",
+            "tendon",
+            "skin",
+            "steel",
+            "iron",
+            "brass",
+            "copper",
+            "wood",
+            "rope",
+            "water",
             null
           ],
-          "description": "surface, default plastic"
+          "description": "named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic"
         },
         "roughness": {
           "type": [
@@ -2855,9 +2954,20 @@
             "glow",
             "paper",
             "tissue",
+            "bone",
+            "muscle",
+            "tendon",
+            "skin",
+            "steel",
+            "iron",
+            "brass",
+            "copper",
+            "wood",
+            "rope",
+            "water",
             null
           ],
-          "description": "surface, default plastic"
+          "description": "named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic"
         },
         "roughness": {
           "type": [
@@ -3167,9 +3277,20 @@
             "glow",
             "paper",
             "tissue",
+            "bone",
+            "muscle",
+            "tendon",
+            "skin",
+            "steel",
+            "iron",
+            "brass",
+            "copper",
+            "wood",
+            "rope",
+            "water",
             null
           ],
-          "description": "surface, default plastic"
+          "description": "named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic"
         },
         "roughness": {
           "type": [

@@ -1,6 +1,8 @@
 // Scene language v0: the single table the validator and the JSON Schema are both built from.
 // Change a field here and both follow; docs/scene-language.md describes the same table.
 
+import { MATERIAL_NAMES } from './material-library.ts';
+
 export const PALETTE = [
   'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink', 'white', 'gray', 'black',
 ] as const;
@@ -127,9 +129,9 @@ const ROT: Field = { k: 'vec3', min: -3600, max: 3600, opt: true, doc: 'degrees 
 const EXPLODE: Field = { k: 'vec3', ...WORLD, opt: true, doc: 'where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it' };
 
 /** The surfaces a 3D object can be made of; the colour tints them. */
-export const MATERIALS = ['plastic', 'metal', 'rubber', 'pcb', 'glass', 'glow', 'paper', 'tissue'] as const;
+export const MATERIALS = MATERIAL_NAMES;
 const SIDE: Field = { k: 'enum', values: ['left', 'right', 'top', 'bottom', 'front', 'back'], opt: true };
-const MATERIAL: Field = { k: 'enum', values: MATERIALS, opt: true, doc: 'surface, default plastic' };
+const MATERIAL: Field = { k: 'enum', values: MATERIALS, opt: true, doc: 'named surface (the tint in color keeps within that material own range of lightness, so bone stays bone), default plastic' };
 /** Optional physical finish controls. Keeping these separate from opacity preserves each recipe's transparency. */
 const FINISH: Record<string, Field> = {
   roughness: { k: 'num', min: 0, max: 1, opt: true, doc: 'base surface: 0 polished, 1 matte; omitted keeps the material recipe' },

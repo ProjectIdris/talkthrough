@@ -2,6 +2,7 @@
 // A validated action never carries null: absent optional fields are simply missing.
 
 import type { DiagramKind } from './spec.ts';
+import type { MaterialName } from './material-library.ts';
 export type { DiagramKind } from './spec.ts';
 
 export type Vec3 = [number, number, number];
@@ -62,7 +63,7 @@ export type DiagramThing = DiagramAction | DiagramPiece;
 export type PanelAction = { op: 'panel'; x: number; y: number; w: number; h: number; frame?: boolean } & Timing;
 
 // 3D objects, added to the stage. Units: y up, x right, z toward the viewer.
-export type Material = 'plastic' | 'metal' | 'rubber' | 'pcb' | 'glass' | 'glow' | 'paper' | 'tissue';
+export type Material = MaterialName;
 /** Optional 0..1 overrides of a named surface. Missing values keep that recipe; low quality disables clearcoat. */
 export type SurfaceFinish = { roughness?: number; metalness?: number; clearcoat?: number; clearcoatRoughness?: number };
 type Surface = { color?: Color; material?: Material; edges?: boolean; opacity?: number } & SurfaceFinish;

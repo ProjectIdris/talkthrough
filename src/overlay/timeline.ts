@@ -10,6 +10,7 @@ import { heldShift, mountPosition } from '../scene/attach.ts';
 import { anchorsOf } from '../scene/anchors.ts';
 import { resolvePartGeometry } from '../scene/part-geometry.ts';
 import { PALETTE_RGB } from '../scene/colors.ts';
+import { MATERIAL_LIBRARY } from '../scene/material-library.ts';
 import { advanceMotion, crankPinKey, crankPinSize, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
 import type { CamDef, CoupleDef, CrankDef, FlashDef, JointDef, LoopDef, Motion, Pose, SpinPlan } from './motion.ts';
 import { applyDiagramAction, clearDiagrams, diagramPlanFrom, diagramTimes, emptyDiagramPlan, evaluateDiagrams, pulseDiagramThing, styleDiagramThing } from './diagram-plan.ts';
@@ -31,11 +32,8 @@ export const DEFAULT_CAMERA = { az: 0, el: 15, zoom: 1 } as const;
 export const WORDS_PER_SECOND = 2.5;
 
 
-/** The colour a 3D object has when the scene does not give one, by its surface. */
-export const MATERIAL_COLOR: Record<string, Rgb> = {
-  plastic: [214, 218, 226], metal: [196, 202, 212], rubber: [44, 46, 54], pcb: [22, 122, 70],
-  glass: [168, 200, 232], glow: [255, 214, 10], paper: [246, 241, 229],
-};
+/** The colour a 3D object has when the scene does not give one, by its surface (the library's). */
+export const MATERIAL_COLOR: Record<string, Rgb> = Object.fromEntries(MATERIAL_LIBRARY.map((m) => [m.name, [...m.color] as Rgb]));
 
 /** The colour a new 3D object has when the scene does not give one. */
 export function defaultColor(def: AddAction): Rgb {
