@@ -8,6 +8,7 @@ import type { ButtonCatchers, ButtonRect } from './button-catchers.ts';
 import { electronCatcherWindow } from './button-window.ts';
 import { createClickGuard, createGuideArmGate, createKeyGate, createKeyHold, ignoreMouse, keyWanted } from './interaction.ts';
 import { createEscape } from './escape.ts';
+import { createOverlayVisibility, overlayOccupied, wakesOverlay } from './overlay-visibility.ts';
 import type { Region } from './interaction.ts';
 import { containsWireContentExceptModel, containsWireId, containsWireRegion, createVisibleRegionReceiver } from './visible-region-wire.ts';
 import type { VoiceBridge } from './voice-bridge.ts';
@@ -71,7 +72,7 @@ export type OverlayOptions = {
   onDetail?: (displayId: number) => void;
 };
 
-type Overlay = { catchers: ButtonCatchers; buttons: ButtonRect[]; visible: ReturnType<typeof createVisibleRegionReceiver>; guide: ReturnType<typeof createGuideArmGate>; modelHit?: { x: number; y: number; revision: number; askedAt: number; hit?: boolean }; window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; showing: boolean; pointerHeld: boolean; mouseIgnored: boolean; pen: boolean; penOffAt: number; /** The person pressed on the model (E is then ours until they leave it). */ engaged: boolean; /** The model's region on the screen (what the page last said the pointer is over) and the gate that checks the real cursor against it. */ region?: Region; gate: ReturnType<typeof createKeyGate>; guard: ReturnType<typeof createClickGuard> };
+type Overlay = { vis: ReturnType<typeof createOverlayVisibility>; catchers: ButtonCatchers; buttons: ButtonRect[]; visible: ReturnType<typeof createVisibleRegionReceiver>; guide: ReturnType<typeof createGuideArmGate>; modelHit?: { x: number; y: number; revision: number; askedAt: number; hit?: boolean }; window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; showing: boolean; pointerHeld: boolean; mouseIgnored: boolean; pen: boolean; penOffAt: number; /** The person pressed on the model (E is then ours until they leave it). */ engaged: boolean; /** The model's region on the screen (what the page last said the pointer is over) and the gate that checks the real cursor against it. */ region?: Region; gate: ReturnType<typeof createKeyGate>; guard: ReturnType<typeof createClickGuard> };
 
 /**
  * One overlay window per display: transparent, frameless, always on top, off the taskbar, never
@@ -80,6 +81,7 @@ type Overlay = { catchers: ButtonCatchers; buttons: ButtonRect[]; visible: Retur
  */
 export function createOverlayManager(options: OverlayOptions) {
   const overlays = new Map<number, Overlay>();
+  const alwaysUp = options.backdrop !== undefined || options.size !== undefined;
 
   // The E key: taken from the system only while it is wanted (see keyWanted), never by focusing a window.
   const keys = createKeyHold({
@@ -199,14 +201,23 @@ export function createOverlayManager(options: OverlayOptions) {
       }
     });
     window.on('page-title-updated', (event) => event.preventDefault()); // keep our own title
+    // The window is up only while there is something to show (see overlay-visibility.ts); a run with a development backdrop or window size keeps it up as before.
     window.once('ready-to-show', () => {
-      if (options.hidden) return;
-      window.showInactive();
-      // Windows places a window by the DPI of the display it started on; set the bounds again once shown.
-      window.setBounds(display.bounds);
+      if (alwaysUp) overlay.vis.wake();
     });
     void window.loadFile(options.page);
     const overlay: Overlay = {
+      vis: createOverlayVisibility({
+        show: () => {
+          if (options.hidden || window.isDestroyed()) return;
+          window.showInactive();
+          // Windows places a window by the DPI of the display it started on; set the bounds again once shown.
+          window.setBounds(overlay.display.bounds);
+        },
+        hide: () => {
+          if (!window.isDestroyed()) window.hide();
+        },
+      }),
       catchers: createButtonCatchers({
         makeWindow: () => electronCatcherWindow({ hideFromCapture: options.hideFromCapture }),
         onPress: (id) => {
@@ -250,6 +261,17 @@ export function createOverlayManager(options: OverlayOptions) {
     return { x: b.x + (r.x as number), y: b.y + (r.y as number), w: r.w as number, h: r.h as number };
   }
 
+  /** What the window is asked to be for (see overlayOccupied): the page's own list of what it shows, and what the person is in the middle of. */
+  function occupied(overlay: Overlay): boolean {
+    return overlayOccupied({
+      alwaysUp, pen: overlay.pen, showing: overlay.showing, holding: overlay.pageWantsClicks || overlay.pointerHeld || overlay.engaged,
+      busy: options.answerBusy?.() === true, shown: overlay.vis.shown, alphas: overlay.visible.current?.regions.map((r) => r.alpha) ?? [],
+    });
+  }
+  function settle(overlay: Overlay): void {
+    if (!overlay.window.isDestroyed()) overlay.vis.update(occupied(overlay));
+  }
+
   function find(event: IpcMainEvent): Overlay | undefined {
     for (const overlay of overlays.values()) {
       if (overlay.window.webContents === event.sender) return overlay;
@@ -279,6 +301,7 @@ export function createOverlayManager(options: OverlayOptions) {
     }
     refreshKey();
     applyMouse(overlay);
+    settle(overlay);
   });
   // The user pressed on the model (or its button): E is ours until the pointer leaves it, the click lease runs out or the
   // pen goes on. The window never takes focus, so the program they are using keeps its keyboard throughout.
@@ -296,6 +319,7 @@ export function createOverlayManager(options: OverlayOptions) {
     escape.showing(overlay.display.id, on);
     options.onShowing?.(overlay.display.id, on);
     applyMouse(overlay);
+    settle(overlay);
   });
   ipcMain.on(CHANNEL.followup, (event, command: unknown) => {
     const overlay = find(event);
@@ -304,7 +328,7 @@ export function createOverlayManager(options: OverlayOptions) {
   });
   ipcMain.on(CHANNEL.visibleRegions, (event, snapshot: unknown) => {
     const overlay = find(event);
-    if (overlay && overlay.visible.accept(snapshot)) applyMouse(overlay);
+    if (overlay && overlay.visible.accept(snapshot)) { applyMouse(overlay); settle(overlay); }
   });
   ipcMain.on(CHANNEL.guideReady, (event, token: unknown, revision: unknown) => {
     const overlay = find(event), snapshot = overlay?.visible.current;
@@ -316,6 +340,7 @@ export function createOverlayManager(options: OverlayOptions) {
     if (!overlay || typeof on !== 'boolean') return;
     overlay.pointerHeld = on;
     applyMouse(overlay);
+    settle(overlay);
   });
   ipcMain.on(CHANNEL.modelHit, (event, value: unknown) => {
     const overlay = find(event), pending = overlay?.modelHit;
@@ -438,6 +463,9 @@ export function createOverlayManager(options: OverlayOptions) {
   // A protected guide target must return to the underlying page as the real pointer enters it.
   const mouseTimer = setInterval(() => { for (const overlay of overlays.values()) if (overlay.showing) applyMouse(overlay); }, 25);
   mouseTimer.unref();
+  // Now and then, whatever else changed (a question ended, a fade finished): look again at whether the window is still needed.
+  const visibilityTimer = setInterval(() => { for (const overlay of overlays.values()) settle(overlay); }, 250);
+  visibilityTimer.unref();
 
   function sync(): void {
     const current = screen.getAllDisplays();
@@ -465,6 +493,7 @@ export function createOverlayManager(options: OverlayOptions) {
     /** Send a scene message to the overlay of one display; every other display's overlay is cleared. */
     send(displayId: number, message: SceneMessage): void {
       const deliver = (overlay: Overlay, m: SceneMessage) => {
+        if (wakesOverlay(m)) overlay.vis.wake();
         if (m.kind === 'clear' || m.kind === 'dismiss' || ((m.kind === 'begin' || m.kind === 'play') && m.turn <= 1 && !('detail' in m && m.detail))) clearRouting(overlay);
         let guideToken: number | undefined;
         if (m.kind === 'status') {
@@ -491,8 +520,11 @@ export function createOverlayManager(options: OverlayOptions) {
     setPen(displayId: number | null): void {
       for (const [id, overlay] of overlays) {
         const on = id === displayId;
-        if (overlay.pen && !on) overlay.penOffAt = Date.now();
+        const was = overlay.pen;
+        if (was && !on) overlay.penOffAt = Date.now();
         overlay.pen = on;
+        // The pen takes the mouse and draws on the screen, and its stroke fades after: the window is up for both.
+        if (on || was) overlay.vis.wake();
         // One window failing must never leave another one holding the mouse.
         try {
           if (!overlay.window.isDestroyed()) {
@@ -570,6 +602,7 @@ export function createOverlayManager(options: OverlayOptions) {
     },
     dispose(): void {
       clearInterval(mouseTimer);
+      clearInterval(visibilityTimer);
       options.voice?.bridge?.dispose();
       options.voice?.system?.dispose();
       screen.off('display-added', sync);
