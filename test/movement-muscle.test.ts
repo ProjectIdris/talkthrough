@@ -97,10 +97,34 @@ test('the two ends can hang on different branches of the scene: the holder need 
   assert.ok(Math.abs(rotOf(evaluate(plan, 2), 'fore')[2]) > 5, 'the forearm is turned');
 });
 
+test('a parent scaled differently on each axis does not skew the muscle: its world length is (1 - contract x cycle) of relaxed', () => {
+  for (const scale of [[1, 2, 1], [2, 1, 0.5], [1, 1, 1], [2, 2, 2]]) {
+    const group = { op: 'add', shape: 'group', id: 'arm', pos: [1, 2, 0] };
+    const humerus = { op: 'add', shape: 'box', id: 'upper', size: [1, 4, 1], parent: 'arm' };
+    const elbow = { op: 'add', shape: 'sphere', id: 'elbow', size: [1, 1, 1], parent: 'arm', pos: [0, -2.4, 0] };
+    const forearm = { op: 'add', shape: 'box', id: 'fore', size: [0.8, 3, 0.8], parent: 'elbow', parentAnchor: 'bottom', selfAnchor: 'top' };
+    const conn = { op: 'add', shape: 'connector', id: 'bicep', parent: 'arm', from: 'upper', to: 'fore', fromPoint: [0.6, -0.5, 0], toPoint: [0.5, 0.2, 0] };
+    const { plan, issues } = run(group, { op: 'scale', id: 'arm', to: scale, dur: 0 }, humerus, elbow, forearm, conn, { op: 'joint', id: 'fore', kind: 'hinge', about: 'top', axis: 'z', min: -120, max: 120 }, { op: 'muscle', id: 'bicep', pulls: 'fore', contract: 0.25, period: 4 });
+    assert.deepEqual(issues, []);
+    const gap = (t: number) => { const f = evaluate(plan, t); return world(f, 'upper', [0.6, -0.5, 0]).distanceTo(world(f, 'fore', [0.5, 0.2, 0])); };
+    assert.ok(Math.abs(gap(2) / gap(0) - 0.75) < 1e-3, `scale ${scale}: peak over relaxed is ${gap(2) / gap(0)}, not 0.75`);
+  }
+});
+
 test('the end can be said as from or to, the connector own names for them', () => {
   const { plan, issues } = run(upper, fore(), bicep(), hinge(), { op: 'muscle', id: 'bicep', pulls: 'to', contract: 0.25, period: 4 });
   assert.deepEqual(issues, []);
   assert.ok(Math.abs(span(plan, 2) - span(plan, 0) * 0.75) < 1e-4, 'the part at the to end is pulled');
+});
+
+test('a muscle on a joint with no room to turn is kept but noted, so it is not silent', () => {
+  const noteOf = (extra: object) => validateStep({ say: 'x', actions: [upper, fore(), bicep(), hinge(extra), { op: 'muscle', id: 'bicep', pulls: 'fore' }] }, createSceneState());
+  for (const range of [{ min: 0, max: 0 }, { min: 10, max: 10 }, { min: 0, max: 1.5 }]) {
+    const r = noteOf(range);
+    assert.ok(r.issues.some((i) => /can turn only .* degrees .*the muscle cannot move it/.test(i.message)), JSON.stringify([range, r.issues]));
+    assert.ok(r.step?.actions.some((a) => a.op === 'muscle'), 'the muscle is kept');
+  }
+  for (const range of [{ min: -120, max: 120 }, { min: 0, max: 60 }, {}]) assert.deepEqual(noteOf(range).issues, [], JSON.stringify(range));
 });
 
 test('a muscle that cannot work is refused with the reason', () => {

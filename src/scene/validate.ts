@@ -39,6 +39,8 @@ export type SceneState = {
   spins: Map<string, 'x' | 'y' | 'z'>;
   /** The two ends of each connector made so far: a muscle is one of them. */
   connectors?: Map<string, { from: string; to: string }>;
+  /** The min and max each joint was given: a muscle on a joint with no room to turn cannot move it. */
+  jointRanges?: Map<string, { min?: number; max?: number }>;
   /** The parts a muscle pulls: a loop or coupling written for one is dropped (the muscle drives it) until a loop stop frees it. */
   muscled?: Set<string>;
   /** Where each 3D solid and group stands and how big it is, with normalized kit dimensions: what a tube or line that ends on a part is held against (attach.ts). */
@@ -84,7 +86,7 @@ export function createSceneState(): SceneState {
 export function createDetailState(onScreen: SceneState): SceneState {
   return {
     ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides), spins: new Map(onScreen.spins),
-    bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [], connectors: new Map(onScreen.connectors ?? []), muscled: new Set(onScreen.muscled ?? []),
+    bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [], connectors: new Map(onScreen.connectors ?? []), muscled: new Set(onScreen.muscled ?? []), jointRanges: new Map(onScreen.jointRanges ?? []),
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
     ...(onScreen.stage ? { stage: { ...onScreen.stage } } : {}),
   };
@@ -855,12 +857,15 @@ function checkJoint(out: Record<string, unknown>, state: SceneState, path: strin
   if (out.kind !== 'ball') delete out.limit;
   if (out.kind !== 'hinge' && out.kind !== 'ball') delete out.about;
   state.joints.set(id, out.kind as 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball');
+  (state.jointRanges ??= new Map()).set(id, { min: out.min as number | undefined, max: out.max as number | undefined });
   return true;
 }
 
 /**
  * A spin on a part inside a part that already spins about the same axis: it turns with its holder already, so a spin of its own would add to that and turn it
  * twice as fast (a bicycle's wheel parented to its spinning rear cog, then spun again). The second spin is dropped, saying which part it already turns with.
+ * The other order is the same fault: a part inside this one already spins about the axis (the wheel was spun first, then its holder). The holder's spin
+ * is the one kept, so the part's own is stopped (a spin of rate zero, written after) with a note.
  */
 function checkSpin(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
   const id = out.id as string;
@@ -874,6 +879,15 @@ function checkSpin(out: Record<string, unknown>, state: SceneState, path: string
       note(notes, 'dropped', path, `${id} is inside ${cur}, which already spins about ${axis}: it turns with it, and a spin of its own would turn it twice as fast`);
       return false;
     }
+  }
+  for (const [inner, innerAxis] of [...state.spins]) {
+    if (inner === id || innerAxis !== axis) continue;
+    let inside = false;
+    for (let cur = state.parents.get(inner), n = 0; cur !== undefined && n < 32; cur = state.parents.get(cur), n++) if (cur === id) { inside = true; break; }
+    if (!inside) continue;
+    note(notes, 'trimmed', path, `${inner} is inside ${id}, which now spins about ${axis}: it turns with it, so its own spin about ${axis} is stopped (it would turn twice as fast)`);
+    state.spins.delete(inner);
+    state.after.push({ op: 'spin', id: inner, rpm: 0, dur: 0, at: (out.at as number | undefined) ?? 0 } as unknown as Action);
   }
   state.spins.set(id, axis);
   return true;
@@ -951,6 +965,11 @@ function checkMuscle(out: Record<string, unknown>, state: SceneState, path: stri
   if (joint !== 'hinge' && joint !== 'pivot') {
     note(notes, 'dropped', `${path}.pulls`, `a muscle turns a hinge or pivot joint: give "${pulls}" one first (joint hinge about its end, or pivot) with min and max`);
     return false;
+  }
+  // Whether the joint can shorten the muscle depends on which way it pulls (the validator does not know), but a joint with no room at all is plain.
+  const range = state.jointRanges?.get(pulls);
+  if (range && range.min !== undefined && range.max !== undefined && range.max - range.min < 2) {
+    note(notes, 'trimmed', `${path}.pulls`, `the joint of "${pulls}" can turn only ${Math.max(0, range.max - range.min)} degrees (min ${range.min}, max ${range.max}): the muscle cannot move it; give it min and max wide enough for the way it pulls (like -120 to 120)`);
   }
   (state.muscled ??= new Set()).add(pulls);
   return true;
