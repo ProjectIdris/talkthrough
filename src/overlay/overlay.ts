@@ -24,6 +24,7 @@ import { OmissionCue, SurfaceAdmission, admittedFrame, omitStageForCue, stageKee
 import { Placer, cardFootprint, displayBoxesFromPixels, followDiagram, markFootprint, ownedByDiagram, pageGrid, foreseePoints, placeAction, reserveMarks, settleMark, splitOwned } from './placement.ts';
 import { FaceBook, THEME, fontAt } from './theme.ts';
 import { snapToControl } from '../shared/controls.ts';
+import { VOICE_SERVER_DOWN } from '../shared/fault-help.ts';
 import type { ControlBox } from '../shared/controls.ts';
 import { snapActions } from './snap.ts';
 import type { Snapper } from './snap.ts';
@@ -1779,6 +1780,7 @@ function applyScene(message: SceneMessage): void {
 
 window.addEventListener('resize', resize);
 let serverVoiceSet = false;
+let serverDownSaid = false;
 window.talkthrough.onDisplay((info) => {
   display = info;
   // A voice server, with the system voice as its spare; a development run that speaks nothing overrides both.
@@ -1787,6 +1789,12 @@ window.talkthrough.onDisplay((info) => {
     player.setVoice(createServerVoice(window.talkthrough.voice, info.voice, chooseVoice(), (line) => console.info(`talkthrough: ${line}`), {
       ...(info.speaker ? { speaker: info.speaker } : {}),
       onSinkLost: () => hud.showNotice('The speaker you chose is not available, so the system default is used.', 'info', performance.now()),
+      // Said once: a voice server that is down costs one notice, not one for every step.
+      onServerDown: () => {
+        if (serverDownSaid) return;
+        serverDownSaid = true;
+        hud.showNotice(VOICE_SERVER_DOWN, 'info', performance.now(), 'settings');
+      },
     }));
     // The step waits as long for the server's first sound as the voice does before the system voice speaks instead.
     player.setPatience(info.voice.firstAudioMs + VOICE_PATIENCE_MARGIN_MS);

@@ -59,6 +59,7 @@
     <label class="opt" data-route="openai"><input type="radio" name="model" value="openai"><span class="what"><span class="name">API key</span><span class="chip" data-chip="openai"></span><div class="hint">An OpenAI API key, stored encrypted for your Windows account.</div></span></label>
     <label class="opt" data-route="local"><input type="radio" name="model" value="local"><span class="what"><span class="name">Local model</span><span class="chip" data-chip="local"></span><div class="hint">A model on this computer, through Ollama or LM Studio.</div></span></label>
   </div>
+  <div class="hint" id="routeHelp" style="margin-top:8px"></div>
   <div class="row" style="margin-top:10px"><div class="what"><div class="lab">Model</div><div class="hint" id="firstModelHint"></div></div><div class="ctl"><input type="text" id="modelName" autocomplete="off" spellcheck="false"></div></div>
   <div class="row hide" data-for="codex"><div class="what"><div class="lab">Fast mode</div><div class="hint">Answers sooner and uses more of your Codex allowance.</div></div><div class="ctl"><input type="checkbox" class="tog" id="codexFast" aria-label="Fast mode"></div></div>
   <div id="keybox" class="hide">

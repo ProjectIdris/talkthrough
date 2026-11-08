@@ -6,6 +6,7 @@ import { CHORD_KEYS, splitHotkey } from '../shared/chord-keys.ts';
 import { modelLine } from '../main/model-plan.ts';
 import type { FirstRunInfo, ToolsFound } from '../shared/ipc.ts';
 import { DEFAULT_LOCAL_URL } from '../shared/settings-form.ts';
+import { routeHelp } from '../shared/fault-help.ts';
 import type { Route, SettingsForm } from '../shared/settings-form.ts';
 
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -118,6 +119,8 @@ function renderRoutes(): void {
     chip.textContent = word;
     chip.className = `chip ${kind}`.trim();
   }
+  el('claudeHelp').textContent = routeHelp('claude', tools.claude);
+  el('codexHelp').textContent = routeHelp('codex', tools.codex);
   for (const opt of document.querySelectorAll<HTMLElement>('#routes .opt')) opt.classList.toggle('sel', opt.dataset.route === route);
   for (const body of document.querySelectorAll<HTMLElement>('[data-body]')) body.classList.toggle('hide', body.dataset.body !== route);
   // What answers will use, as the settings hold it (with this route in place of the saved one).

@@ -5,6 +5,7 @@ import { CHORD_KEYS, DEFAULT_HOTKEY, MAX_HOTKEY_KEYS, hotkeyWarning, keyNameOfDo
 import { changedKeys, DEFAULT_LOCAL_URL, KNOWN_MODELS, savedMessage, SWITCH_WARNINGS } from '../shared/settings-form.ts';
 import type { Route, SettingsForm } from '../shared/settings-form.ts';
 import type { AudioDevice, ToolsFound, UpdateView } from '../shared/ipc.ts';
+import { routeHelp } from '../shared/fault-help.ts';
 
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const text = (id: string): HTMLInputElement => el<HTMLInputElement>(id);
@@ -37,6 +38,7 @@ function arrange(): void {
   shownRoute = route;
   text('modelName').value = names[route];
   text('modelName').placeholder = route === 'local' ? 'The model name on your server, such as gemma3:12b' : '';
+  renderChips();
   for (const tile of document.querySelectorAll<HTMLElement>('#firstTiles .opt')) tile.classList.toggle('sel', tile.dataset.route === route);
   for (const part of document.querySelectorAll<HTMLElement>('[data-for]')) part.classList.toggle('hide', part.dataset.for !== route);
   const detail = select('detailRoute').value;
@@ -121,6 +123,8 @@ function renderChips(): void {
     chip.textContent = word;
     chip.className = `chip ${kind}`.trim();
   }
+  const route = chosenRoute();
+  el('routeHelp').textContent = routeHelp(route, route === 'claude' ? tools.claude : tools.codex);
 }
 
 // ---- The keys: one key, or a chord, recorded by pressing them ----------------------------------------------------------------------------
