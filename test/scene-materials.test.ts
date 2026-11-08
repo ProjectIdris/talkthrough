@@ -76,3 +76,10 @@ test('a scene that names a new material is kept, and one that names a material t
   const refused = validateStep(step('unobtainium'), createSceneState());
   assert.ok(!refused.step || !refused.step.actions.some((a) => 'id' in a && a.id === 'humerus'));
 });
+
+test('a connector that names a material has that material colour, and one that names none is the plain grey cord', () => {
+  const connector = (extra: object) => ({ op: 'add', shape: 'connector', id: 'c', from: 'a', to: 'b', ...extra }) as AddAction;
+  assert.deepEqual(defaultColor(connector({ material: 'muscle' })), [...materialRow('muscle')!.color]);
+  assert.deepEqual(defaultColor(connector({ material: 'rope' })), [...materialRow('rope')!.color]);
+  assert.deepEqual(defaultColor(connector({})), [104, 108, 118]);
+});

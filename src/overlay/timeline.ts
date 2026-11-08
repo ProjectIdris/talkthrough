@@ -52,8 +52,9 @@ export function defaultColor(def: AddAction): Rgb {
     }
   }
   if (def.shape === 'stream') return [240, 244, 250];
-  if (def.shape === 'connector') return [104, 108, 118];
   const material = 'material' in def ? def.material : undefined;
+  // A connector with no material is a plain grey cord; one that names a material (a muscle, a rope) has that material's colour.
+  if (def.shape === 'connector' && material === undefined) return [104, 108, 118];
   return [...(MATERIAL_COLOR[material ?? 'plastic'] ?? (MATERIAL_COLOR.plastic as Rgb))] as Rgb;
 }
 
