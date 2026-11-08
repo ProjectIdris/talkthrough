@@ -43,7 +43,9 @@ test('the guide names every action and its example is a valid scene', () => {
   for (const v of VARIANTS) assert.ok(sceneGuide.includes(`- ${v.op} {`), v.op);
   const r = validateScene(sceneGuideExample, createSceneState());
   assert.deepEqual(r.issues, []);
-  assert.deepEqual(r.scene, sceneGuideExample);
+  // the example's two gears are a train, and the validator adds a shaft through each (named <gear>-shaft); nothing else of the example changes
+  const without = { ...(r.scene as object), steps: (r.scene as { steps: { actions: { op: string; id?: string }[] }[] }).steps.map((st) => ({ ...st, actions: st.actions.filter((x) => !(x.op === 'add' && /-shaft$/.test(x.id ?? ''))) })) };
+  assert.deepEqual(without, sceneGuideExample);
 });
 
 test('the strict-mode linter catches what it is meant to catch', () => {

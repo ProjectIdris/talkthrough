@@ -16,6 +16,10 @@ export type Body = {
   pos: Vec3;
   rot: Vec3;
   parent?: string;
+  /** A ready-made part: which one (a gear, a pipe...). */
+  part?: string;
+  /** A gear: its shaft has been asked about (one was added, or something already held its middle). */
+  shafted?: boolean;
   /** An opaque closed solid: what lies inside `reach` of its centre cannot be seen (`whole`: all of the part must lie inside, not only its centre). `done` once it has been made see-through. */
   hides?: { reach: number; whole: boolean; at: number; done?: boolean };
 };
@@ -203,6 +207,17 @@ export function landOn(bodies: ReadonlyMap<string, Body>, holder: string | undef
     best = { part: id, snapped: applyInverse(frame, apply(m, hit.closest)), local: hit.closest, gap: Math.abs(hit.dist) };
   }
   return best;
+}
+
+/** Whether the middle of body `id` lies inside a solid of the scene other than itself and the ready-made parts `skipPart` names (a box, cylinder, sphere or blob, as it stands turned and placed). */
+export function middleHeld(bodies: ReadonlyMap<string, Body>, id: string, skipPart: string): boolean {
+  const world = apply(worldOf(bodies, id), [0, 0, 0]);
+  for (const [other, b] of bodies) {
+    if (other === id || b.shape === 'group' || b.part === skipPart) continue;
+    const hit = hitOf(b, applyInverse(worldOf(bodies, other), world));
+    if (hit && hit.dist <= 0) return true;
+  }
+  return false;
 }
 
 /** How near an end of a tube or line must be to a part's surface to count as on it: a hair, or more for a fat pipe (its end cap has a radius of its own). */

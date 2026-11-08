@@ -13,7 +13,7 @@ import { prepareShell, SHELL_DETAIL } from './shell.ts';
 import type { ShellTier } from './shell.ts';
 import { nearestPaletteColor } from './colors.ts';
 import { MATERIAL_FAMILIES, resolveMaterial } from './material-library.ts';
-import { attachTolerance, FACE_NORMALS, landOn, mountPosition, turnToFace } from './attach.ts';
+import { attachTolerance, FACE_NORMALS, landOn, middleHeld, mountPosition, turnToFace } from './attach.ts';
 import { anchorsOf } from './anchors.ts';
 import { partFacing, resolvePartGeometry } from './part-geometry.ts';
 import { MODELS } from './model-catalogue.ts';
@@ -471,8 +471,10 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
     if (shape === 'box' || shape === 'sphere' || shape === 'cylinder') state.bodies.set(id, { shape, size, ...place });
     else if (shape === 'plane') state.bodies.set(id, { shape: 'box', size: [size[0], size[1], 0], ...place });
     else state.bodies.set(id, { shape: 'group', ...place }); // a cone or a torus is not asked about, but things hang from it
-  } else if (name === 'addPart') state.bodies.set(id, { shape: 'box', ...resolvePartGeometry(out as AddPart), ...place });
-  else if (name === 'addModel') state.bodies.set(id, { shape: 'group', ...place });
+  } else if (name === 'addPart') {
+    state.bodies.set(id, { shape: 'box', part: out.part as string, ...resolvePartGeometry(out as AddPart), ...place });
+    mountGear(state, id, out);
+  } else if (name === 'addModel') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addBlob') state.bodies.set(id, { shape: 'blob', pts: out.pts as Vec3[], sizes: out.sizes as Vec3[], ...place });
   else if (name === 'addExtrude' || name === 'addHull' || name === 'addLathe' || name === 'addShell' || name === 'addLoft' || name === 'addSweep' || name === 'addPatch' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addTube' || (name === 'addPath' && shape === 'line')) {
@@ -486,6 +488,29 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
   if (body) body.anchors = anchorsOf(out);
   if (body) hideCheck(state, id, name, out, body, path, notes);
   if (state.bodies.get(id)?.shape !== 'group') landLate(state, id, (out.at as number | undefined) ?? 0, path, notes);
+}
+
+/**
+ * A gear in a train sits on a shaft: a wheel with a bore and nothing through it is a gear in the air. When a second ready-made gear arrives (one gear alone may be
+ * anything: a picture of a gear, a pulley wheel), each gear of the scene that no solid already holds the middle of gets a thin steel shaft through it (a child of
+ * the gear, so it goes with it; round, so a turning gear does not show it turning). It is not a fault of the model's, so there is no note; the shaft is named
+ * `<gear>-shaft` in the scene. A see-through gear is left alone.
+ */
+function mountGear(state: SceneState, id: string, out: Record<string, unknown>): void {
+  if (out.part !== 'gear') return;
+  if (((out.opacity as number | undefined) ?? 1) < 0.5) state.bodies.get(id)!.shafted = true; // a see-through gear is left alone
+  const gears = [...state.bodies].filter(([, b]) => b.part === 'gear');
+  if (gears.length < 2) return;
+  for (const [gid, body] of gears) {
+    if (body.shafted) continue;
+    body.shafted = true;
+    if (!body.size || body.size.some((n) => !(n > 0)) || middleHeld(state.bodies, gid, 'gear')) continue;
+    const shaft = `${gid}-shaft`;
+    if (state.ids.has(shaft)) continue;
+    const [sx, , sz] = body.size;
+    const d = Math.max(0.05, sx * 0.16);
+    state.after.push({ op: 'add', shape: 'cylinder', id: shaft, parent: gid, pos: [0, 0, 0], rot: [90, 0, 0], size: [d, Math.max(sz! * 4, sx * 0.5), d], material: 'steel', at: Math.max((out.at as number | undefined) ?? 0, 0) } as unknown as Action);
+  }
 }
 
 /** Materials that are see-through or give off light of themselves: a solid of one is not a wall. */

@@ -10,8 +10,9 @@ test('the two-gear candidate streams through the real validator before its step 
   const prefix = '{"steps":[{"say":"","actions":[' + USEFUL_3D_ACTIONS.map(a => JSON.stringify(a)).join(',');
   for (const char of prefix) probe.push(char);
   assert.equal(probe.snapshot().completeSteps, 0);
-  assert.equal(probe.snapshot().acceptedActions, 4);
-  assert.equal(sent.filter(message => message.kind === 'action' && message.action.op === 'add').length, 2);
+  // the two gears of a train each get a steel shaft through the middle, which the validator adds
+  assert.equal(probe.snapshot().acceptedActions, 6);
+  assert.equal(sent.filter(message => message.kind === 'action' && message.action.op === 'add').length, 4);
   probe.push(']}]}');
   assert.equal(probe.end().validationIssues, 0);
 });
