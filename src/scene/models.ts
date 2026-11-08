@@ -61,3 +61,19 @@ export function resolvePart(model: ModelEntry, name: unknown): { part?: ModelPar
   const c = closest(name, model.parts, (p) => [p.key, p.name, ...p.aliases]);
   return { ...(c.pick ? { part: c.pick } : {}), exact: false, near: c.near };
 }
+
+/** A model with at least this many named parts is one a shape-built stand-in cannot match (a heart's chambers, a brain's lobes); a handful of parts is not. */
+const RICH_MODEL_PARTS = 6;
+
+/**
+ * What to tell a model when the question names a rich real model: the static guide lists every model in one line, and a model asked about a heart
+ * still often builds a blob from shapes. A question that names the subject (its name or an alias, as whole words) gets one sentence saying the real one
+ * exists, how many parts it has and what a few are called, and that it is the accurate choice. Nothing when no rich model is named.
+ */
+export function realModelHint(question: string): string | undefined {
+  const text = ` ${norm(question).replace(/[^a-z0-9 ]+/g, ' ').replace(/ +/g, ' ')} `;
+  const model = MODELS.find((m) => m.parts.length >= RICH_MODEL_PARTS && !m.single && [m.id, m.name, ...m.aliases].some((a) => text.includes(` ${norm(a)} `)));
+  if (!model) return undefined;
+  const sample = model.parts.slice(0, 4).map((p) => p.name.toLowerCase()).join(', ');
+  return `This subject has a real, detailed model in the scene language: ${model.id} (add {shape:model, model:"${model.id}"}; its ${model.parts.length} parts include ${sample}). It is far more accurate than anything built from shapes: use it, and pin, highlight or cut its named parts; add shapes only for what the model does not hold.`;
+}

@@ -4,6 +4,7 @@
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { sceneGuide } from '../scene/guide.ts';
+import { realModelHint } from '../scene/models.ts';
 import { createStepStream } from '../scene/stream.ts';
 import type { StepPiece } from '../scene/stream.ts';
 import type { ModelOutput, ModelRequest } from './model.ts';
@@ -224,6 +225,8 @@ export function questionText(request: ModelRequest, options: { shownAlreadyHeld?
   const picture = (request.focus ?? []).find((f) => f.kind === 'picture');
   if (pen.length > 0) parts.push(penText(pen));
   if (picture) parts.push(pictureText(picture.box, picture.crop, picture.card, picture.grid));
+  const modelHint = realModelHint(request.question);
+  if (modelHint) parts.push(modelHint);
   parts.push(`The user's question, transcribed from speech (it may contain recognition errors): ${JSON.stringify(request.question)}`);
   if (request.detail) parts.push(detailText(request.detail.steps));
   if (request.stage) parts.push(stageText(request.stage, options.shownAlreadyHeld === true));
