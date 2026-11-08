@@ -598,10 +598,10 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'loop', op: 'loop',
-    doc: 'Repeat a motion on any object: slide, swing (about the hinge pivot), pulse (swell), gate, float, or in steps (step, ratchet, geneva), every period seconds (default 2) or by a spinning part. Left out, kind is the joint\'s. Another loop replaces it; stop ends it. id is an object already in the scene, never a name for the loop.',
+    doc: 'Repeat a motion on any object: slide, swing (about the hinge pivot), pulse (swell), gate, float, or in steps (step, ratchet, geneva, snap), every period seconds (default 2) or by a spinning part. Left out, kind is the joint\'s. Another loop replaces it; stop ends it. id is an object already in the scene, never a name for the loop.',
     fields: {
       id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: [...Object.keys(LOOP_ROWS), 'stop'], opt: true },
-      amount: { k: 'num', min: -360, max: 360, opt: true, doc: 'slide: positive total travel in units; swing: signed degrees each side (negative reverses the swing, zero holds still); pulse: positive size factor (1.3 is 30% bigger, 0.8 smaller); gate: degrees the hinge opens on half of each cycle; float: units it bobs up and down; step: degrees it turns each cycle, in the first quarter, then stands; ratchet: the same in the first half, following a swing of half the amount; geneva: degrees of one slot (360/slots), indexed by a pin that turns once a cycle' },
+      amount: { k: 'num', min: -360, max: 360, opt: true, doc: 'slide: positive total travel in units; swing: signed degrees each side (negative reverses the swing, zero holds still); pulse: positive size factor (1.3 is 30% bigger, 0.8 smaller); gate: degrees the hinge opens on half of each cycle; float: units it bobs up and down; step: degrees it turns each cycle, in the first quarter, then stands; ratchet: the same in the first half, following a swing of half the amount; geneva: degrees of one slot (360/slots), indexed by a pin that turns once a cycle; snap: degrees it snaps, then is wound back' },
       damp: { k: 'num', min: 0.2, max: 50, opt: true, doc: 'cycles for the motion to fall to a third of its size, so it settles (a pendulum running down); left out, it never settles' },
       tilt: { k: 'num', min: 0, max: 30, opt: true, doc: 'float: degrees it rocks from side to side about z (default 4)' },
       axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true },
