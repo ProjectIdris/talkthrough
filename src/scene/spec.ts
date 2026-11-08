@@ -413,6 +413,38 @@ export const VARIANTS: readonly Variant[] = [
       size: { k: 'num', min: 0.01, max: 5, opt: true }, color: COLOR_OPT, toColor: COLOR_OPT, shiftAt: { k: 'num', min: 0, max: 1, opt: true },
       period: { k: 'num', min: -120, max: 120, opt: true }, by: { k: 'ref', of: 'object3d', opt: true, doc: 'a spinning part to run in step with' },
       ratio: { k: 'num', min: -100, max: 100, opt: true }, opacity: OPACITY, at: AT,
+      surge: { k: 'num', min: 0.05, max: 0.95, opt: true, doc: 'flow in beats: the markers speed up and slow down once a beat by this fraction of their speed (0.8 is strong surges, as blood in a pulse); not with by' },
+      beat: { k: 'num', min: 0.2, max: 10, opt: true, doc: 'seconds a beat takes (default 1)' },
+    },
+  },
+  {
+    name: 'addParticles', op: 'add', shapes: ['particles'], creates: 'solid',
+    doc: 'A cloud of count small particles (default 30) that spread out: they begin in a box of size from at pos and, as reveal takes the cloud from 0 to 1 (it begins at 0, so they start crowded), drift apart to fill a box of size to, centred shift further on, all the while jostling. Diffusion, a gas filling a room, a drop of dye in water. A membrane is a plane or box between.',
+    fields: {
+      shape: { k: 'enum', values: ['particles'] }, id: { k: 'newId' }, parent: PARENT, pos: POS,
+      count: { k: 'num', min: 4, max: 80, int: true, opt: true }, from: { k: 'vec3', min: 0.05, max: 100 }, to: { k: 'vec3', min: 0.05, max: 100 },
+      shift: { ...POS, doc: 'where the middle of the box they fill is, from the middle of the box they start in' },
+      size: { k: 'num', min: 0.01, max: 2, opt: true }, jitter: { k: 'num', min: 0, max: 2, opt: true, doc: 'how far each jostles (default 0.12)' }, period: { k: 'num', min: 0.2, max: 20, opt: true, doc: 'seconds a jostle takes (default 1.5)' },
+      color: COLOR_OPT, draw: { ...DRAW, doc: 'how spread out they are at first, 0 crowded in the start box to 1 filling the other (default 0); grow it with reveal' }, opacity: OPACITY, at: AT,
+    },
+  },
+  {
+    name: 'addForce', op: 'add', shapes: ['force'], creates: 'solid', attach: 'on',
+    doc: 'An arrow for a force on a part: from a point of it (point, default center) the way dir points in the scene (not the part: gravity stays down as the part turns), strength units long and thicker the stronger, following the part wherever it goes. Colour it, name it with a pin; scale it up or down to change its strength, loop pulse it to make it come and go. It goes when the part does.',
+    fields: {
+      shape: { k: 'enum', values: ['force'] }, id: { k: 'newId' }, on: { k: 'ref', of: 'object3d', doc: 'the part the force acts on' },
+      point: { k: 'str', min: 1, max: 24, opt: true }, dir: { k: 'vec3', min: -100, max: 100, doc: 'the direction it points, [x,y,z] in the scene: [0,-1,0] is down' },
+      strength: { k: 'num', min: 0.05, max: 30 }, color: COLOR_OPT, opacity: OPACITY, at: AT,
+    },
+  },
+  {
+    name: 'addField', op: 'add', shapes: ['field'], creates: 'group',
+    doc: 'Field lines as arrows, drawn for you in the front plane round pos: dipole (a bar magnet or a pair of charges: lines leave the end on the positive axis side and curve round to the other), radial (spokes out from a point charge or in to a mass: flip reverses them), uniform (parallel lines along axis, between plates or near the ground). size is how far they reach (default 5), count how many (default 8), gap the room between poles or plates (dipole, uniform). One group: clear its id to take them all away.',
+    fields: {
+      shape: { k: 'enum', values: ['field'] }, id: { k: 'newId' }, parent: PARENT, pos: POS,
+      kind: { k: 'enum', values: ['dipole', 'radial', 'uniform'] }, axis: { k: 'enum', values: ['x', 'y'], opt: true },
+      size: { k: 'num', min: 0.5, max: 40, opt: true }, count: { k: 'num', min: 2, max: 16, int: true, opt: true }, gap: { k: 'num', min: 0, max: 40, opt: true },
+      flip: { k: 'bool', opt: true, doc: 'reverse the way the lines point' }, color: COLOR_OPT, opacity: OPACITY, at: AT,
     },
   },
   {
@@ -544,8 +576,10 @@ export const VARIANTS: readonly Variant[] = [
     name: 'loop', op: 'loop',
     doc: 'Repeat a motion on any object: slide (back and forth along axis, positive amount units in all), swing (rock about axis by signed amount degrees each side, -180 to 180, about the hinge pivot; negative reverses it, zero holds still) or pulse (swell to positive amount times its size), every period seconds (default 2) or by a spinning part. Left out, kind is the joint\'s. Another loop replaces it; stop ends it. id is an object already in the scene, never a name for the loop.',
     fields: {
-      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['slide', 'swing', 'pulse', 'stop'], opt: true },
-      amount: { k: 'num', min: -360, max: 360, opt: true, doc: 'slide: positive total travel in units; swing: signed degrees each side (negative reverses the swing, zero holds still); pulse: positive size factor (1.3 is 30% bigger, 0.8 smaller)' },
+      id: { k: 'ref', of: 'object3d' }, kind: { k: 'enum', values: ['slide', 'swing', 'pulse', 'gate', 'float', 'stop'], opt: true },
+      amount: { k: 'num', min: -360, max: 360, opt: true, doc: 'slide: positive total travel in units; swing: signed degrees each side (negative reverses the swing, zero holds still); pulse: positive size factor (1.3 is 30% bigger, 0.8 smaller); gate: degrees the hinge opens on half of each cycle; float: units it bobs up and down' },
+      damp: { k: 'num', min: 0.2, max: 50, opt: true, doc: 'cycles for the motion to fall to a third of its size, so it settles (a pendulum running down); left out, it never settles' },
+      tilt: { k: 'num', min: 0, max: 30, opt: true, doc: 'float: degrees it rocks from side to side about z (default 4)' },
       axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true },
       by: { k: 'ref', of: 'object3d', opt: true }, ratio: { k: 'num', min: -20, max: 20, opt: true, doc: 'with by: cycles per turn (default 1)' },
       phase: { k: 'num', min: -3600, max: 3600, opt: true, doc: 'degrees ahead (180 is half a cycle behind another loop at 0)' },
@@ -598,6 +632,58 @@ export const VARIANTS: readonly Variant[] = [
       radius: { k: 'num', min: 0.01, max: 100, opt: true }, rpm: { k: 'num', min: -600, max: 600, opt: true },
       axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true, doc: 'the axis the wheel turns about: left out, a cylinder turns about its own long axis as it lies and anything else about z' }, at: AT,
     },
+  },
+  {
+    name: 'wave', op: 'wave',
+    doc: 'A wave running along a tube: peristalsis, a pulse down a vessel. amount is the radius at its crest as a factor (above 1 a swell, below 1 a squeeze; default 1.6), width the fraction of the tube it spans (default 0.2), count how many run at once, period the seconds a crest takes for the whole tube (default 4, negative runs backwards). A one-marker stream along the same tube with the same period rides the crest (a mouthful going down). stop true ends it.',
+    fields: { id: { k: 'ref', of: 'object3d' }, amount: { k: 'num', min: 0.2, max: 4, opt: true }, width: { k: 'num', min: 0.03, max: 0.6, opt: true }, count: { k: 'num', min: 1, max: 6, int: true, opt: true }, period: { k: 'num', min: -60, max: 60, opt: true }, stop: { k: 'bool', opt: true }, at: AT },
+  },
+  {
+    name: 'pendulum', op: 'pendulum',
+    doc: 'A weight hanging from a point and swinging: id is the weight, from the part it hangs from (the swing is about its middle) or pivot, the point from the weight to the hang point. swing is degrees each side (default 25), period seconds (left out, longer for a longer string), damp cycles for it to settle. It starts let go at the far end. Draw the string as a connector between the two.',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, from: { k: 'ref', of: 'object3d', opt: true }, pivot: { k: 'vec3', ...WORLD, opt: true },
+      swing: { k: 'num', min: 1, max: 90, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true }, damp: { k: 'num', min: 0.2, max: 50, opt: true }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT,
+    },
+  },
+  {
+    name: 'oscillate', op: 'oscillate',
+    doc: 'A weight bobbing on a spring or elastic: it moves amount units each way along axis (default y) every period seconds (default 1.5), starting pulled to the low end and let go, and settles if damp (cycles to fall to a third) is given. Draw the spring or elastic as a connector from its fixed end to the weight.',
+    fields: { id: { k: 'ref', of: 'object3d' }, amount: { k: 'num', min: 0.01, max: 50, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true }, damp: { k: 'num', min: 0.2, max: 50, opt: true }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT },
+  },
+  {
+    name: 'float', op: 'float',
+    doc: 'Buoyancy, illustrated: the part rides on water, bobbing bob units up and down (default 0.15) and rocking tilt degrees (default 4) every period seconds (default 3). Put it at the water line first (drop does that); damp settles it.',
+    fields: { id: { k: 'ref', of: 'object3d' }, bob: { k: 'num', min: 0.01, max: 20, opt: true }, tilt: { k: 'num', min: 0, max: 30, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true }, damp: { k: 'num', min: 0.2, max: 50, opt: true }, at: AT },
+  },
+  {
+    name: 'drop', op: 'drop',
+    doc: 'Gravity, illustrated: the part falls to height to (y, in the units of the group it is in) with an ever faster pull, and bounces bounce (0 lands dead, 0.8 very springy, default 0.3) times lower each time until it settles. dur left out, it takes as long as the fall.',
+    fields: { id: { k: 'ref', of: 'object3d' }, to: { k: 'num', min: -100, max: 100 }, bounce: { k: 'num', min: 0, max: 0.8, opt: true }, at: AT, dur: DUR },
+  },
+  {
+    name: 'pump', op: 'pump',
+    doc: 'A chamber that squeezes and refills behind one-way valves: id is the chamber (it shrinks to squeeze of its size, default 0.7, then refills, every period seconds, default 1.2), inlet the flap that opens while it refills and outlet the flap that opens while it squeezes. Each valve turns about its hinge point (a named point of the valve, default left) by open degrees (default 70, negative the other way).',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, inlet: { k: 'ref', of: 'object3d', opt: true }, outlet: { k: 'ref', of: 'object3d', opt: true },
+      squeeze: { k: 'num', min: 0.3, max: 0.95, opt: true }, open: { k: 'num', min: -170, max: 170, opt: true }, period: { k: 'num', min: 0.2, max: 20, opt: true },
+      hinge: { k: 'str', min: 1, max: 24, opt: true }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT,
+    },
+  },
+  {
+    name: 'incline', op: 'incline',
+    doc: 'An inclined plane: the load (id) slides up and down the slope, travel units in all (default 4) every period seconds (default 4). The slope is the turn of the ramp (a box turned about z; its length runs along x), or angle degrees.',
+    fields: { id: { k: 'ref', of: 'object3d' }, ramp: { k: 'ref', of: 'object3d', opt: true }, angle: { k: 'num', min: -80, max: 80, opt: true }, travel: { k: 'num', min: 0.1, max: 100, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true }, at: AT },
+  },
+  {
+    name: 'wedge', op: 'wedge',
+    doc: 'A wedge driven in along axis (default y), travel units in all (default 2) every period seconds (default 3), pushing the part it drives (drives) aside across axis by tan(angle) of its own travel, angle being the half angle of the wedge in degrees (default 20): an axe in a log, a door stop. Put the driven part to the side of the wedge it is to be pushed to. Write it again for the other side.',
+    fields: { id: { k: 'ref', of: 'object3d' }, drives: { k: 'ref', of: 'object3d' }, angle: { k: 'num', min: 3, max: 70, opt: true }, travel: { k: 'num', min: 0.1, max: 100, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT },
+  },
+  {
+    name: 'screw', op: 'screw',
+    doc: 'A screw and its nut: the screw (screw) turns rpm turns a minute (default 30) and the nut (id) travels along its length pitch units for each turn (default 0.5, negative the other way). A cylinder turns about its own long axis as it lies; axis says otherwise.',
+    fields: { id: { k: 'ref', of: 'object3d' }, screw: { k: 'ref', of: 'object3d' }, pitch: { k: 'num', min: -20, max: 20, opt: true }, rpm: { k: 'num', min: -600, max: 600, opt: true }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT },
   },
   {
     name: 'cut', op: 'cut',

@@ -3486,6 +3486,20 @@
             "null"
           ],
           "description": "seconds after the step starts; 0 to 60"
+        },
+        "surge": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "flow in beats: the markers speed up and slow down once a beat by this fraction of their speed (0.8 is strong surges, as blood in a pulse); not with by; 0.05 to 0.95"
+        },
+        "beat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds a beat takes (default 1); 0.2 to 10"
         }
       },
       "required": [
@@ -3503,10 +3517,338 @@
         "by",
         "ratio",
         "opacity",
-        "at"
+        "at",
+        "surge",
+        "beat"
       ],
       "additionalProperties": false,
       "description": "Dots, dashes or arrows travelling along a tube, line, arrow, connector or an edge of a flow diagram, running on by themselves. period is the seconds a marker takes for the whole way (negative runs backwards, default 4); or by a spinning part, ratio laps for each turn. color changes to toColor along the way (shiftAt, 0 to 1, is where)."
+    },
+    "addParticles": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "particles"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "count": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "4 to 80"
+        },
+        "from": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], each 0.05 to 100"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], each 0.05 to 100"
+        },
+        "shift": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where the middle of the box they fill is, from the middle of the box they start in; [x,y,z], each -100 to 100"
+        },
+        "size": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.01 to 2"
+        },
+        "jitter": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "how far each jostles (default 0.12); 0 to 2"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds a jostle takes (default 1.5); 0.2 to 20"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "draw": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "how spread out they are at first, 0 crowded in the start box to 1 filling the other (default 0); grow it with reveal; 0 to 1"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "count",
+        "from",
+        "to",
+        "shift",
+        "size",
+        "jitter",
+        "period",
+        "color",
+        "draw",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A cloud of count small particles (default 30) that spread out: they begin in a box of size from at pos and, as reveal takes the cloud from 0 to 1 (it begins at 0, so they start crowded), drift apart to fill a box of size to, centred shift further on, all the while jostling. Diffusion, a gas filling a room, a drop of dye in water. A membrane is a plane or box between."
+    },
+    "addForce": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "force"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "on": {
+          "type": "string",
+          "description": "the part the force acts on"
+        },
+        "point": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 24 characters"
+        },
+        "dir": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "the direction it points, [x,y,z] in the scene: [0,-1,0] is down; [x,y,z], each -100 to 100"
+        },
+        "strength": {
+          "type": "number",
+          "description": "0.05 to 30"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "on",
+        "point",
+        "dir",
+        "strength",
+        "color",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "An arrow for a force on a part: from a point of it (point, default center) the way dir points in the scene (not the part: gravity stays down as the part turns), strength units long and thicker the stronger, following the part wherever it goes. Colour it, name it with a pin; scale it up or down to change its strength, loop pulse it to make it come and go. It goes when the part does."
+    },
+    "addField": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "field"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "kind": {
+          "enum": [
+            "dipole",
+            "radial",
+            "uniform"
+          ]
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            null
+          ]
+        },
+        "size": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.5 to 40"
+        },
+        "count": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "2 to 16"
+        },
+        "gap": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 40"
+        },
+        "flip": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "reverse the way the lines point"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "kind",
+        "axis",
+        "size",
+        "count",
+        "gap",
+        "flip",
+        "color",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Field lines as arrows, drawn for you in the front plane round pos: dipole (a bar magnet or a pair of charges: lines leave the end on the positive axis side and curve round to the other), radial (spokes out from a point charge or in to a mass: flip reverses them), uniform (parallel lines along axis, between plates or near the ground). size is how far they reach (default 5), count how many (default 8), gap the room between poles or plates (dipole, uniform). One group: clear its id to take them all away."
     },
     "addPart": {
       "type": "object",
@@ -4674,6 +5016,8 @@
             "slide",
             "swing",
             "pulse",
+            "gate",
+            "float",
             "stop",
             null
           ]
@@ -4683,7 +5027,21 @@
             "number",
             "null"
           ],
-          "description": "slide: positive total travel in units; swing: signed degrees each side (negative reverses the swing, zero holds still); pulse: positive size factor (1.3 is 30% bigger, 0.8 smaller); -360 to 360"
+          "description": "slide: positive total travel in units; swing: signed degrees each side (negative reverses the swing, zero holds still); pulse: positive size factor (1.3 is 30% bigger, 0.8 smaller); gate: degrees the hinge opens on half of each cycle; float: units it bobs up and down; -360 to 360"
+        },
+        "damp": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "cycles for the motion to fall to a third of its size, so it settles (a pendulum running down); left out, it never settles; 0.2 to 50"
+        },
+        "tilt": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "float: degrees it rocks from side to side about z (default 4); 0 to 30"
         },
         "axis": {
           "enum": [
@@ -4743,6 +5101,8 @@
         "id",
         "kind",
         "amount",
+        "damp",
+        "tilt",
         "axis",
         "period",
         "by",
@@ -5110,6 +5470,577 @@
       ],
       "additionalProperties": false,
       "description": "A rope over a wheel: the wheel (wheel) turns rpm turns a minute (default 20, negative the other way) and the load (id) rises by the rope laid on it, 2 x pi x radius for each turn. radius is the rope's radius on the wheel, read from the wheel's size when left out. A winch, a crane drum and a wheel and axle (give the axle's radius) are the same."
+    },
+    "wave": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "wave"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.2 to 4"
+        },
+        "width": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.03 to 0.6"
+        },
+        "count": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 6"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-60 to 60"
+        },
+        "stop": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "amount",
+        "width",
+        "count",
+        "period",
+        "stop",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A wave running along a tube: peristalsis, a pulse down a vessel. amount is the radius at its crest as a factor (above 1 a swell, below 1 a squeeze; default 1.6), width the fraction of the tube it spans (default 0.2), count how many run at once, period the seconds a crest takes for the whole tube (default 4, negative runs backwards). A one-marker stream along the same tube with the same period rides the crest (a mouthful going down). stop true ends it."
+    },
+    "pendulum": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "pendulum"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "from": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pivot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], each -100 to 100"
+        },
+        "swing": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 90"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "damp": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.2 to 50"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "from",
+        "pivot",
+        "swing",
+        "period",
+        "damp",
+        "axis",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A weight hanging from a point and swinging: id is the weight, from the part it hangs from (the swing is about its middle) or pivot, the point from the weight to the hang point. swing is degrees each side (default 25), period seconds (left out, longer for a longer string), damp cycles for it to settle. It starts let go at the far end. Draw the string as a connector between the two."
+    },
+    "oscillate": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "oscillate"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.01 to 50"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "damp": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.2 to 50"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "amount",
+        "period",
+        "damp",
+        "axis",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A weight bobbing on a spring or elastic: it moves amount units each way along axis (default y) every period seconds (default 1.5), starting pulled to the low end and let go, and settles if damp (cycles to fall to a third) is given. Draw the spring or elastic as a connector from its fixed end to the weight."
+    },
+    "float": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "float"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "bob": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.01 to 20"
+        },
+        "tilt": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 30"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "damp": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.2 to 50"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "bob",
+        "tilt",
+        "period",
+        "damp",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Buoyancy, illustrated: the part rides on water, bobbing bob units up and down (default 0.15) and rocking tilt degrees (default 4) every period seconds (default 3). Put it at the water line first (drop does that); damp settles it."
+    },
+    "drop": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "drop"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "to": {
+          "type": "number",
+          "description": "-100 to 100"
+        },
+        "bounce": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 0.8"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "to",
+        "bounce",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Gravity, illustrated: the part falls to height to (y, in the units of the group it is in) with an ever faster pull, and bounces bounce (0 lands dead, 0.8 very springy, default 0.3) times lower each time until it settles. dur left out, it takes as long as the fall."
+    },
+    "pump": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "pump"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "inlet": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "outlet": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "squeeze": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.3 to 0.95"
+        },
+        "open": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-170 to 170"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.2 to 20"
+        },
+        "hinge": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 24 characters"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "inlet",
+        "outlet",
+        "squeeze",
+        "open",
+        "period",
+        "hinge",
+        "axis",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A chamber that squeezes and refills behind one-way valves: id is the chamber (it shrinks to squeeze of its size, default 0.7, then refills, every period seconds, default 1.2), inlet the flap that opens while it refills and outlet the flap that opens while it squeezes. Each valve turns about its hinge point (a named point of the valve, default left) by open degrees (default 70, negative the other way)."
+    },
+    "incline": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "incline"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "ramp": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "angle": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-80 to 80"
+        },
+        "travel": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 100"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "ramp",
+        "angle",
+        "travel",
+        "period",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "An inclined plane: the load (id) slides up and down the slope, travel units in all (default 4) every period seconds (default 4). The slope is the turn of the ramp (a box turned about z; its length runs along x), or angle degrees."
+    },
+    "wedge": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "wedge"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "drives": {
+          "type": "string"
+        },
+        "angle": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "3 to 70"
+        },
+        "travel": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 100"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "drives",
+        "angle",
+        "travel",
+        "period",
+        "axis",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A wedge driven in along axis (default y), travel units in all (default 2) every period seconds (default 3), pushing the part it drives (drives) aside across axis by tan(angle) of its own travel, angle being the half angle of the wedge in degrees (default 20): an axe in a log, a door stop. Put the driven part to the side of the wedge it is to be pushed to. Write it again for the other side."
+    },
+    "screw": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "screw"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "screw": {
+          "type": "string"
+        },
+        "pitch": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-20 to 20"
+        },
+        "rpm": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-600 to 600"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "screw",
+        "pitch",
+        "rpm",
+        "axis",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A screw and its nut: the screw (screw) turns rpm turns a minute (default 30) and the nut (id) travels along its length pitch units for each turn (default 0.5, negative the other way). A cylinder turns about its own long axis as it lies; axis says otherwise."
     },
     "cut": {
       "type": "object",
@@ -5503,6 +6434,15 @@
           "$ref": "#/$defs/addStream"
         },
         {
+          "$ref": "#/$defs/addParticles"
+        },
+        {
+          "$ref": "#/$defs/addForce"
+        },
+        {
+          "$ref": "#/$defs/addField"
+        },
+        {
           "$ref": "#/$defs/addPart"
         },
         {
@@ -5576,6 +6516,33 @@
         },
         {
           "$ref": "#/$defs/pulley"
+        },
+        {
+          "$ref": "#/$defs/wave"
+        },
+        {
+          "$ref": "#/$defs/pendulum"
+        },
+        {
+          "$ref": "#/$defs/oscillate"
+        },
+        {
+          "$ref": "#/$defs/float"
+        },
+        {
+          "$ref": "#/$defs/drop"
+        },
+        {
+          "$ref": "#/$defs/pump"
+        },
+        {
+          "$ref": "#/$defs/incline"
+        },
+        {
+          "$ref": "#/$defs/wedge"
+        },
+        {
+          "$ref": "#/$defs/screw"
         },
         {
           "$ref": "#/$defs/cut"

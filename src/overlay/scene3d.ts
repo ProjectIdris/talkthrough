@@ -39,7 +39,7 @@ import { patchGeometry, patchEdges } from './patch.ts';
 import { Cutaway } from './cutaway.ts';
 import { anchorsOf } from '../scene/anchors.ts';
 import { latheSectorEdges, latheSectorGeometry } from './lathe-sector.ts';
-import { buildConnector, buildStream, updateAttached, updateConnectors, updateStreams } from './scene3d-flow.ts';
+import { buildConnector, buildForce, buildParticles, buildStream, updateAttached, updateConnectors, updateForces, updateParticles, updateStreams, updateWaves } from './scene3d-flow.ts';
 import type { FlowNode } from './scene3d-flow.ts';
 
 /** The longer side of the stage sees this many degrees; the shorter side follows from its shape, so a wide stage does not skew what sits at its edges. */
@@ -115,6 +115,9 @@ type Node = {
   /** A connector's tube and what it was last built from; a stream's markers (see scene3d-flow.ts). */
   connector?: FlowNode['connector'];
   stream?: FlowNode['stream'];
+  wave?: FlowNode['wave'];
+  particles?: FlowNode['particles'];
+  force?: FlowNode['force'];
   /** A tube or line with an end on a part: its points as drawn at rest (see scene3d-flow.ts). */
   attached?: FlowNode['attached'];
 };
@@ -256,7 +259,7 @@ export class PanelScene {
       return mesh;
     };
     switch (def.shape) {
-      case 'group': case 'array': break;
+      case 'group': case 'array': case 'field': break;
       case 'hull': {
         const result = buildHullGeometry(def.pts);
         if (result.ok) node.obj = addMesh(result.geometry, material, def.edges !== false);
@@ -296,6 +299,8 @@ export class PanelScene {
       case 'tube': case 'line': case 'arrow': this.buildPath(node, o, addMesh); break;
       case 'connector': buildConnector(node, o, addMesh, this.detail.radial); break;
       case 'stream': buildStream(node, o, addMesh); break;
+      case 'particles': buildParticles(node, o, addMesh); break;
+      case 'force': buildForce(node, o, addMesh); break;
       default: {
         const geo = this.solidGeometry(def);
         if (def.shape === 'blob') shadeByHeight(geo);
@@ -413,7 +418,9 @@ export class PanelScene {
   private buildPath(node: Node, o: ObjectFrame, addMesh: AddMesh): void {
     const def = o.def as { shape: string; pts: Vec3[]; radius?: number; flat?: number; swell?: Array<[number, number]>; closed?: boolean; material?: string };
     const tube = def.shape === 'tube';
-    const radius = tube ? def.radius ?? PATH_RADIUS : PATH_RADIUS;
+    // A field line (made by the timeline) is finer than an arrow the model draws, and counts in the fit of the camera: the lines are the picture.
+    const fine = (def as { fine?: boolean }).fine === true;
+    const radius = tube ? def.radius ?? PATH_RADIUS : fine ? PATH_RADIUS * 0.6 : PATH_RADIUS;
     const loop = tube && def.closed ? closedTubeGeometry(def.pts, radius, def.flat ?? 1, this.detail.radial, this.detail.tube, def.swell) : undefined;
     const sampled = loop?.sampled ?? samplePath(def.pts, tube, this.detail.tube);
     const geo = loop?.geo ?? tubeGeometry(sampled, radius, tube ? def.flat ?? 1 : 1, this.detail.radial, tube ? def.swell : undefined);
@@ -423,6 +430,7 @@ export class PanelScene {
     let head: Mesh | undefined;
     if (def.shape === 'arrow') {
       head = addMesh(new ConeGeometry(PATH_RADIUS * 3.4, 0.55, 20), 'plastic', false);
+      if (fine) head.scale.setScalar(0.5);
       group.add(head);
     }
     node.obj = group;
@@ -430,7 +438,7 @@ export class PanelScene {
     for (let i = 1; i < sampled.length; i++) length += Math.hypot(sampled[i]![0] - sampled[i - 1]![0], sampled[i]![1] - sampled[i - 1]![1], sampled[i]![2] - sampled[i - 1]![2]);
     // Closed loops are model geometry, even when thin; only open trailing cables
     // may stay outside the camera fit and the bounds that enable rendering.
-    node.path = { geo, sampled, head, body: tube && (def.closed === true || radius >= 0.04 * length) };
+    node.path = { geo, sampled, head, body: fine || (tube && (def.closed === true || radius >= 0.04 * length)) };
   }
 
   private buildText(node: Node, o: ObjectFrame): void {
@@ -574,7 +582,10 @@ export class PanelScene {
     // Connectors and streams are placed from where their parts now are; what hangs on a connector then needs its matrices again.
     updateAttached(this.nodes, frame, this.detail.radial, PATH_RADIUS);
     if (updateConnectors(this.nodes, frame, this.detail.radial)) this.scene.updateMatrixWorld(true);
+    updateWaves(this.nodes, frame, this.detail.radial);
     updateStreams(this.nodes, frame);
+    updateParticles(this.nodes, frame);
+    updateForces(this.nodes, frame);
     this.scene.updateMatrixWorld(true);
     this.aim(frame, aspect, view, standBack);
     if (view) this.tidyTexts(view);
@@ -707,7 +718,7 @@ export class PanelScene {
       if (head) {
         const { p, dir } = pointAlong(node.path.sampled, o.draw);
         const d = new Vector3(dir[0], dir[1], dir[2]);
-        head.position.set(p[0], p[1], p[2]).addScaledVector(d, -0.2);
+        head.position.set(p[0], p[1], p[2]).addScaledVector(d, -0.2 * head.scale.y);
         head.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), d);
         head.visible = o.draw > 0.02;
       }
@@ -831,7 +842,7 @@ export class PanelScene {
   private partSpheres(): PartHull[] {
     const spheres: PartHull[] = [];
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream || node.particles || node.force) continue;
       for (const p of node.pieces) {
         const mesh = p.object as Mesh;
         const geo = mesh.geometry;
