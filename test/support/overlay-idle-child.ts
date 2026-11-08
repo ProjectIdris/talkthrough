@@ -70,11 +70,13 @@ mock.timers.enable({ apis: ['Date', 'setInterval', 'setTimeout'] });
 
 const { createOverlayManager } = await import('../../src/main/overlay-windows.ts');
 const { CHANNEL } = await import('../../src/shared/ipc.ts');
+const { createCaptureShield } = await import('../../src/main/capture-shield.ts');
 
 const mode = process.argv[2] ?? 'normal';
+const shield = createCaptureShield({ enabled: true, wait: async () => { log.push(['settle']); } });
 let busy = false;
 const manager = createOverlayManager({
-  preload: 'preload.js', page: 'overlay.html', hideFromCapture: true, globalKeys: false,
+  preload: 'preload.js', page: 'overlay.html', shield, globalKeys: false,
   ...(mode === 'hidden' ? { hidden: true } : {}),
   ...(mode === 'backdrop' ? { backdrop: 'page.png' } : {}),
   answerBusy: () => busy,
@@ -157,6 +159,18 @@ const steps: Record<string, () => void> = {
     wait(10000);
   },
 };
+if (mode === 'shield') {
+  // A capture of ours while the answer is up on display 1 (and display 2's window is down): every window is out of it for the read, and only then.
+  manager.send(1, { kind: 'status', status: 'listening' });
+  emit(CHANNEL.visibleRegions, one, snapshot([{ id: 'status', kind: 'pill', alpha: 1 }]));
+  mark('before the capture');
+  await shield.around(async (settled) => {
+    mark('the capture starts');
+    await settled;
+    log.push(['read']);
+  });
+  mark('after the capture');
+}
 steps[mode]?.();
 manager.dispose();
 void two;

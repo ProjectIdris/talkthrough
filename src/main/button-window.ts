@@ -5,14 +5,15 @@
 import { BrowserWindow } from 'electron';
 import { CATCHER_WINDOW_OPTIONS, pressOf } from './button-catchers.ts';
 import type { CatcherWindow } from './button-catchers.ts';
+import type { CaptureShield } from './capture-shield.ts';
 
-export function electronCatcherWindow(options: { hideFromCapture: boolean }): CatcherWindow {
+export function electronCatcherWindow(options: { shield: CaptureShield }): CatcherWindow {
   const window = new BrowserWindow({
     ...CATCHER_WINDOW_OPTIONS,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, javascript: false },
   });
   window.setAlwaysOnTop(true, 'screen-saver');
-  if (options.hideFromCapture) window.setContentProtection(true);
+  window.on('closed', options.shield.add(window)); // out of our own captures, and only those
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   let listener: (() => void) | null = null;
   let loaded: string | null = null;

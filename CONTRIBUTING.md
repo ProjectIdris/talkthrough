@@ -30,6 +30,8 @@ Setup (a speech recogniser, a model) is in [docs/setup.md](docs/setup.md); commo
 
 The app works on your real screen: be careful with `--visible-to-capture` and with anything that takes screenshots while a private window is open.
 
+The app's windows are hidden from screen capture only for the moment of its own screenshot (`src/main/capture-shield.ts`), so they show in a person's recordings and screen shares the rest of the time. `--visible-to-capture` keeps them in our own screenshots too, which is only for looking at a run. `node_modules/.bin/electron scripts/capture-check.cjs` (needs a visible window, so run it yourself, not in CI) checks that our drawing is absent from our capture and present otherwise, and finds how long the change needs to take effect on your machine.
+
 ## Testing
 
 ```

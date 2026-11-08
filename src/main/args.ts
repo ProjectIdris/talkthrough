@@ -21,8 +21,10 @@ export type Options = {
   firstRun: boolean;
   /** Use the fake microphone Chromium provides (checks that need no real microphone). */
   fakeMic: boolean;
-  /** Keep the overlay visible to screen capture and recordings (it is hidden from them by default). */
+  /** Never take the windows out of our own screenshots (they are out of them for the moment each is taken, and in every other capture). */
   visibleToCapture: boolean;
+  /** Development: milliseconds to wait after taking the windows out of a screenshot, in place of the built-in figure (scripts/capture-check.cjs finds the least safe one). */
+  captureSettleMs?: number;
   /** Leave hardware acceleration on. This is the default; the option is kept so check runs written for it still work. */
   gpu: boolean;
   /** Draw with the system's software rasteriser instead of the graphics card (also TALKTHROUGH_SOFTWARE=1). */
@@ -117,6 +119,7 @@ export function parseArgs(argv: readonly string[]): Options {
       case '--first-run': options.firstRun = true; break;
       case '--fake-mic': options.fakeMic = true; break;
       case '--visible-to-capture': options.visibleToCapture = true; break;
+      case '--capture-settle': options.captureSettleMs = Number(value(i, a)); i++; break;
       case '--gpu': options.gpu = true; break;
       case '--software': options.software = true; break;
       case '--settings': options.settings = value(i, a); i++; break;

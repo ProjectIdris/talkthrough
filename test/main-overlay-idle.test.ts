@@ -71,11 +71,6 @@ test('a window kept hidden for a development run is never shown, and one with a 
   assert.equal(log.filter(([w]) => w === 'window100.hide').length, 0, 'it is not taken down while the backdrop is the point');
 });
 
-test('the content protection stays on the window, shown or hidden', () => {
-  const log = run('normal');
-  assert.equal(log.filter(([w]) => w.endsWith('.protect')).length, 2, 'set once per window, when it is made, as before');
-});
-
 // ---- the rule itself, with the clock in hand -------------------------------------------------------------------
 
 function clock() {
@@ -142,4 +137,18 @@ test('nothing but the visibility rule shows or hides an overlay window', () => {
   assert.equal((source.match(/\.showInactive\(\)/g) ?? []).length, 1, 'one place shows it');
   assert.equal((source.match(/window\.hide\(\)/g) ?? []).length, 1, 'one place hides it');
   assert.ok(/if \(wakesOverlay\(m\)\) overlay\.vis\.wake\(\);\s+if \(m\.kind === 'clear'/.test(source), 'the window is raised before the page is sent the message');
+});
+
+test('the overlay windows are in every capture except our own: not protected when made or while up, protected for the read of a capture of ours, and not after', () => {
+  const normal = run('normal');
+  assert.equal(normal.filter(([w]) => String(w).endsWith('.protect')).length, 0, 'content protection is never set on a window as it is made or shown');
+  const log = run('shield');
+  const order = log.map(([w, ...rest]) => (String(w).endsWith('.protect') ? `${w}:${rest[0]}` : w === '--' ? `mark:${rest[0]}` : w));
+  const at = (name: string): number => order.indexOf(name);
+  assert.ok(at('window100.protect:true') !== -1 && at('window101.protect:true') !== -1, 'every overlay window, up or down');
+  assert.ok(at('window100.protect:true') < at('settle') && at('window101.protect:true') < at('settle'), 'the wait follows the change, as the window is up');
+  assert.ok(at('settle') < at('read'), 'the frame is read after the wait');
+  assert.ok(at('read') < at('window100.protect:false') && at('read') < at('window101.protect:false'), 'and the windows come back after the read');
+  assert.ok(order.indexOf('window100.protect:false') < at('mark:after the capture'));
+  assert.equal(order.slice(0, at('mark:before the capture')).filter((x) => x.includes('.protect')).length, 0, 'nothing protected before the capture');
 });
