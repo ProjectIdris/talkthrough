@@ -31,9 +31,15 @@
       "retrieved": "2026-11-08",
       "sha256": "6ab56d4702c16d52ec54c7635cef25e7b488771ae9539717afd87327c09ed842"
     },
-    "note": "The database licence page (updated 2025-02-27) and README name CC BY 4.0 International and the credit line given here. The OBJ files in the 2013 archive still carry an older header naming CC Attribution-Share Alike 2.1 Japan; the current statement of the licensor is followed here, and the files are converted without their header."
+    "note": "The licensor's current statement (the database licence page updated 2025-02-27, and the README) is CC BY 4.0 International, and it is what is relied on. The OBJ files in the 2013 archive still carry an older header naming CC Attribution-ShareAlike 2.1 Japan; that is recorded here and kept in the credits, not erased.",
+    "earlierNotice": {
+      "id": "CC-BY-SA-2.1-JP",
+      "name": "CC Attribution-ShareAlike 2.1 Japan",
+      "evidence": "the header of every OBJ file in the 2013 archive",
+      "kept": true
+    }
   },
-  "credit": "BodyParts3D, © The Database Center for Life Science, licensed under CC Attribution 4.0 International (https://creativecommons.org/licenses/by/4.0/)",
+  "credit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
   "changes": "Files converted from OBJ to glTF, millimetres to metres, axes turned to y up and the front toward the viewer, parts recentred on themselves; a file may be merged with others into one named part. Duplicate vertices were welded and smooth normals computed; no shape was edited.",
   "orient": {
     "up": "z+",
@@ -1206,5 +1212,9 @@
         "triangles": 4386
       }
     }
+  },
+  "release": {
+    "blocked": true,
+    "why": "a local prototype only: not published and not packed into a release until it is cleared for one"
   }
 }

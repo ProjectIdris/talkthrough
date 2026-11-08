@@ -6,6 +6,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { BufferGeometry, Mesh, Object3D } from 'three';
 import { MODELS } from '../scene/model-catalogue.ts';
 import type { ModelEntry } from '../scene/model-catalogue.ts';
+import type { Frame } from './timeline.ts';
 import { findModel } from '../scene/models.ts';
 
 export type ModelState = 'idle' | 'loading' | 'ready' | 'failed';
@@ -26,6 +27,8 @@ export type StoreOptions = {
   read: (file: string) => Promise<ArrayBuffer>;
   /** Called when a model finishes loading or fails, so a waiting frame can be drawn again. */
   changed?: () => void;
+  /** Told why a model could not be loaded (once for each). */
+  log?: (message: string) => void;
   catalogue?: readonly ModelEntry[];
 };
 
@@ -81,8 +84,10 @@ export function createModelStore(options: StoreOptions): ModelStore {
       parts.set(entry.id, named);
       states.set(entry.id, 'ready');
     } catch (error) {
-      failures.set(entry.id, error instanceof Error ? error.message : String(error));
+      const why = error instanceof Error ? error.message : String(error);
+      failures.set(entry.id, why);
       states.set(entry.id, 'failed');
+      options.log?.(`model ${entry.id} failed: ${why}`);
     }
     options.changed?.();
   }
@@ -129,4 +134,51 @@ export function creditLine(objects: readonly { def: { shape?: string; model?: un
     lines.push(`${model.name}: ${model.credit.replace(/\s*\(https?:[^)]*\)/g, '')}`);
   }
   return lines.join(' · ');
+}
+
+/** Everything hanging from a real model that could not be loaded (the model, its parts, what was attached to them), and the pins on any of it, is taken out of the frame: the stage plays on without the model rather than showing pins on nothing. `failed` names what was left out. */
+export function withoutFailedModels(frame: Frame, store: ModelStore): { frame: Frame; failed: string[] } {
+  const gone = new Set<number>();
+  const failed: string[] = [];
+  for (const o of frame.objects) {
+    if (o.def.shape !== 'model') continue;
+    const model = findModel(o.def.model);
+    if (model && store.state(model.id) === 'failed') {
+      gone.add(o.key);
+      if (!failed.includes(model.name)) failed.push(model.name);
+    }
+  }
+  if (gone.size === 0) return { frame, failed };
+  // Parents come before their children, so one pass finds everything below.
+  for (const o of frame.objects) if (o.parentKey !== null && gone.has(o.parentKey)) gone.add(o.key);
+  const focus = frame.camera.focus.key !== null && gone.has(frame.camera.focus.key) ? { key: null, k: 1 } : frame.camera.focus;
+  return {
+    frame: { ...frame, objects: frame.objects.filter((o) => !gone.has(o.key)), marks: frame.marks.filter((m) => m.onKey === undefined || !gone.has(m.onKey)), camera: { ...frame.camera, focus } },
+    failed,
+  };
+}
+
+/** The words for a model that could not be shown. */
+export const failedNote = (names: readonly string[]): string => names.map((n) => `The 3D model "${n}" could not be loaded, so it is not shown.`).join(' ');
+
+type Box = { x: number; y: number; w: number; h: number };
+
+/**
+ * Where the stage's small print goes: the corner of the stage, at its foot first, that has the least of the model, the controls or anything else
+ * in the way (the first one clear of all of them, else the one with the least overlap).
+ */
+export function cornerFor(stage: Box, size: { w: number; h: number }, avoid: readonly Box[], margin = 10): { x: number; y: number } {
+  const w = Math.min(size.w, stage.w - 2 * margin), h = Math.min(size.h, stage.h - 2 * margin);
+  const left = stage.x + margin, right = stage.x + stage.w - margin - w, top = stage.y + margin, bottom = stage.y + stage.h - margin - h;
+  const corners = [{ x: left, y: bottom }, { x: right, y: bottom }, { x: left, y: top }, { x: right, y: top }];
+  const overlap = (c: { x: number; y: number }): number => avoid.reduce((sum, a) => {
+    const dx = Math.min(c.x + w, a.x + a.w) - Math.max(c.x, a.x), dy = Math.min(c.y + h, a.y + a.h) - Math.max(c.y, a.y);
+    return sum + (dx > 0 && dy > 0 ? dx * dy : 0);
+  }, 0);
+  let best = corners[0]!, bestOverlap = overlap(best);
+  for (const c of corners.slice(1)) {
+    const o = overlap(c);
+    if (o < bestOverlap) { best = c; bestOverlap = o; }
+  }
+  return best;
 }

@@ -12,13 +12,15 @@ import { MODELS } from '../src/scene/model-catalogue.ts';
 import type { ModelEntry } from '../src/scene/model-catalogue.ts';
 import { modelScale } from '../src/scene/models.ts';
 import { PanelScene } from '../src/overlay/scene3d.ts';
-import { createModelStore, creditLine, externalReference, modelsIn } from '../src/overlay/model-assets.ts';
+import { cornerFor, createModelStore, creditLine, externalReference, failedNote, modelsIn, withoutFailedModels } from '../src/overlay/model-assets.ts';
 import type { ModelState, ModelStore } from '../src/overlay/model-assets.ts';
 import { frameAt } from '../src/overlay/timeline.ts';
 // @ts-expect-error plain script modules
 import { writeGlb, parseObj } from '../scripts/assets/obj-glb.mjs';
 // @ts-expect-error plain script modules
 import { generate } from '../scripts/assets/index.mjs';
+// @ts-expect-error plain script modules
+import { manifestProblems, readManifests } from '../scripts/assets/manifest.mjs';
 // @ts-expect-error plain script modules
 import { shipModels } from '../scripts/assets/ship.mjs';
 
@@ -217,4 +219,90 @@ test('shipping puts only the files the manifests pin next to the app, and the cr
     assert.ok(existsSync(join(out, 'CREDITS.md')));
     for (const m of MODELS) assert.equal(sha(readFileSync(join(out, 'models', m.built.file))), m.built.sha256);
   } finally { rmSync(out, { recursive: true, force: true }); }
+});
+
+// ---- what the author attached, a model that fails, and where the small print goes ---------------------
+
+test('a model written again keeps what the author attached to it, on the same part when the new model has it and on the model when it has not', () => {
+  const state = createSceneState();
+  const first = validated({ steps: [{ say: 'Heart.', actions: [{ op: 'panel', x: 400, y: 80, w: 500, h: 700 }, { op: 'add', shape: 'model', id: 'h', model: 'heart', size: 6 },
+    { op: 'add', shape: 'box', id: 'tag', size: [0.5, 0.5, 0.5], parent: 'h' }, { op: 'add', shape: 'box', id: 'on', size: [0.5, 0.5, 0.5], parent: 'h.left-ventricle' }] }] }, state);
+  (state as { replaceable?: Set<string> }).replaceable = new Set(state.ids.keys());
+  const same = validated({ steps: [{ say: 'Heart again.', actions: [{ op: 'add', shape: 'model', id: 'h', model: 'heart', size: 6 }] }] }, state);
+  const frame = frameAt([...first.steps, ...same.steps], 1, 5);
+  const alive = (id: string) => frame.objects.findLast((o) => o.id === id)!;
+  const lv = alive('h.left-ventricle');
+  assert.equal(alive('on').parentKey, lv.key, 'still on the left ventricle');
+  assert.equal(alive('tag').parentKey, alive('h').key);
+
+  (state as { replaceable?: Set<string> }).replaceable = new Set(state.ids.keys());
+  const other = validated({ steps: [{ say: 'Brain.', actions: [{ op: 'add', shape: 'model', id: 'h', model: 'brain', size: 6 }] }] }, state);
+  const later = frameAt([...first.steps, ...same.steps, ...other.steps], 2, 5);
+  const on = later.objects.findLast((o) => o.id === 'on')!;
+  assert.equal(on.parentKey, later.objects.findLast((o) => o.id === 'h')!.key, 'on the model, the brain having no left ventricle');
+  const scale = modelScale(heart, 6);
+  heart.parts.find((p) => p.key === 'left-ventricle')!.center.forEach((c, i) => assert.ok(Math.abs(on.pos[i]! - c * scale) < 1e-9, 'it stays where it was'));
+});
+
+test('a model that cannot be loaded leaves the stage without it and its pins, says so, and logs why once', async () => {
+  const scene = validated({ steps: [{ say: 'A heart.', actions: [{ op: 'panel', x: 400, y: 80, w: 500, h: 700 }, { op: 'add', shape: 'model', id: 'h', model: 'heart', size: 6 }, { op: 'add', shape: 'box', id: 'tag', size: [1, 1, 1], parent: 'h' },
+    { op: 'add', shape: 'box', id: 'other', size: [1, 1, 1] }, { op: 'pin', id: 'p', on: 'h.left-ventricle', text: 'Left ventricle' }, { op: 'pin', id: 'q', on: 'other', text: 'Other' }] }] });
+  const frame = frameAt(scene.steps, 0, 5);
+  // a damaged file: the right name, the wrong bytes
+  const logged: string[] = [];
+  const store = createModelStore({ read: async () => new ArrayBuffer(64), log: (m) => logged.push(m) });
+  assert.equal(withoutFailedModels(frame, store).frame, frame, 'nothing changes while it is not failed');
+  await store.ensure(['heart']);
+  await store.ensure(['heart']);
+  assert.equal(store.state('heart'), 'failed');
+  assert.equal(logged.length, 1);
+  assert.match(logged[0]!, /^model heart failed: .*bytes/);
+  const kept = withoutFailedModels(frame, store);
+  assert.deepEqual(kept.failed, ['Human heart']);
+  const ids = kept.frame.objects.map((o) => o.id);
+  assert.deepEqual(ids, ['other'], 'the model, its parts and what hung from it are out');
+  assert.deepEqual(kept.frame.marks.map((m) => m.id), ['q'], 'the pin on a part is out, the pin on something else stays');
+  assert.match(failedNote(kept.failed), /"Human heart" could not be loaded, so it is not shown/);
+  assert.equal(creditLine(kept.frame.objects), '', 'no credit for what is not shown');
+});
+
+test('the small print of the stage takes the corner with least in the way, the foot first', () => {
+  const stage = { x: 100, y: 100, w: 800, h: 600 };
+  const size = { w: 300, h: 40 };
+  assert.deepEqual(cornerFor(stage, size, []), { x: 110, y: 650 }, 'the left foot when nothing is in the way');
+  // the model fills the left foot: the right foot
+  assert.deepEqual(cornerFor(stage, size, [{ x: 100, y: 500, w: 400, h: 200 }]), { x: 590, y: 650 });
+  // both feet taken: a corner at the top
+  assert.deepEqual(cornerFor(stage, size, [{ x: 100, y: 500, w: 800, h: 200 }]), { x: 110, y: 110 });
+  // everything taken: the one with the least overlap, never outside the stage
+  const c = cornerFor(stage, size, [{ x: 100, y: 100, w: 800, h: 600 }]);
+  assert.ok(c.x >= stage.x && c.y >= stage.y && c.x + size.w <= stage.x + stage.w && c.y + size.h <= stage.y + stage.h);
+  // a note wider than the stage still fits it
+  assert.equal(cornerFor({ x: 0, y: 0, w: 200, h: 100 }, { w: 400, h: 20 }, []).x, 10);
+});
+
+test('BodyParts3D is credited as its current grant says, the older file notice is kept on record, and the prototype is held back from every release', () => {
+  const out = generate();
+  assert.match(out.credits, /Credit: BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4\.0 International$/m, 'the credit, exactly');
+  assert.match(out.credits, /Earlier notice, kept on record: .*CC Attribution-ShareAlike 2\.1 Japan/);
+  assert.match(out.credits, /Source archive: https:\/\/dbarchive.*isa_BP3D_4\.0_obj_99\.zip/);
+  assert.match(out.credits, /Left ventricle \(atlas; FJ\d+\)/, 'the source element ids of each part');
+  assert.match(out.credits, /MIT licence covers that code only: it excludes the models named here/);
+  assert.match(out.credits, /Held back from releases/);
+  for (const m of MODELS) {
+    assert.equal(m.licence.id, 'CC-BY-4.0');
+    assert.equal(m.credit, 'BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International');
+    assert.equal(m.release.blocked, true);
+  }
+  // an earlier notice must say that it is kept
+  const manifest = JSON.parse(JSON.stringify(readManifests()[0].manifest));
+  assert.deepEqual(manifestProblems(manifest), []);
+  manifest.licence.earlierNotice.kept = false;
+  assert.match(manifestProblems(manifest).join(';'), /earlier licence notice/);
+  // the release path refuses while any model is held, before it looks for files
+  const dir = mkdtempSync(join(tmpdir(), 'tt-rel-'));
+  try {
+    assert.throws(() => shipModels({ strict: true, release: true, out: dir }), /held back/);
+    assert.ok(!existsSync(join(dir, 'models')), 'nothing was copied');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

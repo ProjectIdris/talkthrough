@@ -12,6 +12,7 @@ export function catalogueSource(manifests) {
   const entries = manifests.map((m) => ({
     id: m.id, name: m.name, description: m.description, aliases: m.aliases,
     licence: { id: m.licence.id, name: LICENCES[m.licence.id].name, version: m.licence.version, url: LICENCES[m.licence.id].url },
+    release: { blocked: m.release?.blocked === true, why: m.release?.why },
     credit: LICENCES[m.licence.id].credit ? m.credit : undefined,
     size: m.built.size, realLengthMetres: m.scale.realLengthMetres, caveats: m.caveats ?? [],
     built: { file: m.built.file, bytes: m.built.bytes, sha256: m.built.sha256, triangles: m.built.triangles },
@@ -38,6 +39,8 @@ export type ModelPart = {
 export type ModelEntry = {
   id: string; name: string; description: string; aliases: string[];
   licence: { id: string; name: string; version: string; url: string };
+  /** A model held back from every release (the installer is not built while one is). */
+  release: { blocked: boolean; why: string | undefined };
   /** The credit line the licence asks to be shown (CC BY); none for CC0. */
   credit: string | undefined;
   /** The whole model's size in metres, and the real length of its subject. */
@@ -54,7 +57,7 @@ export function creditsSource(manifests) {
   const lines = [
     '# Credits for the real models',
     '',
-    'Talkthrough itself is MIT licensed. The models it can show are separate works under their own licences, listed here, and are not part of the MIT grant.',
+    'Talkthrough\'s own code is MIT licensed. The MIT licence covers that code only: it excludes the models named here, which are separate works under their own licences, listed below with who made them and what was changed.',
     'This file is generated from `assets/models/*.json` (`npm run assets:index`) and is shipped with the app.',
     '',
   ];
@@ -62,12 +65,15 @@ export function creditsSource(manifests) {
     const lic = LICENCES[m.licence.id];
     lines.push(`## ${m.name} (\`${m.id}\`)`, '');
     lines.push(`- Source: ${m.source.name}, ${m.source.url} (${m.source.version})`);
+    if (m.source.archive) lines.push(`- Source archive: ${m.source.archive.url} (${m.source.archive.bytes} bytes)`);
     lines.push(`- Licence: ${lic.name}, version ${m.licence.version}: ${m.licence.url ?? lic.url}`);
+    if (m.licence.earlierNotice) lines.push(`- Earlier notice, kept on record: ${m.licence.earlierNotice.evidence} name ${m.licence.earlierNotice.name}; the current grant above is what is relied on.`);
+    if (m.release?.blocked) lines.push(`- Held back from releases: ${m.release.why}.`);
     if (m.credit) lines.push(`- Credit: ${m.credit}`);
     lines.push(`- Changes: ${m.changes}`);
     if (m.licence.note) lines.push(`- Note: ${m.licence.note}`);
     lines.push(`- Built file: ${m.built.file}, ${m.built.bytes} bytes, sha256 ${m.built.sha256}`);
-    lines.push(`- Parts: ${m.parts.map((p) => `${p.name} (${p.confidence})`).join('; ')}`);
+    lines.push(`- Parts (confidence; source element ids): ${m.parts.map((p) => `${p.name} (${p.confidence}; ${(p.nodes ?? []).join(' ')})`).join('; ')}`);
     for (const c of m.caveats ?? []) lines.push(`- Limit: ${c}`);
     lines.push('');
   }

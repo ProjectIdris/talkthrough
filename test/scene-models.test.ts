@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createSceneState, sceneGuide, sceneSchemaLean, validateStep } from '../src/scene/index.ts';
 import { MODELS } from '../src/scene/model-catalogue.ts';
-import { findModel, findPart, modelBounds, modelScale, partId, SCENE_UNITS_PER_METRE } from '../src/scene/models.ts';
+import { findModel, findPart, modelBounds, modelScale, partId, resolveModel, resolvePart, SCENE_UNITS_PER_METRE } from '../src/scene/models.ts';
 
 type Act = { op: string; id?: string; model?: string; size?: number; shape?: string; rot?: number[]; target?: string };
 const panel = { op: 'panel', x: 400, y: 80, w: 500, h: 700 };
@@ -90,8 +90,46 @@ function startOver(state: ReturnType<typeof createSceneState>): void {
 
 test('the guide lists the models, their parts and how to use them, and the lean schema names them', () => {
   assert.match(sceneGuide, /add \{shape:model/);
-  assert.match(sceneGuide, /heart \(.*left-ventricle.*\)/);
-  assert.match(sceneGuide, /brain \(.*cerebellum.*\)/);
-  assert.match(sceneGuide, /id\.part/);
+  assert.ok(sceneGuide.includes('add {shape:model, model, size}): brain, heart.'));
+  assert.ok(sceneGuide.includes('id.part'));
+  // The guide holds the rule once and the ids; the parts are looked up by the validator, so each model costs its id and no more.
+  for (const m of MODELS) for (const p of m.parts) assert.ok(!sceneGuide.includes(p.key), `the guide does not list ${m.id}'s part ${p.key}`);
+  const bullet = sceneGuide.split('\n').find((l) => l.startsWith('- Real models'))!;
+  assert.ok(bullet.length - MODELS.map((m) => m.id).join(', ').length < 700, `the rule is stated once, in ${bullet.length} characters`);
   assert.ok(JSON.stringify(sceneSchemaLean).includes('"heart"'));
+});
+
+test('a name close to a model or a part is taken for it with a note when it is plainly meant; an ambiguous or unlike name is refused with the nearest', () => {
+  assert.equal(resolveModel('hart').model?.id, 'heart', 'a slip');
+  assert.equal(resolveModel('brains').model?.id, 'brain', 'a plural');
+  assert.equal(resolveModel('v8 engine').model, undefined);
+  assert.deepEqual(resolvePart(heart, 'left ventricles').part?.key, 'left-ventricle');
+  assert.equal(resolvePart(heart, 'aorta').part?.key, 'ascending-aorta', 'one part has the word');
+  const ambiguous = resolvePart(heart, 'ventricle');
+  assert.equal(ambiguous.part, undefined);
+  assert.deepEqual(ambiguous.near.map((p) => p.key).sort().slice(0, 2), ['left-ventricle', 'right-ventricle']);
+  assert.equal(resolvePart(heart, 'spleen').near.length, 0);
+  const s = run(createSceneState(), { op: 'add', shape: 'model', id: 'h', model: 'hart' }).state;
+  const near = run(s, { op: 'highlight', id: 'h.ventricle' }, { op: 'highlight', id: 'h.aorta' });
+  assert.equal(near.ops, 'highlight:h.ascending-aorta');
+  assert.ok(near.issues.some((m) => /h\.ventricle/.test(m) && /nearest parts of h are/.test(m) && /left-ventricle/.test(m)), JSON.stringify(near.issues));
+  const gone = run(createSceneState(), { op: 'add', shape: 'model', id: 'e', model: 'engine' });
+  assert.ok(gone.issues.some((m) => /the real models are brain, heart/.test(m)));
+});
+
+test('writing a model again keeps what the author attached to it or to a part, and takes only its own parts', () => {
+  const state = createSceneState();
+  const first = run(state, { op: 'add', shape: 'model', id: 'h', model: 'heart' }, { op: 'add', shape: 'box', id: 'tag', size: [1, 1, 1], parent: 'h' }, { op: 'add', shape: 'box', id: 'on-lv', size: [1, 1, 1], parent: 'h.left-ventricle' }, { op: 'add', shape: 'box', id: 'on-ra', size: [1, 1, 1], parent: 'h.right-atrium' });
+  assert.deepEqual(first.issues, []);
+  startOver(first.state);
+  const again = run(first.state, { op: 'add', shape: 'model', id: 'h', model: 'brain' });
+  assert.equal(again.ops, 'add:h');
+  const ids = first.state.ids;
+  assert.ok(ids.has('tag') && ids.has('on-lv') && ids.has('on-ra'), 'attached boxes stay');
+  assert.ok(!ids.has('h.left-ventricle') && ids.has('h.cerebellum'), 'the parts are the new model\'s');
+  assert.equal(first.state.parents.get('tag'), 'h');
+  assert.equal(first.state.parents.get('on-lv'), 'h', 'what hung from a part the new model lacks hangs from the model');
+  startOver(first.state);
+  const next = run(first.state, { op: 'add', shape: 'model', id: 'h', model: 'heart' });
+  assert.equal(next.ops, 'add:h');
 });

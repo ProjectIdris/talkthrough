@@ -16,7 +16,7 @@ import { attachTolerance, FACE_NORMALS, landOn, mountPosition, turnToFace } from
 import { anchorsOf } from './anchors.ts';
 import { partFacing, resolvePartGeometry } from './part-geometry.ts';
 import { MODELS } from './model-catalogue.ts';
-import { findModel, findPart, partId } from './models.ts';
+import { findModel, partId, resolveModel, resolvePart } from './models.ts';
 import { resolveHullPoints } from './hull-points.ts';
 import type { Body } from './attach.ts';
 import { bindParts, bindUnknownId, BINDINGS } from './bind.ts';
@@ -228,8 +228,11 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
         const base = v.slice(0, v.indexOf('.'));
         const model = state.models?.has(base) ? MODELS.find((m) => m.id === state.models!.get(base)) : undefined;
         if (model) {
-          const part = findPart(model, v.slice(v.indexOf('.') + 1));
-          if (!part) return bad(`unknown id "${v}": the parts of ${base} are ${model.parts.map((p) => p.key).join(', ')}`);
+          const { part, near } = resolvePart(model, v.slice(v.indexOf('.') + 1));
+          if (!part) {
+            const list = (near.length ? near : model.parts.slice(0, 12)).map((p) => p.key);
+            return bad(`unknown id "${v}": ${near.length ? 'the nearest parts of' : 'parts of'} ${base} are ${list.join(', ')}${!near.length && model.parts.length > list.length ? `, and ${model.parts.length - list.length} more` : ''}`);
+          }
           id = partId(base, part.key);
           kind = state.ids.get(id);
           note(notes, 'trimmed', path, `repaired: "${v}" is the part "${id}"`);
@@ -598,9 +601,10 @@ function subjectName(raw: object, path: string, notes: Notes): object {
 function modelName(raw: object, path: string, notes: Notes): object | null {
   if (own(raw, 'op') !== 'add' || own(raw, 'shape') !== 'model') return raw;
   const given = own(raw, 'model');
-  const found = findModel(given);
+  const { model: found, near } = resolveModel(given);
   if (!found) {
-    note(notes, 'dropped', path, `no model ${typeof given === 'string' ? `"${given.slice(0, 40)}"` : 'name'}; the real models are ${MODELS.map((m) => m.id).join(', ')}: build it from shapes instead`);
+    const nearest = near.length ? `the nearest are ${near.map((m) => m.id).join(', ')}; ` : '';
+    note(notes, 'dropped', path, `no model ${typeof given === 'string' ? `"${given.slice(0, 40)}"` : 'name'}; ${nearest}the real models are ${MODELS.map((m) => m.id).join(', ')}: build it from shapes instead`);
     return null;
   }
   if (given !== found.id) note(notes, 'trimmed', path, `repaired: model "${String(given).slice(0, 40)}" is the model "${found.id}"`);
@@ -917,7 +921,12 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
     // A real model brings its named parts: each is an object of its own, under the model, so every op that names an object can name one.
     if (variant.name === 'addModel') {
       const model = findModel(out.model)!;
-      for (const [old, owner] of [...state.parents]) if (owner === id) removeWithDescendants(state, old);
+      // Written again, only its own named parts go (the new model brings its own); what the author attached to the model or to a part stays attached.
+      const before = state.models?.has(id) ? MODELS.find((m) => m.id === state.models!.get(id)) : undefined;
+      for (const p of before?.parts ?? []) {
+        const old = partId(id, p.key);
+        state.ids.delete(old); state.parents.delete(old); state.depth.delete(old);
+      }
       (state.models ??= new Map()).set(id, model.id);
       for (const p of model.parts) {
         const pid = partId(id, p.key);
@@ -925,6 +934,8 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
         state.parents.set(pid, id);
         state.depth.set(pid, (parent === undefined ? 1 : (state.depth.get(parent) ?? 0) + 1) + 1);
       }
+      // What hung from a part the new model does not have hangs from the model itself.
+      for (const [child, owner] of state.parents) if (owner?.startsWith(`${id}.`) && owner !== undefined && !state.ids.has(owner)) state.parents.set(child, id);
     } else state.models?.delete(id);
     if (variant.creates === 'diagram') state.diagramKinds.set(id, out.kind as DiagramKind);
     else state.diagramKinds.delete(id);

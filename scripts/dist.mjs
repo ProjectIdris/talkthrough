@@ -16,6 +16,6 @@ if (checkNativeInputs('node_modules') !== 0) {
 }
 ensureElectronOrExit(); // electron-builder packs the Electron in node_modules/electron/dist
 run(process.execPath, ['scripts/build.mjs']);
-shipModels({ strict: true }); // the installer carries the real models: refuse to pack one that cannot show them
+shipModels({ strict: true, release: true }); // the installer carries the real models: refuse to pack one that cannot show them
 const cli = createRequire(import.meta.url).resolve('electron-builder/cli.js');
 run(process.execPath, [cli, '--win', '--x64', '--publish', 'never', ...process.argv.slice(2)]);

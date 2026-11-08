@@ -48,7 +48,7 @@ import { followupKeepOut, followupSpot } from './followup-placement.ts';
 import type { CaptionDriver, CaptionState, Rect } from './captions.ts';
 import { readingSeconds } from '../shared/captions.ts';
 import { PanelScene } from './scene3d.ts';
-import { createModelStore, creditLine, modelsIn } from './model-assets.ts';
+import { cornerFor, createModelStore, creditLine, failedNote, modelsIn, withoutFailedModels } from './model-assets.ts';
 import type { ScreenRect } from './scene3d.ts';
 import type { Frame } from './timeline.ts';
 
@@ -133,7 +133,10 @@ const modelStore = createModelStore({
     return response.arrayBuffer();
   },
   changed: () => { request(); },
+  log: (message) => console.error(`talkthrough: ${message}`),
 });
+/** The models the last frame had to leave out, for the stage's note. */
+let modelsLeftOut: string[] = [];
 const panelScene = new PanelScene({
   tier,
   models: modelStore,
@@ -329,7 +332,9 @@ let lastSourceFrame: Frame | undefined;
 let paintedSurfaces = new Map<string, ScreenRect>();
 
 function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
-  frame = withoutReplacedSurfaces(displayedFrame(frame), ownedSurfaces);
+  const kept = withoutFailedModels(withoutReplacedSurfaces(displayedFrame(frame), ownedSurfaces), modelStore);
+  frame = kept.frame;
+  modelsLeftOut = kept.failed;
   renderer?.setScissorTest(false);
   renderer?.clear();
   const rect = panelRect(frame.panel, view);
@@ -944,18 +949,24 @@ function captionUntilChange(now: number): number | undefined {
   return Math.max(0, s.endedAt + CAPTION_HOLD_MS - now);
 }
 
-/** The credit line of the real models on the stage, at the stage's foot, and nothing when there are none. */
+/** The stage's small print: the credit the real models on it owe, and a note for any that could not be shown. It sits in the corner of the stage with the least in the way. */
 function placeCredit(frame: Frame): void {
-  const line = frame.panel && modelRect ? creditLine(frame.objects) : '';
-  if (!line || !frame.panel) { creditEl.style.display = 'none'; return; }
-  if (creditEl.textContent !== line) creditEl.textContent = line;
-  const rect = frame.panel.rect;
-  // Under the model's left edge, at the foot of the stage, kept inside the stage.
-  const left = Math.min(Math.max(rect.x + 12, modelRect?.x ?? 0), rect.x + rect.w - 132);
+  const text = [frame.panel && modelRect ? creditLine(frame.objects) : '', failedNote(modelsLeftOut)].filter(Boolean).join(' · ');
+  if (!text || !frame.panel) { creditEl.style.display = 'none'; return; }
+  if (creditEl.textContent !== text) creditEl.textContent = text;
+  const stage = frame.panel.rect;
   creditEl.style.display = 'block';
-  creditEl.style.left = `${left}px`;
-  creditEl.style.maxWidth = `${Math.max(120, Math.min(420, rect.x + rect.w - left - 12))}px`;
-  creditEl.style.top = `${Math.max(0, rect.y + rect.h - creditEl.offsetHeight - 10)}px`;
+  creditEl.style.maxWidth = `${Math.max(120, Math.min(520, stage.w - 24))}px`;
+  const avoid: Array<{ x: number; y: number; w: number; h: number }> = [];
+  if (modelRect) avoid.push(modelRect);
+  for (const el of [explodeEl, cutEl, detailEl]) {
+    if (el.style.display === 'none' || el.style.display === '') continue;
+    const r = el.getBoundingClientRect();
+    avoid.push({ x: r.left, y: r.top, w: r.width, h: r.height });
+  }
+  const at = cornerFor(stage, { w: creditEl.offsetWidth, h: creditEl.offsetHeight }, avoid);
+  creditEl.style.left = `${at.x}px`;
+  creditEl.style.top = `${at.y}px`;
 }
 
 /** Shows the Explode / Assemble control at the corner of a finished model with parts to spread, and hides it otherwise. */

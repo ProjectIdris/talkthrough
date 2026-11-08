@@ -16,6 +16,8 @@ export type ModelPart = {
 export type ModelEntry = {
   id: string; name: string; description: string; aliases: string[];
   licence: { id: string; name: string; version: string; url: string };
+  /** A model held back from every release (the installer is not built while one is). */
+  release: { blocked: boolean; why: string | undefined };
   /** The credit line the licence asks to be shown (CC BY); none for CC0. */
   credit: string | undefined;
   /** The whole model's size in metres, and the real length of its subject. */
@@ -43,7 +45,11 @@ export const MODELS: readonly ModelEntry[] = [
       "version": "4.0 International",
       "url": "https://creativecommons.org/licenses/by/4.0/"
     },
-    "credit": "BodyParts3D, © The Database Center for Life Science, licensed under CC Attribution 4.0 International (https://creativecommons.org/licenses/by/4.0/)",
+    "release": {
+      "blocked": true,
+      "why": "a local prototype only: not published and not packed into a release until it is cleared for one"
+    },
+    "credit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
     "size": [
       0.138834,
       0.16596,
@@ -556,7 +562,11 @@ export const MODELS: readonly ModelEntry[] = [
       "version": "4.0 International",
       "url": "https://creativecommons.org/licenses/by/4.0/"
     },
-    "credit": "BodyParts3D, © The Database Center for Life Science, licensed under CC Attribution 4.0 International (https://creativecommons.org/licenses/by/4.0/)",
+    "release": {
+      "blocked": true,
+      "why": "a local prototype only: not published and not packed into a release until it is cleared for one"
+    },
+    "credit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
     "size": [
       0.115695,
       0.14217,

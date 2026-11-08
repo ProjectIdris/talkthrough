@@ -39,6 +39,12 @@ export function manifestProblems(m) {
   need(m.credit === undefined || typeof m.credit === 'string', 'credit must be text');
   if (m.licence && LICENCES[m.licence.id]?.credit) need(typeof m.credit === 'string' && m.credit.length > 0, 'this licence requires a credit line');
   need(typeof m.changes === 'string', 'changes (what was done to the files) must be stated');
+  // An older notice on the files themselves is kept on record, never erased.
+  if (m.licence?.earlierNotice) {
+    const c = m.licence.earlierNotice;
+    need(typeof c.id === 'string' && typeof c.name === 'string' && typeof c.evidence === 'string' && c.kept === true, 'an earlier licence notice names the licence, where it is found, and that it is kept');
+  }
+  need(m.release === undefined || (typeof m.release.blocked === 'boolean' && (!m.release.blocked || typeof m.release.why === 'string')), 'release is { blocked, why }');
   need(m.orient && ['x+','x-','y+','y-','z+','z-'].includes(m.orient.up) && ['x+','x-','y+','y-','z+','z-'].includes(m.orient.front), 'orient needs up and front, each one of x+ x- y+ y- z+ z-');
   need(m.scale && Number.isFinite(m.scale.unitsToMetres) && m.scale.unitsToMetres > 0, 'scale.unitsToMetres is missing');
   need(Array.isArray(m.files) && m.files.length > 0, 'files is empty');
