@@ -286,7 +286,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addShell', op: 'add', shapes: ['shell'], creates: 'solid',
     doc: 'A closed hollow ellipsoid section: domes, bowls, curved enclosures and opened layers. size is the full outer ellipsoid diameters [x,y,z], not the cropped bounds. inner (default .85) scales its concentric cavity, not a uniform wall thickness. latitude [south,north] degrees -90..90 (default [-90,90], span at least 1); sweep 1..360 (default 360) runs from +x toward +z around y. Radial rims close the material volume. Rotate to aim the opening. Invalid or unsafe geometry rejects.',
     fields: {
-      shape: { k: 'enum', values: ['shell'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['shell'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       size: { k: 'vec3', min: 0.01, max: 100 }, inner: { k: 'num', min: 0.01, max: 0.99, opt: true },
       latitude: { k: 'vec2', min: -90, max: 90, opt: true }, sweep: { k: 'num', min: 1, max: 360, opt: true },
       color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
@@ -307,7 +307,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addHull', op: 'add', shapes: ['hull'], creates: 'solid',
     doc: 'A closed convex envelope of 4 to 64 local 3D points. Points are not recentered and must span three dimensions; interior and duplicate points are allowed. No concavities or cavities.',
     fields: {
-      shape: { k: 'enum', values: ['hull'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['hull'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       pts: { k: 'pts', min: 4, max: LIMITS.maxHullPoints, lo: WORLD.min, hi: WORLD.max },
       color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
     },
@@ -326,7 +326,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addPatch', op: 'add', shapes: ['patch'], creates: 'solid',
     doc: 'An open bicubic Bézier sheet: exactly 16 controls [x,y,z], four rows of four in row-major order. Each row runs across u; rows advance v. Corners lie on the sheet; other controls pull its curvature, not interpolation points. Curved panels, canopies, membranes. Two-sided, no thickness or solid cut cap. Use a regular net without folds or collapsed rows.',
     fields: {
-      shape: { k: 'enum', values: ['patch'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['patch'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       pts: { k: 'pts', min: 16, max: 16, lo: WORLD.min, hi: WORLD.max, doc: 'exactly 16 finite controls in -100..100; never trimmed or clamped; numerically unsafe sampled nets are rejected' },
       color: COLOR_OPT, material: MATERIAL, ...FINISH, edges: EDGES, opacity: OPACITY, at: AT,
     },
@@ -335,7 +335,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addSweep', op: 'add', shapes: ['sweep'], creates: 'solid',
     doc: 'A closed polygon outline carried along a smooth open 3D path: curved rails, shaped cables and solid bands. Outline x,y are local section offsets; up sets initial +y, projected perpendicular to the path (default +y, or +x for a vertical start). The section follows with minimum rotation. Flat caps and sharp section corners by default; smooth:true blends shallow wall joins without changing geometry. No bevel or holes. Keep the profile narrow relative to bends; folded or collapsed sampled meshes are rejected.',
     fields: {
-      shape: { k: 'enum', values: ['sweep'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['sweep'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
       pts: { k: 'pts', min: 2, max: 16, lo: WORLD.min, hi: WORLD.max },
       up: { k: 'vec3', ...WORLD, opt: true, doc: 'nonzero initial section +y direction, not parallel to the starting path' },
@@ -347,7 +347,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addLoft', op: 'add', shapes: ['loft'], creates: 'solid',
     doc: 'A closed solid joining independently shaped convex end outlines by matching point indices, at z=-depth/2 and +depth/2. Both rings need 3–24 corners, equal counts and the same winding; every interpolated section must stay strictly convex. No closing duplicate, collinear corners, holes or bevel. Use for asymmetric shape-changing transitions; no automatic recentering or point rematching. Optional smooth:true blends shallow wall joins while retaining flat caps and sharp corners.',
     fields: {
-      shape: { k: 'enum', values: ['loft'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS, rot: ROT,
+      shape: { k: 'enum', values: ['loft'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
       endOutline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
       smooth: { k: 'bool', opt: true, doc: 'blend shallow section corners for rounded wall lighting; retain sharp corners and flat caps, without changing the silhouette; default false' },
@@ -434,7 +434,7 @@ export const VARIANTS: readonly Variant[] = [
     name: 'addText', op: 'add', shapes: ['text'], creates: 'text',
     doc: 'Text in the 3D scene that always faces the camera; height is in 3D units.',
     fields: {
-      shape: { k: 'enum', values: ['text'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE, pos: POS,
+      shape: { k: 'enum', values: ['text'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS,
       text: { k: 'str', min: 1, max: LIMITS.maxText }, height: { k: 'num', min: 0.05, max: 50 }, color: COLOR, at: AT,
     },
   },

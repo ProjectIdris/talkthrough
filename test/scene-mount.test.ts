@@ -172,10 +172,11 @@ test('full and lean model schemas and compact guide expose the mounting contract
     assert.ok(defs.addGroup!.properties.selfAnchor);
     assert.ok(defs.addSolid!.properties.parentAnchor, 'every 3D shape can be attached');
     assert.ok(defs.addBlob!.properties.selfAnchor);
+    for (const v of ['addHull', 'addPatch', 'addSweep', 'addLoft', 'addShell', 'addText']) assert.ok(defs[v]!.properties.parentAnchor, `${v} can be attached too`);
   }
   assert.ok(sceneGuide.includes('parentAnchor'));
   assert.ok(sceneGuide.includes('selfAnchor'));
-  assert.ok(sceneGuide.includes('live'));
+  assert.ok(sceneGuide.includes('stays attached whatever moves'));
   assert.ok(sceneGuide.includes('pipe: top,bottom'));
   assert.ok(sceneGuide.includes('pin1 through pinN'));
 });

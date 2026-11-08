@@ -72,29 +72,29 @@ export type AddSolid = {
 } & Surface & At;
 /** A closed hollow section of a concentric ellipsoid; inner is a radial scale, not uniform wall thickness. */
 export type AddShell = {
-  op: 'add'; shape: 'shell'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3;
+  op: 'add'; shape: 'shell'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3;
   size: Vec3; inner?: number; latitude?: Vec2; sweep?: number;
 } & Surface & At;
 export type AddExtrude = {
   op: 'add'; shape: 'extrude'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; holes?: Vec2[][]; taper?: number; shift?: Vec2; depth: number; bevel?: number;
 } & Surface & At;
 export type AddHull = {
-  op: 'add'; shape: 'hull'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[];
+  op: 'add'; shape: 'hull'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[];
 } & Surface & At;
 export type AddLathe = {
   op: 'add'; shape: 'lathe'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; profile: Vec2[]; sides?: number; sweep?: number;
 } & Surface & At;
 /** Open bicubic sheet, 16 control points in four row-major rows. */
 export type AddPatch = {
-  op: 'add'; shape: 'patch'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[];
+  op: 'add'; shape: 'patch'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[];
 } & Surface & At;
 /** A closed polygon carried along a smooth open path. up sets its initial +y direction. */
 export type AddSweep = {
-  op: 'add'; shape: 'sweep'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; pts: Vec3[]; up?: Vec3; smooth?: boolean;
+  op: 'add'; shape: 'sweep'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; pts: Vec3[]; up?: Vec3; smooth?: boolean;
 } & Surface & At;
 /** Independently shaped convex end sections, joined by matching vertex indices. */
 export type AddLoft = {
-  op: 'add'; shape: 'loft'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; endOutline: Vec2[]; depth: number; smooth?: boolean;
+  op: 'add'; shape: 'loft'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; outline: Vec2[]; endOutline: Vec2[]; depth: number; smooth?: boolean;
 } & Surface & At;
 export type AddBlob = {
   op: 'add'; shape: 'blob'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; pts: Vec3[]; sizes: Vec3[]; soft?: number;
@@ -119,7 +119,7 @@ export type AddPart = {
 } & At;
 export type AddArray = { op: 'add'; shape: 'array'; id: string; of: string; count: number; step?: Vec3; turn?: Vec3 } & At;
 export type AddText = {
-  op: 'add'; shape: 'text'; id: string; parent?: string; explode?: Vec3; pos?: Vec3; text: string; height: number; color: Color;
+  op: 'add'; shape: 'text'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; text: string; height: number; color: Color;
 } & At;
 export type AddGroup = { op: 'add'; shape: 'group'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3 } & At;
 

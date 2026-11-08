@@ -512,6 +512,12 @@
         "parent": {
           "$ref": "#/$defs/1"
         },
+        "parentAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "selfAnchor": {
+          "$ref": "#/$defs/1"
+        },
         "pos": {
           "$ref": "#/$defs/2"
         },
@@ -533,6 +539,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "pos",
         "text",
         "height",
@@ -1494,6 +1502,12 @@
         "parent": {
           "$ref": "#/$defs/1"
         },
+        "parentAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "selfAnchor": {
+          "$ref": "#/$defs/1"
+        },
         "pos": {
           "$ref": "#/$defs/2"
         },
@@ -1545,6 +1559,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "pos",
         "rot",
         "size",
@@ -1698,6 +1714,12 @@
         "parent": {
           "$ref": "#/$defs/1"
         },
+        "parentAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "selfAnchor": {
+          "$ref": "#/$defs/1"
+        },
         "pos": {
           "$ref": "#/$defs/2"
         },
@@ -1740,6 +1762,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "pos",
         "rot",
         "pts",
@@ -1866,6 +1890,12 @@
         "parent": {
           "$ref": "#/$defs/1"
         },
+        "parentAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "selfAnchor": {
+          "$ref": "#/$defs/1"
+        },
         "pos": {
           "$ref": "#/$defs/2"
         },
@@ -1908,6 +1938,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "pos",
         "rot",
         "pts",
@@ -1940,6 +1972,12 @@
           "type": "string"
         },
         "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "parentAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "selfAnchor": {
           "$ref": "#/$defs/1"
         },
         "pos": {
@@ -1993,6 +2031,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "pos",
         "rot",
         "outline",
@@ -2028,6 +2068,12 @@
           "type": "string"
         },
         "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "parentAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "selfAnchor": {
           "$ref": "#/$defs/1"
         },
         "pos": {
@@ -2081,6 +2127,8 @@
         "shape",
         "id",
         "parent",
+        "parentAnchor",
+        "selfAnchor",
         "pos",
         "rot",
         "outline",
