@@ -26,7 +26,7 @@ export function catalogueSource(manifests) {
     })),
   }));
   return `// The real models the scene language can place: what each is, its licence and credit, and its named parts. Generated from assets/models/*.json by
-// \`npm run assets:index\` (scripts/assets/index.mjs); do not edit. The meshes themselves are built files, not in git (see scripts/assets).
+// \`npm run assets:index\` (scripts/assets/index.mjs); do not edit. The meshes themselves are built files: those of the models a release carries are committed, the rest are not (see docs/real-models.md).
 
 import type { Vec3 } from './types.ts';
 

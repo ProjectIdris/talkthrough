@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -207,11 +208,14 @@ test('the catalogue and the credits file are what the manifests say', () => {
   assert.match(out.credits, /CC BY 4\.0/);
 });
 
-const built = existsSync(join(import.meta.dirname, '..', 'assets', 'built', 'heart.glb'));
+// The built files of the models a release carries are committed; the held ones (anatomy, an unverified key) exist only where someone ran `npm run assets`.
+const builtFile = (m: { built: { file: string } }) => join(import.meta.dirname, '..', 'assets', 'built', m.built.file);
+const here = MODELS.filter((m) => existsSync(builtFile(m)));
+const built = here.length > 0;
 test('the real built models load in three\'s own loader, with every named part and the sizes the catalogue says', { skip: built ? false : 'run npm run assets first' }, async () => {
   const store = createModelStore({ read: async (file) => ab(readFileSync(join(import.meta.dirname, '..', 'assets', 'built', file))) });
-  await withImageDecoder(() => store.ensure(MODELS.map((m) => m.id)));
-  for (const m of MODELS) {
+  await withImageDecoder(() => store.ensure(here.map((m) => m.id)));
+  for (const m of here) {
     assert.equal(store.state(m.id), 'ready', `${m.id}: ${store.failure(m.id)}`);
     let triangles = 0;
     for (const p of m.parts) {
@@ -239,10 +243,10 @@ test('shipping puts only the files the manifests pin next to the app, and the cr
   const out = mkdtempSync(join(tmpdir(), 'tt-ship-'));
   try {
     const r = shipModels({ out });
-    assert.deepEqual([...r.shipped].sort(), MODELS.map((m) => m.id).sort());
-    assert.deepEqual(readdirSync(join(out, 'models')).sort(), MODELS.map((m) => m.built.file).sort());
+    assert.deepEqual([...r.shipped].sort(), here.map((m) => m.id).sort());
+    assert.deepEqual(readdirSync(join(out, 'models')).sort(), here.map((m) => m.built.file).sort());
     assert.ok(existsSync(join(out, 'CREDITS.md')));
-    for (const m of MODELS) assert.equal(sha(readFileSync(join(out, 'models', m.built.file))), m.built.sha256);
+    for (const m of here) assert.equal(sha(readFileSync(join(out, 'models', m.built.file))), m.built.sha256);
   } finally { rmSync(out, { recursive: true, force: true }); }
 });
 
@@ -369,7 +373,7 @@ test('BodyParts3D is credited as its current grant says, the older file notice i
   assert.match(manifestProblems(manifest).join(';'), /earlier licence notice/);
 });
 
-test('a release leaves out what is held (no file, no credits for it, and it says so) and carries the rest', { skip: built ? false : 'run npm run assets first' }, () => {
+test('a release leaves out what is held (no file, no credits for it, and it says so) and carries the rest', () => {
   const dir = mkdtempSync(join(tmpdir(), 'tt-rel-'));
   try {
     mkdirSync(join(dir, 'models'));
@@ -535,4 +539,53 @@ test('an exploded clock lifts its hands straight off the face, each at its own h
   }
   assert.equal(lifts.size, 3, 'each hand at its own height, so they do not overlap');
   assert.equal((frame.objects.find((x) => x.id === 'k.body')!.def as { explode?: unknown }).explode, undefined, 'the case stays');
+});
+
+// ---- what is committed ----------------------------------------------------------------------------------
+
+const root = join(import.meta.dirname, '..');
+const carried = MODELS.filter((m) => !m.release.blocked);
+const held = MODELS.filter((m) => m.release.blocked);
+const gitSays = (args: string[]) => spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+
+test('the files of the models a release carries are committed as plain binaries, and a held model\'s file never is', () => {
+  assert.deepEqual(carried.map((m) => m.id).sort(), ['alarm-clock', 'bolt-cutters', 'camera', 'drill', 'electric-motor', 'measuring-tape', 'mousetrap'], 'the seven CC0 objects are the ones carried');
+  for (const m of carried) {
+    assert.equal(gitSays(['check-ignore', '-q', `assets/built/${m.built.file}`]).status, 1, `${m.id}: its built file is not ignored, so it can be committed`);
+    assert.equal(m.licence.id, 'CC0-1.0', `${m.id} is carried only under CC0`);
+  }
+  for (const m of held) assert.equal(gitSays(['check-ignore', '-q', `assets/built/${m.built.file}`]).status, 0, `${m.id}: held, so its file stays out of git`);
+  assert.equal(gitSays(['check-ignore', '-q', 'assets/cache/x/y.gltf']).status, 0, 'the raw downloads stay out of git');
+  const attrs = gitSays(['check-attr', 'binary', 'diff', 'text', 'filter', '--', 'assets/built/drill.glb']).stdout;
+  assert.match(attrs, /binary: set/);
+  assert.match(attrs, /filter: unspecified/, 'no LFS');
+  const tracked = gitSays(['ls-files', 'assets/built']).stdout.split('\n').filter(Boolean);
+  assert.ok(tracked.every((f) => carried.some((m) => f === `assets/built/${m.built.file}`)), `only carried models' files are tracked: ${tracked}`);
+});
+
+test('nothing of ours or of a machine is in the files that are committed for the models: no local path, no name of a person or a worker, in the manifests, the credits or a built file\'s description and images', () => {
+  const BS = String.fromCharCode(92);
+  const patterns = [new RegExp('(^|[^A-Za-z])[A-Za-z]:[/' + BS + BS + '][A-Za-z0-9$_.-]{2,}'), /\/Users\//, /\/home\/[a-z]/i, new RegExp(BS + BS + 'Users' + BS + BS)];
+  const problems: string[] = [];
+  const scan = (what: string, text: string) => { for (const p of patterns) { const m = p.exec(text); if (m) problems.push(`${what}: ${p} at ${JSON.stringify(text.slice(Math.max(0, m.index - 20), m.index + 40))}`); } };
+  for (const f of readdirSync(join(root, 'assets', 'models'))) scan(f, readFileSync(join(root, 'assets', 'models', f), 'utf8'));
+  scan('CREDITS.md', readFileSync(join(root, 'assets', 'CREDITS.md'), 'utf8'));
+  for (const m of carried) {
+    const file = builtFile(m);
+    if (!existsSync(file)) continue;
+    const bytes = readFileSync(file);
+    let at = 12, json: { images?: { bufferView: number }[]; bufferViews: { byteOffset?: number; byteLength: number }[] } | undefined, bin: Buffer | undefined;
+    while (at + 8 <= bytes.length) {
+      const length = bytes.readUInt32LE(at), type = bytes.readUInt32LE(at + 4), body = bytes.subarray(at + 8, at + 8 + length);
+      if (type === 0x4e4f534a) { scan(`${m.id} json`, body.toString('utf8')); json = JSON.parse(body.toString('utf8')); } else if (type === 0x004e4942) bin = body;
+      at += 8 + length;
+    }
+    // an image's own metadata (EXIF, XMP, text chunks) is text inside it: its printable runs (the meshes are numbers, not text)
+    for (const img of json?.images ?? []) {
+      const view = json!.bufferViews[img.bufferView]!;
+      let run = '';
+      for (const c of bin!.subarray(view.byteOffset ?? 0, (view.byteOffset ?? 0) + view.byteLength)) { if (c >= 32 && c < 127) run += String.fromCharCode(c); else { if (run.length >= 8) scan(`${m.id} image`, run); run = ''; } }
+    }
+  }
+  assert.deepEqual(problems, []);
 });
