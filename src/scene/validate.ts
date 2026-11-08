@@ -35,6 +35,8 @@ export type SceneState = {
   joints: Map<string, 'hinge' | 'slide' | 'fixed'>;
   follows: Map<string, string>;
   rides: Map<string, string>;
+  /** The axis each object has been set spinning about (a spin of rate zero takes it out): a part inside it turns with it already. */
+  spins: Map<string, 'x' | 'y' | 'z'>;
   /** Where each 3D solid and group stands and how big it is, with normalized kit dimensions: what a tube or line that ends on a part is held against (attach.ts). */
   bodies: Map<string, Body>;
   /** Tubes and lines with an end in the air so far: a part that arrives later may be what that end was meant for. */
@@ -68,7 +70,7 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 export function createSceneState(): SceneState {
-  return { ids: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), parts: new Map(), joints: new Map(), follows: new Map(), rides: new Map(), bodies: new Map(), loose: new Map(), after: [], turnSteps: 0, turnActions: 0, copies: 0 };
+  return { ids: new Map(), parents: new Map(), depth: new Map(), diagramKinds: new Map(), parts: new Map(), joints: new Map(), follows: new Map(), rides: new Map(), spins: new Map(), bodies: new Map(), loose: new Map(), after: [], turnSteps: 0, turnActions: 0, copies: 0 };
 }
 
 /**
@@ -77,7 +79,7 @@ export function createSceneState(): SceneState {
  */
 export function createDetailState(onScreen: SceneState): SceneState {
   return {
-    ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides),
+    ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides), spins: new Map(onScreen.spins),
     bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [],
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
     ...(onScreen.stage ? { stage: { ...onScreen.stage } } : {}),
@@ -320,6 +322,7 @@ function removeWithDescendants(state: SceneState, id: string): void {
     state.joints.delete(d);
     state.follows.delete(d);
     state.rides.delete(d);
+    state.spins.delete(d);
     state.bodies.delete(d);
     state.loose.delete(d);
   }
@@ -328,7 +331,7 @@ function removeWithDescendants(state: SceneState, id: string): void {
 /** Takes a cleared id (or "all", "marks", "panel") out of what the scene holds; the guide clears the page by id between steps and tells the scene here. */
 export function applyClear(state: SceneState, target: string): void {
   if (target === 'all') {
-    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.joints.clear(); state.follows.clear(); state.rides.clear(); state.bodies.clear(); state.loose.clear(); state.copies = 0;
+    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.joints.clear(); state.follows.clear(); state.rides.clear(); state.spins.clear(); state.bodies.clear(); state.loose.clear(); state.copies = 0;
   } else if (target === 'marks' || target === 'panel') {
     // Marks, pins and flat diagrams are the screen's; the 3D stage is the rest.
     const wantMark = target === 'marks';
@@ -682,6 +685,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     note(notes, 'dropped', path, 'spin needs rpm or by');
     return null;
   }
+  if (variant.name === 'spin' && !checkSpin(out, state, path, notes)) return null;
   if (variant.name === 'loop' && out.kind !== 'stop') {
     // The kind is the object's joint when left out; an amount is a travel, an angle or a size factor by its kind, each in a range that still reads as that motion.
     const joint = state.joints.get(out.id as string);
@@ -824,6 +828,27 @@ function checkJoint(out: Record<string, unknown>, state: SceneState, path: strin
     [out.min, out.max] = [out.max, out.min];
   }
   state.joints.set(id, out.kind as 'hinge' | 'slide' | 'fixed');
+  return true;
+}
+
+/**
+ * A spin on a part inside a part that already spins about the same axis: it turns with its holder already, so a spin of its own would add to that and turn it
+ * twice as fast (a bicycle's wheel parented to its spinning rear cog, then spun again). The second spin is dropped, saying which part it already turns with.
+ */
+function checkSpin(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const id = out.id as string;
+  const axis = (out.axis as 'x' | 'y' | 'z' | undefined) ?? state.spins.get(id) ?? 'z';
+  if (out.rpm === 0) {
+    state.spins.delete(id);
+    return true;
+  }
+  for (let cur = state.parents.get(id), n = 0; cur !== undefined && n < 32; cur = state.parents.get(cur), n++) {
+    if (state.spins.get(cur) === axis) {
+      note(notes, 'dropped', path, `${id} is inside ${cur}, which already spins about ${axis}: it turns with it, and a spin of its own would turn it twice as fast`);
+      return false;
+    }
+  }
+  state.spins.set(id, axis);
   return true;
 }
 
