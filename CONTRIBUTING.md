@@ -32,6 +32,10 @@ The app works on your real screen: be careful with `--visible-to-capture` and wi
 
 The app's windows are hidden from screen capture only for the moment of its own screenshot (`src/main/capture-shield.ts`), so they show in a person's recordings and screen shares the rest of the time. `--visible-to-capture` keeps them in our own screenshots too, which is only for looking at a run. `node_modules/.bin/electron scripts/capture-check.cjs` (needs a visible window, so run it yourself, not in CI) checks that our drawing is absent from our capture and present otherwise, and finds how long the change needs to take effect on your machine.
 
+## Real models
+
+The 3D models of real things (a heart, a brain) are described by manifests in `assets/models`; their sources are fetched once into an ignored cache, never committed, and the finished files of the models a release carries (the CC0 objects) are committed in `assets/built` as plain binaries; see [docs/real-models.md](docs/real-models.md). Without them the app still runs: a scene that uses one of those models shows the stage without it and says so, and the tests that read a built file skip when it is absent.
+
 ## Testing
 
 ```

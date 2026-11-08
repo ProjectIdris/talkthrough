@@ -278,6 +278,21 @@ function muscleValue(m: MuscleDef, byKey: ReadonlyMap<number, PoseObject>, posed
   return (near + far) / 2;
 }
 
+/** Where a real model's part turns, from its own middle (a clock hand's boss), when its source says; a turn that names no pivot goes about it, not about the part's middle. */
+function hubOf(o: PoseObject): Vec3 | undefined {
+  const h = (o.def as { hub?: Vec3 }).hub;
+  if (!h || (h[0] === 0 && h[1] === 0 && h[2] === 0)) return undefined;
+  const s = o.scale ?? [1, 1, 1];
+  return [h[0] * s[0], h[1] * s[1], h[2] * s[2]];
+}
+
+/** Moves a part so that a turn of `deg` about `axis` through the point `about` (from its middle) is what it makes, not a turn about its middle. */
+function turnedAboutPoint(pose: Pose, o: PoseObject, about: Vec3, axis: Axis, deg: number): void {
+  const t = turnAbout(about, axis, deg);
+  const p = pose.pos ?? o.pos;
+  pose.pos = [p[0] + about[0] - t[0], p[1] + about[1] - t[1], p[2] + about[2] - t[2]];
+}
+
 const sizeOf = (def: AddAction, fallback: Vec3): Vec3 => ('size' in def && Array.isArray(def.size) ? def.size : fallback);
 const wrap180 = (d: number): number => ((((d + 180) % 360) + 360) % 360) - 180;
 
@@ -306,7 +321,10 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     const o = byKey.get(s.key);
     const jk = jointOf.get(s.key)?.kind;
     if (!o || jk === 'hinge' || jk === 'pivot' || jk === 'ball') continue; // a joint is turned by the joint pass, about its own axis and pivot
-    edit(s.key).rot = turned(o.rot, s.axis, s.angle);
+    const spun = edit(s.key);
+    spun.rot = turned(o.rot, s.axis, s.angle);
+    const hub = hubOf(o);
+    if (hub) turnedAboutPoint(spun, o, hub, s.axis, s.angle);
   }
 
   // What holds a machine never rides on it: a cylinder block or housing, a group, or anything a block sits inside. A crank or cam that names one
@@ -429,9 +447,12 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     } else if (joint?.kind === 'pivot') {
       // About the part's own axis through its own middle: the turn comes after the rest orientation, not about the parent's axis.
       pose.rot = turnedLocal(pose.rot ?? o.rot, joint.axis, q);
+      const hub = hubOf(o);
+      if (hub) turnedAboutPoint(pose, o, hub, joint.axis, q);
     } else {
       const axis = joint ? joint.axis : loop ? loop.axis : 2;
       let pivot: Vec3 = joint ? joint.pivot : loop ? loop.pivot : [0, 0, 0];
+      if (pivot[0] === 0 && pivot[1] === 0 && pivot[2] === 0) pivot = hubOf(o) ?? pivot;
       if (!joint && loop?.pivotKey !== undefined) {
         // The middle of the part it hangs from, taken to the world and into the space this part sits in, less where this part is.
         const held = chainOf(byKey, out, loop.pivotKey), home = chainOf(byKey, out, o.parentKey);

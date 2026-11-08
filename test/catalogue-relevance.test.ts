@@ -163,14 +163,16 @@ test('offline CLI selects the frozen validation corpus and rejects unknown optio
   assert.notEqual(bad.status, 0);
 });
 
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 test('the corpus-selection assertion works in isolated LF and CRLF checkouts', () => {
   const directory = mkdtempSync(join(tmpdir(), 'tt-catalogue-newlines-'));
   const files = [
-    'test/catalogue-relevance.test.ts', 'src/scene/spec.ts', 'src/scene/material-library.ts', 'src/scene/kit-presets.ts', 'src/scene/kit-expr.ts', 'src/scene/movement-rows.ts',
+    'test/catalogue-relevance.test.ts',
+    // All of src/scene, not a list of what spec.ts imports today: every new table or catalogue it reads would break a list.
+    ...readdirSync(new URL('../src/scene/', import.meta.url)).filter((name) => name.endsWith('.ts')).map((name) => `src/scene/${name}`),
     'scripts/prototypes/catalogue-evaluation.ts', 'scripts/prototypes/catalogue-retrieval.ts',
     'scripts/prototypes/catalogue-parts.ts', 'scripts/prototypes/evaluate-catalogue.ts',
     'scripts/prototypes/catalogue-validation-v3.json',

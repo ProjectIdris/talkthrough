@@ -3,6 +3,7 @@
 // space, so they turn and scale with it. Pure geometry, no renderer: the validator and the renderer both read it, and must agree.
 
 import { resolvePartGeometry } from './part-geometry.ts';
+import { findModel, modelBounds } from './models.ts';
 import type { AddPart, Vec3 } from './types.ts';
 
 type Box = { min: Vec3; max: Vec3 };
@@ -27,6 +28,10 @@ export function boundsOf(def: object): Box | undefined {
   switch (d.shape) {
     case 'box': case 'sphere': case 'cylinder': case 'cone': case 'plane': case 'shell':
       return vec3(d.size) ? around(d.size) : undefined;
+    case 'model': {
+      const model = findModel(d.model);
+      return model ? around(modelBounds(model, typeof d.size === 'number' ? d.size : undefined)) : undefined;
+    }
     case 'torus': return vec3(d.size) ? around([d.size[0], d.size[1], d.size[0]]) : undefined;
     case 'part': return vec3(d.size) && typeof d.part === 'string' ? around(resolvePartGeometry(d as unknown as AddPart).size) : undefined;
     case 'blob': {

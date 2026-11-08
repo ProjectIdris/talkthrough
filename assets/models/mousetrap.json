@@ -1,0 +1,108 @@
+{
+  "id": "mousetrap",
+  "name": "Mousetrap",
+  "description": "A wooden snap mousetrap with its spring bar, as one textured object",
+  "aliases": [
+    "mousetrap",
+    "mouse trap",
+    "snap trap"
+  ],
+  "format": "gltf",
+  "licence": {
+    "id": "CC0-1.0",
+    "version": "1.0",
+    "statedOn": "https://polyhaven.com/license",
+    "statement": "Our assets are all licensed as CC0. You do not need to give credit."
+  },
+  "source": {
+    "name": "Poly Haven",
+    "url": "https://polyhaven.com/a/mousetrap",
+    "version": "Mousetrap, 1k glTF, published 2023-05-19",
+    "authors": [
+      "GreenPixel"
+    ],
+    "cacheFolder": "ph-mousetrap"
+  },
+  "retrieved": "2026-11-08",
+  "changes": "Passed through: geometry, UV coordinates, materials and the 1k textures are the source's own, unchanged. Added: a root that puts the model on the scene's axes, in metres, centred on its own middle, and a tag on each named part.",
+  "orient": {
+    "up": "y+",
+    "front": "z+"
+  },
+  "scale": {
+    "unitsToMetres": 1
+  },
+  "caveats": [
+    "A single scanned or modelled object: it can be labelled as a whole, but has no named parts to cut or take apart."
+  ],
+  "files": [
+    {
+      "entry": "mousetrap.bin",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/mousetrap/mousetrap.bin",
+      "bytes": 154880,
+      "sha256": "34cc9c3a8f5ab6efa2b37498231e22bbf9173b687aab95db8173b7dd40fa01b6"
+    },
+    {
+      "entry": "mousetrap_1k.gltf",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/mousetrap/mousetrap_1k.gltf",
+      "bytes": 2738,
+      "sha256": "711f5aea9a8460d7243655621dd7bc86d2f52dc872b836c24475866b177e76b8"
+    },
+    {
+      "entry": "textures/mousetrap_arm_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/mousetrap/mousetrap_arm_1k.jpg",
+      "bytes": 698232,
+      "sha256": "195d2beb9adf513a804e731035089630eac1b72d786a7ad7ddef75d5700fdeeb"
+    },
+    {
+      "entry": "textures/mousetrap_diff_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/mousetrap/mousetrap_diff_1k.jpg",
+      "bytes": 647362,
+      "sha256": "7cc4e0dc680845b230c57913ecd242f3ac67dcfcdd1ed590f505385f3b7b6c74"
+    },
+    {
+      "entry": "textures/mousetrap_nor_gl_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/mousetrap/mousetrap_nor_gl_1k.jpg",
+      "bytes": 731402,
+      "sha256": "775ff8ba3d858b420619225b799bb321cf34c327698f410cf02cfe9b7e421978"
+    }
+  ],
+  "parts": [
+    {
+      "key": "whole",
+      "name": "Mousetrap",
+      "aliases": [],
+      "confidence": "atlas",
+      "nodes": [
+        "mousetrap"
+      ]
+    }
+  ],
+  "built": {
+    "file": "mousetrap.glb",
+    "bytes": 2233796,
+    "sha256": "04def5d43d0c40c2b8a905c65115407c6e3623cc0dc17e95c07e9812ac8194c3",
+    "triangles": 5136,
+    "size": [
+      0.054988,
+      0.017934,
+      0.100444
+    ],
+    "parts": {
+      "whole": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.054988,
+          0.017934,
+          0.100444
+        ],
+        "closed": false,
+        "triangles": 5136
+      }
+    }
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "id": "telegraph-key",
+  "name": "Morse-Vail telegraph key",
+  "description": "A Morse-Vail telegraph key from about 1844, a scan of the museum object",
+  "aliases": [
+    "telegraph key",
+    "morse key",
+    "morse code key",
+    "telegraph"
+  ],
+  "format": "gltf",
+  "licence": {
+    "id": "CC0-1.0",
+    "version": "1.0",
+    "statedOn": "https://www.si.edu/object/nmah_1096762",
+    "statement": "Licence unverified: listed as CC0 on its Smithsonian 3D record (seen in a search result on 2026-11-09; the record page itself would not load for us and the Open Access API refused the lookup, so this one is not read from the record directly)."
+  },
+  "release": {
+    "blocked": true,
+    "why": "licence unverified: CC0 seen only in a search snippet, the record itself not read (its page returned 403 and the Open Access API refused the lookup)"
+  },
+  "source": {
+    "name": "Smithsonian Open Access",
+    "url": "https://3d-api.si.edu/voyager/3d_package:ed99f44d-3c60-4111-b666-e2908e1b64ef",
+    "version": "Morse-Vail Telegraph Key, record edanmdm:nmah_1096762",
+    "authors": [
+      "Smithsonian National Museum of American History, Digitization Program Office"
+    ],
+    "cacheFolder": "si-morse-vail-key"
+  },
+  "retrieved": "2026-11-08",
+  "changes": "Passed through: the geometry, texture coordinates, material and textures are the museum's own, unchanged. Added: a root that puts the model on the scene's axes, in metres, centred on its own middle, and a tag on the part.",
+  "orient": {
+    "up": "y+",
+    "front": "z+"
+  },
+  "scale": {
+    "unitsToMetres": 0.001
+  },
+  "caveats": [
+    "A single scanned or modelled object: it can be labelled as a whole, but has no named parts to cut or take apart.",
+    "The source's textures are larger than the page draws them at; they are reduced when loaded, to the size each tier allows."
+  ],
+  "files": [
+    {
+      "entry": "morse-telegraph-key-150k-4096.glb",
+      "url": "https://3d-api.si.edu/content/document/3d_package:ed99f44d-3c60-4111-b666-e2908e1b64ef/resources/morse-telegraph-key-150k-4096.glb",
+      "bytes": 7582452,
+      "sha256": "ece8213900cc8d4d8cd77b245f4c3390b89131a58baa99e1beddc717010e3aca"
+    }
+  ],
+  "parts": [
+    {
+      "key": "whole",
+      "name": "Morse-Vail telegraph key",
+      "aliases": [],
+      "confidence": "atlas",
+      "nodes": [
+        "#0"
+      ]
+    }
+  ],
+  "built": {
+    "file": "telegraph-key.glb",
+    "bytes": 7582656,
+    "sha256": "40aed26cdcb2b5a9b29d6fad85ce3b7ff2309c39ab893320c4f3fc69fc99cc0a",
+    "triangles": 150000,
+    "size": [
+      0.169078,
+      0.07655,
+      0.050837
+    ],
+    "parts": {
+      "whole": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.169078,
+          0.07655,
+          0.050837
+        ],
+        "closed": true,
+        "triangles": 150000
+      }
+    }
+  }
+}

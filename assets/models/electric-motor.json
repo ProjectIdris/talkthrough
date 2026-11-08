@@ -1,0 +1,86 @@
+{
+  "id": "electric-motor",
+  "name": "Davenport electric motor",
+  "description": "Thomas Davenport's 1837 patent model of the first US electric motor, a scan of the museum object",
+  "aliases": [
+    "electric motor",
+    "davenport motor",
+    "early electric motor",
+    "motor"
+  ],
+  "format": "gltf",
+  "licence": {
+    "id": "CC0-1.0",
+    "version": "1.0",
+    "statedOn": "https://api.si.edu/openaccess/api/v1.0/content/edanmdm:nmah_703302",
+    "statement": "The 3D media of the record carries usage access \"CC0\" (read from the Smithsonian Open Access API record on 2026-11-08)."
+  },
+  "source": {
+    "name": "Smithsonian Open Access",
+    "url": "https://3d-api.si.edu/voyager/3d_package:a18922b9-a00f-4c9e-988a-f526382b15cc",
+    "version": "Davenport electric motor, US patent #132, record edanmdm:nmah_703302",
+    "authors": [
+      "Smithsonian National Museum of American History, Digitization Program Office"
+    ],
+    "cacheFolder": "si-davenport-motor"
+  },
+  "retrieved": "2026-11-08",
+  "changes": "Passed through: the geometry, texture coordinates, material and textures are the museum's own, unchanged. Added: a root that puts the model on the scene's axes, in metres, centred on its own middle, and a tag on the part.",
+  "orient": {
+    "up": "y+",
+    "front": "z+"
+  },
+  "scale": {
+    "unitsToMetres": 1
+  },
+  "caveats": [
+    "A single scanned or modelled object: it can be labelled as a whole, but has no named parts to cut or take apart.",
+    "The source's textures are larger than the page draws them at; they are reduced when loaded, to the size each tier allows."
+  ],
+  "files": [
+    {
+      "entry": "Davenport_motor-100k-2048_std.glb",
+      "url": "https://3d-api.si.edu/content/document/3d_package:a18922b9-a00f-4c9e-988a-f526382b15cc/resources/Davenport_motor-100k-2048_std.glb",
+      "bytes": 4335160,
+      "sha256": "f87170331d924e5b73a64383bb9b0d86cbdee595c25e632949af11008e7a7f15"
+    }
+  ],
+  "parts": [
+    {
+      "key": "whole",
+      "name": "Davenport electric motor",
+      "aliases": [],
+      "confidence": "atlas",
+      "nodes": [
+        "#0"
+      ]
+    }
+  ],
+  "built": {
+    "file": "electric-motor.glb",
+    "bytes": 4335360,
+    "sha256": "d26c1f8dbdfca5abc178136004ccc52ec6c6877be03fcfb423e397975fcf8be1",
+    "triangles": 100002,
+    "size": [
+      0.262645,
+      0.370017,
+      0.377809
+    ],
+    "parts": {
+      "whole": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.262645,
+          0.370017,
+          0.377809
+        ],
+        "closed": false,
+        "triangles": 100002
+      }
+    }
+  }
+}

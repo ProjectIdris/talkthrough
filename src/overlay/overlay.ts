@@ -48,6 +48,7 @@ import { followupKeepOut, followupSpot } from './followup-placement.ts';
 import type { CaptionDriver, CaptionState, Rect } from './captions.ts';
 import { readingSeconds } from '../shared/captions.ts';
 import { PanelScene } from './scene3d.ts';
+import { HEAVY_MODEL_TRIANGLES, cornerFor, createModelStore, creditLine, failedNote, modelTriangles, modelsIn, takeApartable, withoutFailedModels } from './model-assets.ts';
 import type { ScreenRect } from './scene3d.ts';
 import type { Frame } from './timeline.ts';
 
@@ -72,6 +73,7 @@ const overflowEl = byId<HTMLDivElement>('panel-overflow');
 const overflowMeasureEl = byId<HTMLDivElement>('panel-overflow-measure');
 const omissionCue = new OmissionCue(overflowEl, overflowMeasureEl);
 const explodeEl = byId<HTMLButtonElement>('explode');
+const creditEl = byId<HTMLDivElement>('credit');
 const detailEl = byId<HTMLButtonElement>('detail');
 const cutEl = byId<HTMLButtonElement>('cut');
 const undoEl = byId<HTMLButtonElement>('undo');
@@ -123,8 +125,24 @@ const tier = chooseTier();
 // Said once, for the app log of a check run: which tier, on what graphics, and whether the finishing pass is on.
 console.info(`talkthrough: overlay tier ${tier} on ${graphicsName() || 'an unnamed renderer'}`);
 const settings = TIERS[tier];
+/** The real models' meshes: files next to this page, checked against the hashes the catalogue pins; a redraw is asked for as each arrives. */
+const modelStore = createModelStore({
+  maxTexture: settings.modelTexture,
+  read: async (file) => {
+    const response = await fetch(new URL(`../models/${file}`, location.href));
+    if (!response.ok) throw new Error(`${file} could not be read`);
+    return response.arrayBuffer();
+  },
+  changed: () => { request(); },
+  log: (message) => console.error(`talkthrough: ${message}`),
+});
+/** The corner of the stage the small print is in (see cornerFor). */
+let creditCorner: number | undefined;
+/** The models the last frame had to leave out, for the stage's note. */
+let modelsLeftOut: string[] = [];
 const panelScene = new PanelScene({
   tier,
+  models: modelStore,
   makeCanvas: (width, height) => {
     const c = document.createElement('canvas');
     c.width = width;
@@ -175,6 +193,25 @@ if (renderer && tier !== 'low') {
     finishing = undefined; // the plain render is the fallback
     console.info(`talkthrough: ${tier} tier finishing pass unavailable, drawing plainly`);
   }
+}
+/**
+ * While a dense real model is on the stage the high tier draws with the light level (2x multisampling, half-resolution occlusion): shadows and materials
+ * stay as they are, and a mesh of hundreds of thousands of triangles is not drawn three times at full cost. Built the first time it is needed.
+ */
+let lightFinishing: Finishing | undefined;
+let lightFinishingFailed = false;
+function finishingFor(frame: Frame): Finishing | undefined {
+  if (!renderer || tier !== 'high' || !finishing || lightFinishingFailed || modelTriangles(frame.objects) < HEAVY_MODEL_TRIANGLES) return finishing;
+  if (!lightFinishing) {
+    try {
+      lightFinishing = new Finishing(renderer, panelScene.scene, panelScene.camera, 'light');
+      console.info('talkthrough: high tier uses the light finishing level while a dense real model is on the stage');
+    } catch {
+      lightFinishingFailed = true;
+      return finishing;
+    }
+  }
+  return lightFinishing;
 }
 
 /** Never publish bounds, labels or controls for a model that cannot actually be drawn. */
@@ -317,7 +354,9 @@ let lastSourceFrame: Frame | undefined;
 let paintedSurfaces = new Map<string, ScreenRect>();
 
 function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
-  frame = withoutReplacedSurfaces(displayedFrame(frame), ownedSurfaces);
+  const kept = withoutFailedModels(withoutReplacedSurfaces(displayedFrame(frame), ownedSurfaces), modelStore);
+  frame = kept.frame;
+  modelsLeftOut = kept.failed;
   renderer?.setScissorTest(false);
   renderer?.clear();
   const rect = panelRect(frame.panel, view);
@@ -364,13 +403,14 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
         renderer.setScissor(r.x, view.height - r.y - r.h, r.w, r.h);
         renderer.setScissorTest(true);
         modelFramesDrawn++;
-        if (finishing?.fits(r)) {
+        const finish = finishingFor(frame);
+        if (finish?.fits(r)) {
           try {
-            finishing.render(panelScene.scene, panelScene.camera, r, view);
+            finish.render(panelScene.scene, panelScene.camera, r, view);
           } catch {
             // The graphics stack would not run it: this tier goes on without, from the next frame.
-            finishing.dispose();
-            finishing = undefined;
+            finish.dispose();
+            if (finish === lightFinishing) { lightFinishing = undefined; lightFinishingFailed = true; } else finishing = undefined;
             renderer.setRenderTarget(null);
             renderer.render(panelScene.scene, panelScene.camera);
           }
@@ -494,6 +534,8 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
     milestones.mark = true;
     milestone('first-mark');
   }
+  // Last, when the pin tags have their places: the small print keeps clear of them too.
+  placeCredit(frame);
   return frame;
 }
 
@@ -931,9 +973,32 @@ function captionUntilChange(now: number): number | undefined {
   return Math.max(0, s.endedAt + CAPTION_HOLD_MS - now);
 }
 
+/** The stage's small print: the credit the real models on it owe, and a note for any that could not be shown. It sits in the corner of the stage with the least in the way. */
+function placeCredit(frame: Frame): void {
+  const text = [frame.panel && modelRect ? creditLine(frame.objects) : '', failedNote(modelsLeftOut)].filter(Boolean).join(' · ');
+  if (!text || !frame.panel) { creditEl.style.display = 'none'; return; }
+  if (creditEl.textContent !== text) creditEl.textContent = text;
+  const stage = frame.panel.rect;
+  creditEl.style.display = 'block';
+  creditEl.style.maxWidth = `${Math.max(120, Math.min(520, stage.w - 24))}px`;
+  const avoid: Array<{ x: number; y: number; w: number; h: number }> = [];
+  if (modelRect) avoid.push(modelRect);
+  for (const el of [explodeEl, cutEl, detailEl]) {
+    if (el.style.display === 'none' || el.style.display === '') continue;
+    const r = el.getBoundingClientRect();
+    avoid.push({ x: r.left, y: r.top, w: r.width, h: r.height });
+  }
+  avoid.push(...board.shownRects());
+  // It stays in the corner it has while that is clear, so it does not hop about as tags glide.
+  const at = cornerFor(stage, { w: creditEl.offsetWidth, h: creditEl.offsetHeight }, avoid, 10, creditCorner);
+  creditCorner = at.corner;
+  creditEl.style.left = `${at.x}px`;
+  creditEl.style.top = `${at.y}px`;
+}
+
 /** Shows the Explode / Assemble control at the corner of a finished model with parts to spread, and hides it otherwise. */
 function placeExplode(frame: Frame): void {
-  if (!controlRect || !player.settled || frame.objects.length < 2 || pen.active) {
+  if (!controlRect || !player.settled || takeApartable(frame.objects).length < 2 || pen.active) {
     explodeEl.style.display = 'none';
     detailEl.style.display = 'none';
     cutEl.style.display = 'none';
@@ -1538,6 +1603,7 @@ function applyScene(message: SceneMessage): void {
       milestones.mark = true;
       milestones.word = true;
       player.play(placedScene(message.scene));
+      void modelStore.ensure(modelsIn(message.scene));
       break;
     case 'pen':
       if (message.on) {
@@ -1679,6 +1745,8 @@ function applyScene(message: SceneMessage): void {
       fader.disarm();
       player.seek(placedScene(message.scene), message.step, message.t, message.view);
       draw(player.update(), true, message.cameraFit);
+      {
+        const report = (): void => {
       if (message.captureMetadata) {
         void painted().then(() => {
           const camera = lastDisplayedFrame?.panel && modelRect ? lastDisplayedFrame.camera : null;
@@ -1696,6 +1764,12 @@ function applyScene(message: SceneMessage): void {
           });
         });
       } else void painted().then(() => window.talkthrough.rendered(message.token));
+        };
+        // A frame that shows a real model is drawn again once its file is in (so a check run never paints the empty stage).
+        const wanted = modelsIn(message.scene).filter((m) => modelStore.state(m) !== 'ready' && modelStore.state(m) !== 'failed');
+        if (wanted.length) void modelStore.ensure(wanted).then(() => { draw(player.update(), true, message.cameraFit); report(); });
+        else report();
+      }
       break;
   }
   request();

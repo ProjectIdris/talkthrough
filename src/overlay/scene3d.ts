@@ -27,6 +27,7 @@ import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, lathe
 import type { Detail } from './geometry.ts';
 import { closedTubeGeometry } from './closed-tube.ts';
 import { SURFACE_NAMES, TIERS, applySurface, makeSurface } from './materials.ts';
+import { modelSurface } from './model-surface.ts';
 import type { Surface, Tier } from './materials.ts';
 import { buildPart } from './parts.ts';
 import { TAG_HEIGHT_FACTOR, tagTextPx } from './theme.ts';
@@ -42,6 +43,7 @@ import { PATCH_SEGMENTS } from '../scene/patch.ts';
 import { patchGeometry, patchEdges } from './patch.ts';
 import { Cutaway } from './cutaway.ts';
 import { anchorsOf } from '../scene/anchors.ts';
+import type { ModelStore } from './model-assets.ts';
 import { latheSectorEdges, latheSectorGeometry } from './lathe-sector.ts';
 import { buildConnector, buildForce, buildParticles, buildStream, updateAttached, updateConnectors, updateForces, updateParticles, updateStreams, updateWaves } from './scene3d-flow.ts';
 import type { FlowNode } from './scene3d-flow.ts';
@@ -79,7 +81,7 @@ type PartHull = { sphere: Sphere; corners: Vector3[] };
 const DEG = Math.PI / 180;
 
 type CanvasLike = HTMLCanvasElement | OffscreenCanvas;
-export type PanelDeps = { makeCanvas?: (width: number, height: number) => CanvasLike; tier?: Tier };
+export type PanelDeps = { makeCanvas?: (width: number, height: number) => CanvasLike; tier?: Tier; models?: ModelStore };
 
 /** The stage in window pixels, and the size of the window it sits in. */
 /** `now` (milliseconds on any steady clock) lets the camera glide to a new framing when parts are added; without it the framing jumps. */
@@ -104,6 +106,8 @@ type Node = {
   geometries: BufferGeometry[];
   materials: Material[];
   texture?: CanvasTexture;
+  /** A real model's part whose model is not loaded yet: the model it waits for. It is built again when that model is ready. */
+  waitsFor?: string;
   /** The size the object is built at (text sprites are sized, everything else is 1). */
   baseScale: Vector3;
   /** How it looks just now (for what a cut needs to know). */
@@ -283,14 +287,40 @@ export class PanelScene {
       // Record node ownership once, not once per marker, so teardown releases once.
       if (!node.geometries.includes(geo)) node.geometries.push(geo);
       node.materials.push(surface);
-      const closed = def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'hull' || def.shape === 'shell' || def.shape === 'loft' || def.shape === 'sweep' || def.shape === 'torus' || (def.shape === 'lathe' && def.sweep != null);
+      const closed = (def.shape === 'meshpart' && def.closed) || def.shape === 'box' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'cone' || def.shape === 'extrude' || def.shape === 'hull' || def.shape === 'shell' || def.shape === 'loft' || def.shape === 'sweep' || def.shape === 'torus' || (def.shape === 'lathe' && def.sweep != null);
       const piece: NodePiece = { object: mesh, surface, tint: true, color: undefined, lines: undefined, closed };
       if (edges && settings.edges && surfaceName !== 'glass' && surfaceName !== 'glow' && surfaceName !== 'bead') piece.lines = this.edgeLines(mesh, geo, node, this.primitiveKey(def), def.shape === 'lathe' && def.sweep != null ? 'sector' : def.shape === 'extrude' && (def.taper != null || def.shift != null) ? 'tapered' : def.shape === 'patch' ? 'patch' : undefined);
       node.pieces.push(piece);
       return mesh;
     };
     switch (def.shape) {
-      case 'group': case 'array': case 'field': break;
+      case 'group': case 'array': case 'field': case 'model': break;
+      case 'meshpart': {
+        const pieces = this.deps.models?.pieces(def.model, def.part);
+        const geometry = pieces?.[0]?.geometry;
+        if (!pieces || !geometry) { node.waitsFor = this.deps.models && this.deps.models.state(def.model) !== 'failed' ? def.model : undefined; break; }
+        if (def.textured) {
+          // The model's own materials, one piece for each of the source's: drawn through the overlay's physical material with the maps this tier allows.
+          const group = new Group();
+          for (const piece of pieces) {
+            const geo = piece.geometry.clone().scale(def.unitsPerMetre, def.unitsPerMetre, def.unitsPerMetre);
+            const surface = piece.material ? modelSurface(piece.material, settings) : makeSurface('plastic', settings);
+            const mesh = new Mesh(geo, surface);
+            mesh.castShadow = settings.shadows;
+            mesh.receiveShadow = settings.shadows;
+            node.geometries.push(geo);
+            node.materials.push(surface);
+            node.pieces.push({ object: mesh, surface, tint: true, color: undefined, lines: undefined, closed: false });
+            group.add(mesh);
+          }
+          node.obj = group;
+          break;
+        }
+        // The file's mesh is in metres and centred on itself; it is drawn at the model's scale, as a closed solid when the source is watertight.
+        const scaled = geometry.clone().scale(def.unitsPerMetre, def.unitsPerMetre, def.unitsPerMetre);
+        node.obj = addMesh(scaled, def.material, false);
+        break;
+      }
       case 'hull': {
         const result = buildHullGeometry(def.pts);
         if (result.ok) node.obj = addMesh(softenEdges(result.geometry) ?? result.geometry, material, def.edges !== false);
@@ -568,6 +598,13 @@ export class PanelScene {
       for (const o of frame.objects) {
         live.add(o.key);
         let node = this.nodes.get(o.key);
+        // A real model's part that was waiting for its file is built now it has arrived.
+        if (node?.waitsFor && this.deps.models?.state(node.waitsFor) !== 'loading' && this.deps.models?.state(node.waitsFor) !== 'idle') {
+          node.obj.parent?.remove(node.obj);
+          this.dispose(node);
+          this.nodes.delete(o.key);
+          node = undefined;
+        }
         if (!node) {
           node = this.build(o);
           this.nodes.set(o.key, node);
@@ -1133,7 +1170,8 @@ export class PanelScene {
   project(key: number, point: Vec3 | undefined, width: number, height: number, anchor?: string): { x: number; y: number; visible: boolean } | undefined {
     const node = this.nodes.get(key);
     const hidden = () => {
-      if (!this.pinWarnings.has(key) && this.pinWarnings.size < 128) { this.pinWarnings.add(key); console.warn(`talkthrough: pin target ${key} has no visible surface`); }
+      // A target that is not there (a model left out) or still waiting for its file is no fault of the pin: no warning for it.
+      if (node && !node.waitsFor && !this.pinWarnings.has(key) && this.pinWarnings.size < 128) { this.pinWarnings.add(key); console.warn(`talkthrough: pin target ${key} has no visible surface`); }
       return { x: 0, y: 0, visible: false };
     };
     if (!node) { hidden(); return undefined; }

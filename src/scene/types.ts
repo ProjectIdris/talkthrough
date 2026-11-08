@@ -122,6 +122,14 @@ export type AddPart = {
   op: 'add'; shape: 'part'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; part: PartKind; variant?: PartVariant;
   size: Vec3; n?: number; color?: Color; opacity?: number;
 } & At;
+/** A real model from the catalogue (a heart, a brain), with its named parts as objects of their own (`<id>.<part>`). `size` is its longest side; with none it has its real size. */
+export type AddModel = {
+  op: 'add'; shape: 'model'; id: string; model: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; size?: number;
+} & At;
+/** One named part of a real model, as the planner makes it (never written): the mesh is the model's file's, drawn at `unitsPerMetre`. */
+export type AddMeshPart = {
+  op: 'add'; shape: 'meshpart'; id: string; parent: string; model: string; part: string; unitsPerMetre: number; closed: boolean; material: string; /** Drawn with the model's own textured materials, not a flat colour. */ textured?: boolean; explode?: Vec3; /** Where it turns, from its own middle, in scene units (a clock hand's boss): a turn about no named pivot goes about this. */ hub?: Vec3;
+} & At;
 export type AddArray = { op: 'add'; shape: 'array'; id: string; of: string; count: number; step?: Vec3; turn?: Vec3 } & At;
 export type AddText = {
   op: 'add'; shape: 'text'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; text: string; height: number; color: Color;
@@ -150,7 +158,7 @@ export type AddParticles = { op: 'add'; shape: 'particles'; id: string; parent?:
 export type AddForce = { op: 'add'; shape: 'force'; id: string; parent?: string; on: string; point?: string; dir: Vec3; strength: number; color?: Color; opacity?: number } & At;
 /** Field lines drawn as arrows round a point (a magnet, a charge, a mass, two plates); the timeline makes them. */
 export type AddField = { op: 'add'; shape: 'field'; id: string; parent?: string; pos?: Vec3; kind: 'dipole' | 'radial' | 'uniform'; axis?: 'x' | 'y'; size?: number; count?: number; gap?: number; flip?: boolean; color?: Color; opacity?: number } & At;
-export type AddAction = AddSolid | AddShell | AddExtrude | AddHull | AddLathe | AddLoft | AddSweep | AddPatch | AddBlob | AddTube | AddPath | AddConnector | AddStream | AddParticles | AddForce | AddField | AddPart | AddArray | AddText | AddGroup;
+export type AddAction = AddSolid | AddShell | AddExtrude | AddHull | AddLathe | AddLoft | AddSweep | AddPatch | AddBlob | AddTube | AddPath | AddConnector | AddStream | AddParticles | AddForce | AddField | AddPart | AddModel | AddMeshPart | AddArray | AddText | AddGroup;
 
 // Tweens and changes on existing ids.
 export type MoveAction = { op: 'move'; id: string; to: Vec3 } & Timing;

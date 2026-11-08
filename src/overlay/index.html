@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Talkthrough overlay</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src file: data:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src file: data:; connect-src file: blob:">
 <style>
   /* The glass look: dark, lightly lit surfaces with a thin light edge and a blue accent, readable on a light page and on a dark one. */
   :root { --pill: rgba(15, 20, 32, 0.9); --pilltext: #f4f7fc; --muted: #9fb0c6; --line: rgba(255, 255, 255, 0.14); --accent: #7cc4ff; --ink: #0a1220; --ok: #6ee7a8; --warn: #ffcf6b; --err: #ff8a93;
@@ -70,6 +70,9 @@
   #capture-cancel { color: var(--pilltext) !important; background: var(--pill) !important; border: 1px solid var(--line) !important; }
   #capture-cancel:hover { background: rgba(38, 50, 78, 0.97) !important; }
 
+  /* The credit a real model owes (CC BY): a quiet line at the foot of the stage, never in the way of a click. */
+  #credit { position: absolute; display: none; pointer-events: none; box-sizing: border-box; max-width: 420px; padding: 3px 10px; border-radius: 10px; font-size: 11px; line-height: 1.35; color: var(--muted); background: rgba(15, 20, 32, 0.6); }
+
   /* Explode, Cut and More detail: one dark capsule of touching segments, each with a small icon. The page places the segments side by side (modelButtonRects). */
   #explode, #cut, #detail { position: absolute; display: none; pointer-events: auto; box-sizing: border-box; height: 32px; align-items: center; gap: 7px; margin: 0; padding: 0 14px;
     font: inherit; font-size: 12.5px; font-weight: 640; letter-spacing: 0.01em; color: var(--pilltext); background: var(--pill); cursor: pointer; border: 0;
@@ -122,6 +125,7 @@
 <div id="offer"><span id="offer-text"></span><button id="offer-button" type="button">Ask</button></div>
 <button id="ask-more" type="button">Ask more</button>
 <div id="capture-controls"><button id="send-followup" type="button">Send</button><button id="cancel-followup" type="button">Cancel</button></div>
+<div id="credit"></div>
 <button id="explode" type="button" title="Spread the parts apart (E)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12L4 4M12 12l8-8M12 12L4 20M12 12l8 8"/><circle cx="12" cy="12" r="2"/></svg><span class="lbl">Explode</span></button>
 <button id="cut" type="button" title="Cut the model open to see inside"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/><path d="M8 5l-4 7 4 7M16 5l4 7-4 7"/></svg><span class="lbl">Cut</span></button>
 <button id="detail" type="button" title="Ask for a much more detailed version of this model"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l1.8 4.6L18.5 10l-4.7 1.4L12 16l-1.8-4.6L5.5 10l4.7-1.4z"/><path d="M18 16l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg><span class="lbl">More detail</span></button>

@@ -15,6 +15,8 @@ import { nearestPaletteColor } from './colors.ts';
 import { attachTolerance, FACE_NORMALS, landOn, mountPosition, turnToFace } from './attach.ts';
 import { anchorsOf } from './anchors.ts';
 import { partFacing, resolvePartGeometry } from './part-geometry.ts';
+import { MODELS } from './model-catalogue.ts';
+import { findModel, partId, resolveModel, resolvePart } from './models.ts';
 import { DEFAULT_AMOUNT, loopRow } from './movement-rows.ts';
 import { resolveHullPoints } from './hull-points.ts';
 import type { Body } from './attach.ts';
@@ -39,6 +41,8 @@ export type SceneState = {
   /** The axis each object has been set spinning about (a spin of rate zero takes it out): a part inside it turns with it already. */
   spins: Map<string, 'x' | 'y' | 'z'>;
   /** The two ends of each connector made so far: a muscle is one of them. */
+  /** The real model each model object stands for (object id to catalogue id), so its parts can be named. */
+  models?: Map<string, string>;
   connectors?: Map<string, { from: string; to: string }>;
   /** The tubes made so far, and whether each is a closed loop: a wave runs along an open tube. */
   tubes?: Map<string, { closed: boolean }>;
@@ -220,6 +224,22 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       if (typeof v !== 'string') return bad('expected an id');
       let id = v;
       let kind = state.ids.get(id);
+      if (!kind && v.includes('.')) {
+        // A part of a real model written by its name or an alias (h.Left ventricle): the part it meant, said in a note.
+        const base = v.slice(0, v.indexOf('.'));
+        const model = state.models?.has(base) ? MODELS.find((m) => m.id === state.models!.get(base)) : undefined;
+        if (model?.single) return bad(`unknown id "${v}": the model "${base}" (${model.name}) is one piece with no parts to name; use "${base}" for the whole of it`);
+        if (model) {
+          const { part, near } = resolvePart(model, v.slice(v.indexOf('.') + 1));
+          if (!part) {
+            const list = (near.length ? near : model.parts.slice(0, 12)).map((p) => p.key);
+            return bad(`unknown id "${v}": ${near.length ? 'the nearest parts of' : 'parts of'} ${base} are ${list.join(', ')}${!near.length && model.parts.length > list.length ? `, and ${model.parts.length - list.length} more` : ''}`);
+          }
+          id = partId(base, part.key);
+          kind = state.ids.get(id);
+          note(notes, 'trimmed', path, `repaired: "${v}" is the part "${id}"`);
+        }
+      }
       if (!kind && state.bindUnknown && (f.of === 'object3d' || f.of === 'any')) {
         // A name the model made up for what it acts on: the part it meant, said in a note (bind.ts).
         const found = bindUnknownId(v, state, f.of === 'any' ? [(k) => !SCREEN_KINDS.has(k), () => true] : [(k) => !SCREEN_KINDS.has(k)], state.bindOp ?? '');
@@ -346,13 +366,14 @@ function removeWithDescendants(state: SceneState, id: string): void {
     state.spins.delete(d);
     state.bodies.delete(d);
     state.loose.delete(d);
+    state.models?.delete(d);
   }
 }
 
 /** Takes a cleared id (or "all", "marks", "panel") out of what the scene holds; the guide clears the page by id between steps and tells the scene here. */
 export function applyClear(state: SceneState, target: string): void {
   if (target === 'all') {
-    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.joints.clear(); state.follows.clear(); state.rides.clear(); state.spins.clear(); state.bodies.clear(); state.loose.clear(); state.copies = 0;
+    state.ids.clear(); state.parents.clear(); state.depth.clear(); state.diagramKinds.clear(); state.parts.clear(); state.joints.clear(); state.follows.clear(); state.rides.clear(); state.spins.clear(); state.bodies.clear(); state.loose.clear(); state.models?.clear(); state.copies = 0;
   } else if (target === 'marks' || target === 'panel') {
     // Marks, pins and flat diagrams are the screen's; the 3D stage is the rest.
     const wantMark = target === 'marks';
@@ -440,6 +461,7 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
     else if (shape === 'plane') state.bodies.set(id, { shape: 'box', size: [size[0], size[1], 0], ...place });
     else state.bodies.set(id, { shape: 'group', ...place }); // a cone or a torus is not asked about, but things hang from it
   } else if (name === 'addPart') state.bodies.set(id, { shape: 'box', ...resolvePartGeometry(out as AddPart), ...place });
+  else if (name === 'addModel') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addBlob') state.bodies.set(id, { shape: 'blob', pts: out.pts as Vec3[], sizes: out.sizes as Vec3[], ...place });
   else if (name === 'addExtrude' || name === 'addHull' || name === 'addLathe' || name === 'addShell' || name === 'addLoft' || name === 'addSweep' || name === 'addPatch' || name === 'addGroup') state.bodies.set(id, { shape: 'group', ...place });
   else if (name === 'addTube' || (name === 'addPath' && shape === 'line')) {
@@ -574,12 +596,31 @@ function subjectName(raw: object, path: string, notes: Notes): object {
   return { ...rest, [want]: value };
 }
 
+/**
+ * The model an `add model` asks for, by the name it gave: its id, its name or an alias is the model (said in a note when it was not the id). A name that is
+ * no model of the catalogue is refused, with the models there are and the way back to building it from shapes.
+ */
+function modelName(raw: object, path: string, notes: Notes): object | null {
+  if (own(raw, 'op') !== 'add' || own(raw, 'shape') !== 'model') return raw;
+  const given = own(raw, 'model');
+  const { model: found, near } = resolveModel(given);
+  if (!found) {
+    const nearest = near.length ? `the nearest are ${near.map((m) => m.id).join(', ')}; ` : '';
+    note(notes, 'dropped', path, `no model ${typeof given === 'string' ? `"${given.slice(0, 40)}"` : 'name'}; ${nearest}the real models are ${MODELS.map((m) => m.id).join(', ')}: build it from shapes instead`);
+    return null;
+  }
+  if (given !== found.id) note(notes, 'trimmed', path, `repaired: model "${String(given).slice(0, 40)}" is the model "${found.id}"`);
+  return { ...raw, model: found.id };
+}
+
 function validateAction(rawIn: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>, mountedChildrenAt: ReadonlyMap<string, number>, bodies: BodyVersions): Action | null {
   if (!isObject(rawIn)) {
     note(notes, 'dropped', path, 'action is not an object');
     return null;
   }
-  const raw = subjectName(shapeAsOp(rawIn, path, notes), path, notes);
+  const named = modelName(subjectName(shapeAsOp(rawIn, path, notes), path, notes), path, notes);
+  if (named === null) return null;
+  const raw = named;
   const variant = pickVariant(raw);
   if (typeof variant === 'string') {
     note(notes, 'dropped', path, variant);
@@ -600,6 +641,15 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
         note(notes, 'dropped', path, 'cut normal needs 3 finite numbers from -100 to 100, not all zero');
         return null;
       }
+    }
+  }
+  // A model that is one piece (a scan, a single object) is labelled as a whole: nothing to take apart or cut open.
+  if (variant.name === 'explode' || variant.name === 'cut') {
+    const target = own(raw, 'id');
+    const single = typeof target === 'string' && state.models?.has(target) ? MODELS.find((m) => m.id === state.models!.get(target)) : undefined;
+    if (single?.single) {
+      note(notes, 'dropped', path, `${variant.name}: "${target}" is the model "${single.id}" (${single.name}), which is one piece with no parts to ${variant.name === 'cut' ? 'cut open' : 'take apart'}; label it as a whole`);
+      return null;
     }
   }
   // Strict admission precedes the ordinary, deliberately lenient field parser and any state changes.
@@ -879,6 +929,26 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
     state.replaceable?.delete(id);
     const parent = (variant.attach ? out[variant.attach] : out.parent) as string | undefined;
     state.ids.set(id, kind);
+    // A real model brings its named parts: each is an object of its own, under the model, so every op that names an object can name one.
+    if (variant.name === 'addModel') {
+      const model = findModel(out.model)!;
+      // Written again, only its own named parts go (the new model brings its own); what the author attached to the model or to a part stays attached.
+      const before = state.models?.has(id) ? MODELS.find((m) => m.id === state.models!.get(id)) : undefined;
+      for (const p of before?.parts ?? []) {
+        const old = partId(id, p.key);
+        state.ids.delete(old); state.parents.delete(old); state.depth.delete(old);
+      }
+      (state.models ??= new Map()).set(id, model.id);
+      // A model of one piece has no parts to name: only the whole is an id (the planner still draws it as one part).
+      for (const p of model.single ? [] : model.parts) {
+        const pid = partId(id, p.key);
+        state.ids.set(pid, 'group');
+        state.parents.set(pid, id);
+        state.depth.set(pid, (parent === undefined ? 1 : (state.depth.get(parent) ?? 0) + 1) + 1);
+      }
+      // What hung from a part the new model does not have hangs from the model itself.
+      for (const [child, owner] of state.parents) if (owner?.startsWith(`${id}.`) && owner !== undefined && !state.ids.has(owner)) state.parents.set(child, id);
+    } else state.models?.delete(id);
     if (variant.creates === 'diagram') state.diagramKinds.set(id, out.kind as DiagramKind);
     else state.diagramKinds.delete(id);
     if (variant.name === 'addPart') state.parts.set(id, out.part as string);

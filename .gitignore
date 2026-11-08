@@ -7,3 +7,16 @@ dist/
 .DS_Store
 Thumbs.db
 release/
+
+# real models: the raw downloads are not in git (see scripts/assets and assets/models). The built files are not either, except those of the models a release
+# carries (CC0, each pinned by hash in its manifest): they are committed as plain binaries (see .gitattributes), so a fresh clone can build and pack a release.
+# A model held back from releases is never listed here.
+assets/cache/
+assets/built/*
+!assets/built/alarm-clock.glb
+!assets/built/bolt-cutters.glb
+!assets/built/camera.glb
+!assets/built/drill.glb
+!assets/built/electric-motor.glb
+!assets/built/measuring-tape.glb
+!assets/built/mousetrap.glb

@@ -1,6 +1,6 @@
 {
   "name": "talkthrough",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "An AI that talks you through anything on your screen, and draws as it talks.",
   "keywords": [
     "screen assistant",
@@ -19,6 +19,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.mjs",
+    "assets:fetch": "node scripts/assets/fetch.mjs",
+    "assets:build": "node scripts/assets/build.mjs",
+    "assets:pin": "node scripts/assets/fetch.mjs --pin && node scripts/assets/build.mjs --pin && node scripts/assets/index.mjs",
+    "assets:index": "node scripts/assets/index.mjs",
+    "assets": "node scripts/assets/fetch.mjs && node scripts/assets/build.mjs && node scripts/assets/index.mjs --check",
     "start": "node scripts/start.mjs",
     "test": "node --test \"test/*.test.ts\"",
     "dist": "node scripts/dist.mjs"

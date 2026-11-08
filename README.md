@@ -59,7 +59,7 @@ Windows is the first platform. Mouse circling and model dragging have reported f
 
 ## Contribute
 
-Talkthrough is open source under the [MIT license](LICENSE). The scene language, overlay, and adapters are documented in [CONTRIBUTING.md](CONTRIBUTING.md), [the scene language guide](docs/scene-language.md), and [the overlay notes](docs/overlay.md). Mac and Linux support are planned.
+Talkthrough is open source under the [MIT license](LICENSE), which covers its code only: the real 3D models it can show are separate works under their own licences, named in [assets/CREDITS.md](assets/CREDITS.md), and are not part of the MIT grant. The scene language, overlay, and adapters are documented in [CONTRIBUTING.md](CONTRIBUTING.md), [the scene language guide](docs/scene-language.md), and [the overlay notes](docs/overlay.md). Mac and Linux support are planned.
 
 For a development checkout, install Node.js 24 or newer, then run:
 

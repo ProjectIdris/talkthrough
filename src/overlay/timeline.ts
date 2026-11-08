@@ -8,6 +8,7 @@
 
 import { heldShift, mountPosition } from '../scene/attach.ts';
 import { anchorsOf } from '../scene/anchors.ts';
+import { findModel, modelScale } from '../scene/models.ts';
 import { resolvePartGeometry } from '../scene/part-geometry.ts';
 import { loopRow } from '../scene/movement-rows.ts';
 import { PALETTE_RGB } from '../scene/colors.ts';
@@ -585,8 +586,23 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
         draw: track([('draw' in a && a.draw !== undefined) ? a.draw : a.shape === 'particles' ? 0 : 1]), spread: track([0]),
       };
       if (replaced?.points) fresh.points = { ...replaced.points };
+      // A model written again: its own parts go (the new one brings its own); what the author attached to it or to a part stays.
+      const oldParts = replaced && replaced.def.shape === 'model' ? descendants(plan, replaced.key, at).filter((d) => d.def.shape === 'meshpart') : [];
+      for (const d of oldParts) { d.diedAt = at; d.wipe = REPLACE_SECONDS; }
       if (replaced) replaceObject(plan, replaced, fresh, at);
       else plan.objs.push(fresh);
+      if (a.shape === 'model') {
+        const made = addModelParts(plan, fresh, a, at);
+        for (const part of oldParts) {
+          const same = made.get(part.id);
+          for (const o of plan.objs) {
+            if (o.parentKey !== part.key || o.def.shape === 'meshpart' || !aliveAt(o, at)) continue;
+            // On the same part of the new model, or, if it has none like it, where it was on the model.
+            o.parentKey = same ? same.key : fresh.key;
+            if (!same) o.pos = track(valueAt(o.pos, at).map((v, i) => v + (valueAt(part.pos, at)[i] ?? 0)) as Vec3);
+          }
+        }
+      }
       if (authoredMount) {
         // Replacement inheritance above is presentation-timed; mounts keep their logical base pose.
         fresh.rot = track(authoredMount.rot);
@@ -1203,6 +1219,29 @@ function addArray(plan: StepPlan, a: Extract<AddAction, { shape: 'array' }>, at:
       });
     }
   }
+}
+
+/** The named parts of a placed real model, each an object of its own under it: at the part's place in the model, its mesh drawn at the model's scale. */
+function addModelParts(plan: StepPlan, group: ObjInst, a: Extract<AddAction, { shape: 'model' }>, at: number): Map<string, ObjInst> {
+  const made = new Map<string, ObjInst>();
+  const model = findModel(a.model);
+  if (!model) return made;
+  const scale = modelScale(model, a.size);
+  for (const p of model.parts) {
+    const id = `${a.id}.${p.key}`;
+    const def: AddAction = { op: 'add', shape: 'meshpart', id, parent: a.id, model: model.id, part: p.key, unitsPerMetre: scale, closed: p.closed, material: 'tissue', ...(model.format === 'gltf' ? { textured: true } : {}),
+      ...(p.hub ? { hub: [(p.hub[0] - p.center[0]) * scale, (p.hub[1] - p.center[1]) * scale, (p.hub[2] - p.center[2]) * scale] as Vec3 } : {}),
+      ...(p.explode ? { explode: [p.explode[0] * scale, p.explode[1] * scale, p.explode[2] * scale] as Vec3 } : {}) };
+    const part: ObjInst = {
+      key: plan.nextKey++, id, parentKey: group.key, def,
+      bornAt: at, diedAt: undefined,
+      pos: track([p.center[0] * scale, p.center[1] * scale, p.center[2] * scale]), rot: track([0, 0, 0]), scale: track([1, 1, 1]),
+      color: track([...p.color] as Vec3), opacity: track([1]), draw: track([1]), spread: track([0]),
+    };
+    plan.objs.push(part);
+    made.set(id, part);
+  }
+  return made;
 }
 
 function clearTarget(plan: StepPlan, target: string, at: number): void {

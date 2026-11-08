@@ -1,0 +1,108 @@
+{
+  "id": "drill",
+  "name": "Power drill",
+  "description": "A corded power drill with its chuck and trigger, as one textured object",
+  "aliases": [
+    "drill",
+    "power drill",
+    "electric drill"
+  ],
+  "format": "gltf",
+  "licence": {
+    "id": "CC0-1.0",
+    "version": "1.0",
+    "statedOn": "https://polyhaven.com/license",
+    "statement": "Our assets are all licensed as CC0. You do not need to give credit."
+  },
+  "source": {
+    "name": "Poly Haven",
+    "url": "https://polyhaven.com/a/Drill_01",
+    "version": "Drill 01, 1k glTF, published 2020-03-30",
+    "authors": [
+      "Fernando Quinn"
+    ],
+    "cacheFolder": "ph-drill-01"
+  },
+  "retrieved": "2026-11-08",
+  "changes": "Passed through: geometry, UV coordinates, materials and the 1k textures are the source's own, unchanged. Added: a root that puts the model on the scene's axes, in metres, centred on its own middle, and a tag on each named part.",
+  "orient": {
+    "up": "y+",
+    "front": "z+"
+  },
+  "scale": {
+    "unitsToMetres": 1
+  },
+  "caveats": [
+    "A single scanned or modelled object: it can be labelled as a whole, but has no named parts to cut or take apart."
+  ],
+  "files": [
+    {
+      "entry": "Drill_01.bin",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/Drill_01/Drill_01.bin",
+      "bytes": 90100,
+      "sha256": "0353e743c05051546945fd2d79e9c96bfad7ad387e0d47bc5d408d78ae7b9fe8"
+    },
+    {
+      "entry": "Drill_01_1k.gltf",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/Drill_01/Drill_01_1k.gltf",
+      "bytes": 2637,
+      "sha256": "b162c83a8e35c869aef4f50e2cd80a750be248389e829f6cf9ced73ba094b9db"
+    },
+    {
+      "entry": "textures/Drill_01_arm_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/Drill_01/Drill_01_arm_1k.jpg",
+      "bytes": 168655,
+      "sha256": "974670d66a17cceebec08dcee5e4895684b519bcd2e4c8ea748a955fe1e41057"
+    },
+    {
+      "entry": "textures/Drill_01_diff_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/Drill_01/Drill_01_diff_1k.jpg",
+      "bytes": 106186,
+      "sha256": "2c1cfdc0d3e65ca490e0bd5cdc28173672bf68f9bb62278cc7094c9c5d6a7dcb"
+    },
+    {
+      "entry": "textures/Drill_01_nor_gl_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/Drill_01/Drill_01_nor_gl_1k.jpg",
+      "bytes": 133488,
+      "sha256": "08d3efc87520243ad9ef031ec0d67369dac5aae2752f8db33988015cbb06e2eb"
+    }
+  ],
+  "parts": [
+    {
+      "key": "whole",
+      "name": "Power drill",
+      "aliases": [],
+      "confidence": "atlas",
+      "nodes": [
+        "Drill_01"
+      ]
+    }
+  ],
+  "built": {
+    "file": "drill.glb",
+    "bytes": 500292,
+    "sha256": "a5afd4c33c8d24b4c2f5a0978047654e81835adcf38a4f7de916dfd2cee7683b",
+    "triangles": 2926,
+    "size": [
+      0.18288,
+      0.185062,
+      0.052415
+    ],
+    "parts": {
+      "whole": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.18288,
+          0.185062,
+          0.052415
+        ],
+        "closed": false,
+        "triangles": 2926
+      }
+    }
+  }
+}
