@@ -85,12 +85,14 @@ float patBricks(vec3 q, vec3 n, float fade) {
   return mix(0.15, mix(tone, 1.6, mortar), fade);
 }
 float patternValue(float kind, vec3 q, vec3 n, float foot) {
-  if (kind < 1.5) return patGrain(q, foot);
-  if (kind < 2.5) return patSpeckle(q, 1.0 - smoothstep(0.25, 0.7, foot * 3.0));
-  if (kind < 3.5) return patVeins(q, 1.0 - smoothstep(0.25, 0.7, foot * 1.9));
-  if (kind < 4.5) return patWeave(q, n, 1.0 - smoothstep(0.2, 0.5, foot * 1.0));
-  if (kind < 5.5) return patTwill(q, n, 1.0 - smoothstep(0.2, 0.5, foot * 1.0));
-  return patBricks(q, n, 1.0 - smoothstep(0.3, 0.8, foot * 0.7));
+  float v = 0.0;
+  if (kind < 1.5) v = patGrain(q, foot);
+  else if (kind < 2.5) v = patSpeckle(q, 1.0 - smoothstep(0.25, 0.7, foot * 3.0));
+  else if (kind < 3.5) v = patVeins(q, 1.0 - smoothstep(0.25, 0.7, foot * 1.9));
+  else if (kind < 4.5) v = patWeave(q, n, 1.0 - smoothstep(0.2, 0.5, foot * 1.0));
+  else if (kind < 5.5) v = patTwill(q, n, 1.0 - smoothstep(0.2, 0.5, foot * 1.0));
+  else v = patBricks(q, n, 1.0 - smoothstep(0.3, 0.8, foot * 0.7));
+  return v;
 }
 `;
 

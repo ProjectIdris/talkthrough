@@ -45,6 +45,8 @@ test('a name is read as its own, an alias, the longest name it holds, or a slip;
   is('light blue plastic', 'plastic');
   is('red brick wall', 'brick');
   is('tooth enamel', 'tooth');
+  is('tissue paper', 'paper');
+  is('iron oxide', 'rust');
   assert.equal(resolveMaterial('enamel').name, 'tooth', 'enamel is the tooth, not the kit\'s painted metal');
   // Two particular materials in one name cannot be told apart: listed, not guessed.
   const tie = resolveMaterial('gold leaf');
