@@ -420,7 +420,7 @@ export class PanelScene {
     const tube = def.shape === 'tube';
     // A field line (made by the timeline) is finer than an arrow the model draws, and counts in the fit of the camera: the lines are the picture.
     const fine = (def as { fine?: boolean }).fine === true;
-    const radius = tube ? def.radius ?? PATH_RADIUS : fine ? PATH_RADIUS * 0.6 : PATH_RADIUS;
+    const radius = tube ? def.radius ?? PATH_RADIUS : fine ? PATH_RADIUS * 0.8 : PATH_RADIUS;
     const loop = tube && def.closed ? closedTubeGeometry(def.pts, radius, def.flat ?? 1, this.detail.radial, this.detail.tube, def.swell) : undefined;
     const sampled = loop?.sampled ?? samplePath(def.pts, tube, this.detail.tube);
     const geo = loop?.geo ?? tubeGeometry(sampled, radius, tube ? def.flat ?? 1 : 1, this.detail.radial, tube ? def.swell : undefined);
@@ -430,7 +430,7 @@ export class PanelScene {
     let head: Mesh | undefined;
     if (def.shape === 'arrow') {
       head = addMesh(new ConeGeometry(PATH_RADIUS * 3.4, 0.55, 20), 'plastic', false);
-      if (fine) head.scale.setScalar(0.5);
+      if (fine) head.scale.setScalar(0.85);
       group.add(head);
     }
     node.obj = group;

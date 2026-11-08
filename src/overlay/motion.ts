@@ -34,7 +34,7 @@ export type LoopKind = 'slide' | 'swing' | 'pulse' | 'gate' | 'float';
  * units and rocks it `tilt` degrees about z (a boat on water). `damp` is the number of cycles for the motion to fall to a third (it settles); `start` is the
  * angle the loop began at, which the fall is counted from.
  */
-export type LoopDef = { key: number; kind: LoopKind; axis: Axis; amount: number; pivot: Vec3; damp?: number; start?: number; tilt?: number };
+export type LoopDef = { key: number; kind: LoopKind; axis: Axis; amount: number; pivot: Vec3; damp?: number; start?: number; tilt?: number; /** A swing about the middle of this object, wherever it stands (a pendulum hung from a part): the pivot is worked out each frame. */ pivotKey?: number };
 /** How much of its swing a damped free loop still has when its angle is `a`: one for a loop that does not settle. */
 export const loopFade = (l: LoopDef, a: number): number => (l.damp !== undefined && l.start !== undefined ? Math.exp(-Math.max(0, (a - l.start) / 360) / l.damp) : 1);
 /** The key of the angle that drives the loop on object `key`; the same call gives the object back from the driver's key. */
@@ -438,7 +438,16 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
       pose.rot = turnedLocal(pose.rot ?? o.rot, joint.axis, q);
     } else {
       const axis = joint ? joint.axis : loop ? loop.axis : 2;
-      const pivot: Vec3 = joint ? joint.pivot : loop ? loop.pivot : [0, 0, 0];
+      let pivot: Vec3 = joint ? joint.pivot : loop ? loop.pivot : [0, 0, 0];
+      if (!joint && loop?.pivotKey !== undefined) {
+        // The middle of the part it hangs from, taken to the world and into the space this part sits in, less where this part is.
+        const held = chainOf(byKey, out, loop.pivotKey), home = chainOf(byKey, out, o.parentKey);
+        if (held && (home || o.parentKey === null)) {
+          const there = downThrough(home ?? [], upThrough(held, [0, 0, 0]));
+          const here = pose.pos ?? o.pos;
+          pivot = [there[0] - here[0], there[1] - here[1], there[2] - here[2]];
+        }
+      }
       pose.rot = turned(pose.rot ?? o.rot, axis, q);
       const [px, py, pz] = pivot;
       if (px !== 0 || py !== 0 || pz !== 0) {

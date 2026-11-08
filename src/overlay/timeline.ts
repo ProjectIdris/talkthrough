@@ -757,6 +757,7 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
         const start = loopStart(kind) + (by ? 0 : a.phase ?? 0);
         plan.loops.push({
           key: o.key, kind, axis, amount: a.amount ?? 1, pivot: a.pivot ? asVec(a.pivot) : [0, 0, 0],
+          ...(a.pivotOn !== undefined && lookup(plan.objs, a.pivotOn, at) ? { pivotKey: (lookup(plan.objs, a.pivotOn, at) as ObjInst).key } : {}),
           ...(!by && a.damp !== undefined ? { damp: a.damp } : {}), ...(!by && (a.damp !== undefined || kind === 'float') ? { start } : {}), ...(kind === 'float' ? { tilt: a.tilt ?? 4 } : {}),
         });
         const sp = spinPlanFrom({ key: driver, axis: 2, angle: start, rate: 0 });
@@ -832,12 +833,12 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       // A swing about the hang point, let go at the far end, with the period a longer string asks for.
       const o = lookup(plan.objs, a.id, at);
       if (!o) return;
-      const holder = a.from !== undefined ? lookup(plan.objs, a.from, at) : undefined;
-      const mine = asVec(valueAt(o.pos, at));
-      const pivot: Vec3 | undefined = a.pivot ? asVec(a.pivot) : holder && holder.parentKey === o.parentKey ? (asVec(valueAt(holder.pos, at)).map((v, i) => v - (mine[i] as number)) as Vec3) : undefined;
-      if (!pivot) return;
-      const length = Math.hypot(pivot[0], pivot[1], pivot[2]);
-      applyAction(plan, { op: 'loop', id: a.id, kind: 'swing', axis: a.axis ?? 'z', amount: a.swing ?? 25, period: a.period ?? Math.max(0.8, Math.min(6, 1.6 * Math.sqrt(length))), pivot, phase: 90, ...(a.damp !== undefined ? { damp: a.damp } : {}), at }, at, spinRamp, context);
+      // Hung from a part, the pivot is that part's middle wherever it is (worked out each frame, through any parents); the string's length, for the period, is read from where both stand now.
+      const holder = a.from !== undefined && !a.pivot ? lookup(plan.objs, a.from, at) : undefined;
+      if (!a.pivot && !holder) return;
+      const reach = a.pivot ? asVec(a.pivot) : (rootPos(plan, holder as ObjInst, at).map((v, i) => v - (rootPos(plan, o, at)[i] as number)) as Vec3);
+      const length = Math.hypot(reach[0], reach[1], reach[2]);
+      applyAction(plan, { op: 'loop', id: a.id, kind: 'swing', axis: a.axis ?? 'z', amount: a.swing ?? 25, period: a.period ?? Math.max(0.8, Math.min(6, 1.6 * Math.sqrt(length))), ...(a.pivot ? { pivot: asVec(a.pivot) } : { pivotOn: a.from }), phase: 90, ...(a.damp !== undefined ? { damp: a.damp } : {}), at }, at, spinRamp, context);
       return;
     }
     case 'oscillate': {
@@ -1047,6 +1048,22 @@ function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number)
 
 /** Seconds a stream's markers take for the whole way when the scene gives no period. */
 export const STREAM_PERIOD = 4;
+
+/** Where an object's origin stands in the scene, adding up its place and its parents', each as the object is mounted (turns and scales of parents are left out: this is for lengths only, such as a string's). */
+function rootPos(plan: StepPlan, o: ObjInst, at: number, depth = 0): Vec3 {
+  const own = asVec(valueAt(o.pos, at));
+  const parent = o.parentKey !== null ? plan.objs.find((p) => p.key === o.parentKey) : undefined;
+  if (!parent || depth > 8) return own;
+  let local = own;
+  if (hasMount(o.def)) {
+    const d = o.def as { parentAnchor?: string; selfAnchor?: string };
+    const from = anchorsOf({ ...parent.def, ...(parent.points ? { points: parent.points } : {}) })[d.parentAnchor ?? 'origin'];
+    const mine = anchorsOf({ ...o.def, ...(o.points ? { points: o.points } : {}) })[d.selfAnchor ?? 'origin'];
+    if (from && mine) local = mountPosition(from, mine, asVec(valueAt(o.rot, at)), own, asVec(valueAt(o.scale, at)));
+  }
+  const base = rootPos(plan, parent, at, depth + 1);
+  return [base[0] + local[0], base[1] + local[1], base[2] + local[2]];
+}
 
 /** The axis a cylinder lies along (the letter, and the unit direction it points in, in its parent's space). */
 function longAxis(o: ObjInst, at: number): { axis: 'x' | 'y' | 'z'; dir: Vec3 } {
@@ -1425,7 +1442,7 @@ function holdMount(o: ObjectFrame, pose: Pose, motion: Motion): void {
   if (motion.joints.some((j) => j.key === o.key && (j.kind === 'fixed' || pivot(j.pivot)))) return;
   // A pivot turns a part about its own axis through its own middle: its attached point stays only if that point is on the axis, so it is left to the joint.
   if (motion.joints.some((j) => j.key === o.key && j.kind === 'pivot')) return;
-  if (motion.loops.some((l) => l.key === o.key && pivot(l.pivot))) return;
+  if (motion.loops.some((l) => l.key === o.key && (pivot(l.pivot) || l.pivotKey !== undefined))) return;
   const grown: Vec3 = [o.scale[0] * (pose.scale?.[0] ?? 1), o.scale[1] * (pose.scale?.[1] ?? 1), o.scale[2] * (pose.scale?.[2] ?? 1)];
   const shift = heldShift(o.rot, pose.rot ?? o.rot, o.scale, grown, o.mount.self);
   const base = pose.pos ?? o.pos;

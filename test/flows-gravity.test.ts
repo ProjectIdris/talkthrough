@@ -38,6 +38,20 @@ test('a pendulum swings about the part it hangs from, let go at the far end, and
   near(posOf(at(r, 3.2), 'bob')[0], 4 * Math.sin(a));
 });
 
+test('a pendulum hangs from the part its weight is attached to (the way a model writes it), and swings about that part, not nothing', () => {
+  const hung = { op: 'add', shape: 'sphere', id: 'bob', parent: 'support', parentAnchor: 'bottom', selfAnchor: 'top', pos: [0, -4, 0], size: [1.2, 1.2, 1.2] };
+  const r = run(support, hung, { op: 'pendulum', id: 'bob', from: 'support', swing: 30, period: 2.5 });
+  assert.deepEqual(r.issues, []);
+  // the bob rides in the support (which stays at the origin), so its own place is its place in the scene; at rest it hangs 4.8 below the middle
+  // of the support (the support's bottom is 0.2 down, the bob's top is 0.6 above its middle, and it is written 4 further down)
+  const world = (t: number) => posOf(at(r, t), 'bob');
+  const lengths = [0, 0.4, 1.1, 2, 3].map((t) => Math.hypot(world(t)[0], world(t)[1]));
+  assert.ok(lengths.every((l) => Math.abs(l - 4.8) < 1e-6), `lengths ${lengths}`);
+  const a = (30 * Math.PI) / 180;
+  near(Math.atan2(world(0)[0], -world(0)[1]), a, 1e-6);
+  near(Math.atan2(world(1.25)[0], -world(1.25)[1]), -a, 0.02);
+});
+
 test('a longer string swings more slowly, and damp lets it run down to hanging still', () => {
   const short = run(support, { ...bob, pos: [0, -1, 0] }, { op: 'pendulum', id: 'bob', from: 'support', swing: 30 });
   const long = run(support, { ...bob, pos: [0, -9, 0] }, { op: 'pendulum', id: 'bob', from: 'support', swing: 30 });
