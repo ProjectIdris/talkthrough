@@ -314,7 +314,8 @@ test('an object with no colour takes the colour of its surface or part', () => {
     { op: 'add', shape: 'part', id: 'c', part: 'chip', variant: 'metal', size: [1, 1, 1] }, { op: 'add', shape: 'part', id: 'd', part: 'chip', size: [1, 1, 1] },
   )], 0, 99);
   assert.ok((obj(f, 'a')?.color[1] ?? 0) > (obj(f, 'a')?.color[0] ?? 255) * 2, 'a circuit board is green');
-  assert.ok((obj(f, 'b')?.color[0] ?? 0) > 180, 'plastic is light');
+  // A mid-tone, not near-white: an untinted plastic part has to read on a white page as well as a dark one (the material library measures this).
+  assert.ok((obj(f, 'b')?.color[0] ?? 0) > 110 && (obj(f, 'b')?.color[0] ?? 0) < 190, 'plastic is a mid-tone');
   assert.ok((obj(f, 'c')?.color[0] ?? 0) > 150 && (obj(f, 'd')?.color[0] ?? 255) < 80, 'a metal-lidded chip is light, a plain one dark');
 });
 

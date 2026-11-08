@@ -170,7 +170,7 @@ import { dirname, join } from 'node:path';
 test('the corpus-selection assertion works in isolated LF and CRLF checkouts', () => {
   const directory = mkdtempSync(join(tmpdir(), 'tt-catalogue-newlines-'));
   const files = [
-    'test/catalogue-relevance.test.ts', 'src/scene/spec.ts',
+    'test/catalogue-relevance.test.ts', 'src/scene/spec.ts', 'src/scene/material-library.ts',
     'scripts/prototypes/catalogue-evaluation.ts', 'scripts/prototypes/catalogue-retrieval.ts',
     'scripts/prototypes/catalogue-parts.ts', 'scripts/prototypes/evaluate-catalogue.ts',
     'scripts/prototypes/catalogue-validation-v3.json',

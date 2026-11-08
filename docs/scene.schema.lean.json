@@ -66,6 +66,17 @@
         "glow",
         "paper",
         "tissue",
+        "bone",
+        "muscle",
+        "tendon",
+        "skin",
+        "steel",
+        "iron",
+        "brass",
+        "copper",
+        "wood",
+        "rope",
+        "water",
         null
       ]
     },
@@ -226,6 +237,12 @@
         "clearcoatRoughness": {
           "$ref": "#/$defs/0"
         },
+        "treatment": {
+          "enum": [
+            "fibres",
+            null
+          ]
+        },
         "draw": {
           "$ref": "#/$defs/0"
         },
@@ -260,6 +277,7 @@
         "metalness",
         "clearcoat",
         "clearcoatRoughness",
+        "treatment",
         "draw",
         "opacity",
         "at"
@@ -2287,6 +2305,12 @@
         "clearcoatRoughness": {
           "$ref": "#/$defs/0"
         },
+        "treatment": {
+          "enum": [
+            "fibres",
+            null
+          ]
+        },
         "draw": {
           "$ref": "#/$defs/0"
         },
@@ -2313,6 +2337,7 @@
         "metalness",
         "clearcoat",
         "clearcoatRoughness",
+        "treatment",
         "draw",
         "opacity",
         "at"

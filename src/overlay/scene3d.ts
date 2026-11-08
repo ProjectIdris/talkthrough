@@ -1,3 +1,4 @@
+import { applyPathTreatment, setPathSurfaceCoordinates, treatmentOf } from './surface-treatment.ts';
 import { taperedExtrudeEdges, taperedExtrudeGeometry } from './tapered-extrusion.ts';
 // The 3D scene: builds objects from a Frame, moves them as the frame changes, lights them, puts a soft
 // shadow under them on the page, and places the camera. It never touches the DOM itself (text sprites
@@ -235,6 +236,10 @@ export class PanelScene {
     };
     const addMesh: AddMesh = (geo, surfaceName, edges) => {
       const surface = makeSurface(surfaceName, settings, finish);
+      if (def.shape === 'tube' || def.shape === 'connector') {
+        setPathSurfaceCoordinates(geo, treatmentOf(def));
+        applyPathTreatment(surface, treatmentOf(def));
+      }
       if (def.shape === 'patch') { surface.side = DoubleSide; surface.forceSinglePass = true; }
       if (geo.getAttribute('color')) surface.vertexColors = true;
       const mesh = new Mesh(geo, surface);

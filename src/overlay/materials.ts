@@ -5,6 +5,8 @@
 import { Color, DoubleSide, MeshPhysicalMaterial } from 'three';
 import type { Material } from 'three';
 import type { SurfaceFinish } from '../scene/types.ts';
+import { fitTint } from '../scene/material-library.ts';
+import type { MaterialName } from '../scene/material-library.ts';
 import type { Rgb } from './timeline.ts';
 
 export type Tier = 'low' | 'mid' | 'high';
@@ -30,7 +32,7 @@ export const TIERS: Record<Tier, TierSettings> = {
 };
 
 /** The surfaces a scene can name, and two the parts kit uses inside itself: painted metal and rough cast metal. */
-export type SurfaceName = 'plastic' | 'metal' | 'rubber' | 'pcb' | 'glass' | 'glow' | 'bead' | 'paper' | 'tissue' | 'enamel' | 'cast' | 'section';
+export type SurfaceName = MaterialName | 'bead' | 'enamel' | 'cast' | 'section';
 
 type Recipe = {
   roughness: number; metalness: number; clearcoat?: number; clearcoatRoughness?: number;
@@ -52,6 +54,19 @@ const RECIPES: Record<SurfaceName, Recipe> = {
   paper: { roughness: 0.96, metalness: 0, doubleSided: true },
   // Living tissue: soft and a little wet, a gentle sheen over a matte body.
   tissue: { roughness: 0.62, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.55, sheen: 0.8 },
+  // Living and organic: matte to softly wet, in the colours their names ask for, none of them shiny plastic.
+  bone: { roughness: 0.58, metalness: 0, clearcoat: 0.12, clearcoatRoughness: 0.55 },
+  muscle: { roughness: 0.55, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.45, sheen: 0.5 },
+  tendon: { roughness: 0.38, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.3, sheen: 0.4 },
+  skin: { roughness: 0.6, metalness: 0, clearcoat: 0.18, clearcoatRoughness: 0.6, sheen: 0.7 },
+  // Metals and their kin: the plain metal's recipe, tuned.
+  steel: { roughness: 0.28, metalness: 1, envMapIntensity: 1.1 },
+  iron: { roughness: 0.55, metalness: 0.9, envMapIntensity: 0.95 },
+  brass: { roughness: 0.26, metalness: 1, envMapIntensity: 1.1 },
+  copper: { roughness: 0.3, metalness: 1, envMapIntensity: 1.1 },
+  wood: { roughness: 0.8, metalness: 0, clearcoat: 0.12, clearcoatRoughness: 0.7 },
+  rope: { roughness: 0.95, metalness: 0, sheen: 0.4 },
+  water: { roughness: 0.05, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, opacity: 0.58, envMapIntensity: 1.3, doubleSided: true },
   // Painted metal: a little of the metal under the paint shows in the shine, and the lacquer over it is glassy.
   enamel: { roughness: 0.34, metalness: 0.55, clearcoat: 1, clearcoatRoughness: 0.12, envMapIntensity: 1.1 },
   // Sand-cast metal: rough and even, with no mirror in it.
@@ -60,7 +75,7 @@ const RECIPES: Record<SurfaceName, Recipe> = {
   section: { roughness: 0.7, metalness: 0.1 },
 };
 
-export type Surface = MeshPhysicalMaterial & { userData: { base: number; glow: number } };
+export type Surface = MeshPhysicalMaterial & { userData: { base: number; glow: number; name?: string } };
 
 export function makeSurface(name: string | undefined, tier: TierSettings, finish: SurfaceFinish = {}): Surface {
   const r = RECIPES[(name as SurfaceName) in RECIPES ? (name as SurfaceName) : 'plastic'];
@@ -75,7 +90,7 @@ export function makeSurface(name: string | undefined, tier: TierSettings, finish
     m.sheenRoughness = 0.5;
     m.sheenColor.setRGB(1, 0.9, 0.88);
   }
-  m.userData = { base: r.opacity ?? 1, glow: r.emissive ?? 0 };
+  m.userData = { base: r.opacity ?? 1, glow: r.emissive ?? 0, name };
   m.opacity = m.userData.base;
   m.depthWrite = !m.transparent;
   if (name === 'section') hatched(m);
@@ -102,7 +117,9 @@ export function setSurfaceOpacity(m: Surface, opacity: number): void {
 /** Sets a surface's tint, strength and glow for the moment. `alpha` is the object's own opacity.
  * Endpoint-held paths defer classification until their flow update supplies the final opacity. */
 export function applySurface(m: Surface, rgb: Rgb, alpha: number, pulse: number, pulseRgb: Rgb | undefined, deferOpacity = false): void {
-  m.color.setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 'srgb');
+  // A tint gives the material a hue but stays within the material's own range of lightness (bone does not go white), so it reads on a light page and a dark one.
+  const tint = fitTint(m.userData.name, rgb);
+  m.color.setRGB(tint[0] / 255, tint[1] / 255, tint[2] / 255, 'srgb');
   if (deferOpacity) m.opacity = alpha * m.userData.base;
   else setSurfaceOpacity(m, alpha * m.userData.base);
   if (m.userData.glow > 0 || pulse > 0) {

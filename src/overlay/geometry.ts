@@ -243,6 +243,7 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
   const a = new Vector3();
   const b = new Vector3();
   const centre = new Vector3();
+  let surfaceFrameStability = 1;
   const frames: Array<{ centre: Vector3; wide: Vector3; thin: Vector3; tangent: Vector3; radius: number }> = [];
   for (let i = 0; i < rings; i++) {
     const p = path[i] as Vec3;
@@ -259,6 +260,14 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
     const k = Math.max(0, Math.min(1, (lean - 0.3) / 0.68));
     const mix = k * k * (3 - 2 * k);
     const ref = new Vector3().addScaledVector(UP, 1 - mix).addScaledVector(FORWARD, mix).normalize();
+    if (i === 0 && !across) {
+      // Near a tangent parallel to the initial reference, the existing frame
+      // can rotate very quickly or flip. Geometry stays exactly as before;
+      // optional directional material detail fades until longitude is stable.
+      const conditioning = new Vector3().crossVectors(tangent, ref).length();
+      const resolved = Math.max(0, Math.min(1, (conditioning - 0.05) / 0.1));
+      surfaceFrameStability = resolved * resolved * (3 - 2 * resolved);
+    }
     if (flat === 1 && i > 0) {
       wide.addScaledVector(tangent, -wide.dot(tangent));
       if (wide.lengthSq() < 1e-12) wide.crossVectors(tangent, ref);
@@ -379,6 +388,7 @@ export function tubeGeometry(path: readonly Vec3[], baseRadius: number, flat: nu
   geo.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
   geo.setAttribute('normal', new BufferAttribute(new Float32Array(nor), 3));
   geo.setIndex(idx);
+  geo.userData.surfaceFrameStability = surfaceFrameStability;
   geo.userData.rings = rings;
   geo.userData.indicesPerRing = radial * 6;
   geo.userData.startCap = startCap;
