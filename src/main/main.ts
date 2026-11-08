@@ -26,6 +26,7 @@ import { createFrontWindowReader } from './front-window.ts';
 import { createSkipCheck } from './skip-list.ts';
 import { createSettingsService } from './settings-service.ts';
 import { createKeyStore } from './keystore.ts';
+import { createCaptureShield } from './capture-shield.ts';
 import { createMedia } from './media.ts';
 import { createOverlayManager } from './overlay-windows.ts';
 import { createPins } from './pins.ts';
@@ -164,6 +165,8 @@ async function main(): Promise<void> {
     };
     log(`record of questions: on, in ${recordDir(settings.recordFolder, app.getPath('userData'))}`);
   }
+  // Our windows are in every recording and screen share, and out of our own screenshot only for the moment it is taken.
+  const shield = createCaptureShield({ enabled: !options.visibleToCapture, ...(options.captureSettleMs !== undefined ? { settleMs: options.captureSettleMs } : {}), log });
   const samples = createSamplePlayer(join(app.getAppPath(), 'samples', 'scenes'));
   let session: ReturnType<typeof createSession> | null = null;
   // The person's say-so before the app acts for them (a yes first, a pause any time); only where it has hands at all.
@@ -171,7 +174,7 @@ async function main(): Promise<void> {
   // Where "may I do that for you?" is asked: a window of its own, because the overlay cannot take a click that arrives without a mouse move.
   const consentCard = navConsent
     ? createConsentCard({
-      makeWindow: () => electronCardWindow({ hideFromCapture: !options.visibleToCapture }),
+      makeWindow: () => electronCardWindow({ shield }),
       areaOf: (displayId) => screen.getAllDisplays().find((d) => d.id === displayId)?.workArea ?? null,
       onAnswer: (yes) => void navConsent.answer(yes),
     })
@@ -200,7 +203,7 @@ async function main(): Promise<void> {
     preload,
     page: overlayPage,
     ...(options.backdrop ? { backdrop: options.backdrop } : {}),
-    hideFromCapture: !options.visibleToCapture,
+    shield,
     hidden: options.hidden,
     globalKeys: !isCheckRun(options),
     silent: options.silentVoice,
@@ -446,7 +449,7 @@ async function main(): Promise<void> {
         if (await skipped()) throw new Error('the window in front is not to be looked at (the list of windows to skip)');
         const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
         // A stand-in picture goes through the same page as a real grab, so a pen crop works the same way.
-        const c = captureImage ? await media.captureFromImage(display, captureImage, settings.screenshotEdge) : await media.capture(display, settings.screenshotEdge);
+        const c = captureImage ? await media.captureFromImage(display, captureImage, settings.screenshotEdge) : await shield.around((settled) => media.capture(display, settings.screenshotEdge, settled));
         if (options.saveCapture) writeFileSync(options.saveCapture, Buffer.from(c.screenshot.base64, 'base64'));
         log(`screenshot ${c.screenshot.width}x${c.screenshot.height} (display ${c.nativeWidth}x${c.nativeHeight}) grabbed in ${c.ms} ms`);
         return c;
@@ -476,7 +479,7 @@ async function main(): Promise<void> {
       capture: async (displayId) => {
         if (await skipped()) throw new Error('the window in front is not to be looked at (the list of windows to skip)');
         const display = screen.getAllDisplays().find((d) => d.id === displayId) ?? displayUnderPointer();
-        const c = captureImage ? await media.captureFromImage(display, captureImage, settings.screenshotEdge) : await media.capture(display, settings.screenshotEdge);
+        const c = captureImage ? await media.captureFromImage(display, captureImage, settings.screenshotEdge) : await shield.around((settled) => media.capture(display, settings.screenshotEdge, settled));
         media.release(c.grabId);
         return { screenshot: c.screenshot, grid: gridOf(c.screenshot) };
       },

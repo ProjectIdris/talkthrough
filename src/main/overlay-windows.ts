@@ -6,6 +6,7 @@ import { readAction } from './page-action.ts';
 import { buttonsForMode, createButtonCatchers, validRects } from './button-catchers.ts';
 import type { ButtonCatchers, ButtonRect } from './button-catchers.ts';
 import { electronCatcherWindow } from './button-window.ts';
+import type { CaptureShield } from './capture-shield.ts';
 import { createClickGuard, createGuideArmGate, createKeyGate, createKeyHold, ignoreMouse, keyWanted } from './interaction.ts';
 import { createEscape } from './escape.ts';
 import { createOverlayVisibility, overlayOccupied, wakesOverlay } from './overlay-visibility.ts';
@@ -21,8 +22,8 @@ export type OverlayOptions = {
   /** Path of the overlay page (HTML file). */
   page: string;
   backdrop?: string;
-  /** Hide the overlay from screen capture and recordings (on unless asked otherwise). */
-  hideFromCapture: boolean;
+  /** Takes every window of the overlay out of our own screenshots, for the moment each is taken (see capture-shield.ts); they are in other recordings. */
+  shield: CaptureShield;
   /** Development runs: never show the windows (they still render, and can be snapshotted). */
   hidden?: boolean;
   /** False in a check or development run: the E key is never taken from the system (default true). */
@@ -186,7 +187,7 @@ export function createOverlayManager(options: OverlayOptions) {
     if (options.muted) window.webContents.setAudioMuted(true);
     window.setAlwaysOnTop(true, 'screen-saver');
     window.setIgnoreMouseEvents(true, { forward: true });
-    if (options.hideFromCapture) window.setContentProtection(true);
+    window.on('closed', options.shield.add(window));
     // Keep clicks and focus away from us, and never let the page open windows or navigate.
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', (event) => event.preventDefault());
@@ -219,7 +220,7 @@ export function createOverlayManager(options: OverlayOptions) {
         },
       }),
       catchers: createButtonCatchers({
-        makeWindow: () => electronCatcherWindow({ hideFromCapture: options.hideFromCapture }),
+        makeWindow: () => electronCatcherWindow({ shield: options.shield }),
         onPress: (id) => {
           if (!window.isDestroyed()) window.webContents.send(CHANNEL.scene, { kind: 'press', id } satisfies SceneMessage);
         },
