@@ -156,7 +156,7 @@ function sheetFor(ffmpeg, before, after, file) {
 
 const claudeOk = (m) => /^claude-(haiku|sonnet)-5-5$/.test(String(m));
 
-/** The route check, as the app reads the settings: the route and models named, an executable that exists, no warning. */
+/** The route check, as the app reads the settings: the route and models named, an executable that exists, no warning, and no step of the run (the first, the later steps, the detail pass) on any route but the subscription ones. */
 export async function routeCheck(root, settingsFile) {
   const { loadSettings } = await import(pathToFileURL(join(root, 'src/main/settings.ts')).href);
   const warnings = [];
@@ -164,8 +164,10 @@ export async function routeCheck(root, settingsFile) {
   const command = settings.claudeCommand;
   const codex = settings.model === 'codex';
   const present = typeof command === 'string' && command !== '' && existsSync(command);
-  const ok = warnings.length === 0 && (codex ? settings.codexModel === 'gpt-6-luna' : claudeOk(settings.claudeModel) && (!settings.claudeLaterModel || claudeOk(settings.claudeLaterModel)) && present);
-  const text = codex ? `codex ${settings.codexModel}` : `claude ${settings.claudeModel}${settings.claudeLaterModel ? ` then ${settings.claudeLaterModel}` : ''}, executable ${present ? 'present' : typeof command === 'string' && command ? 'MISSING' : 'unset'}`;
+  const routes = [settings.model, settings.laterRoute, settings.detailRoute].filter((r) => r !== undefined);
+  const stray = routes.filter((r) => r !== 'claude' && r !== 'codex');
+  const ok = warnings.length === 0 && stray.length === 0 && (settings.model === 'claude' || codex) && (codex ? settings.codexModel === 'gpt-6-luna' : claudeOk(settings.claudeModel) && (!settings.claudeLaterModel || claudeOk(settings.claudeLaterModel)) && present);
+  const text = stray.length > 0 ? `route ${[...new Set(stray)].join(', ')} is not a subscription route (claude or codex), so a live run could spend elsewhere` : settings.model !== 'claude' && !codex ? `route ${settings.model} is not claude or codex` : codex ? `codex ${settings.codexModel}` : `claude ${settings.claudeModel}${settings.claudeLaterModel ? ` then ${settings.claudeLaterModel}` : ''}, executable ${present ? 'present' : typeof command === 'string' && command ? 'MISSING' : 'unset'}`;
   return { ok, text: warnings.length > 0 ? `${text}; warnings: ${warnings.join(' | ')}` : text };
 }
 

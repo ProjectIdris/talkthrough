@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { inflateSync } from 'node:zlib';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 // @ts-expect-error a plain script with no types
-import { QUESTIONS, SIDES, blankPng, logNotes, parseArgs, planRuns, reportMarkdown, tapeMetrics } from '../scripts/live-proof.mjs';
+import { QUESTIONS, SIDES, blankPng, logNotes, parseArgs, planRuns, reportMarkdown, routeCheck, tapeMetrics } from '../scripts/live-proof.mjs';
 
 test('the plan asks every question on both sides, the side that goes first alternating by question', () => {
   const runs = planRuns({});
@@ -66,4 +69,29 @@ test('the report puts both sides of each question in one table with the guide le
   assert.match(md, /\| arm \| after \|/);
   assert.match(md, /\| before \| 1 \| 0 \| 1 \| 2 \|/);
   assert.match(md, /\| after \| 1 \| 0 \| 1 \| 1 \|/);
+});
+
+test('the route check passes only the subscription routes: a key route or a local model on any step is refused, so a live run cannot spend elsewhere', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'route-'));
+  try {
+    const check = async (name: string, settings: Record<string, unknown>) => {
+      const file = join(dir, name + '.json');
+      writeFileSync(file, JSON.stringify(settings));
+      return routeCheck('.', file);
+    };
+    const exe = process.execPath;
+    assert.equal((await check('claude', { model: 'claude', claudeCommand: exe })).ok, true);
+    assert.equal((await check('codex', { model: 'codex' })).ok, true);
+    for (const [name, settings] of [
+      ['openai', { model: 'openai', claudeCommand: exe }],
+      ['local', { model: 'local', claudeCommand: exe }],
+      ['later-openai-on-claude', { model: 'claude', claudeCommand: exe, laterRoute: 'openai', laterModel: 'gpt-x' }],
+      ['later-openai-on-codex', { model: 'codex', laterRoute: 'openai', laterModel: 'gpt-5' }],
+      ['detail-openai', { model: 'claude', claudeCommand: exe, detailRoute: 'openai' }],
+    ] as const) {
+      const r = await check(name, settings);
+      assert.equal(r.ok, false, name);
+      assert.match(r.text, /not (a subscription route|claude or codex)/, name);
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
