@@ -25,16 +25,20 @@ Hold **Right Ctrl + Right Shift**, ask your question, then release. The picture 
 
 ## Examples
 
-These are saved answer frames from pages used as examples. The first animation above is a separate hand-written scene. The frames below were made with an earlier build, whose diagram panels were always dark; panels now follow the page and are light over a light page. Page content shown here comes from Wikipedia or Wikibooks and is available under CC BY-SA 4.0.
+These are frames from answers a model gave live to questions about made-up fixture pages (an encyclopedia-style article and a settings window), replayed frame by frame; the models and the mechanisms beside them are drawn by the renderer from the answer. The first animation above is a separate hand-written scene. Generated answers vary in detail and quality.
 
 <table>
   <tr>
-    <td><img src="docs/media/frame-timeline.jpg" alt="A timeline of events drawn over a page about the Battle of Hastings." width="100%"><br><strong>Timeline</strong> - events are placed along a shared time axis.</td>
-    <td><img src="docs/media/frame-flow.jpg" alt="A recursion flow diagram, including a loop back, over a page about recursion." width="100%"><br><strong>Flow</strong> - a branching explanation shows the base case and the recursive call.</td>
+    <td><img src="docs/media/gallery-clock.jpg" alt="The real alarm clock model on an article about alarm clocks, with its gear train and escapement turning beside it and labelled parts." width="100%"><br><strong>A real model and its mechanism</strong> - the alarm clock, with the gears and escapement that drive it beside it.</td>
+    <td><img src="docs/media/gallery-drill.jpg" alt="The real cordless drill model beside a planetary gear set with labelled sun gear, carrier and ring." width="100%"><br><strong>An assembly moving</strong> - the drill, and the planetary gears that slow its motor.</td>
   </tr>
   <tr>
-    <td><img src="docs/media/frame-chart.jpg" alt="A supply and demand chart with the equilibrium point marked." width="100%"><br><strong>Chart</strong> - axes, curves, and an equilibrium point.</td>
-    <td><img src="docs/media/frame-guide.jpg" alt="A guide checklist with completed and upcoming steps over a recipe page." width="100%"><br><strong>Guide</strong> - a checklist advances as you complete each step.</td>
+    <td><img src="docs/media/gallery-mousetrap.jpg" alt="The real mousetrap model beside its spring, catch, bait pedal and hammer bar, with a box on the article text." width="100%"><br><strong>Parts that work together</strong> - the spring, catch and trigger that snap a mousetrap.</td>
+    <td><img src="docs/media/gallery-materials.jpg" alt="Four spheres lit as steel, brass, copper and wood, each labelled, with the article text boxed." width="100%"><br><strong>Materials</strong> - steel, brass, copper and wood lit as real surfaces.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/media/gallery-proof.jpg" alt="A tilted-square diagram and three equation labels explaining a proof of the Pythagorean theorem on a web page." width="100%"><br><strong>A page explained on the page</strong> - a proof drawn beside the text it explains.</td>
+    <td><img src="docs/media/gallery-guide.jpg" alt="A settings window with a red box on the Spell check toggle." width="100%"><br><strong>Guide mode</strong> - it marks the next click and waits for yours.</td>
   </tr>
 </table>
 
