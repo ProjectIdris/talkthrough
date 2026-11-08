@@ -780,7 +780,14 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
         radius = Math.abs(((points.rim?.[0] ?? 0) - (points.center?.[0] ?? 0)) * scale[0]);
         if (!(radius > 0)) radius = 1;
       }
-      applyAction(plan, { op: 'spin', id: a.wheel, rpm: a.rpm ?? 20, at }, at, spinRamp, context);
+      // It turns about its own axis: a cylinder's is its long one, as it lies; a kit wheel or anything else turns as a disc seen from the front, about z.
+      let axis = a.axis;
+      if (axis === undefined && wheel.def.shape === 'cylinder') {
+        const v = restPoint(asVec(valueAt(wheel.rot, at)), [1, 1, 1], [0, 1, 0]);
+        const big = Math.max(Math.abs(v[0]), Math.abs(v[1]), Math.abs(v[2]));
+        axis = Math.abs(v[0]) === big ? 'x' : Math.abs(v[1]) === big ? 'y' : 'z';
+      }
+      applyAction(plan, { op: 'spin', id: a.wheel, rpm: a.rpm ?? 20, axis: axis ?? 'z', at }, at, spinRamp, context);
       applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', axis: 'y', at }, at, spinRamp, context);
       applyAction(plan, { op: 'couple', id: a.id, by: a.wheel, pitch: 2 * Math.PI * radius, at }, at, spinRamp, context);
       return;

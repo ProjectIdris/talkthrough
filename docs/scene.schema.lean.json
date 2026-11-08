@@ -4,7 +4,7 @@
     "steps": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/1w"
+        "$ref": "#/$defs/1x"
       }
     },
     "escalate": {
@@ -81,12 +81,20 @@
       ]
     },
     "6": {
+      "enum": [
+        "x",
+        "y",
+        "z",
+        null
+      ]
+    },
+    "7": {
       "type": "array",
       "items": {
         "type": "number"
       }
     },
-    "7": {
+    "8": {
       "type": [
         "array",
         "null"
@@ -98,7 +106,7 @@
         }
       }
     },
-    "8": {
+    "9": {
       "enum": [
         "left",
         "right",
@@ -109,35 +117,37 @@
         null
       ]
     },
-    "9": {
+    "10": {
       "type": "object",
       "properties": {
         "op": {
           "enum": [
-            "box",
-            "circle"
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "line",
+            "arrow"
           ]
         },
         "id": {
           "type": "string"
         },
-        "x": {
-          "type": "number"
+        "parent": {
+          "$ref": "#/$defs/1"
         },
-        "y": {
-          "type": "number"
-        },
-        "w": {
-          "type": "number"
-        },
-        "h": {
-          "type": "number"
-        },
-        "rot": {
-          "$ref": "#/$defs/0"
+        "pts": {
+          "$ref": "#/$defs/3"
         },
         "color": {
-          "type": "string"
+          "$ref": "#/$defs/1"
+        },
+        "draw": {
+          "$ref": "#/$defs/0"
+        },
+        "opacity": {
+          "$ref": "#/$defs/0"
         },
         "at": {
           "$ref": "#/$defs/0"
@@ -145,18 +155,18 @@
       },
       "required": [
         "op",
+        "shape",
         "id",
-        "x",
-        "y",
-        "w",
-        "h",
-        "rot",
+        "parent",
+        "pts",
         "color",
+        "draw",
+        "opacity",
         "at"
       ],
       "additionalProperties": false
     },
-    "10": {
+    "11": {
       "type": "object",
       "properties": {
         "op": {
@@ -190,10 +200,10 @@
           ]
         },
         "fromSide": {
-          "$ref": "#/$defs/8"
+          "$ref": "#/$defs/9"
         },
         "toSide": {
-          "$ref": "#/$defs/8"
+          "$ref": "#/$defs/9"
         },
         "fromAnchor": {
           "$ref": "#/$defs/1"
@@ -208,7 +218,7 @@
           "$ref": "#/$defs/2"
         },
         "swell": {
-          "$ref": "#/$defs/7"
+          "$ref": "#/$defs/8"
         },
         "restLength": {
           "$ref": "#/$defs/0"
@@ -284,7 +294,7 @@
       ],
       "additionalProperties": false
     },
-    "11": {
+    "12": {
       "type": "object",
       "properties": {
         "op": {
@@ -361,7 +371,7 @@
       ],
       "additionalProperties": false
     },
-    "12": {
+    "13": {
       "type": "object",
       "properties": {
         "op": {
@@ -433,7 +443,7 @@
           ]
         },
         "size": {
-          "$ref": "#/$defs/6"
+          "$ref": "#/$defs/7"
         },
         "n": {
           "$ref": "#/$defs/0"
@@ -467,7 +477,7 @@
       ],
       "additionalProperties": false
     },
-    "13": {
+    "14": {
       "type": "object",
       "properties": {
         "op": {
@@ -511,7 +521,7 @@
       ],
       "additionalProperties": false
     },
-    "14": {
+    "15": {
       "type": "object",
       "properties": {
         "op": {
@@ -567,7 +577,7 @@
       ],
       "additionalProperties": false
     },
-    "15": {
+    "16": {
       "type": "object",
       "properties": {
         "op": {
@@ -615,7 +625,7 @@
       ],
       "additionalProperties": false
     },
-    "16": {
+    "17": {
       "type": "object",
       "properties": {
         "op": {
@@ -661,7 +671,7 @@
       ],
       "additionalProperties": false
     },
-    "17": {
+    "18": {
       "type": "object",
       "properties": {
         "op": {
@@ -675,7 +685,7 @@
           "type": "string"
         },
         "to": {
-          "$ref": "#/$defs/6"
+          "$ref": "#/$defs/7"
         },
         "at": {
           "$ref": "#/$defs/0"
@@ -693,7 +703,7 @@
       ],
       "additionalProperties": false
     },
-    "18": {
+    "19": {
       "type": "object",
       "properties": {
         "op": {
@@ -723,38 +733,54 @@
       ],
       "additionalProperties": false
     },
-    "19": {
+    "a": {
       "type": "object",
       "properties": {
         "op": {
           "enum": [
-            "explode",
-            "reveal"
+            "box",
+            "circle"
           ]
         },
         "id": {
           "type": "string"
         },
-        "to": {
+        "x": {
           "type": "number"
         },
-        "at": {
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number"
+        },
+        "rot": {
           "$ref": "#/$defs/0"
         },
-        "dur": {
+        "color": {
+          "type": "string"
+        },
+        "at": {
           "$ref": "#/$defs/0"
         }
       },
       "required": [
         "op",
         "id",
-        "to",
-        "at",
-        "dur"
+        "x",
+        "y",
+        "w",
+        "h",
+        "rot",
+        "color",
+        "at"
       ],
       "additionalProperties": false
     },
-    "a": {
+    "b": {
       "type": "object",
       "properties": {
         "op": {
@@ -792,7 +818,7 @@
       ],
       "additionalProperties": false
     },
-    "b": {
+    "c": {
       "type": "object",
       "properties": {
         "op": {
@@ -834,7 +860,7 @@
       ],
       "additionalProperties": false
     },
-    "c": {
+    "d": {
       "type": "object",
       "properties": {
         "op": {
@@ -864,7 +890,7 @@
       ],
       "additionalProperties": false
     },
-    "d": {
+    "e": {
       "type": "object",
       "properties": {
         "op": {
@@ -902,7 +928,7 @@
       ],
       "additionalProperties": false
     },
-    "e": {
+    "f": {
       "type": "object",
       "properties": {
         "op": {
@@ -936,7 +962,7 @@
       ],
       "additionalProperties": false
     },
-    "f": {
+    "g": {
       "type": "object",
       "properties": {
         "op": {
@@ -978,7 +1004,7 @@
       ],
       "additionalProperties": false
     },
-    "g": {
+    "h": {
       "type": "object",
       "properties": {
         "op": {
@@ -1043,7 +1069,7 @@
       ],
       "additionalProperties": false
     },
-    "h": {
+    "i": {
       "type": "object",
       "properties": {
         "op": {
@@ -1101,7 +1127,7 @@
       ],
       "additionalProperties": false
     },
-    "i": {
+    "j": {
       "type": "object",
       "properties": {
         "op": {
@@ -1172,7 +1198,7 @@
       ],
       "additionalProperties": false
     },
-    "j": {
+    "k": {
       "type": "object",
       "properties": {
         "op": {
@@ -1218,7 +1244,7 @@
       ],
       "additionalProperties": false
     },
-    "k": {
+    "l": {
       "type": "object",
       "properties": {
         "op": {
@@ -1256,7 +1282,7 @@
       ],
       "additionalProperties": false
     },
-    "l": {
+    "m": {
       "type": "object",
       "properties": {
         "op": {
@@ -1298,7 +1324,7 @@
       ],
       "additionalProperties": false
     },
-    "m": {
+    "n": {
       "type": "object",
       "properties": {
         "op": {
@@ -1340,7 +1366,7 @@
       ],
       "additionalProperties": false
     },
-    "n": {
+    "o": {
       "type": "object",
       "properties": {
         "op": {
@@ -1366,7 +1392,7 @@
       ],
       "additionalProperties": false
     },
-    "o": {
+    "p": {
       "type": "object",
       "properties": {
         "op": {
@@ -1408,7 +1434,7 @@
       ],
       "additionalProperties": false
     },
-    "p": {
+    "q": {
       "type": "object",
       "properties": {
         "op": {
@@ -1442,7 +1468,7 @@
           "$ref": "#/$defs/2"
         },
         "size": {
-          "$ref": "#/$defs/6"
+          "$ref": "#/$defs/7"
         },
         "rot": {
           "$ref": "#/$defs/2"
@@ -1501,7 +1527,7 @@
       ],
       "additionalProperties": false
     },
-    "q": {
+    "r": {
       "type": "object",
       "properties": {
         "op": {
@@ -1533,7 +1559,7 @@
           "$ref": "#/$defs/2"
         },
         "size": {
-          "$ref": "#/$defs/6"
+          "$ref": "#/$defs/7"
         },
         "inner": {
           "$ref": "#/$defs/0"
@@ -1597,7 +1623,7 @@
       ],
       "additionalProperties": false
     },
-    "r": {
+    "s": {
       "type": "object",
       "properties": {
         "op": {
@@ -1713,7 +1739,7 @@
       ],
       "additionalProperties": false
     },
-    "s": {
+    "t": {
       "type": "object",
       "properties": {
         "op": {
@@ -1797,7 +1823,7 @@
       ],
       "additionalProperties": false
     },
-    "t": {
+    "u": {
       "type": "object",
       "properties": {
         "op": {
@@ -1889,7 +1915,7 @@
       ],
       "additionalProperties": false
     },
-    "u": {
+    "v": {
       "type": "object",
       "properties": {
         "op": {
@@ -1973,7 +1999,7 @@
       ],
       "additionalProperties": false
     },
-    "v": {
+    "w": {
       "type": "object",
       "properties": {
         "op": {
@@ -2069,7 +2095,7 @@
       ],
       "additionalProperties": false
     },
-    "w": {
+    "x": {
       "type": "object",
       "properties": {
         "op": {
@@ -2165,7 +2191,7 @@
       ],
       "additionalProperties": false
     },
-    "x": {
+    "y": {
       "type": "object",
       "properties": {
         "op": {
@@ -2253,7 +2279,7 @@
       ],
       "additionalProperties": false
     },
-    "y": {
+    "z": {
       "type": "object",
       "properties": {
         "op": {
@@ -2282,7 +2308,7 @@
           "$ref": "#/$defs/0"
         },
         "swell": {
-          "$ref": "#/$defs/7"
+          "$ref": "#/$defs/8"
         },
         "closed": {
           "$ref": "#/$defs/4"
@@ -2344,56 +2370,38 @@
       ],
       "additionalProperties": false
     },
-    "z": {
+    "1a": {
       "type": "object",
       "properties": {
         "op": {
           "enum": [
-            "add"
-          ]
-        },
-        "shape": {
-          "enum": [
-            "line",
-            "arrow"
+            "explode",
+            "reveal"
           ]
         },
         "id": {
           "type": "string"
         },
-        "parent": {
-          "$ref": "#/$defs/1"
-        },
-        "pts": {
-          "$ref": "#/$defs/3"
-        },
-        "color": {
-          "$ref": "#/$defs/1"
-        },
-        "draw": {
-          "$ref": "#/$defs/0"
-        },
-        "opacity": {
-          "$ref": "#/$defs/0"
+        "to": {
+          "type": "number"
         },
         "at": {
+          "$ref": "#/$defs/0"
+        },
+        "dur": {
           "$ref": "#/$defs/0"
         }
       },
       "required": [
         "op",
-        "shape",
         "id",
-        "parent",
-        "pts",
-        "color",
-        "draw",
-        "opacity",
-        "at"
+        "to",
+        "at",
+        "dur"
       ],
       "additionalProperties": false
     },
-    "1a": {
+    "1b": {
       "type": "object",
       "properties": {
         "op": {
@@ -2408,7 +2416,7 @@
           "type": "string"
         },
         "pos": {
-          "$ref": "#/$defs/6"
+          "$ref": "#/$defs/7"
         }
       },
       "required": [
@@ -2419,7 +2427,7 @@
       ],
       "additionalProperties": false
     },
-    "1b": {
+    "1c": {
       "type": "object",
       "properties": {
         "op": {
@@ -2441,7 +2449,7 @@
       ],
       "additionalProperties": false
     },
-    "1c": {
+    "1d": {
       "type": "object",
       "properties": {
         "op": {
@@ -2475,7 +2483,7 @@
       ],
       "additionalProperties": false
     },
-    "1d": {
+    "1e": {
       "type": "object",
       "properties": {
         "op": {
@@ -2505,7 +2513,7 @@
       ],
       "additionalProperties": false
     },
-    "1e": {
+    "1f": {
       "type": "object",
       "properties": {
         "op": {
@@ -2529,12 +2537,7 @@
           "$ref": "#/$defs/0"
         },
         "axis": {
-          "enum": [
-            "x",
-            "y",
-            "z",
-            null
-          ]
+          "$ref": "#/$defs/6"
         },
         "at": {
           "$ref": "#/$defs/0"
@@ -2556,7 +2559,7 @@
       ],
       "additionalProperties": false
     },
-    "1f": {
+    "1g": {
       "type": "object",
       "properties": {
         "op": {
@@ -2594,7 +2597,7 @@
       ],
       "additionalProperties": false
     },
-    "1g": {
+    "1h": {
       "type": "object",
       "properties": {
         "op": {
@@ -2636,7 +2639,7 @@
       ],
       "additionalProperties": false
     },
-    "1h": {
+    "1i": {
       "type": "object",
       "properties": {
         "op": {
@@ -2674,7 +2677,7 @@
       ],
       "additionalProperties": false
     },
-    "1i": {
+    "1j": {
       "type": "object",
       "properties": {
         "op": {
@@ -2698,12 +2701,7 @@
           "$ref": "#/$defs/0"
         },
         "axis": {
-          "enum": [
-            "x",
-            "y",
-            "z",
-            null
-          ]
+          "$ref": "#/$defs/6"
         },
         "period": {
           "$ref": "#/$defs/0"
@@ -2735,7 +2733,7 @@
       ],
       "additionalProperties": false
     },
-    "1j": {
+    "1k": {
       "type": "object",
       "properties": {
         "op": {
@@ -2756,12 +2754,7 @@
           ]
         },
         "axis": {
-          "enum": [
-            "x",
-            "y",
-            "z",
-            null
-          ]
+          "$ref": "#/$defs/6"
         },
         "dir": {
           "$ref": "#/$defs/2"
@@ -2804,7 +2797,7 @@
       ],
       "additionalProperties": false
     },
-    "1k": {
+    "1l": {
       "type": "object",
       "properties": {
         "op": {
@@ -2846,7 +2839,7 @@
       ],
       "additionalProperties": false
     },
-    "1l": {
+    "1m": {
       "type": "object",
       "properties": {
         "op": {
@@ -2870,12 +2863,7 @@
           "$ref": "#/$defs/0"
         },
         "axis": {
-          "enum": [
-            "x",
-            "y",
-            "z",
-            null
-          ]
+          "$ref": "#/$defs/6"
         },
         "at": {
           "$ref": "#/$defs/0"
@@ -2893,7 +2881,7 @@
       ],
       "additionalProperties": false
     },
-    "1m": {
+    "1n": {
       "type": "object",
       "properties": {
         "op": {
@@ -2931,7 +2919,7 @@
       ],
       "additionalProperties": false
     },
-    "1n": {
+    "1o": {
       "type": "object",
       "properties": {
         "op": {
@@ -2951,6 +2939,9 @@
         "rpm": {
           "$ref": "#/$defs/0"
         },
+        "axis": {
+          "$ref": "#/$defs/6"
+        },
         "at": {
           "$ref": "#/$defs/0"
         }
@@ -2961,11 +2952,12 @@
         "wheel",
         "radius",
         "rpm",
+        "axis",
         "at"
       ],
       "additionalProperties": false
     },
-    "1o": {
+    "1p": {
       "type": "object",
       "properties": {
         "op": {
@@ -2977,12 +2969,7 @@
           "type": "string"
         },
         "axis": {
-          "enum": [
-            "x",
-            "y",
-            "z",
-            null
-          ]
+          "$ref": "#/$defs/6"
         },
         "normal": {
           "$ref": "#/$defs/2"
@@ -3008,7 +2995,7 @@
       ],
       "additionalProperties": false
     },
-    "1p": {
+    "1q": {
       "type": "object",
       "properties": {
         "op": {
@@ -3038,7 +3025,7 @@
       ],
       "additionalProperties": false
     },
-    "1q": {
+    "1r": {
       "type": "object",
       "properties": {
         "op": {
@@ -3064,7 +3051,7 @@
       ],
       "additionalProperties": false
     },
-    "1r": {
+    "1s": {
       "type": "object",
       "properties": {
         "op": {
@@ -3090,7 +3077,7 @@
       ],
       "additionalProperties": false
     },
-    "1s": {
+    "1t": {
       "type": "object",
       "properties": {
         "op": {
@@ -3126,7 +3113,7 @@
       ],
       "additionalProperties": false
     },
-    "1t": {
+    "1u": {
       "type": "object",
       "properties": {
         "op": {
@@ -3166,7 +3153,7 @@
       ],
       "additionalProperties": false
     },
-    "1u": {
+    "1v": {
       "type": "object",
       "properties": {
         "op": {
@@ -3188,11 +3175,8 @@
       ],
       "additionalProperties": false
     },
-    "1v": {
+    "1w": {
       "anyOf": [
-        {
-          "$ref": "#/$defs/9"
-        },
         {
           "$ref": "#/$defs/a"
         },
@@ -3363,10 +3347,13 @@
         },
         {
           "$ref": "#/$defs/1u"
+        },
+        {
+          "$ref": "#/$defs/1v"
         }
       ]
     },
-    "1w": {
+    "1x": {
       "type": "object",
       "properties": {
         "say": {
@@ -3375,7 +3362,7 @@
         "actions": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/1v"
+            "$ref": "#/$defs/1w"
           }
         }
       },

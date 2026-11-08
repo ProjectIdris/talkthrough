@@ -174,7 +174,7 @@ export type LeverAction = { op: 'lever'; id: string; fulcrum?: string; swing?: n
 /** A connector that pulls the part it is on: it contracts between its two points and the part's hinge or pivot is turned to make it so. */
 export type MuscleAction = { op: 'muscle'; id: string; pulls: string; contract?: number; period?: number; phase?: number } & At;
 /** A rope over a wheel in one op: the wheel turns and the load slides by the rope laid on it. */
-export type PulleyAction = { op: 'pulley'; id: string; wheel: string; radius?: number; rpm?: number } & At;
+export type PulleyAction = { op: 'pulley'; id: string; wheel: string; radius?: number; rpm?: number; axis?: 'x' | 'y' | 'z' } & At;
 export type FlashAction = { op: 'flash'; id: string; by: string; angle: number; span: number; cycle?: number } & At;
 
 // Camera, for the 3D panel.

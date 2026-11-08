@@ -595,7 +595,8 @@ export const VARIANTS: readonly Variant[] = [
     doc: 'A rope over a wheel: the wheel (wheel) turns rpm turns a minute (default 20, negative the other way) and the load (id) rises by the rope laid on it, 2 x pi x radius for each turn. radius is the rope\'s radius on the wheel, read from the wheel\'s size when left out. A winch, a crane drum and a wheel and axle (give the axle\'s radius) are the same.',
     fields: {
       id: { k: 'ref', of: 'object3d' }, wheel: { k: 'ref', of: 'object3d' },
-      radius: { k: 'num', min: 0.01, max: 100, opt: true }, rpm: { k: 'num', min: -600, max: 600, opt: true }, at: AT,
+      radius: { k: 'num', min: 0.01, max: 100, opt: true }, rpm: { k: 'num', min: -600, max: 600, opt: true },
+      axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true, doc: 'the axis the wheel turns about: left out, a cylinder turns about its own long axis as it lies and anything else about z' }, at: AT,
     },
   },
   {

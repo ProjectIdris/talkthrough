@@ -5074,6 +5074,15 @@
           ],
           "description": "-600 to 600"
         },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ],
+          "description": "the axis the wheel turns about: left out, a cylinder turns about its own long axis as it lies and anything else about z"
+        },
         "at": {
           "type": [
             "number",
@@ -5088,6 +5097,7 @@
         "wheel",
         "radius",
         "rpm",
+        "axis",
         "at"
       ],
       "additionalProperties": false,

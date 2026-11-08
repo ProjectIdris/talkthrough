@@ -66,10 +66,23 @@ test('a part attached to the beam is carried by it: its point stays on the beam 
 const wheel = { op: 'add', shape: 'cylinder', id: 'wheel', size: [2, 0.4, 2] };
 const load = { op: 'add', shape: 'box', id: 'bucket', size: [1, 1, 1], pos: [3, -2, 0] };
 
+test('a pulley turns a cylinder about its own long axis however it lies, and a flat wheel about z', () => {
+  const lying = run({ op: 'add', shape: 'cylinder', id: 'axle', size: [0.8, 3.8, 0.8], rot: [0, 0, 90] }, load, { op: 'pulley', id: 'bucket', wheel: 'axle', radius: 0.4, rpm: 60 });
+  const along = (t: number) => new Vector3(0, 1, 0).applyMatrix4(matrix(rotOf(evaluate(lying.plan, t), 'axle')));
+  nearV(along(2).toArray(), along(0).toArray(), 1e-6);
+  assert.ok(Math.abs(rotOf(evaluate(lying.plan, 2), 'axle')[0]) > 30, 'it is turned about x, the way it lies');
+  const standing = run({ op: 'add', shape: 'cylinder', id: 'drum', size: [1, 3, 1] }, load, { op: 'pulley', id: 'bucket', wheel: 'drum', radius: 0.4, rpm: 60 });
+  assert.ok(Math.abs(rotOf(evaluate(standing.plan, 2), 'drum')[1]) > 30, 'a standing cylinder turns about y');
+  const told = run({ op: 'add', shape: 'cylinder', id: 'drum', size: [1, 3, 1] }, load, { op: 'pulley', id: 'bucket', wheel: 'drum', radius: 0.4, rpm: 60, axis: 'z' });
+  assert.ok(Math.abs(rotOf(evaluate(told.plan, 2), 'drum')[2]) > 30, 'and axis says otherwise');
+  const kit = run(wheel, load, { op: 'pulley', id: 'bucket', wheel: 'wheel', radius: 1, rpm: 60 });
+  assert.ok(Math.abs(rotOf(evaluate(kit.plan, 3), 'wheel')[1]) > 30, 'the plain wheel of the other tests is a standing cylinder; it turns about its own y');
+});
+
 test('a pulley turns the wheel and lifts the load by the rope that comes off it: 2 x pi x radius a turn', () => {
   const { plan, issues } = run(wheel, load, { op: 'pulley', id: 'bucket', wheel: 'wheel', radius: 1.5, rpm: 60 });
   assert.deepEqual(issues, []);
-  const turned = (t: number) => rotOf(evaluate(plan, t), 'wheel')[2];
+  const turned = (t: number) => rotOf(evaluate(plan, t), 'wheel')[1];
   const risen = (t: number) => posOf(evaluate(plan, t), 'bucket')[1] + 2;
   for (const t of [0.5, 1.7, 3]) near(risen(t), (2 * Math.PI * 1.5 * turned(t)) / 360, 1e-4);
   assert.ok(Math.abs(turned(3)) > 90, 'the wheel really turns');
@@ -78,7 +91,7 @@ test('a pulley turns the wheel and lifts the load by the rope that comes off it:
 
 test('a pulley reads the radius off the wheel when left out (half its width), and a negative rpm lowers the load', () => {
   const { plan } = run(wheel, load, { op: 'pulley', id: 'bucket', wheel: 'wheel', rpm: -60 });
-  const turned = rotOf(evaluate(plan, 3), 'wheel')[2];
+  const turned = rotOf(evaluate(plan, 3), 'wheel')[1];
   const risen = posOf(evaluate(plan, 3), 'bucket')[1] + 2;
   near(risen, (2 * Math.PI * 1 * turned) / 360, 1e-4);
   assert.ok(turned < 0 && risen < 0, 'the other way round');
