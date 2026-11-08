@@ -480,3 +480,59 @@ test('a style colour on a textured model tints its texture (white leaves it as i
   const red = colourOf(frameOf([{ op: 'style', id: 'd', color: 'red' }]));
   assert.ok(red[0]! > 0.9 && red[1]! < 0.6, `a red style tints it: ${red}`);
 });
+
+// ---- a part that turns, turns on its hub --------------------------------------------------------------
+
+test('a clock hand that is spun turns on its hub and stays inside the face (not about its own middle, not out past the rim)', () => {
+  const clock = MODELS.find((m) => m.id === 'alarm-clock')!;
+  const body = clock.parts.find((p) => p.key === 'body')!;
+  const scale = modelScale(clock, 8);
+  const face = body.size[0] / 2 * scale; // the case is as wide as the face and its rim
+  for (const key of ['hour-hand', 'minute-hand', 'second-hand']) {
+    const part = clock.parts.find((p) => p.key === key)!;
+    assert.ok(part.hub, `${key} has a hub in the catalogue`);
+    const hub = [0, 1, 2].map((k) => part.hub![k]! * scale);
+    const scene = validated({ steps: [{ say: 'x', actions: [{ op: 'panel', x: 100, y: 60, w: 800, h: 880 }, { op: 'add', shape: 'model', id: 'k', model: 'alarm-clock', size: 8 }, { op: 'spin', id: `k.${key}`, rpm: 10, axis: 'z' }] }] });
+    const at = (t: number) => frameAt(scene.steps, 0, t).objects.find((o) => o.id === `k.${key}`)!;
+    const rest = at(0);
+    let turned = 0;
+    for (let t = 0; t <= 6; t += 0.5) {
+      const o = at(t);
+      const pos = o.pose?.pos ?? o.pos;
+      const angle = ((o.pose?.rot?.[2] ?? o.rot[2]) * Math.PI) / 180;
+      turned = Math.max(turned, Math.abs(angle));
+      // where its hub point is now: its middle plus the hub's offset from the middle, turned
+      const offset = [0, 1, 2].map((k) => part.hub![k]! * scale - part.center[k]! * scale);
+      const here = [pos[0] + offset[0]! * Math.cos(angle) - offset[1]! * Math.sin(angle), pos[1] + offset[0]! * Math.sin(angle) + offset[1]! * Math.cos(angle)];
+      assert.ok(Math.hypot(here[0]! - (rest.pos[0] + offset[0]!), here[1]! - (rest.pos[1] + offset[1]!)) < 1e-6, `${key}: the hub stays where it is at t=${t}`);
+      // its far corners, where they really are now: none is farther from the face's middle (the hub at rest) than the face is wide
+      const middle = [rest.pos[0] + offset[0]!, rest.pos[1] + offset[1]!];
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+        const cx = sx * part.size[0] / 2 * scale, cy = sy * part.size[1] / 2 * scale;
+        const x = pos[0] + cx * Math.cos(angle) - cy * Math.sin(angle), y = pos[1] + cx * Math.sin(angle) + cy * Math.cos(angle);
+        assert.ok(Math.hypot(x - middle[0]!, y - middle[1]!) <= face, `${key} stays inside the face at t=${t}`);
+      }
+    }
+    assert.ok(turned > 3, `${key} went right round`);
+  }
+});
+
+test('an exploded clock lifts its hands straight off the face, each at its own height, not outward across the case', () => {
+  const clock = MODELS.find((m) => m.id === 'alarm-clock')!;
+  const scale = modelScale(clock, 8);
+  const scene = validated({ steps: [{ say: 'x', actions: [{ op: 'panel', x: 100, y: 60, w: 800, h: 880 }, { op: 'add', shape: 'model', id: 'k', model: 'alarm-clock', size: 8 }] }] });
+  const frame = frameAt(scene.steps, 0, 2);
+  const lifts = new Set<number>();
+  for (const key of ['hour-hand', 'minute-hand', 'second-hand']) {
+    const o = frame.objects.find((x) => x.id === `k.${key}`)!;
+    const explode = (o.def as { explode?: [number, number, number] }).explode;
+    assert.ok(explode, `${key} names where it goes`);
+    assert.equal(explode[0], 0);
+    assert.equal(explode[1], 0);
+    assert.ok(explode[2] > 0, 'toward the viewer, off the face');
+    lifts.add(explode[2]);
+    assert.ok(explode[2] < 0.1 * scale, 'near the clock, not across the page');
+  }
+  assert.equal(lifts.size, 3, 'each hand at its own height, so they do not overlap');
+  assert.equal((frame.objects.find((x) => x.id === 'k.body')!.def as { explode?: unknown }).explode, undefined, 'the case stays');
+});

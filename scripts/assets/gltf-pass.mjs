@@ -195,7 +195,14 @@ export function buildGltfModel(m, readBytes) {
     const got = measured.get(p.key);
     if (!got.positions.length) throw new Error(`part ${p.key} holds no mesh`);
     const b = bounds(Float32Array.from(got.positions.flatMap((a) => Array.from(a))));
-    result[p.key] = { center: b.center.map((v, k) => round(v + shift[k])), size: b.size.map((v) => round(v)), closed: got.closed, triangles: got.triangles };
+    const center = b.center.map((v, k) => round(v + shift[k]));
+    // The hub is where the part turns (a clock hand's boss): the origin of its own node, taken through the same axes and middle, or a point the manifest gives.
+    let hub;
+    if (p.hub === 'node') {
+      const [first] = p.nodes.flatMap((id) => nodesNamed(json, id));
+      hub = apply(multiply(rootMatrix(shift), world.get(first)), 0, 0, 0).map((v) => round(v));
+    } else if (Array.isArray(p.hub)) hub = p.hub.map((v) => round(v));
+    result[p.key] = { center, size: b.size.map((v) => round(v)), closed: got.closed, triangles: got.triangles, ...(hub ? { hub } : {}) };
     triangles += got.triangles;
   }
   // Tag the parts, add the root.

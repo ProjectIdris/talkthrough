@@ -90,6 +90,12 @@
       "confidence": "atlas",
       "nodes": [
         "houd_hand"
+      ],
+      "hub": "node",
+      "explode": [
+        0,
+        0,
+        0.012
       ]
     },
     {
@@ -102,6 +108,12 @@
       "confidence": "atlas",
       "nodes": [
         "minute_hand"
+      ],
+      "hub": "node",
+      "explode": [
+        0,
+        0,
+        0.024
       ]
     },
     {
@@ -113,6 +125,12 @@
       "confidence": "atlas",
       "nodes": [
         "second_hand"
+      ],
+      "hub": "node",
+      "explode": [
+        0,
+        0,
+        0.036
       ]
     }
   ],
@@ -153,7 +171,12 @@
           0.000593
         ],
         "closed": false,
-        "triangles": 200
+        "triangles": 200,
+        "hub": [
+          0,
+          -0.021252,
+          -0.009132
+        ]
       },
       "minute-hand": {
         "center": [
@@ -167,7 +190,12 @@
           0.000602
         ],
         "closed": false,
-        "triangles": 152
+        "triangles": 152,
+        "hub": [
+          0,
+          -0.021252,
+          -0.009132
+        ]
       },
       "second-hand": {
         "center": [
@@ -181,7 +209,12 @@
           0.000158
         ],
         "closed": false,
-        "triangles": 73
+        "triangles": 73,
+        "hub": [
+          0,
+          -0.021252,
+          -0.009132
+        ]
       }
     }
   }

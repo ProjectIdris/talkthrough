@@ -160,3 +160,18 @@ test('where a file may come from and go: https on a publisher host only, and ent
   const ok = JSON.parse(JSON.stringify(sound)); ok.files.push({ ...ok.files[0], entry: 'textures/a.b.jpg' });
   assert.deepEqual(manifestProblems(ok), []);
 });
+
+test('the hub of a part is the origin of its node (where it turns), or a point the manifest gives; it is checked', () => {
+  const withHub = (a: unknown, b?: unknown) => buildGltfModel(manifest({ parts: [{ key: 'a', name: 'A', confidence: 'atlas', nodes: ['a'], hub: a }, { key: 'b', name: 'B', confidence: 'atlas', nodes: ['b'], ...(b ? { hub: b } : {}) }] }), reader(source()));
+  // node a sits at (1,0,0) and node b at the origin, times 2, from the whole's middle (1,1,0): hubs (1,-1,0) and (-1,-1,0); the mesh's own middle is not the hub.
+  const r = withHub('node', 'node');
+  near(r.parts.a.hub, [1, -1, 0]);
+  near(r.parts.b.hub, [-1, -1, 0]);
+  near(withHub([0.5, 0.25, 0]).parts.a.hub, [0.5, 0.25, 0]);
+  assert.equal(withHub(undefined).parts.a.hub, undefined, 'no hub unless the manifest asks');
+  const sound = manifest();
+  for (const bad of ['middle', [1, 2], [1, 2, 'x']]) {
+    const m = JSON.parse(JSON.stringify(sound)); m.parts[0].hub = bad;
+    assert.match(manifestProblems({ ...m, id: 'tri' }).join(';'), /hub must be/, JSON.stringify(bad));
+  }
+});

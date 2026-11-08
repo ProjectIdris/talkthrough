@@ -1228,7 +1228,9 @@ function addModelParts(plan: StepPlan, group: ObjInst, a: Extract<AddAction, { s
   const scale = modelScale(model, a.size);
   for (const p of model.parts) {
     const id = `${a.id}.${p.key}`;
-    const def: AddAction = { op: 'add', shape: 'meshpart', id, parent: a.id, model: model.id, part: p.key, unitsPerMetre: scale, closed: p.closed, material: 'tissue', ...(model.format === 'gltf' ? { textured: true } : {}) };
+    const def: AddAction = { op: 'add', shape: 'meshpart', id, parent: a.id, model: model.id, part: p.key, unitsPerMetre: scale, closed: p.closed, material: 'tissue', ...(model.format === 'gltf' ? { textured: true } : {}),
+      ...(p.hub ? { hub: [(p.hub[0] - p.center[0]) * scale, (p.hub[1] - p.center[1]) * scale, (p.hub[2] - p.center[2]) * scale] as Vec3 } : {}),
+      ...(p.explode ? { explode: [p.explode[0] * scale, p.explode[1] * scale, p.explode[2] * scale] as Vec3 } : {}) };
     const part: ObjInst = {
       key: plan.nextKey++, id, parentKey: group.key, def,
       bornAt: at, diedAt: undefined,

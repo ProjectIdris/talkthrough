@@ -22,6 +22,7 @@ export function catalogueSource(manifests) {
     parts: m.parts.map((p) => ({
       key: p.key, name: p.name, aliases: p.aliases ?? [], confidence: p.confidence, color: p.color ?? [255, 255, 255], closed: m.built.parts[p.key].closed,
       center: m.built.parts[p.key].center, size: m.built.parts[p.key].size, triangles: m.built.parts[p.key].triangles,
+      ...(m.built.parts[p.key].hub ? { hub: m.built.parts[p.key].hub } : {}), ...(p.explode ? { explode: p.explode } : {}),
     })),
   }));
   return `// The real models the scene language can place: what each is, its licence and credit, and its named parts. Generated from assets/models/*.json by
@@ -38,6 +39,10 @@ export type ModelPart = {
   closed: boolean;
   /** The part's middle and size in metres, from the model's own middle. */
   center: Vec3; size: Vec3; triangles: number;
+  /** Where the part turns, in metres from the model's own middle (a clock hand's boss), when it is not its own middle: a spin or loop turns it about this point. */
+  hub?: Vec3;
+  /** Where the part goes in metres when the model is exploded (a hand lifts off its face), from where it sits; without it, outward from the middle. */
+  explode?: Vec3;
 };
 export type ModelEntry = {
   id: string; name: string; description: string; aliases: string[];

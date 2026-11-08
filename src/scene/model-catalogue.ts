@@ -12,6 +12,10 @@ export type ModelPart = {
   closed: boolean;
   /** The part's middle and size in metres, from the model's own middle. */
   center: Vec3; size: Vec3; triangles: number;
+  /** Where the part turns, in metres from the model's own middle (a clock hand's boss), when it is not its own middle: a spin or loop turns it about this point. */
+  hub?: Vec3;
+  /** Where the part goes in metres when the model is exploded (a hand lifts off its face), from where it sits; without it, outward from the middle. */
+  explode?: Vec3;
 };
 export type ModelEntry = {
   id: string; name: string; description: string; aliases: string[];
@@ -116,7 +120,17 @@ export const MODELS: readonly ModelEntry[] = [
           0.0447,
           0.000593
         ],
-        "triangles": 200
+        "triangles": 200,
+        "hub": [
+          0,
+          -0.021252,
+          -0.009132
+        ],
+        "explode": [
+          0,
+          0,
+          0.012
+        ]
       },
       {
         "key": "minute-hand",
@@ -142,7 +156,17 @@ export const MODELS: readonly ModelEntry[] = [
           0.030578,
           0.000602
         ],
-        "triangles": 152
+        "triangles": 152,
+        "hub": [
+          0,
+          -0.021252,
+          -0.009132
+        ],
+        "explode": [
+          0,
+          0,
+          0.024
+        ]
       },
       {
         "key": "second-hand",
@@ -167,7 +191,17 @@ export const MODELS: readonly ModelEntry[] = [
           0.052116,
           0.000158
         ],
-        "triangles": 73
+        "triangles": 73,
+        "hub": [
+          0,
+          -0.021252,
+          -0.009132
+        ],
+        "explode": [
+          0,
+          0,
+          0.036
+        ]
       }
     ]
   },

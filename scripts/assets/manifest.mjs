@@ -92,6 +92,8 @@ export function manifestProblems(m) {
     keys.add(p.key);
     need(typeof p.name === 'string' && p.name.length > 0, `part ${p.key} has no name`);
     need(CONFIDENCE.includes(p.confidence), `part ${p.key} needs a confidence (${CONFIDENCE.join(', ')})`);
+    need(p.hub === undefined || (gltf && (p.hub === 'node' || (Array.isArray(p.hub) && p.hub.length === 3 && p.hub.every(Number.isFinite)))), `part ${p.key}: hub must be "node" (the origin of its node) or [x, y, z] metres, on a gltf model`);
+    need(p.explode === undefined || (Array.isArray(p.explode) && p.explode.length === 3 && p.explode.every(Number.isFinite)), `part ${p.key}: explode must be [x, y, z] metres`);
     need(Array.isArray(p.nodes) && p.nodes.length > 0 || p.derive, `part ${p.key} names no ${gltf ? 'node' : 'file'}`);
     if (!gltf) for (const n of p.nodes ?? []) need(fileIds.has(n), `part ${p.key} names ${n}, which is not in files`);
   }
