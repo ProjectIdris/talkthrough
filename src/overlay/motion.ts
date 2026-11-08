@@ -53,10 +53,15 @@ export type JointKind = 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball';
 export type JointDef = { key: number; kind: JointKind; axis: Axis; dir: Vec3 | null; pivot: Vec3; min: number | undefined; max: number | undefined; toKey: number | null; /** ball: how far each axis may turn each way, degrees. */ limit: Vec3 | null };
 export type CoupleDef = { key: number; byKey: number; ratio: number; pitch: number | undefined; phase: number };
 
-export type Motion = { spins: SpinState[]; cranks: CrankDef[]; cams: CamDef[]; flashes: FlashDef[]; loops: LoopDef[]; joints: JointDef[]; couples: CoupleDef[] };
+/**
+ * A muscle: a connector from a point of a holder to a point of the part it pulls, which contracts to (1 - contract x cycle) of its relaxed length and
+ * turns the part's hinge or pivot to make it so. The cycle (0 relaxed to 1 most contracted) is the cosine of the angle kept under `loopDriver(key)`.
+ */
+export type MuscleDef = { key: number; holderKey: number; connectorKey: number; from: Vec3; to: Vec3; contract: number };
+export type Motion = { spins: SpinState[]; cranks: CrankDef[]; cams: CamDef[]; flashes: FlashDef[]; loops: LoopDef[]; joints: JointDef[]; couples: CoupleDef[]; muscles?: MuscleDef[] };
 export type Pose = { pos?: Vec3; rot?: Vec3; opacity?: number; /** A multiplier on the object's own scale. */ scale?: Vec3 };
 
-export const emptyMotion = (): Motion => ({ spins: [], cranks: [], cams: [], flashes: [], loops: [], joints: [], couples: [] });
+export const emptyMotion = (): Motion => ({ spins: [], cranks: [], cams: [], flashes: [], loops: [], joints: [], couples: [], muscles: [] });
 
 // ---- Spins over time ------------------------------------------------------------------------------
 
@@ -138,7 +143,73 @@ export function stopSpin(plan: SpinPlan, at: number, ramp: number): void {
 // ---- Poses ----------------------------------------------------------------------------------------
 
 /** What the pose pass needs to know of an object in a frame. */
-export type PoseObject = { key: number; parentKey: number | null; def: AddAction; pos: Vec3; rot: Vec3; opacity: number };
+export type PoseObject = { key: number; parentKey: number | null; def: AddAction; pos: Vec3; rot: Vec3; opacity: number; scale?: Vec3 };
+
+const lengthOf = (a: Vec3, b: Vec3): number => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+
+/** Where the muscle's end on the pulled part is, in the space the part sits in, when its joint has the value `q`. */
+function muscleEnd(o: PoseObject, j: JointDef, to: Vec3, q: number): Vec3 {
+  const s = o.scale ?? [1, 1, 1];
+  const local: Vec3 = [to[0] * s[0], to[1] * s[1], to[2] * s[2]];
+  if (j.kind === 'pivot') {
+    const v = applyM(matOf(turnedLocal(o.rot, j.axis, q)), local);
+    return [o.pos[0] + v[0], o.pos[1] + v[1], o.pos[2] + v[2]];
+  }
+  const v = applyM(matOf(turned(o.rot, j.axis, q)), local);
+  const t = turnAbout(j.pivot, j.axis, q);
+  return [o.pos[0] + j.pivot[0] - t[0] + v[0], o.pos[1] + j.pivot[1] - t[1] + v[1], o.pos[2] + j.pivot[2] - t[2] + v[2]];
+}
+
+/** The far end of a muscle, in the pulled part's space: a point of its holder, which is the part's parent or sits beside it. Undefined when it is neither. */
+function muscleHold(h: PoseObject, o: PoseObject, from: Vec3, at?: { pos?: Vec3; rot?: Vec3 }): Vec3 | undefined {
+  if (h.key === o.parentKey) return from;
+  if (h.parentKey !== o.parentKey) return undefined;
+  const s = h.scale ?? [1, 1, 1];
+  const v = applyM(matOf(at?.rot ?? h.rot), [from[0] * s[0], from[1] * s[1], from[2] * s[2]]);
+  const p = at?.pos ?? h.pos;
+  return [p[0] + v[0], p[1] + v[1], p[2] + v[2]];
+}
+
+/** How long a muscle is when relaxed: the distance between its ends with the joint at its rest value. */
+export function muscleRest(holder: PoseObject, pulled: PoseObject, joint: JointDef, from: Vec3, to: Vec3): number | undefined {
+  const a = muscleHold(holder, pulled, from);
+  return a ? lengthOf(a, muscleEnd(pulled, joint, to, 0)) : undefined;
+}
+
+/**
+ * The value of the pulled part's joint that makes the muscle `cycle` (0..1) of the way to its contracted length. The joint is walked from its rest value
+ * the way that shortens the muscle, to where the muscle is shortest inside the joint's limits; the target length is found between the two by bisection.
+ * A target shorter than that stays at the shortest, one longer than the relaxed length stays at rest. Pure in its inputs.
+ */
+function muscleValue(m: MuscleDef, holder: PoseObject, pulled: PoseObject, joint: JointDef, cycle: number, held?: { pos?: Vec3; rot?: Vec3 }): number | undefined {
+  const a = muscleHold(holder, pulled, m.from, held);
+  if (!a) return undefined;
+  const lo = joint.min ?? -170, hi = joint.max ?? 170;
+  const dist = (q: number): number => lengthOf(a, muscleEnd(pulled, joint, m.to, q));
+  const q0 = Math.max(lo, Math.min(hi, 0));
+  const target = dist(0) * (1 - Math.max(0, Math.min(1, m.contract)) * cycle);
+  const d0 = dist(q0);
+  if (target >= d0) return q0;
+  // Walk from rest the way it shortens, to the first place it stops shortening.
+  const step = (hi - lo) / 96;
+  const eps = step / 2;
+  const dir = dist(Math.min(hi, q0 + eps)) < dist(Math.max(lo, q0 - eps)) ? 1 : -1;
+  let qm = q0, dm = d0;
+  for (let q = q0 + dir * step; q >= lo - 1e-9 && q <= hi + 1e-9; q += dir * step) {
+    const d = dist(Math.max(lo, Math.min(hi, q)));
+    if (d >= dm) break;
+    qm = Math.max(lo, Math.min(hi, q));
+    dm = d;
+  }
+  if (target <= dm) return qm;
+  let near = q0, far = qm;
+  for (let i = 0; i < 40; i++) {
+    const mid = (near + far) / 2;
+    if (dist(mid) > target) near = mid;
+    else far = mid;
+  }
+  return (near + far) / 2;
+}
 
 const sizeOf = (def: AddAction, fallback: Vec3): Vec3 => ('size' in def && Array.isArray(def.size) ? def.size : fallback);
 const wrap180 = (d: number): number => ((((d + 180) % 360) + 360) % 360) - 180;
@@ -146,7 +217,7 @@ const wrap180 = (d: number): number => ((((d + 180) % 360) + 360) % 360) - 180;
 /** Where the machine has put each moving object, given the angles. Objects not moved are not in the result. */
 export function poses(objects: readonly PoseObject[], motion: Motion): Map<number, Pose> {
   const out = new Map<number, Pose>();
-  if (motion.spins.length + motion.cranks.length + motion.cams.length + motion.flashes.length + motion.loops.length + motion.joints.length + motion.couples.length === 0) return out;
+  if (motion.spins.length + motion.cranks.length + motion.cams.length + motion.flashes.length + motion.loops.length + motion.joints.length + motion.couples.length + (motion.muscles?.length ?? 0) === 0) return out;
   const byKey = new Map(objects.map((o) => [o.key, o] as const));
   const edit = (key: number): Pose => {
     let p = out.get(key);
@@ -245,6 +316,7 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
   // Joints, loops and couplings go last and ride on whatever a spin, crank or cam already did to the same part.
   const loopOf = new Map(motion.loops.map((l) => [l.key, l] as const));
   const coupleOf = new Map(motion.couples.map((c) => [c.key, c] as const));
+  const muscleOf = new Map((motion.muscles ?? []).map((m) => [m.key, m] as const));
   const angleOf = new Map(motion.spins.map((s) => [s.key, s.angle] as const));
   /** The kind of freedom an object has, if it has one (its joint, else what its loop or coupling needs). */
   const kindOf = (key: number, depth = 0): 'hinge' | 'slide' | undefined => {
@@ -266,7 +338,13 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     let v: number | undefined;
     const c = coupleOf.get(key);
     const l = loopOf.get(key);
-    if (c) {
+    const mu = muscleOf.get(key);
+    if (mu) {
+      // A muscle pulls its part: the value is where its joint must be for the connector to be as short as the cycle says. Its holder's pose is the one so far.
+      const pulled = byKey.get(key), holder = byKey.get(mu.holderKey), joint = jointOf.get(key);
+      const a = angleOf.get(loopDriver(key));
+      if (pulled && holder && joint && (joint.kind === 'hinge' || joint.kind === 'pivot') && a !== undefined) v = muscleValue(mu, holder, pulled, joint, (1 - Math.cos(a * DEG)) / 2, out.get(mu.holderKey));
+    } else if (c) {
       const b = depth < 8 ? valueOf(c.byKey, depth + 1) : undefined; // a coupling that comes round to itself is cut here
       if (b !== undefined) {
         const by = kindOf(c.byKey) ?? 'hinge';
@@ -281,7 +359,7 @@ export function poses(objects: readonly PoseObject[], motion: Motion): Map<numbe
     memo.set(key, v);
     return v;
   };
-  const driven = new Set<number>([...jointOf.keys(), ...coupleOf.keys(), ...[...loopOf.values()].filter((l) => l.kind !== 'pulse').map((l) => l.key)]);
+  const driven = new Set<number>([...jointOf.keys(), ...coupleOf.keys(), ...muscleOf.keys(), ...[...loopOf.values()].filter((l) => l.kind !== 'pulse').map((l) => l.key)]);
   for (const key of driven) {
     const o = byKey.get(key);
     const joint = jointOf.get(key);

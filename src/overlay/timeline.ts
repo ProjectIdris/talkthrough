@@ -11,14 +11,14 @@ import { anchorsOf } from '../scene/anchors.ts';
 import { resolvePartGeometry } from '../scene/part-geometry.ts';
 import { PALETTE_RGB } from '../scene/colors.ts';
 import { MATERIAL_LIBRARY } from '../scene/material-library.ts';
-import { advanceMotion, ballDriver, crankPinKey, crankPinSize, driverOwner, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, restPoint, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
-import type { CamDef, CoupleDef, CrankDef, FlashDef, JointDef, LoopDef, Motion, Pose, SpinPlan } from './motion.ts';
+import { advanceMotion, ballDriver, muscleRest, crankPinKey, crankPinSize, driverOwner, drawsOwnPin, emptyMotion, loopDriver, loopStart, poses, restPoint, setLock, setRate, spinPlanFrom, spinsAt, stopSpin } from './motion.ts';
+import type { CamDef, CoupleDef, CrankDef, FlashDef, JointDef, LoopDef, Motion, MuscleDef, Pose, SpinPlan } from './motion.ts';
 import { applyDiagramAction, clearDiagrams, diagramPlanFrom, diagramTimes, emptyDiagramPlan, evaluateDiagrams, pulseDiagramThing, styleDiagramThing } from './diagram-plan.ts';
 import type { DiagramFrame, DiagramPlan } from './diagram-plan.ts';
 import { mechanismColor } from './part-colors.ts';
 import { pathLength, smoothPath } from './shapes.ts';
 import type { Rgb } from '../scene/colors.ts';
-import type { Action, AddAction, Mark, Step, StreamPiece, Vec3 } from '../scene/types.ts';
+import type { Action, AddAction, AddConnector, Mark, Step, StreamPiece, Vec3 } from '../scene/types.ts';
 
 export type { Rgb };
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -257,6 +257,7 @@ export type StepPlan = {
   loops: LoopDef[];
   joints: JointDef[];
   couples: CoupleDef[];
+  muscles: MuscleDef[];
   nextKey: number;
   /** Authored seconds until the last action has finished. */
   duration: number;
@@ -370,7 +371,7 @@ function buildStep(base: Frame, step: Step, authored?: AuthoredStep, targets?: M
     az: track([base.camera.az]), el: track([base.camera.el]), zoom: track([base.camera.zoom]),
     focus: { init: base.camera.focus.key, segs: [] },
     pulses: [], nextKey: base.nextKey, duration: 0,
-    spins: base.motion.spins.map(spinPlanFrom), cranks: [...base.motion.cranks], cams: [...base.motion.cams], flashes: [...base.motion.flashes], loops: [...base.motion.loops], joints: [...base.motion.joints], couples: [...base.motion.couples],
+    spins: base.motion.spins.map(spinPlanFrom), cranks: [...base.motion.cranks], cams: [...base.motion.cams], flashes: [...base.motion.flashes], loops: [...base.motion.loops], joints: [...base.motion.joints], couples: [...base.motion.couples], muscles: [...(base.motion.muscles ?? [])],
   };
   for (const m of base.marks) {
     plan.marks.push({
@@ -728,6 +729,7 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       const ball = joint?.kind === 'ball';
       const axis = a.axis === 'x' ? 0 : a.axis === 'z' ? 2 : a.axis === 'y' ? 1 : kind === 'swing' ? 2 : 1;
       const driver = ball ? ballDriver(o.key, axis) : loopDriver(o.key);
+      plan.muscles = plan.muscles.filter((m) => m.key !== o.key);
       plan.loops = plan.loops.filter((l) => l.key !== o.key || (ball && l.axis !== axis));
       plan.spins = plan.spins.filter((s) => s.key !== driver);
       if (kind !== 'stop') {
@@ -783,10 +785,39 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       applyAction(plan, { op: 'couple', id: a.id, by: a.wheel, pitch: 2 * Math.PI * radius, at }, at, spinRamp, context);
       return;
     }
+    case 'muscle': {
+      // A connector pulls the part it is on: that part's hinge or pivot is turned until the connector is as short as the cycle says.
+      const conn = lookup(plan.objs, a.id, at);
+      const pulled = lookup(plan.objs, a.pulls, at);
+      if (!conn || !pulled || conn.def.shape !== 'connector') return;
+      const def = conn.def as AddConnector;
+      const fromObj = lookup(plan.objs, def.from, at), toObj = lookup(plan.objs, def.to, at);
+      if (!fromObj || !toObj) return;
+      const pullsTo = toObj.key === pulled.key;
+      if (!pullsTo && fromObj.key !== pulled.key) return;
+      const holder = pullsTo ? fromObj : toObj;
+      const joint = plan.joints.find((j) => j.key === pulled.key);
+      if (!joint || (joint.kind !== 'hinge' && joint.kind !== 'pivot')) return;
+      const endOf = (o: ObjInst, point?: Vec3, anchor?: string): Vec3 => point ? asVec(point) : (anchor !== undefined ? anchorsOf({ ...o.def, ...(o.points ? { points: o.points } : {}) } as object)[anchor] : undefined) ?? [0, 0, 0];
+      const heldEnd = pullsTo ? endOf(fromObj, def.fromPoint, def.fromAnchor) : endOf(toObj, def.toPoint, def.toAnchor);
+      const pullEnd = pullsTo ? endOf(toObj, def.toPoint, def.toAnchor) : endOf(fromObj, def.fromPoint, def.fromAnchor);
+      plan.muscles = plan.muscles.filter((m) => m.key !== pulled.key);
+      plan.loops = plan.loops.filter((l) => l.key !== pulled.key);
+      plan.couples = plan.couples.filter((c) => c.key !== pulled.key);
+      const driver = loopDriver(pulled.key);
+      plan.spins = plan.spins.filter((s) => s.key !== driver);
+      plan.muscles.push({ key: pulled.key, holderKey: holder.key, connectorKey: conn.key, from: heldEnd, to: pullEnd, contract: a.contract ?? 0.3 });
+      const sp = spinPlanFrom({ key: driver, axis: 2, angle: a.phase ?? 0, rate: 0 });
+      plan.spins.push(sp);
+      setRate(sp, at, 360 / (a.period ?? 2), 0, 2);
+      end(0.2);
+      return;
+    }
     case 'couple': {
       const o = lookup(plan.objs, a.id, at);
       if (!o) return;
       plan.couples = plan.couples.filter((c) => c.key !== o.key);
+      plan.muscles = plan.muscles.filter((m) => m.key !== o.key);
       if (a.stop !== true) {
         const by = a.by !== undefined ? lookup(plan.objs, a.by, at) : undefined;
         if (!by || by.key === o.key) return;
@@ -874,6 +905,7 @@ function replaceObject(plan: StepPlan, old: ObjInst, fresh: ObjInst, at: number)
   plan.loops = plan.loops.map((l) => ({ ...l, key: to(l.key) }));
   plan.joints = plan.joints.map((j) => ({ ...j, key: to(j.key), toKey: j.toKey === null ? null : to(j.toKey) }));
   plan.couples = plan.couples.map((c) => ({ ...c, key: to(c.key), byKey: to(c.byKey) }));
+  plan.muscles = plan.muscles.map((m) => ({ ...m, key: to(m.key), holderKey: to(m.holderKey), connectorKey: to(m.connectorKey) }));
   // The new one sits where the old one was in the list, so parents still come before their children.
   plan.objs.splice(plan.objs.indexOf(old) + 1, 0, fresh);
   plan.duration = Math.max(plan.duration, at + REPLACE_SECONDS);
@@ -1133,7 +1165,7 @@ function parentsFirst(objs: readonly ObjInst[]): readonly ObjInst[] {
 
 /** What is turning at time `t`, and what is tied to it, limited to what is still on the stage. */
 function motionOf(plan: StepPlan, objects: readonly ObjectFrame[], t: number, diagrams: readonly DiagramFrame[] = []): Motion {
-  if (plan.spins.length + plan.cranks.length + plan.cams.length + plan.flashes.length + plan.loops.length + plan.joints.length + plan.couples.length === 0) return emptyMotion();
+  if (plan.spins.length + plan.cranks.length + plan.cams.length + plan.flashes.length + plan.loops.length + plan.joints.length + plan.couples.length + plan.muscles.length === 0) return emptyMotion();
   const alive = new Set(objects.map((o) => o.key));
   for (const d of diagrams) for (const it of d.items) if (it.def.op === 'stream') alive.add(it.key);
   // A loop's angle (under a key below zero) lives as long as the object it moves.
@@ -1147,6 +1179,7 @@ function motionOf(plan: StepPlan, objects: readonly ObjectFrame[], t: number, di
     loops: plan.loops.filter((l) => alive.has(l.key)),
     joints: plan.joints.filter((j) => alive.has(j.key) && (j.toKey === null || alive.has(j.toKey))),
     couples: plan.couples.filter((c) => both(c.key, c.byKey)),
+    muscles: plan.muscles.filter((m) => both(m.key, m.holderKey) && alive.has(m.connectorKey)),
   };
 }
 
@@ -1175,6 +1208,15 @@ function phasedDiagrams(diagrams: readonly DiagramFrame[], motion: Motion): Diag
 function applyPoses(objects: ObjectFrame[], motion: Motion): void {
   const placed = poses(objects, motion);
   if (placed.size === 0) return;
+  // A muscle whose connector does not say how long it is relaxed is relaxed as it stands, so its belly swells as it shortens (the frame's copy of the connector carries it).
+  for (const m of motion.muscles ?? []) {
+    const conn = objects.find((o) => o.key === m.connectorKey);
+    const holder = objects.find((o) => o.key === m.holderKey), pulled = objects.find((o) => o.key === m.key);
+    const joint = motion.joints.find((j) => j.key === m.key);
+    if (!conn || !holder || !pulled || !joint || (conn.def as AddConnector).restLength !== undefined) continue;
+    const rest = muscleRest(holder, pulled, joint, m.from, m.to);
+    if (rest !== undefined && rest > 0.01) conn.def = { ...conn.def, restLength: rest } as AddConnector;
+  }
   for (const o of objects) {
     const pose = placed.get(o.key);
     if (pose) {

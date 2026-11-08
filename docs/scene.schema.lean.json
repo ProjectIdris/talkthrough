@@ -4,7 +4,7 @@
     "steps": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/1v"
+        "$ref": "#/$defs/1w"
       }
     },
     "escalate": {
@@ -2898,6 +2898,44 @@
       "properties": {
         "op": {
           "enum": [
+            "muscle"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "pulls": {
+          "type": "string"
+        },
+        "contract": {
+          "$ref": "#/$defs/0"
+        },
+        "period": {
+          "$ref": "#/$defs/0"
+        },
+        "phase": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "pulls",
+        "contract",
+        "period",
+        "phase",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "1n": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
             "pulley"
           ]
         },
@@ -2927,7 +2965,7 @@
       ],
       "additionalProperties": false
     },
-    "1n": {
+    "1o": {
       "type": "object",
       "properties": {
         "op": {
@@ -2970,7 +3008,7 @@
       ],
       "additionalProperties": false
     },
-    "1o": {
+    "1p": {
       "type": "object",
       "properties": {
         "op": {
@@ -3000,7 +3038,7 @@
       ],
       "additionalProperties": false
     },
-    "1p": {
+    "1q": {
       "type": "object",
       "properties": {
         "op": {
@@ -3026,7 +3064,7 @@
       ],
       "additionalProperties": false
     },
-    "1q": {
+    "1r": {
       "type": "object",
       "properties": {
         "op": {
@@ -3052,7 +3090,7 @@
       ],
       "additionalProperties": false
     },
-    "1r": {
+    "1s": {
       "type": "object",
       "properties": {
         "op": {
@@ -3088,7 +3126,7 @@
       ],
       "additionalProperties": false
     },
-    "1s": {
+    "1t": {
       "type": "object",
       "properties": {
         "op": {
@@ -3128,7 +3166,7 @@
       ],
       "additionalProperties": false
     },
-    "1t": {
+    "1u": {
       "type": "object",
       "properties": {
         "op": {
@@ -3150,7 +3188,7 @@
       ],
       "additionalProperties": false
     },
-    "1u": {
+    "1v": {
       "anyOf": [
         {
           "$ref": "#/$defs/9"
@@ -3322,10 +3360,13 @@
         },
         {
           "$ref": "#/$defs/1t"
+        },
+        {
+          "$ref": "#/$defs/1u"
         }
       ]
     },
-    "1v": {
+    "1w": {
       "type": "object",
       "properties": {
         "say": {
@@ -3334,7 +3375,7 @@
         "actions": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/1u"
+            "$ref": "#/$defs/1v"
           }
         }
       },

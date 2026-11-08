@@ -171,6 +171,8 @@ export type JointAction = { op: 'joint'; id: string; kind: 'hinge' | 'slide' | '
 export type CoupleAction = { op: 'couple'; id: string; by?: string; ratio?: number; pitch?: number; phase?: number; stop?: boolean } & At;
 /** A beam rocking about a fulcrum, in one op: a hinge at a point of the beam and a swing loop. */
 export type LeverAction = { op: 'lever'; id: string; fulcrum?: string; swing?: number; period?: number; phase?: number; axis?: 'x' | 'y' | 'z' } & At;
+/** A connector that pulls the part it is on: it contracts between its two points and the part's hinge or pivot is turned to make it so. */
+export type MuscleAction = { op: 'muscle'; id: string; pulls: string; contract?: number; period?: number; phase?: number } & At;
 /** A rope over a wheel in one op: the wheel turns and the load slides by the rope laid on it. */
 export type PulleyAction = { op: 'pulley'; id: string; wheel: string; radius?: number; rpm?: number } & At;
 export type FlashAction = { op: 'flash'; id: string; by: string; angle: number; span: number; cycle?: number } & At;
@@ -191,7 +193,7 @@ export type GoAction = { op: 'go'; kind: 'tab' | 'open' | 'scroll'; x: number; y
 export type Action =
   | Mark | PanelAction | AddAction | DiagramThing | TickAction
   | MoveAction | AlongAction | TurnAction | ScaleAction | ExplodeAction | RevealAction | AnchorAction | DetachAction | StyleAction | HighlightAction
-  | CutAction | SpinAction | CrankAction | CamAction | FlashAction | LoopAction | JointAction | CoupleAction | LeverAction | PulleyAction
+  | CutAction | SpinAction | CrankAction | CamAction | FlashAction | LoopAction | JointAction | CoupleAction | LeverAction | PulleyAction | MuscleAction
   | OrbitAction | ZoomAction | FocusAction | ClearAction | WaitAction | GoAction;
 
 export type Step = { say: string; actions: Action[] };

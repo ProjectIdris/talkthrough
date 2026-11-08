@@ -4990,6 +4990,61 @@
       "additionalProperties": false,
       "description": "A beam that rocks about a fulcrum: a hinge at fulcrum, a point of the beam (center, the default, is a seesaw and the first class; left or right, an end, with the load or the effort between it and the other end, is the second and third class; or a point named with anchor), swinging swing degrees each side every period seconds. Attach the load and the effort at points of the beam (parentAnchor) and they rise and fall with it."
     },
+    "muscle": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "muscle"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "pulls": {
+          "type": "string"
+        },
+        "contract": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.02 to 0.9"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "phase": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-3600 to 3600"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "pulls",
+        "contract",
+        "period",
+        "phase",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A connector that is a muscle: it shortens by contract (0 to 1, default 0.3) of its relaxed length and lengthens again every period seconds (default 2), and the part it pulls (pulls, one of its two ends, with a hinge or pivot joint with min and max to hold it) is turned by it, not beside it. Its other end must be on the part that holds pulls, or beside it. Join the ends with fromPoint and toPoint or fromAnchor and toAnchor; its belly swells as it shortens (swell). id is the connector."
+    },
     "pulley": {
       "type": "object",
       "properties": {
@@ -5496,6 +5551,9 @@
         },
         {
           "$ref": "#/$defs/lever"
+        },
+        {
+          "$ref": "#/$defs/muscle"
         },
         {
           "$ref": "#/$defs/pulley"

@@ -582,6 +582,15 @@ export const VARIANTS: readonly Variant[] = [
     },
   },
   {
+    name: 'muscle', op: 'muscle',
+    doc: 'A connector that is a muscle: it shortens by contract (0 to 1, default 0.3) of its relaxed length and lengthens again every period seconds (default 2), and the part it pulls (pulls, one of its two ends, with a hinge or pivot joint with min and max to hold it) is turned by it, not beside it. Its other end must be on the part that holds pulls, or beside it. Join the ends with fromPoint and toPoint or fromAnchor and toAnchor; its belly swells as it shortens (swell). id is the connector.',
+    fields: {
+      id: { k: 'ref', of: 'object3d' }, pulls: { k: 'ref', of: 'object3d' },
+      contract: { k: 'num', min: 0.02, max: 0.9, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true },
+      phase: { k: 'num', min: -3600, max: 3600, opt: true }, at: AT,
+    },
+  },
+  {
     name: 'pulley', op: 'pulley',
     doc: 'A rope over a wheel: the wheel (wheel) turns rpm turns a minute (default 20, negative the other way) and the load (id) rises by the rope laid on it, 2 x pi x radius for each turn. radius is the rope\'s radius on the wheel, read from the wheel\'s size when left out. A winch, a crane drum and a wheel and axle (give the axle\'s radius) are the same.',
     fields: {

@@ -37,6 +37,8 @@ export type SceneState = {
   rides: Map<string, string>;
   /** The axis each object has been set spinning about (a spin of rate zero takes it out): a part inside it turns with it already. */
   spins: Map<string, 'x' | 'y' | 'z'>;
+  /** The two ends of each connector made so far: a muscle is one of them. */
+  connectors?: Map<string, { from: string; to: string }>;
   /** Where each 3D solid and group stands and how big it is, with normalized kit dimensions: what a tube or line that ends on a part is held against (attach.ts). */
   bodies: Map<string, Body>;
   /** Tubes and lines with an end in the air so far: a part that arrives later may be what that end was meant for. */
@@ -80,7 +82,7 @@ export function createSceneState(): SceneState {
 export function createDetailState(onScreen: SceneState): SceneState {
   return {
     ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides), spins: new Map(onScreen.spins),
-    bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [],
+    bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [], connectors: new Map(onScreen.connectors ?? []),
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
     ...(onScreen.stage ? { stage: { ...onScreen.stage } } : {}),
   };
@@ -722,6 +724,7 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   if (variant.name === 'couple' && !checkCouple(out, state, path, notes)) return null;
   if (variant.name === 'lever' && !checkLever(out, state, path, notes)) return null;
   if (variant.name === 'pulley' && !checkPulley(out, state, path, notes)) return null;
+  if (variant.name === 'muscle' && !checkMuscle(out, state, path, notes)) return null;
   if (variant.name === 'addTube' && out.closed === true && new Set((out.pts as Vec3[]).map((p) => p.join(','))).size < 3) {
     note(notes, 'dropped', `${path}.pts`, 'a closed tube needs at least three distinct points');
     return null;
@@ -775,6 +778,8 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     else state.diagramKinds.delete(id);
     if (variant.name === 'addPart') state.parts.set(id, out.part as string);
     else state.parts.delete(id);
+    if (variant.name === 'addConnector') (state.connectors ??= new Map()).set(id, { from: out.from as string, to: out.to as string });
+    else state.connectors?.delete(id);
     state.parents.set(id, parent);
     state.depth.set(id, parent === undefined ? 1 : (state.depth.get(parent) ?? 0) + 1);
     holdBody(state, variant.name, out, path, notes, mountedPos);
@@ -908,6 +913,32 @@ function checkLever(out: Record<string, unknown>, state: SceneState, path: strin
   }
   out.fulcrum = fulcrum;
   state.joints.set(id, 'hinge');
+  return true;
+}
+
+/** A muscle is a connector with an end on the part it pulls, and that part has a hinge or pivot for it to turn; its other end is on the part's holder or beside it. */
+function checkMuscle(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes): boolean {
+  const id = out.id as string;
+  const pulls = out.pulls as string;
+  const conn = state.connectors?.get(id);
+  if (!conn) {
+    note(notes, 'dropped', path, `muscle needs id to be a connector (add one with shape connector first); "${id}" is not`);
+    return false;
+  }
+  if (conn.from !== pulls && conn.to !== pulls) {
+    note(notes, 'dropped', `${path}.pulls`, `"${pulls}" is not an end of connector "${id}" (it joins ${conn.from} and ${conn.to})`);
+    return false;
+  }
+  const joint = state.joints.get(pulls);
+  if (joint !== 'hinge' && joint !== 'pivot') {
+    note(notes, 'dropped', `${path}.pulls`, `a muscle turns a hinge or pivot joint: give "${pulls}" one first (joint hinge about its end, or pivot) with min and max`);
+    return false;
+  }
+  const holder = conn.from === pulls ? conn.to : conn.from;
+  if (holder !== state.parents.get(pulls) && state.parents.get(holder) !== state.parents.get(pulls)) {
+    note(notes, 'dropped', path, `the other end of the muscle, "${holder}", must be on the part that holds "${pulls}" or beside it (the same parent)`);
+    return false;
+  }
   return true;
 }
 
