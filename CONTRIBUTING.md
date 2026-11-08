@@ -30,6 +30,10 @@ Setup (a speech recogniser, a model) is in [docs/setup.md](docs/setup.md); commo
 
 The app works on your real screen: be careful with `--visible-to-capture` and with anything that takes screenshots while a private window is open.
 
+## Real models
+
+The 3D models of real things (a heart, a brain) are described by manifests in `assets/models` and fetched once into an ignored cache, never committed; see [docs/real-models.md](docs/real-models.md). Without them the app still runs and those models are drawn from shapes, and the two tests that read the built files skip.
+
 ## Testing
 
 ```

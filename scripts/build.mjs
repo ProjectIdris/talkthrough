@@ -4,6 +4,7 @@
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { build } from 'esbuild';
+import { shipModels } from './assets/ship.mjs';
 
 const node = { platform: 'node', format: 'cjs' };
 const browser = { platform: 'browser', format: 'iife' };
@@ -46,3 +47,5 @@ for (const [from, to] of pages) {
   copyFileSync(from, to);
   console.log(`copied ${to}`);
 }
+const models = shipModels();
+if (models.shipped.length) console.log('copied models', models.shipped.join(', '));

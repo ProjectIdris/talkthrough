@@ -30,6 +30,8 @@ export function createTray(handlers: {
   onPlaySample(): void;
   /** Browse the offline visual examples. */
   onVisualTour?(): void;
+  /** Save the credits file for the 3D models (their licences and who made them) where the person chooses. */
+  onCredits?(): void;
   onClear(): void;
   /** Opens the settings window. */
   onSettings(): void;
@@ -56,6 +58,7 @@ export function createTray(handlers: {
       { type: 'separator' },
       ...(handlers.guideActions ? guideItems(handlers.guideActions) : []),
       ...(handlers.onVisualTour ? [{ label: 'Explore visual examples…', click: handlers.onVisualTour }] : []),
+      ...(handlers.onCredits ? [{ label: 'Save the 3D model credits…', click: handlers.onCredits }] : []),
       { label: 'Play a sample scene', click: handlers.onPlaySample },
       { label: 'Clear the overlay', click: handlers.onClear },
       { label: 'Settings…', click: handlers.onSettings },

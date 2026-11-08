@@ -4014,6 +4014,111 @@
       "additionalProperties": false,
       "description": "A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Their anchors and origin work for pins, connectors and parentAnchor/selfAnchor. Attached by a face of its parent (right, top, front...), a part turns to face out of it unless you give rot; faces: port, lens, screen +z, chip, header, button, fan +y."
     },
+    "addModel": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "model"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "model": {
+          "enum": [
+            "brain",
+            "heart"
+          ]
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "parentAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "attach at this named point of the parent (requires parent): a built-in name, a kit part's own, or one named with the anchor action; origin when only selfAnchor is set. The part then stays at that point whatever moves, spins or is dragged, and pos and move are its offset from the point; up to 24 characters"
+        },
+        "selfAnchor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the point of this object placed at parentAnchor, default origin; requires parent. Unknown names drop the action with the available ones; up to 24 characters"
+        },
+        "explode": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where it moves when the model is exploded, [x,y,z] in the units of the group it is in (spread 1); without it, it moves outward from the middle of the parts around it; [x,y,z], each -100 to 100"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "rot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "degrees [x,y,z]; [x,y,z], each -3600 to 3600"
+        },
+        "size": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.5 to 60"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "model",
+        "parent",
+        "parentAnchor",
+        "selfAnchor",
+        "explode",
+        "pos",
+        "rot",
+        "size",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A real model of a real thing (the list is in the rules), with its named parts as objects id.part. size is its longest side (default its real size, a heart about 5, a brain about 7); a model turns and attaches like any object."
+    },
     "addArray": {
       "type": "object",
       "properties": {
@@ -6476,6 +6581,9 @@
         },
         {
           "$ref": "#/$defs/addPart"
+        },
+        {
+          "$ref": "#/$defs/addModel"
         },
         {
           "$ref": "#/$defs/addArray"

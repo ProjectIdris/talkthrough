@@ -8,6 +8,7 @@
 
 import { heldShift, mountPosition } from '../scene/attach.ts';
 import { anchorsOf } from '../scene/anchors.ts';
+import { findModel, modelScale } from '../scene/models.ts';
 import { resolvePartGeometry } from '../scene/part-geometry.ts';
 import { PALETTE_RGB } from '../scene/colors.ts';
 import { MATERIAL_LIBRARY } from '../scene/material-library.ts';
@@ -584,8 +585,13 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
         draw: track([('draw' in a && a.draw !== undefined) ? a.draw : a.shape === 'particles' ? 0 : 1]), spread: track([0]),
       };
       if (replaced?.points) fresh.points = { ...replaced.points };
+      if (replaced && replaced.def.shape === 'model') {
+        // A model written again: its parts go with it (the new one brings its own), they do not hang on from the old.
+        for (const d of descendants(plan, replaced.key, at)) { d.diedAt = at; d.wipe = REPLACE_SECONDS; }
+      }
       if (replaced) replaceObject(plan, replaced, fresh, at);
       else plan.objs.push(fresh);
+      if (a.shape === 'model') addModelParts(plan, fresh, a, at);
       if (authoredMount) {
         // Replacement inheritance above is presentation-timed; mounts keep their logical base pose.
         fresh.rot = track(authoredMount.rot);
@@ -1201,6 +1207,23 @@ function addArray(plan: StepPlan, a: Extract<AddAction, { shape: 'array' }>, at:
         color: track(valueAt(src.color, at)), opacity: track(valueAt(src.opacity, at)), draw: track(valueAt(src.draw, at)), spread: track(valueAt(src.spread, at)),
       });
     }
+  }
+}
+
+/** The named parts of a placed real model, each an object of its own under it: at the part's place in the model, its mesh drawn at the model's scale. */
+function addModelParts(plan: StepPlan, group: ObjInst, a: Extract<AddAction, { shape: 'model' }>, at: number): void {
+  const model = findModel(a.model);
+  if (!model) return;
+  const scale = modelScale(model, a.size);
+  for (const p of model.parts) {
+    const id = `${a.id}.${p.key}`;
+    const def: AddAction = { op: 'add', shape: 'meshpart', id, parent: a.id, model: model.id, part: p.key, unitsPerMetre: scale, closed: p.closed, material: 'tissue' };
+    plan.objs.push({
+      key: plan.nextKey++, id, parentKey: group.key, def,
+      bornAt: at, diedAt: undefined,
+      pos: track([p.center[0] * scale, p.center[1] * scale, p.center[2] * scale]), rot: track([0, 0, 0]), scale: track([1, 1, 1]),
+      color: track([...p.color] as Vec3), opacity: track([1]), draw: track([1]), spread: track([0]),
+    });
   }
 }
 

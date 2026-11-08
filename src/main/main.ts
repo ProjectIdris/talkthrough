@@ -1,5 +1,5 @@
 import { app, clipboard, dialog, safeStorage, screen, shell } from 'electron';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { isCheckRun, parseArgs, wantsSoftware } from './args.ts';
 import { createHttpBackend } from '../adapters/backend.ts';
@@ -598,6 +598,13 @@ async function main(): Promise<void> {
       session?.reset();
     },
     onVisualTour: () => visualTour.open(),
+    onCredits: () => {
+      const source = join(__dirname, '..', 'CREDITS.md');
+      if (!existsSync(source)) return;
+      void dialog.showSaveDialog({ title: 'Save the 3D model credits', defaultPath: 'Talkthrough-model-credits.md', filters: [{ name: 'Markdown', extensions: ['md'] }] }).then((r) => {
+        if (!r.canceled && r.filePath) copyFileSync(source, r.filePath);
+      });
+    },
     onPlaySample: () => playSample(screen.getPrimaryDisplay().id),
     onSettings: () => settingsWindow.open(),
     hotkeyLabel: chord.label,

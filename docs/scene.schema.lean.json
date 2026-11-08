@@ -4,7 +4,7 @@
     "steps": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/29"
+        "$ref": "#/$defs/2a"
       }
     },
     "escalate": {
@@ -699,6 +699,65 @@
         },
         "shape": {
           "enum": [
+            "model"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "model": {
+          "enum": [
+            "brain",
+            "heart"
+          ]
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "parentAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "selfAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/2"
+        },
+        "rot": {
+          "$ref": "#/$defs/2"
+        },
+        "size": {
+          "$ref": "#/$defs/0"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "model",
+        "parent",
+        "parentAnchor",
+        "selfAnchor",
+        "pos",
+        "rot",
+        "size",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "18": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
             "array"
           ]
         },
@@ -733,7 +792,7 @@
       ],
       "additionalProperties": false
     },
-    "18": {
+    "19": {
       "type": "object",
       "properties": {
         "op": {
@@ -789,36 +848,31 @@
       ],
       "additionalProperties": false
     },
-    "19": {
+    "20": {
       "type": "object",
       "properties": {
         "op": {
           "enum": [
-            "add"
-          ]
-        },
-        "shape": {
-          "enum": [
-            "group"
+            "wedge"
           ]
         },
         "id": {
           "type": "string"
         },
-        "parent": {
-          "$ref": "#/$defs/1"
+        "drives": {
+          "type": "string"
         },
-        "parentAnchor": {
-          "$ref": "#/$defs/1"
+        "angle": {
+          "$ref": "#/$defs/0"
         },
-        "selfAnchor": {
-          "$ref": "#/$defs/1"
+        "travel": {
+          "$ref": "#/$defs/0"
         },
-        "pos": {
-          "$ref": "#/$defs/2"
+        "period": {
+          "$ref": "#/$defs/0"
         },
-        "rot": {
-          "$ref": "#/$defs/2"
+        "axis": {
+          "$ref": "#/$defs/6"
         },
         "at": {
           "$ref": "#/$defs/0"
@@ -826,18 +880,17 @@
       },
       "required": [
         "op",
-        "shape",
         "id",
-        "parent",
-        "parentAnchor",
-        "selfAnchor",
-        "pos",
-        "rot",
+        "drives",
+        "angle",
+        "travel",
+        "period",
+        "axis",
         "at"
       ],
       "additionalProperties": false
     },
-    "20": {
+    "21": {
       "type": "object",
       "properties": {
         "op": {
@@ -883,7 +936,7 @@
       ],
       "additionalProperties": false
     },
-    "21": {
+    "22": {
       "type": "object",
       "properties": {
         "op": {
@@ -921,7 +974,7 @@
       ],
       "additionalProperties": false
     },
-    "22": {
+    "23": {
       "type": "object",
       "properties": {
         "op": {
@@ -951,7 +1004,7 @@
       ],
       "additionalProperties": false
     },
-    "23": {
+    "24": {
       "type": "object",
       "properties": {
         "op": {
@@ -977,7 +1030,7 @@
       ],
       "additionalProperties": false
     },
-    "24": {
+    "25": {
       "type": "object",
       "properties": {
         "op": {
@@ -1003,7 +1056,7 @@
       ],
       "additionalProperties": false
     },
-    "25": {
+    "26": {
       "type": "object",
       "properties": {
         "op": {
@@ -1039,7 +1092,7 @@
       ],
       "additionalProperties": false
     },
-    "26": {
+    "27": {
       "type": "object",
       "properties": {
         "op": {
@@ -1079,7 +1132,7 @@
       ],
       "additionalProperties": false
     },
-    "27": {
+    "28": {
       "type": "object",
       "properties": {
         "op": {
@@ -1101,7 +1154,7 @@
       ],
       "additionalProperties": false
     },
-    "28": {
+    "29": {
       "anyOf": [
         {
           "$ref": "#/$defs/a"
@@ -1312,27 +1365,11 @@
         },
         {
           "$ref": "#/$defs/27"
+        },
+        {
+          "$ref": "#/$defs/28"
         }
       ]
-    },
-    "29": {
-      "type": "object",
-      "properties": {
-        "say": {
-          "type": "string"
-        },
-        "actions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/28"
-          }
-        }
-      },
-      "required": [
-        "say",
-        "actions"
-      ],
-      "additionalProperties": false
     },
     "a": {
       "type": "object",
@@ -2976,6 +3013,54 @@
       "properties": {
         "op": {
           "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "group"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/1"
+        },
+        "parentAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "selfAnchor": {
+          "$ref": "#/$defs/1"
+        },
+        "pos": {
+          "$ref": "#/$defs/2"
+        },
+        "rot": {
+          "$ref": "#/$defs/2"
+        },
+        "at": {
+          "$ref": "#/$defs/0"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "parentAnchor",
+        "selfAnchor",
+        "pos",
+        "rot",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "1b": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
             "pin"
           ]
         },
@@ -3017,7 +3102,7 @@
       ],
       "additionalProperties": false
     },
-    "1b": {
+    "1c": {
       "type": "object",
       "properties": {
         "op": {
@@ -3049,7 +3134,7 @@
       ],
       "additionalProperties": false
     },
-    "1c": {
+    "1d": {
       "type": "object",
       "properties": {
         "op": {
@@ -3079,7 +3164,7 @@
       ],
       "additionalProperties": false
     },
-    "1d": {
+    "1e": {
       "type": "object",
       "properties": {
         "op": {
@@ -3110,7 +3195,7 @@
       ],
       "additionalProperties": false
     },
-    "1e": {
+    "1f": {
       "type": "object",
       "properties": {
         "op": {
@@ -3136,7 +3221,7 @@
       ],
       "additionalProperties": false
     },
-    "1f": {
+    "1g": {
       "type": "object",
       "properties": {
         "op": {
@@ -3158,7 +3243,7 @@
       ],
       "additionalProperties": false
     },
-    "1g": {
+    "1h": {
       "type": "object",
       "properties": {
         "op": {
@@ -3192,7 +3277,7 @@
       ],
       "additionalProperties": false
     },
-    "1h": {
+    "1i": {
       "type": "object",
       "properties": {
         "op": {
@@ -3222,7 +3307,7 @@
       ],
       "additionalProperties": false
     },
-    "1i": {
+    "1j": {
       "type": "object",
       "properties": {
         "op": {
@@ -3268,7 +3353,7 @@
       ],
       "additionalProperties": false
     },
-    "1j": {
+    "1k": {
       "type": "object",
       "properties": {
         "op": {
@@ -3306,7 +3391,7 @@
       ],
       "additionalProperties": false
     },
-    "1k": {
+    "1l": {
       "type": "object",
       "properties": {
         "op": {
@@ -3348,7 +3433,7 @@
       ],
       "additionalProperties": false
     },
-    "1l": {
+    "1m": {
       "type": "object",
       "properties": {
         "op": {
@@ -3386,7 +3471,7 @@
       ],
       "additionalProperties": false
     },
-    "1m": {
+    "1n": {
       "type": "object",
       "properties": {
         "op": {
@@ -3452,7 +3537,7 @@
       ],
       "additionalProperties": false
     },
-    "1n": {
+    "1o": {
       "type": "object",
       "properties": {
         "op": {
@@ -3516,7 +3601,7 @@
       ],
       "additionalProperties": false
     },
-    "1o": {
+    "1p": {
       "type": "object",
       "properties": {
         "op": {
@@ -3558,7 +3643,7 @@
       ],
       "additionalProperties": false
     },
-    "1p": {
+    "1q": {
       "type": "object",
       "properties": {
         "op": {
@@ -3600,7 +3685,7 @@
       ],
       "additionalProperties": false
     },
-    "1q": {
+    "1r": {
       "type": "object",
       "properties": {
         "op": {
@@ -3638,7 +3723,7 @@
       ],
       "additionalProperties": false
     },
-    "1r": {
+    "1s": {
       "type": "object",
       "properties": {
         "op": {
@@ -3684,7 +3769,7 @@
       ],
       "additionalProperties": false
     },
-    "1s": {
+    "1t": {
       "type": "object",
       "properties": {
         "op": {
@@ -3726,7 +3811,7 @@
       ],
       "additionalProperties": false
     },
-    "1t": {
+    "1u": {
       "type": "object",
       "properties": {
         "op": {
@@ -3772,7 +3857,7 @@
       ],
       "additionalProperties": false
     },
-    "1u": {
+    "1v": {
       "type": "object",
       "properties": {
         "op": {
@@ -3810,7 +3895,7 @@
       ],
       "additionalProperties": false
     },
-    "1v": {
+    "1w": {
       "type": "object",
       "properties": {
         "op": {
@@ -3848,7 +3933,7 @@
       ],
       "additionalProperties": false
     },
-    "1w": {
+    "1x": {
       "type": "object",
       "properties": {
         "op": {
@@ -3882,7 +3967,7 @@
       ],
       "additionalProperties": false
     },
-    "1x": {
+    "1y": {
       "type": "object",
       "properties": {
         "op": {
@@ -3932,7 +4017,7 @@
       ],
       "additionalProperties": false
     },
-    "1y": {
+    "1z": {
       "type": "object",
       "properties": {
         "op": {
@@ -3970,45 +4055,22 @@
       ],
       "additionalProperties": false
     },
-    "1z": {
+    "2a": {
       "type": "object",
       "properties": {
-        "op": {
-          "enum": [
-            "wedge"
-          ]
-        },
-        "id": {
+        "say": {
           "type": "string"
         },
-        "drives": {
-          "type": "string"
-        },
-        "angle": {
-          "$ref": "#/$defs/0"
-        },
-        "travel": {
-          "$ref": "#/$defs/0"
-        },
-        "period": {
-          "$ref": "#/$defs/0"
-        },
-        "axis": {
-          "$ref": "#/$defs/6"
-        },
-        "at": {
-          "$ref": "#/$defs/0"
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/29"
+          }
         }
       },
       "required": [
-        "op",
-        "id",
-        "drives",
-        "angle",
-        "travel",
-        "period",
-        "axis",
-        "at"
+        "say",
+        "actions"
       ],
       "additionalProperties": false
     }

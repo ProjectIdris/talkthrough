@@ -2,6 +2,7 @@
 // Change a field here and both follow; docs/scene-language.md describes the same table.
 
 import { MATERIAL_NAMES } from './material-library.ts';
+import { MODELS } from './model-catalogue.ts';
 
 export const PALETTE = [
   'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink', 'white', 'gray', 'black',
@@ -455,6 +456,15 @@ export const VARIANTS: readonly Variant[] = [
       part: { k: 'enum', values: PARTS }, variant: { k: 'enum', values: PART_VARIANTS, opt: true },
       size: { k: 'vec3', min: 0.01, max: 100 }, n: { k: 'num', min: 1, max: LIMITS.maxArray, int: true, opt: true },
       color: COLOR_OPT, opacity: OPACITY, at: AT,
+    },
+  },
+  {
+    name: 'addModel', op: 'add', shapes: ['model'], creates: 'group',
+    doc: 'A real model of a real thing (the list is in the rules), with its named parts as objects id.part. size is its longest side (default its real size, a heart about 5, a brain about 7); a model turns and attaches like any object.',
+    fields: {
+      shape: { k: 'enum', values: ['model'] }, id: { k: 'newId' }, model: { k: 'enum', values: MODELS.map((m) => m.id) },
+      parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
+      size: { k: 'num', min: 0.5, max: 60, opt: true }, at: AT,
     },
   },
   {

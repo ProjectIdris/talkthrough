@@ -1,0 +1,1210 @@
+{
+  "id": "heart",
+  "name": "Human heart",
+  "aliases": [
+    "heart",
+    "human heart",
+    "cardiac",
+    "cardiovascular",
+    "chambers of the heart",
+    "aorta"
+  ],
+  "description": "An adult human heart: four chambers, valves, papillary muscles, great vessels and coronary arteries, as separate named parts.",
+  "source": {
+    "name": "BodyParts3D",
+    "url": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/",
+    "archive": {
+      "url": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "bytes": 142903898,
+      "folder": "isa_BP3D_4.0_obj_99"
+    },
+    "version": "4.0, polygon reduction 99 percent (archive of 2013-05-22; README and licence of 2025-02-27)",
+    "format": "obj"
+  },
+  "licence": {
+    "id": "CC-BY-4.0",
+    "version": "4.0 International",
+    "url": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+    "evidence": {
+      "page": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "updated": "2025-02-27",
+      "retrieved": "2026-11-08",
+      "sha256": "6ab56d4702c16d52ec54c7635cef25e7b488771ae9539717afd87327c09ed842"
+    },
+    "note": "The database licence page (updated 2025-02-27) and README name CC BY 4.0 International and the credit line given here. The OBJ files in the 2013 archive still carry an older header naming CC Attribution-Share Alike 2.1 Japan; the current statement of the licensor is followed here, and the files are converted without their header."
+  },
+  "credit": "BodyParts3D, © The Database Center for Life Science, licensed under CC Attribution 4.0 International (https://creativecommons.org/licenses/by/4.0/)",
+  "changes": "Files converted from OBJ to glTF, millimetres to metres, axes turned to y up and the front toward the viewer, parts recentred on themselves; a file may be merged with others into one named part. Duplicate vertices were welded and smooth normals computed; no shape was edited.",
+  "orient": {
+    "up": "z+",
+    "front": "y-",
+    "note": "source axes: x toward the left of the body, y toward the back, z toward the head (README, coordinate system)"
+  },
+  "scale": {
+    "unitsToMetres": 0.001,
+    "realLengthMetres": 0.12,
+    "realLengthOf": "the heart, apex to base (about 12 cm)"
+  },
+  "caveats": [
+    "The atlas has no mesh for the ventricular wall or the pericardium: the chambers are drawn as their blood-filled cavities, so a cut shows cavities, valves and vessels, not a wall.",
+    "The pulmonary veins, the branches of the pulmonary arteries and the inferior vena cava (its mesh runs 24 cm into the abdomen) are not included."
+  ],
+  "parts": [
+    {
+      "key": "right-atrium",
+      "name": "Right atrium",
+      "aliases": [
+        "atrium right"
+      ],
+      "nodes": [
+        "FJ2424"
+      ],
+      "confidence": "atlas",
+      "color": [
+        92,
+        132,
+        230
+      ],
+      "closed": true,
+      "note": "cavity of the right atrium"
+    },
+    {
+      "key": "right-atrium-wall",
+      "name": "Wall of the right atrium",
+      "aliases": [],
+      "nodes": [
+        "FJ2439"
+      ],
+      "confidence": "atlas",
+      "color": [
+        200,
+        120,
+        130
+      ]
+    },
+    {
+      "key": "left-atrium",
+      "name": "Left atrium",
+      "aliases": [
+        "atrium left"
+      ],
+      "nodes": [
+        "FJ2425"
+      ],
+      "confidence": "atlas",
+      "color": [
+        226,
+        86,
+        96
+      ],
+      "closed": true,
+      "note": "cavity of the left atrium"
+    },
+    {
+      "key": "left-atrium-wall",
+      "name": "Wall of the left atrium",
+      "aliases": [],
+      "nodes": [
+        "FJ2438"
+      ],
+      "confidence": "atlas",
+      "color": [
+        200,
+        120,
+        130
+      ]
+    },
+    {
+      "key": "right-ventricle",
+      "name": "Right ventricle",
+      "aliases": [
+        "ventricle right"
+      ],
+      "nodes": [
+        "FJ2423"
+      ],
+      "confidence": "atlas",
+      "color": [
+        86,
+        124,
+        222
+      ],
+      "closed": true,
+      "note": "cavity of the right ventricle"
+    },
+    {
+      "key": "left-ventricle",
+      "name": "Left ventricle",
+      "aliases": [
+        "ventricle left"
+      ],
+      "nodes": [
+        "FJ2422"
+      ],
+      "confidence": "atlas",
+      "color": [
+        222,
+        76,
+        88
+      ],
+      "closed": true,
+      "note": "cavity of the left ventricle"
+    },
+    {
+      "key": "mitral-valve",
+      "name": "Mitral valve",
+      "aliases": [
+        "bicuspid valve"
+      ],
+      "nodes": [
+        "FJ2420",
+        "FJ2432"
+      ],
+      "confidence": "grouped",
+      "color": [
+        238,
+        226,
+        196
+      ],
+      "note": "anterior and posterior leaflets"
+    },
+    {
+      "key": "tricuspid-valve",
+      "name": "Tricuspid valve",
+      "aliases": [],
+      "nodes": [
+        "FJ2421",
+        "FJ2433",
+        "FJ2436"
+      ],
+      "confidence": "grouped",
+      "color": [
+        238,
+        226,
+        196
+      ],
+      "note": "anterior, posterior and septal leaflets"
+    },
+    {
+      "key": "aortic-valve",
+      "name": "Aortic valve",
+      "aliases": [],
+      "nodes": [
+        "FJ2435",
+        "FJ2426",
+        "FJ2431"
+      ],
+      "confidence": "grouped",
+      "color": [
+        238,
+        226,
+        196
+      ],
+      "note": "three cusps"
+    },
+    {
+      "key": "pulmonary-valve",
+      "name": "Pulmonary valve",
+      "aliases": [
+        "pulmonic valve"
+      ],
+      "nodes": [
+        "FJ2417",
+        "FJ2427",
+        "FJ2434"
+      ],
+      "confidence": "grouped",
+      "color": [
+        238,
+        226,
+        196
+      ],
+      "note": "three cusps"
+    },
+    {
+      "key": "papillary-muscles",
+      "name": "Papillary muscles",
+      "aliases": [
+        "papillary muscle"
+      ],
+      "nodes": [
+        "FJ2418",
+        "FJ2419",
+        "FJ2429",
+        "FJ2430",
+        "FJ2437"
+      ],
+      "confidence": "grouped",
+      "color": [
+        170,
+        70,
+        80
+      ]
+    },
+    {
+      "key": "ascending-aorta",
+      "name": "Ascending aorta",
+      "aliases": [
+        "aorta"
+      ],
+      "nodes": [
+        "FJ3413"
+      ],
+      "confidence": "atlas",
+      "color": [
+        214,
+        82,
+        82
+      ],
+      "closed": false
+    },
+    {
+      "key": "aortic-arch",
+      "name": "Arch of the aorta",
+      "aliases": [
+        "aortic arch"
+      ],
+      "nodes": [
+        "FJ3411"
+      ],
+      "confidence": "atlas",
+      "color": [
+        214,
+        82,
+        82
+      ],
+      "closed": false
+    },
+    {
+      "key": "pulmonary-trunk",
+      "name": "Pulmonary trunk",
+      "aliases": [
+        "pulmonary artery"
+      ],
+      "nodes": [
+        "FJ2966"
+      ],
+      "confidence": "atlas",
+      "color": [
+        92,
+        128,
+        226
+      ],
+      "closed": false
+    },
+    {
+      "key": "superior-vena-cava",
+      "name": "Superior vena cava",
+      "aliases": [
+        "vena cava"
+      ],
+      "nodes": [
+        "FJ3645"
+      ],
+      "confidence": "atlas",
+      "color": [
+        92,
+        128,
+        226
+      ],
+      "closed": false
+    },
+    {
+      "key": "left-coronary-artery",
+      "name": "Left coronary artery and its branches",
+      "aliases": [
+        "coronary artery",
+        "coronary arteries"
+      ],
+      "nodes": [
+        "FJ2737",
+        "FJ2631",
+        "FJ2632",
+        "FJ2633",
+        "FJ2634",
+        "FJ2635",
+        "FJ2636",
+        "FJ2637",
+        "FJ2638",
+        "FJ2639",
+        "FJ2640",
+        "FJ2641",
+        "FJ2642",
+        "FJ2643",
+        "FJ2644",
+        "FJ2645",
+        "FJ2646",
+        "FJ2647",
+        "FJ2648",
+        "FJ2649",
+        "FJ2650",
+        "FJ2651",
+        "FJ2652",
+        "FJ2653",
+        "FJ2654"
+      ],
+      "confidence": "grouped",
+      "color": [
+        236,
+        150,
+        60
+      ],
+      "closed": false
+    },
+    {
+      "key": "right-coronary-artery",
+      "name": "Right coronary artery and its branches",
+      "aliases": [],
+      "nodes": [
+        "FJ2723",
+        "FJ2667",
+        "FJ2668",
+        "FJ2670",
+        "FJ2671",
+        "FJ2672",
+        "FJ2673",
+        "FJ2674",
+        "FJ2675",
+        "FJ2676",
+        "FJ2677",
+        "FJ2692",
+        "FJ2693",
+        "FJ2694",
+        "FJ2695",
+        "FJ2696",
+        "FJ2697",
+        "FJ2698",
+        "FJ2699",
+        "FJ2700",
+        "FJ2714",
+        "FJ2715",
+        "FJ2716",
+        "FJ2717",
+        "FJ2718",
+        "FJ2719",
+        "FJ2720",
+        "FJ2721",
+        "FJ2722"
+      ],
+      "confidence": "grouped",
+      "color": [
+        236,
+        170,
+        70
+      ],
+      "closed": false
+    },
+    {
+      "key": "cardiac-veins",
+      "name": "Cardiac veins",
+      "aliases": [
+        "coronary sinus"
+      ],
+      "nodes": [
+        "FJ2655",
+        "FJ2656",
+        "FJ2724",
+        "FJ2727",
+        "FJ2728",
+        "FJ2729",
+        "FJ2731"
+      ],
+      "confidence": "grouped",
+      "color": [
+        110,
+        120,
+        200
+      ],
+      "closed": false
+    }
+  ],
+  "files": [
+    {
+      "id": "FJ2424",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2424.obj",
+      "bytes": 139097,
+      "sha256": "53739664c1d4a5bb635ca48c216b54deb16bb947d76a4ad75635adf69c8fa11c"
+    },
+    {
+      "id": "FJ2439",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2439.obj",
+      "bytes": 1211683,
+      "sha256": "6e87510c607541b53b124f8224b6be74cb9b7351e29102246053b30a7260d8dd"
+    },
+    {
+      "id": "FJ2425",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2425.obj",
+      "bytes": 65824,
+      "sha256": "d93197cc47f47d6d084de017917c88de039a4ab632b421893cede03264f43384"
+    },
+    {
+      "id": "FJ2438",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2438.obj",
+      "bytes": 510077,
+      "sha256": "ad28c5925374c6648bafb77ac9a89163316c101559cb730906208c96266ae078"
+    },
+    {
+      "id": "FJ2423",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2423.obj",
+      "bytes": 113621,
+      "sha256": "f0d7cbf9e10c0fcefe96741700605e7080d4a627fe214b4c8d5647d970e085f7"
+    },
+    {
+      "id": "FJ2422",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2422.obj",
+      "bytes": 102171,
+      "sha256": "8844c5fc464d23fdc785d1d254d666a4d3b70b14b73ec90ca0c77ba4aff3dd37"
+    },
+    {
+      "id": "FJ2420",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2420.obj",
+      "bytes": 495300,
+      "sha256": "f0294cbbd35096d1df5e8bdc92f17dbed5ebf981e62024a07e7ca18e31eb1a94"
+    },
+    {
+      "id": "FJ2432",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2432.obj",
+      "bytes": 274620,
+      "sha256": "0b296151ecceff395da5c435bcf65cf6dfca390e72eb0be71d778fee84bc216b"
+    },
+    {
+      "id": "FJ2421",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2421.obj",
+      "bytes": 532771,
+      "sha256": "7303c55e6d9c2e294759f7f7e01d23fc120eba74bce9ade0a01cc4bdb2bd4200"
+    },
+    {
+      "id": "FJ2433",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2433.obj",
+      "bytes": 325359,
+      "sha256": "6519afbf9aa2eb3c0dc25d8e332a0208fd2ad68956c1dfe1ef6b010f04984d55"
+    },
+    {
+      "id": "FJ2436",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2436.obj",
+      "bytes": 302591,
+      "sha256": "f0572079c56ea2a00eff869b07c4910defd624c5bda3fddd2403e4f1831f6be1"
+    },
+    {
+      "id": "FJ2435",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2435.obj",
+      "bytes": 56513,
+      "sha256": "b498ef286aa1ba0bfeaf2114298f43078007beab66fc81f422ff6017c309bd7a"
+    },
+    {
+      "id": "FJ2426",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2426.obj",
+      "bytes": 57407,
+      "sha256": "86fa5ef6decf47a91d33f826e1b5579bbecd94795c206b2d797f52c36c3e1020"
+    },
+    {
+      "id": "FJ2431",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2431.obj",
+      "bytes": 21434,
+      "sha256": "40ae6e23decbb5fe2ea3800d44d517302f219078266abd8dcbc7d86ebc246799"
+    },
+    {
+      "id": "FJ2417",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2417.obj",
+      "bytes": 78664,
+      "sha256": "12d2dccc78efa7d21f6f4af53ae08603be473613ec4e04b0beb9c0239b96da56"
+    },
+    {
+      "id": "FJ2427",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2427.obj",
+      "bytes": 62530,
+      "sha256": "eb867fa648f3da04036d925e6a740d4e3a922b893d74a20dec40d8d763a18414"
+    },
+    {
+      "id": "FJ2434",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2434.obj",
+      "bytes": 85105,
+      "sha256": "ed432a90e8fbfe9742d524044c0bd20c165f2a9a820ee585f00635cc47c5b5c0"
+    },
+    {
+      "id": "FJ2418",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2418.obj",
+      "bytes": 54778,
+      "sha256": "ad6dbf98d5afb2dd5010c42df9d707bf172b0ecc4f6e22c70716d022660aadc8"
+    },
+    {
+      "id": "FJ2419",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2419.obj",
+      "bytes": 59575,
+      "sha256": "1169b9b927ff75aac2dc2406a700b962bb9f3c95b860c5271548414d9e1226da"
+    },
+    {
+      "id": "FJ2429",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2429.obj",
+      "bytes": 51282,
+      "sha256": "2f02411a806eedacfcb662b2dee47ca60f8448eb5243f48fb32083df66541ca4"
+    },
+    {
+      "id": "FJ2430",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2430.obj",
+      "bytes": 48375,
+      "sha256": "971ab49fff2908862fc230653f5f0980424e2030ae7f29f7f96637e8b636c4e8"
+    },
+    {
+      "id": "FJ2437",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2437.obj",
+      "bytes": 56351,
+      "sha256": "8ac0c0aa95adc3f41e82f51bbd8e8a74681f4e58af7f7edd4bc9c5aafffa97c7"
+    },
+    {
+      "id": "FJ3413",
+      "entry": "isa_BP3D_4.0_obj_99/FJ3413.obj",
+      "bytes": 24686,
+      "sha256": "764f23e432a9308e0780c586f9d1638db1fbcc52a5019ae61817b4b1de323870"
+    },
+    {
+      "id": "FJ3411",
+      "entry": "isa_BP3D_4.0_obj_99/FJ3411.obj",
+      "bytes": 41743,
+      "sha256": "9eeb5e5a627e8145f03961c661c9c66d8fdc55ed1234d04b84212b87a21d902c"
+    },
+    {
+      "id": "FJ2966",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2966.obj",
+      "bytes": 89640,
+      "sha256": "7d4fbfbeebdb541b4053e62e6ba9e55bdbc8d1354de8192f94d7c6008812ab3f"
+    },
+    {
+      "id": "FJ3645",
+      "entry": "isa_BP3D_4.0_obj_99/FJ3645.obj",
+      "bytes": 36208,
+      "sha256": "5cc007c2ea51255df641225630e83ddbf3e5c4545dffe4814b098c9199ceb26c"
+    },
+    {
+      "id": "FJ2737",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2737.obj",
+      "bytes": 12641,
+      "sha256": "22aa075132e33f9a3d3be135515362b03ab84f12a0d641edde35e260fb2cd65b"
+    },
+    {
+      "id": "FJ2631",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2631.obj",
+      "bytes": 187038,
+      "sha256": "ca7d8c0c82982ef1c838cd2224650c810adc3e52aaf6b345f0cdb77d7b068c5e"
+    },
+    {
+      "id": "FJ2632",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2632.obj",
+      "bytes": 8543,
+      "sha256": "74d743ebe7ccb06a69244bccb59789cbb094af1f3b279e24be5541b9d01d2f6c"
+    },
+    {
+      "id": "FJ2633",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2633.obj",
+      "bytes": 32810,
+      "sha256": "ba9e2eca1abc7946b27b8adb9846f1b626c7cc3e942da1a2cd2301e0c02bcf1f"
+    },
+    {
+      "id": "FJ2634",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2634.obj",
+      "bytes": 14842,
+      "sha256": "575eec8663acbae025b51ad8fa42dc6229f35d6f5d25673912c76cb59f117aec"
+    },
+    {
+      "id": "FJ2635",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2635.obj",
+      "bytes": 51353,
+      "sha256": "bc02d461ae79073f21f350b3c9751d7ccb973ea3c74f8c58bc9a2aeafc533281"
+    },
+    {
+      "id": "FJ2636",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2636.obj",
+      "bytes": 28744,
+      "sha256": "119cc81d1816f1db4c3d64add10efa63c9148e3177b74d10184f7a1e579581e5"
+    },
+    {
+      "id": "FJ2637",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2637.obj",
+      "bytes": 13104,
+      "sha256": "d4fa7aa9a6e224a3c7fea1264f4d81ea076ec7baaa8b1c8b3da8e1053bbf4e4a"
+    },
+    {
+      "id": "FJ2638",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2638.obj",
+      "bytes": 22808,
+      "sha256": "bad6520fcbcea112ca400ba5328e52f7b2ff680346b5b2591db2e97394f9b6e5"
+    },
+    {
+      "id": "FJ2639",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2639.obj",
+      "bytes": 11513,
+      "sha256": "a80ec5085d0430fa9ae5b643042742bb9757cfd23d3f0280e162751b91acda5f"
+    },
+    {
+      "id": "FJ2640",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2640.obj",
+      "bytes": 20309,
+      "sha256": "7391892f7c4a8ab6165bf17e6e5ba1367267f14b2cf845233456cb5945f31e14"
+    },
+    {
+      "id": "FJ2641",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2641.obj",
+      "bytes": 31770,
+      "sha256": "0a9b2c86202434b7aa66c2499c680c40c5d3ebce6bc3ef73c927018ff2c81718"
+    },
+    {
+      "id": "FJ2642",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2642.obj",
+      "bytes": 58861,
+      "sha256": "2f6dbb44742cd505762e3f24eb2ed3e9ed929f7a909ac28db4df68393e098888"
+    },
+    {
+      "id": "FJ2643",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2643.obj",
+      "bytes": 29632,
+      "sha256": "3ee93d012a24f6fb93c92faa6eb35d918a3875b58cb0dd52ca5e3dc010ee55cf"
+    },
+    {
+      "id": "FJ2644",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2644.obj",
+      "bytes": 20055,
+      "sha256": "91b7c72f9fd221c63dd14932b7e66a0331e96d1b0aff3bfbec21f12187530467"
+    },
+    {
+      "id": "FJ2645",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2645.obj",
+      "bytes": 22289,
+      "sha256": "d6dcbc3294545f857df903393a6db47b268e3a97e8a0c87a0ab5bef056469eee"
+    },
+    {
+      "id": "FJ2646",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2646.obj",
+      "bytes": 30477,
+      "sha256": "4549b2c6a0bf1d15057bd6185fdafbec846deecc464b6cbfb19f7cedb68b815c"
+    },
+    {
+      "id": "FJ2647",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2647.obj",
+      "bytes": 21395,
+      "sha256": "18044f3caa4b23c89e8ce42555df29326c1ff1bdbf4b52559473dfb8368b040a"
+    },
+    {
+      "id": "FJ2648",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2648.obj",
+      "bytes": 20026,
+      "sha256": "33bdf6f3048e9c940710c1cfc27e59af549f37c14b58ba24bd12f3bd5b284d73"
+    },
+    {
+      "id": "FJ2649",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2649.obj",
+      "bytes": 81031,
+      "sha256": "d4833bb0b60ee79f526150ad7ba9124e326aba8cd48000711bf3a6b0997b0ce0"
+    },
+    {
+      "id": "FJ2650",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2650.obj",
+      "bytes": 29816,
+      "sha256": "dd2c38fdc784311c955fb8b0420d70dfbdf16f0ce6e236a086dc5f350faae04c"
+    },
+    {
+      "id": "FJ2651",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2651.obj",
+      "bytes": 37854,
+      "sha256": "864567c4b15c3add5a8184edb142766538936e2ef17af4efa25acca67f4344d8"
+    },
+    {
+      "id": "FJ2652",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2652.obj",
+      "bytes": 22767,
+      "sha256": "fd5ee304558da1d1ffebb01ca7f59b374087667e71d473fe5401f355a2ff161f"
+    },
+    {
+      "id": "FJ2653",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2653.obj",
+      "bytes": 20958,
+      "sha256": "74fc42fbc783857619dccb5a753b06cbfce9abc6403f14e38f55bbb9fafdad80"
+    },
+    {
+      "id": "FJ2654",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2654.obj",
+      "bytes": 13776,
+      "sha256": "4e8467b12ca3374d25807d5de058cfb8d147ad2decd99f6debe57847a83099a1"
+    },
+    {
+      "id": "FJ2723",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2723.obj",
+      "bytes": 281611,
+      "sha256": "cd008769cb9d565a75bf6b91b5ad3bd482932e37c4747837f6c9446cd23b73a2"
+    },
+    {
+      "id": "FJ2667",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2667.obj",
+      "bytes": 25908,
+      "sha256": "4a43aa2911b4b1ee153d8948e5edfa99c078f374603a52c69100ab3ae2ef4362"
+    },
+    {
+      "id": "FJ2668",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2668.obj",
+      "bytes": 16400,
+      "sha256": "512479cec370a4390d5f2f0555fbdfc7ba3c2e8fb7b78b242cb4382ede30287f"
+    },
+    {
+      "id": "FJ2670",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2670.obj",
+      "bytes": 28943,
+      "sha256": "e734bab3fcf2ee2bfba0eb6f827f8894fd9ff86e261f4fff0cf1ec37c3f84073"
+    },
+    {
+      "id": "FJ2671",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2671.obj",
+      "bytes": 32032,
+      "sha256": "9ca85be93a017bc2a8aa7d565b3ec320620e4b22e78936b0d6f52b7cf3015be5"
+    },
+    {
+      "id": "FJ2672",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2672.obj",
+      "bytes": 47950,
+      "sha256": "032c1562f06b7c960e1524fd8259fa321d59426ba0a9e6df32b42eb2c79e8e11"
+    },
+    {
+      "id": "FJ2673",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2673.obj",
+      "bytes": 23827,
+      "sha256": "9ffff6952448478f178b3a4debe89cc0cb28035cf392f992c119768406f1cf32"
+    },
+    {
+      "id": "FJ2674",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2674.obj",
+      "bytes": 18806,
+      "sha256": "e4ff01e6ce03c7f0bfd28d099680623dd2e98829bde7efb9dbd9936029e3961d"
+    },
+    {
+      "id": "FJ2675",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2675.obj",
+      "bytes": 14381,
+      "sha256": "18496992ff047cc1578789bb356e181e91fd0bc3f59332f392b64ef02a91cc45"
+    },
+    {
+      "id": "FJ2676",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2676.obj",
+      "bytes": 22233,
+      "sha256": "5455ee32b46013949d56fbdbbe87d08988975d7e3504105b270ed942376a13f8"
+    },
+    {
+      "id": "FJ2677",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2677.obj",
+      "bytes": 18719,
+      "sha256": "475b16a4d4a365a732fa8dbc1757f57b81ca99847ef2d36dd160656994dae474"
+    },
+    {
+      "id": "FJ2692",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2692.obj",
+      "bytes": 62836,
+      "sha256": "c38882cfb2a4ff493aece22ced1f23c9e044bf9cc091f14d40c7256179d34ccf"
+    },
+    {
+      "id": "FJ2693",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2693.obj",
+      "bytes": 50460,
+      "sha256": "2f089666f8301e52400250614677a5c824bfa37fee55bfeb545904c8acffc063"
+    },
+    {
+      "id": "FJ2694",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2694.obj",
+      "bytes": 30018,
+      "sha256": "8579bbf2af9aa03a93604db0f05283334baf131b26ca17d9bbd9c1ff281ee048"
+    },
+    {
+      "id": "FJ2695",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2695.obj",
+      "bytes": 15952,
+      "sha256": "8a50ff9ad16191e3fd6cadb480943d212796d9cba391659c186be731b8f68d6a"
+    },
+    {
+      "id": "FJ2696",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2696.obj",
+      "bytes": 26375,
+      "sha256": "0d90aa40e3ac1a0d4423d19da7c8a9f4446063bdae1b7246f97669c6db3720df"
+    },
+    {
+      "id": "FJ2697",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2697.obj",
+      "bytes": 17355,
+      "sha256": "da528958c3c9784dc6ed9c04cd0a8d1fe6678c66e3792e0c258b1b51c9a07874"
+    },
+    {
+      "id": "FJ2698",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2698.obj",
+      "bytes": 17208,
+      "sha256": "d253c0270030d4f2845f99ec3658e0e0ac9a79bda8e6d2e3ec1cae9d1942c9bd"
+    },
+    {
+      "id": "FJ2699",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2699.obj",
+      "bytes": 11081,
+      "sha256": "4434305060b28d0b294b33cc18cdeb62f7a525f1282500c24dfb558205ec54a5"
+    },
+    {
+      "id": "FJ2700",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2700.obj",
+      "bytes": 19411,
+      "sha256": "2c4dacf7f7029de9075b4671085accefcf96200b4dbaba8a130ac1c3b177ebc6"
+    },
+    {
+      "id": "FJ2714",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2714.obj",
+      "bytes": 51286,
+      "sha256": "d7d9ed93cb831b5beb98cdbbb814d2628e38efcc524028a4a291ee6144ea5c03"
+    },
+    {
+      "id": "FJ2715",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2715.obj",
+      "bytes": 17086,
+      "sha256": "f18dda103cde54e3a21c811c33f2dc3cf25f000eaff460703c696e76cc6a0e3f"
+    },
+    {
+      "id": "FJ2716",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2716.obj",
+      "bytes": 17573,
+      "sha256": "0efa7807739a27fd0fd8ee6fb043ebdc17c8c824b1d068ddcf8bc305a138ca19"
+    },
+    {
+      "id": "FJ2717",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2717.obj",
+      "bytes": 24857,
+      "sha256": "3fb3cd79b66f9ec1be89382534eef8b9294328d6e7c17a7b48e87dd879316579"
+    },
+    {
+      "id": "FJ2718",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2718.obj",
+      "bytes": 13359,
+      "sha256": "f08dbbc4cb90043b874b8483b378c0da44a573a6dccbb17530f8f07e8c32ba0c"
+    },
+    {
+      "id": "FJ2719",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2719.obj",
+      "bytes": 28572,
+      "sha256": "56493dd7e056b7c7cb462293402c3fa42dbb82c572dc746dfee5685eb4afe94a"
+    },
+    {
+      "id": "FJ2720",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2720.obj",
+      "bytes": 22827,
+      "sha256": "425ff09df45ea552c0d9a6d3cb57ec55a16ca5ca37e0736bf6ba5dea6cdf03a9"
+    },
+    {
+      "id": "FJ2721",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2721.obj",
+      "bytes": 18826,
+      "sha256": "36858ad1fc4dd8f39de435eb42715c02b75976da212e9f322723e222d9862922"
+    },
+    {
+      "id": "FJ2722",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2722.obj",
+      "bytes": 23583,
+      "sha256": "ba9b6f6885b2fa65dd32aa1799dd1d3c77f2a95baac9dcab816704ad74fcd0d3"
+    },
+    {
+      "id": "FJ2655",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2655.obj",
+      "bytes": 37441,
+      "sha256": "6095f578e12b9a85dcf978692793f775494086ab09b7eb44e6a069049640bd82"
+    },
+    {
+      "id": "FJ2656",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2656.obj",
+      "bytes": 49555,
+      "sha256": "cb9c6b4e10e43c92c8ea4e2e1a66215d98cf58d72fcc60aeadc8a0f87f6724fc"
+    },
+    {
+      "id": "FJ2724",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2724.obj",
+      "bytes": 33909,
+      "sha256": "1da253198ab9482187ad49300d2d8cc594a44ed4e805c01e027d1df481f3403c"
+    },
+    {
+      "id": "FJ2727",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2727.obj",
+      "bytes": 65355,
+      "sha256": "d54aafb93539879b37513605156084a45d9161134ad4c64b16e6ceca2dff77e2"
+    },
+    {
+      "id": "FJ2728",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2728.obj",
+      "bytes": 19145,
+      "sha256": "601bfbfb4d36b9a044995b8fddaecc8897fe7ff3f8e2d2b03ba8758de9318ba6"
+    },
+    {
+      "id": "FJ2729",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2729.obj",
+      "bytes": 15250,
+      "sha256": "e69c55079d6a139103feb2117bf5c70599ccb28f0aaae75719b36e772a6cc9d8"
+    },
+    {
+      "id": "FJ2731",
+      "entry": "isa_BP3D_4.0_obj_99/FJ2731.obj",
+      "bytes": 52845,
+      "sha256": "69c00eaa21cf6e04da2b794ec4d56ec0900f502b59cbe616e129ee8099008296"
+    }
+  ],
+  "built": {
+    "file": "heart.glb",
+    "bytes": 2558152,
+    "sha256": "309af9886b9388323beb7e9c933c2b1f2a30b05ba93768eda6c8999b7da20ef1",
+    "triangles": 105768,
+    "size": [
+      0.115695,
+      0.14217,
+      0.126672
+    ],
+    "parts": {
+      "right-atrium": {
+        "center": [
+          -0.037052,
+          -0.014615,
+          0.009824
+        ],
+        "size": [
+          0.03739,
+          0.09226,
+          0.061127
+        ],
+        "closed": true,
+        "triangles": 2244
+      },
+      "right-atrium-wall": {
+        "center": [
+          -0.036307,
+          -0.014715,
+          0.016314
+        ],
+        "size": [
+          0.043082,
+          0.09642,
+          0.0663
+        ],
+        "closed": true,
+        "triangles": 17784
+      },
+      "left-atrium": {
+        "center": [
+          -0.007574,
+          -0.008635,
+          -0.014305
+        ],
+        "size": [
+          0.068708,
+          0.06184,
+          0.055771
+        ],
+        "closed": true,
+        "triangles": 1064
+      },
+      "left-atrium-wall": {
+        "center": [
+          -0.001364,
+          -0.01009,
+          -0.00252
+        ],
+        "size": [
+          0.086119,
+          0.07297,
+          0.080981
+        ],
+        "closed": true,
+        "triangles": 7544
+      },
+      "right-ventricle": {
+        "center": [
+          -0.004635,
+          -0.02625,
+          0.031126
+        ],
+        "size": [
+          0.071509,
+          0.08055,
+          0.058223
+        ],
+        "closed": true,
+        "triangles": 1918
+      },
+      "left-ventricle": {
+        "center": [
+          0.016813,
+          -0.028195,
+          0.009281
+        ],
+        "size": [
+          0.063779,
+          0.06748,
+          0.07212
+        ],
+        "closed": true,
+        "triangles": 1722
+      },
+      "mitral-valve": {
+        "center": [
+          0.015744,
+          -0.028245,
+          0.000354
+        ],
+        "size": [
+          0.051133,
+          0.03632,
+          0.05618
+        ],
+        "closed": true,
+        "triangles": 11378
+      },
+      "tricuspid-valve": {
+        "center": [
+          -0.017332,
+          -0.033445,
+          0.021762
+        ],
+        "size": [
+          0.050579,
+          0.04784,
+          0.04274
+        ],
+        "closed": true,
+        "triangles": 17612
+      },
+      "aortic-valve": {
+        "center": [
+          -0.002516,
+          -0.00176,
+          0.005453
+        ],
+        "size": [
+          0.02672,
+          0.02167,
+          0.027615
+        ],
+        "closed": true,
+        "triangles": 2150
+      },
+      "pulmonary-valve": {
+        "center": [
+          0.003301,
+          0.00908,
+          0.030411
+        ],
+        "size": [
+          0.032154,
+          0.02037,
+          0.031978
+        ],
+        "closed": true,
+        "triangles": 3638
+      },
+      "papillary-muscles": {
+        "center": [
+          0.019309,
+          -0.0367,
+          0.025558
+        ],
+        "size": [
+          0.067376,
+          0.06173,
+          0.067943
+        ],
+        "closed": true,
+        "triangles": 4014
+      },
+      "ascending-aorta": {
+        "center": [
+          -0.010483,
+          0.011975,
+          0.00887
+        ],
+        "size": [
+          0.035765,
+          0.04784,
+          0.030777
+        ],
+        "closed": true,
+        "triangles": 396
+      },
+      "aortic-arch": {
+        "center": [
+          -0.00754,
+          0.05349,
+          -0.019677
+        ],
+        "size": [
+          0.041668,
+          0.03519,
+          0.087318
+        ],
+        "closed": true,
+        "triangles": 670
+      },
+      "pulmonary-trunk": {
+        "center": [
+          0.005131,
+          0.02905,
+          0.024509
+        ],
+        "size": [
+          0.0308,
+          0.03711,
+          0.042348
+        ],
+        "closed": true,
+        "triangles": 1302
+      },
+      "superior-vena-cava": {
+        "center": [
+          -0.036916,
+          0.046305,
+          0.002251
+        ],
+        "size": [
+          0.022525,
+          0.035,
+          0.023689
+        ],
+        "closed": true,
+        "triangles": 598
+      },
+      "left-coronary-artery": {
+        "center": [
+          0.029846,
+          -0.02587,
+          0.016692
+        ],
+        "size": [
+          0.056002,
+          0.08137,
+          0.085786
+        ],
+        "closed": true,
+        "triangles": 12666
+      },
+      "right-coronary-artery": {
+        "center": [
+          0.004379,
+          -0.02801,
+          0.019393
+        ],
+        "size": [
+          0.09534,
+          0.08615,
+          0.087885
+        ],
+        "closed": true,
+        "triangles": 14682
+      },
+      "cardiac-veins": {
+        "center": [
+          -0.004547,
+          -0.029925,
+          0.013577
+        ],
+        "size": [
+          0.075674,
+          0.07476,
+          0.0913
+        ],
+        "closed": true,
+        "triangles": 4386
+      }
+    }
+  }
+}

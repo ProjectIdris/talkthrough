@@ -7,3 +7,7 @@ dist/
 .DS_Store
 Thumbs.db
 release/
+
+# real models: the raw downloads and the built files are not in git (see scripts/assets and assets/models)
+assets/cache/
+assets/built/

@@ -1,0 +1,1048 @@
+{
+  "id": "brain",
+  "name": "Human brain",
+  "aliases": [
+    "brain",
+    "human brain",
+    "cerebrum",
+    "lobes of the brain",
+    "cerebral cortex",
+    "cerebellum"
+  ],
+  "description": "An adult human brain: the main cortical gyri grouped into the four lobes, deep structures, cerebellum and brainstem, as named parts.",
+  "source": {
+    "name": "BodyParts3D",
+    "url": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/",
+    "archive": {
+      "url": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "bytes": 142903898,
+      "folder": "isa_BP3D_4.0_obj_99"
+    },
+    "version": "4.0, polygon reduction 99 percent (archive of 2013-05-22; README and licence of 2025-02-27)",
+    "format": "obj"
+  },
+  "licence": {
+    "id": "CC-BY-4.0",
+    "version": "4.0 International",
+    "url": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+    "evidence": {
+      "page": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "updated": "2025-02-27",
+      "retrieved": "2026-11-08",
+      "sha256": "6ab56d4702c16d52ec54c7635cef25e7b488771ae9539717afd87327c09ed842"
+    },
+    "note": "The database licence page (updated 2025-02-27) and README name CC BY 4.0 International and the credit line given here. The OBJ files in the 2013 archive still carry an older header naming CC Attribution-Share Alike 2.1 Japan; the current statement of the licensor is followed here, and the files are converted without their header."
+  },
+  "credit": "BodyParts3D, © The Database Center for Life Science, licensed under CC Attribution 4.0 International (https://creativecommons.org/licenses/by/4.0/)",
+  "changes": "Files converted from OBJ to glTF, millimetres to metres, axes turned to y up and the front toward the viewer, parts recentred on themselves; left and right meshes and gyri are merged into one named part. Duplicate vertices were welded and smooth normals computed; no shape was edited.",
+  "orient": {
+    "up": "z+",
+    "front": "y-",
+    "note": "source axes: x toward the left of the body, y toward the back, z toward the head (README, coordinate system)"
+  },
+  "scale": {
+    "unitsToMetres": 0.001,
+    "realLengthMetres": 0.17,
+    "realLengthOf": "the brain, front to back (about 17 cm)"
+  },
+  "caveats": [
+    "The atlas models the main gyri, not every fold: the lobes are made of the named gyri it has, so small regions (the precuneus, the posterior superior temporal gyrus) are not separate and may show as gaps."
+  ],
+  "parts": [
+    {
+      "key": "frontal-lobe",
+      "name": "Frontal lobe",
+      "aliases": [
+        "frontal cortex"
+      ],
+      "nodes": [
+        "FJ1833",
+        "FJ1834",
+        "FJ1787",
+        "FJ1788",
+        "FJ1744",
+        "FJ1745",
+        "FJ1800",
+        "FJ1801",
+        "FJ1793",
+        "FJ1794"
+      ],
+      "confidence": "grouped",
+      "color": [
+        226,
+        150,
+        120
+      ],
+      "note": "superior, middle, inferior frontal, precentral and orbital gyri"
+    },
+    {
+      "key": "parietal-lobe",
+      "name": "Parietal lobe",
+      "aliases": [
+        "parietal cortex"
+      ],
+      "nodes": [
+        "FJ1797",
+        "FJ1798",
+        "FJ1841",
+        "FJ1842",
+        "FJ1732",
+        "FJ1733",
+        "FJ1835",
+        "FJ1836"
+      ],
+      "confidence": "grouped",
+      "color": [
+        232,
+        196,
+        110
+      ],
+      "note": "postcentral, supramarginal, angular gyri and superior parietal lobule"
+    },
+    {
+      "key": "temporal-lobe",
+      "name": "Temporal lobe",
+      "aliases": [
+        "temporal cortex"
+      ],
+      "nodes": [
+        "FJ1746",
+        "FJ1747",
+        "FJ1789",
+        "FJ1790",
+        "FJ1783",
+        "FJ1784",
+        "FJ1785",
+        "FJ1786",
+        "FJ1837",
+        "FJ1838"
+      ],
+      "confidence": "grouped",
+      "color": [
+        120,
+        190,
+        140
+      ],
+      "note": "inferior, middle, fusiform, parahippocampal gyri and the anterior superior temporal gyrus"
+    },
+    {
+      "key": "occipital-lobe",
+      "name": "Occipital lobe",
+      "aliases": [
+        "visual cortex"
+      ],
+      "nodes": [
+        "FJ1791",
+        "FJ1792"
+      ],
+      "confidence": "atlas",
+      "color": [
+        130,
+        150,
+        226
+      ]
+    },
+    {
+      "key": "insula",
+      "name": "Insula",
+      "aliases": [],
+      "nodes": [
+        "FJ1748",
+        "FJ1749"
+      ],
+      "confidence": "atlas",
+      "color": [
+        210,
+        130,
+        170
+      ]
+    },
+    {
+      "key": "cingulate-gyrus",
+      "name": "Cingulate gyrus",
+      "aliases": [],
+      "nodes": [
+        "FJ1739",
+        "FJ1740"
+      ],
+      "confidence": "atlas",
+      "color": [
+        190,
+        120,
+        200
+      ]
+    },
+    {
+      "key": "cerebellum",
+      "name": "Cerebellum",
+      "aliases": [],
+      "nodes": [
+        "FJ1781",
+        "FJ1830"
+      ],
+      "confidence": "atlas",
+      "color": [
+        150,
+        120,
+        190
+      ]
+    },
+    {
+      "key": "pons",
+      "name": "Pons",
+      "aliases": [],
+      "nodes": [
+        "FJ1775",
+        "FJ1822"
+      ],
+      "confidence": "atlas",
+      "color": [
+        200,
+        160,
+        140
+      ]
+    },
+    {
+      "key": "medulla-oblongata",
+      "name": "Medulla oblongata",
+      "aliases": [
+        "medulla"
+      ],
+      "nodes": [
+        "FJ1769",
+        "FJ1831"
+      ],
+      "confidence": "atlas",
+      "color": [
+        214,
+        176,
+        150
+      ]
+    },
+    {
+      "key": "midbrain",
+      "name": "Midbrain",
+      "aliases": [],
+      "nodes": [
+        "FJ1770",
+        "FJ1817"
+      ],
+      "confidence": "atlas",
+      "color": [
+        184,
+        150,
+        130
+      ]
+    },
+    {
+      "key": "thalamus",
+      "name": "Thalamus",
+      "aliases": [],
+      "nodes": [
+        "FJ1782",
+        "FJ1827"
+      ],
+      "confidence": "atlas",
+      "color": [
+        226,
+        120,
+        120
+      ]
+    },
+    {
+      "key": "hypothalamus",
+      "name": "Hypothalamus",
+      "aliases": [],
+      "nodes": [
+        "FJ1760",
+        "FJ1808"
+      ],
+      "confidence": "atlas",
+      "color": [
+        240,
+        160,
+        100
+      ]
+    },
+    {
+      "key": "hippocampus",
+      "name": "Hippocampus",
+      "aliases": [],
+      "nodes": [
+        "FJ1759",
+        "FJ1807"
+      ],
+      "confidence": "atlas",
+      "color": [
+        100,
+        180,
+        200
+      ]
+    },
+    {
+      "key": "amygdala",
+      "name": "Amygdala",
+      "aliases": [],
+      "nodes": [
+        "FJ1753",
+        "FJ1829"
+      ],
+      "confidence": "atlas",
+      "color": [
+        240,
+        110,
+        150
+      ]
+    },
+    {
+      "key": "caudate-nucleus",
+      "name": "Caudate nucleus",
+      "aliases": [],
+      "nodes": [
+        "FJ1754",
+        "FJ1802"
+      ],
+      "confidence": "atlas",
+      "color": [
+        120,
+        170,
+        230
+      ]
+    },
+    {
+      "key": "globus-pallidus",
+      "name": "Globus pallidus",
+      "aliases": [],
+      "nodes": [
+        "FJ1757",
+        "FJ1805"
+      ],
+      "confidence": "atlas",
+      "color": [
+        150,
+        200,
+        120
+      ]
+    },
+    {
+      "key": "corpus-callosum",
+      "name": "Corpus callosum",
+      "aliases": [],
+      "nodes": [
+        "FJ1742"
+      ],
+      "confidence": "atlas",
+      "color": [
+        240,
+        232,
+        214
+      ]
+    },
+    {
+      "key": "cerebral-white-matter",
+      "name": "Cerebral white matter",
+      "aliases": [
+        "white matter"
+      ],
+      "nodes": [
+        "FJ1758",
+        "FJ1806"
+      ],
+      "confidence": "atlas",
+      "color": [
+        236,
+        226,
+        206
+      ]
+    },
+    {
+      "key": "lateral-ventricles",
+      "name": "Lateral ventricles",
+      "aliases": [
+        "ventricles"
+      ],
+      "nodes": [
+        "FJ1767",
+        "FJ1814"
+      ],
+      "confidence": "atlas",
+      "color": [
+        90,
+        150,
+        240
+      ],
+      "closed": true
+    },
+    {
+      "key": "pituitary-gland",
+      "name": "Pituitary gland",
+      "aliases": [
+        "pituitary"
+      ],
+      "nodes": [
+        "FJ1796"
+      ],
+      "confidence": "atlas",
+      "color": [
+        250,
+        200,
+        90
+      ]
+    }
+  ],
+  "files": [
+    {
+      "id": "FJ1833",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1833.obj",
+      "bytes": 432276,
+      "sha256": "b1705a60646438f5c1bd8d215c738f90e7aed9c9360a8ab94993a1e6b5649851"
+    },
+    {
+      "id": "FJ1834",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1834.obj",
+      "bytes": 437650,
+      "sha256": "505aff0f5fba6160aa273af517d8ef9f9e4d7bd6ee904e2739ccf41f8d7af441"
+    },
+    {
+      "id": "FJ1787",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1787.obj",
+      "bytes": 226086,
+      "sha256": "de3c1098d95fc81060b72603e72a4a2a55529b0fb82063dbd0dfc4f3955d720c"
+    },
+    {
+      "id": "FJ1788",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1788.obj",
+      "bytes": 224095,
+      "sha256": "216015b568cc446ae3e7c2ad256f47a352479a6e36c0df025cde311e913fde0c"
+    },
+    {
+      "id": "FJ1744",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1744.obj",
+      "bytes": 218647,
+      "sha256": "3de90fe338da50f60859e591089e5882cf8ce2df2d0e4acbfc5dae7364c184a5"
+    },
+    {
+      "id": "FJ1745",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1745.obj",
+      "bytes": 220234,
+      "sha256": "b3eafbe2d1289be8c24dde82d8a5475f86a13cb6bcc7d5dbc0b4cfcb2d340132"
+    },
+    {
+      "id": "FJ1800",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1800.obj",
+      "bytes": 270175,
+      "sha256": "9f375219acb0aed075860e5afe3562be19bde6061a007d3096d52f96aa59e944"
+    },
+    {
+      "id": "FJ1801",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1801.obj",
+      "bytes": 274741,
+      "sha256": "89e9017a488f4854ef4daaa5488bbe0bada8aed4cd81352553305beda8caef85"
+    },
+    {
+      "id": "FJ1793",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1793.obj",
+      "bytes": 179022,
+      "sha256": "b47d45c7f6a419e69a9c5b6af00b80cc4f1269593a260e34b662b850801e354c"
+    },
+    {
+      "id": "FJ1794",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1794.obj",
+      "bytes": 173187,
+      "sha256": "8fe535cdf4054a6a395ea2250e1c66719d551818eaf96802a4c7883af00a8170"
+    },
+    {
+      "id": "FJ1797",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1797.obj",
+      "bytes": 236182,
+      "sha256": "e05f6ec80fa902f5334cc5e8c029359674d39c39a90f86476a6d1d190ca1f30a"
+    },
+    {
+      "id": "FJ1798",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1798.obj",
+      "bytes": 238993,
+      "sha256": "ce476b98e79e988bbf2efa1b8593019d0cc64114cf455d00347ed6e95ee5f037"
+    },
+    {
+      "id": "FJ1841",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1841.obj",
+      "bytes": 149885,
+      "sha256": "895a1e9e5eaed7443d9fe9544fefede9db219aaf38d30a4674cde778e1bdfb8e"
+    },
+    {
+      "id": "FJ1842",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1842.obj",
+      "bytes": 152420,
+      "sha256": "374934ec8c016aec1aae2cad47d80b1d2668354cc890b0227a0b102c9b3b4469"
+    },
+    {
+      "id": "FJ1732",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1732.obj",
+      "bytes": 236788,
+      "sha256": "d24f6c5647b751706d3f7c4dd4b62518fb3e9cd281ed7d2a2437fafbbcd0e1b3"
+    },
+    {
+      "id": "FJ1733",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1733.obj",
+      "bytes": 239530,
+      "sha256": "a8e5d63d28890e42861f2b1c4c7b898dba84b169507315d77e9ebeb2433171e9"
+    },
+    {
+      "id": "FJ1835",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1835.obj",
+      "bytes": 366912,
+      "sha256": "6d1cc1963191120c07eb557c728b4cd00ccf63467b3858a408a6b5ba4564719c"
+    },
+    {
+      "id": "FJ1836",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1836.obj",
+      "bytes": 383555,
+      "sha256": "e3291cc04dcdc3743d8fe67951d2b1589294062d116873515194e0c6c979c770"
+    },
+    {
+      "id": "FJ1746",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1746.obj",
+      "bytes": 177780,
+      "sha256": "aefe572e69d8b7687b29644b0a855ced4e64b255f1cb3ca0e6640cab7292d132"
+    },
+    {
+      "id": "FJ1747",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1747.obj",
+      "bytes": 182921,
+      "sha256": "dd358cac91394ee511250be17f7a0184defecb23a19b921388fb267e23132195"
+    },
+    {
+      "id": "FJ1789",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1789.obj",
+      "bytes": 174631,
+      "sha256": "52396a1feaedfb7f8f1a334dd02acb35f2897362b0f1a37658edc4e69556db6d"
+    },
+    {
+      "id": "FJ1790",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1790.obj",
+      "bytes": 179357,
+      "sha256": "f2c8ba988026b991559d5195a702675a0a222e9a03711dcb127a909f18ae0fb4"
+    },
+    {
+      "id": "FJ1783",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1783.obj",
+      "bytes": 96372,
+      "sha256": "f0cc5fbc23f9846e881e91cb2221e691694895c7584506d560aca48324d079b5"
+    },
+    {
+      "id": "FJ1784",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1784.obj",
+      "bytes": 101913,
+      "sha256": "ecfd67d495a6f5f3bf391f2455f124edf444122d79299fb8fa0b01493e450f29"
+    },
+    {
+      "id": "FJ1785",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1785.obj",
+      "bytes": 47143,
+      "sha256": "d328f96770816958f290e2461214dd52c38d3e7395d113eed55ba6065ec76c37"
+    },
+    {
+      "id": "FJ1786",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1786.obj",
+      "bytes": 54449,
+      "sha256": "2453959db95754c9f3fe6dbe435bbcff98e79f6bbd77c12f1d063c30941fa05f"
+    },
+    {
+      "id": "FJ1837",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1837.obj",
+      "bytes": 114207,
+      "sha256": "2fb61c24b880e134ff2034558fa6abbfcbcd8506b0aca18ee2cc844fa6783de6"
+    },
+    {
+      "id": "FJ1838",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1838.obj",
+      "bytes": 120477,
+      "sha256": "342678a0d5a35ca049870e95536c19b9d66915c7f636f0b738162e5db833746b"
+    },
+    {
+      "id": "FJ1791",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1791.obj",
+      "bytes": 293610,
+      "sha256": "d504be1cf6f085be1b885b31ac3b1fb1a1fc475855aeda56baa142a600911fe5"
+    },
+    {
+      "id": "FJ1792",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1792.obj",
+      "bytes": 307991,
+      "sha256": "e9e4bb82648576fbe6256992771f0ab0917cfea10d15325c86869283573a64ad"
+    },
+    {
+      "id": "FJ1748",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1748.obj",
+      "bytes": 148027,
+      "sha256": "b7553aaa8a282d5882d9d2809f5fedd7b35ef50710773ac103cfa82f9f184245"
+    },
+    {
+      "id": "FJ1749",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1749.obj",
+      "bytes": 150490,
+      "sha256": "0c8e4e39ba935c4f5b24168b46c99782057ba73379844173de56c60210b45c72"
+    },
+    {
+      "id": "FJ1739",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1739.obj",
+      "bytes": 154389,
+      "sha256": "0926a6839371b0179bbf7d0040b3925f338995be63d18fc1b176721db12c82d3"
+    },
+    {
+      "id": "FJ1740",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1740.obj",
+      "bytes": 151331,
+      "sha256": "9e8c3b086c0cd15b9f85189b37529c6d044c153cbd3f16c678a5b79d02efb656"
+    },
+    {
+      "id": "FJ1781",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1781.obj",
+      "bytes": 1579646,
+      "sha256": "47003d37cf123dc10b108bb79a2b12638a56f0f2616d0d1f58b727af88d1ec53"
+    },
+    {
+      "id": "FJ1830",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1830.obj",
+      "bytes": 1598659,
+      "sha256": "585176d67d072ead00bab6b4d0ca42a151ace76bed1c20c1aeed22b8b4c57ac1"
+    },
+    {
+      "id": "FJ1775",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1775.obj",
+      "bytes": 697135,
+      "sha256": "d24253c225545078ce9c4420880dc5652e20fb2576a6305a9fadc18f95fba9dd"
+    },
+    {
+      "id": "FJ1822",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1822.obj",
+      "bytes": 727798,
+      "sha256": "474dffce10e8506b5f8a7aac5d6ccfc7ef6251490b36b5f04a7fa2676b7fb708"
+    },
+    {
+      "id": "FJ1769",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1769.obj",
+      "bytes": 392219,
+      "sha256": "cc1cd37ef3f58fea9ffe8875efa3a33101ee6945dd13bdb28c973303a9986fbd"
+    },
+    {
+      "id": "FJ1831",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1831.obj",
+      "bytes": 401304,
+      "sha256": "7c19ec386aadaafdae3dab8aa99c08d5db47fa063f689e99ee7e9cdf0bdbeda9"
+    },
+    {
+      "id": "FJ1770",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1770.obj",
+      "bytes": 468005,
+      "sha256": "6e7eb027702dc4097aa0b2abe46efcffcd1f5e108b1665a649b45420b98229e9"
+    },
+    {
+      "id": "FJ1817",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1817.obj",
+      "bytes": 461102,
+      "sha256": "b86a8f1ce035a5ec382122a210f86239c581a5478f2b1b5f377b021542981f2e"
+    },
+    {
+      "id": "FJ1782",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1782.obj",
+      "bytes": 100051,
+      "sha256": "6e6e87e4feda05756e8748a61febdb2fe61d4ba834fd5a57d805512d9fcd82cc"
+    },
+    {
+      "id": "FJ1827",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1827.obj",
+      "bytes": 44651,
+      "sha256": "a4b5be59d7cf6dc3ca1b2ae97a83ffd947e39493cc663c2cb7d65a064af91b1d"
+    },
+    {
+      "id": "FJ1760",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1760.obj",
+      "bytes": 132131,
+      "sha256": "aec134edcffcaea082eaebc3a01fe84700893fcc8cba5868b1ade6a721f530bf"
+    },
+    {
+      "id": "FJ1808",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1808.obj",
+      "bytes": 131989,
+      "sha256": "122de5cfac67f779f911876ea1faca1fb9546327b1a1654d395f571f711772f7"
+    },
+    {
+      "id": "FJ1759",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1759.obj",
+      "bytes": 57341,
+      "sha256": "d841b56aabfe6785a3b2892de1af5f2f52d87d13b8928d3d2fdf028b9640994d"
+    },
+    {
+      "id": "FJ1807",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1807.obj",
+      "bytes": 60478,
+      "sha256": "76ef76851cf014d1e090f63328963dad9041cf10f20066eb1e92e4619f700c30"
+    },
+    {
+      "id": "FJ1753",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1753.obj",
+      "bytes": 22629,
+      "sha256": "1a557cc879fa71c1e5a5681caf4e7506418c479c29171b48a959a1d5a69e1425"
+    },
+    {
+      "id": "FJ1829",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1829.obj",
+      "bytes": 22898,
+      "sha256": "f53fab3de8ac6b90a2c956e8ccac9b949d9adc32b843070712f12c9ad1b18e92"
+    },
+    {
+      "id": "FJ1754",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1754.obj",
+      "bytes": 156733,
+      "sha256": "c94a8fe0da8cd1ddb916a4f871b017a82bf1dbe5a60307cbc36baa9bf23324ec"
+    },
+    {
+      "id": "FJ1802",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1802.obj",
+      "bytes": 159115,
+      "sha256": "1139f3e7002704a0efcc1c9161ef2b84e60f28c18728e24664454451ae30bb17"
+    },
+    {
+      "id": "FJ1757",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1757.obj",
+      "bytes": 448013,
+      "sha256": "f1519d79c632403ab669d8ffa8f6c72ce50dc57bc58b3fa54b155f292db20488"
+    },
+    {
+      "id": "FJ1805",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1805.obj",
+      "bytes": 338283,
+      "sha256": "c89453826d4617211ca58a6ce11bc63904a571d594d3d073cfb3a53c7672a9be"
+    },
+    {
+      "id": "FJ1742",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1742.obj",
+      "bytes": 2128770,
+      "sha256": "3f46359c2a23499ac130bd27646309f7974d216f9d55320b503e3b0844da9a70"
+    },
+    {
+      "id": "FJ1758",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1758.obj",
+      "bytes": 1837827,
+      "sha256": "eb5e61b574f6962ad949427b11d97055553d6e1175ac926164f7f5402d43e5bc"
+    },
+    {
+      "id": "FJ1806",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1806.obj",
+      "bytes": 1922977,
+      "sha256": "89ef94f2f907f9da109e55c1a6a7a59ef7118555fa0d39e02ef37f1f69c26e98"
+    },
+    {
+      "id": "FJ1767",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1767.obj",
+      "bytes": 1158407,
+      "sha256": "8491961042556b62e2570c8e8dec8fe9269908abb34aa738ba7613489acd7838"
+    },
+    {
+      "id": "FJ1814",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1814.obj",
+      "bytes": 1168390,
+      "sha256": "5a0c29cf5c573d35f225df3c96c66cc34eb166fde8e54323b3c22b6f2220248b"
+    },
+    {
+      "id": "FJ1796",
+      "entry": "isa_BP3D_4.0_obj_99/FJ1796.obj",
+      "bytes": 70119,
+      "sha256": "e79b1a41d81d066e798dcda7f73f7ffd58741adfbd709d47baacccb2fabfcce0"
+    }
+  ],
+  "built": {
+    "file": "brain.glb",
+    "bytes": 8358176,
+    "sha256": "0d353d478830dff8e6fac252909c2e236229932336e63eb8a7665179b2f914d1",
+    "triangles": 347340,
+    "size": [
+      0.138834,
+      0.16596,
+      0.180006
+    ],
+    "parts": {
+      "frontal-lobe": {
+        "center": [
+          -0.000109,
+          0.03463,
+          0.024801
+        ],
+        "size": [
+          0.127036,
+          0.0967,
+          0.130404
+        ],
+        "closed": true,
+        "triangles": 39628
+      },
+      "parietal-lobe": {
+        "center": [
+          0.000064,
+          0.03401,
+          -0.038944
+        ],
+        "size": [
+          0.138492,
+          0.0844,
+          0.094374
+        ],
+        "closed": true,
+        "triangles": 30012
+      },
+      "temporal-lobe": {
+        "center": [
+          0,
+          -0.004345,
+          -0.008636
+        ],
+        "size": [
+          0.138834,
+          0.05927,
+          0.114089
+        ],
+        "closed": true,
+        "triangles": 19458
+      },
+      "occipital-lobe": {
+        "center": [
+          -0.000125,
+          -0.00283,
+          -0.058363
+        ],
+        "size": [
+          0.088351,
+          0.05382,
+          0.063281
+        ],
+        "closed": true,
+        "triangles": 8954
+      },
+      "insula": {
+        "center": [
+          -0.000132,
+          0.015335,
+          0.016858
+        ],
+        "size": [
+          0.08987,
+          0.03457,
+          0.051781
+        ],
+        "closed": true,
+        "triangles": 4896
+      },
+      "cingulate-gyrus": {
+        "center": [
+          -0.000119,
+          0.016425,
+          0.006743
+        ],
+        "size": [
+          0.057946,
+          0.06665,
+          0.111379
+        ],
+        "closed": true,
+        "triangles": 4762
+      },
+      "cerebellum": {
+        "center": [
+          -0.000137,
+          -0.033605,
+          -0.039354
+        ],
+        "size": [
+          0.10654,
+          0.05327,
+          0.056292
+        ],
+        "closed": true,
+        "triangles": 47700
+      },
+      "pons": {
+        "center": [
+          -0.000128,
+          -0.0311,
+          0.00011
+        ],
+        "size": [
+          0.042197,
+          0.02862,
+          0.034406
+        ],
+        "closed": true,
+        "triangles": 20650
+      },
+      "medulla-oblongata": {
+        "center": [
+          -0.00013,
+          -0.06234,
+          -0.011835
+        ],
+        "size": [
+          0.026734,
+          0.04128,
+          0.0332
+        ],
+        "closed": true,
+        "triangles": 12096
+      },
+      "midbrain": {
+        "center": [
+          -0.000132,
+          -0.01047,
+          0.001592
+        ],
+        "size": [
+          0.029333,
+          0.01704,
+          0.029371
+        ],
+        "closed": true,
+        "triangles": 12908
+      },
+      "thalamus": {
+        "center": [
+          -0.000092,
+          0.00643,
+          0.000427
+        ],
+        "size": [
+          0.047979,
+          0.02368,
+          0.036589
+        ],
+        "closed": true,
+        "triangles": 2460
+      },
+      "hypothalamus": {
+        "center": [
+          -0.00013,
+          -0.005315,
+          0.021533
+        ],
+        "size": [
+          0.015228,
+          0.01987,
+          0.017941
+        ],
+        "closed": true,
+        "triangles": 4078
+      },
+      "hippocampus": {
+        "center": [
+          -0.000129,
+          -0.007235,
+          0.001233
+        ],
+        "size": [
+          0.074507,
+          0.02199,
+          0.042922
+        ],
+        "closed": true,
+        "triangles": 2000
+      },
+      "amygdala": {
+        "center": [
+          -0.000097,
+          -0.00912,
+          0.018688
+        ],
+        "size": [
+          0.068013,
+          0.01286,
+          0.018457
+        ],
+        "closed": true,
+        "triangles": 766
+      },
+      "caudate-nucleus": {
+        "center": [
+          -0.000139,
+          0.011325,
+          0.012475
+        ],
+        "size": [
+          0.068694,
+          0.03709,
+          0.063585
+        ],
+        "closed": true,
+        "triangles": 5114
+      },
+      "globus-pallidus": {
+        "center": [
+          -0.000129,
+          0.00748,
+          0.015189
+        ],
+        "size": [
+          0.059349,
+          0.0173,
+          0.029279
+        ],
+        "closed": true,
+        "triangles": 12424
+      },
+      "corpus-callosum": {
+        "center": [
+          -0.000135,
+          0.016355,
+          0.005571
+        ],
+        "size": [
+          0.051806,
+          0.03885,
+          0.091623
+        ],
+        "closed": true,
+        "triangles": 30232
+      },
+      "cerebral-white-matter": {
+        "center": [
+          -0.000144,
+          0.024975,
+          0.001254
+        ],
+        "size": [
+          0.126252,
+          0.10109,
+          0.163222
+        ],
+        "closed": true,
+        "triangles": 52054
+      },
+      "lateral-ventricles": {
+        "center": [
+          -0.000131,
+          0.007345,
+          -0.0074
+        ],
+        "size": [
+          0.077503,
+          0.04903,
+          0.109333
+        ],
+        "closed": true,
+        "triangles": 35984
+      },
+      "pituitary-gland": {
+        "center": [
+          -0.000112,
+          -0.018425,
+          0.02616
+        ],
+        "size": [
+          0.012311,
+          0.01297,
+          0.009458
+        ],
+        "closed": true,
+        "triangles": 1164
+      }
+    }
+  }
+}

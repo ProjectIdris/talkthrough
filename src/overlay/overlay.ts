@@ -48,6 +48,7 @@ import { followupKeepOut, followupSpot } from './followup-placement.ts';
 import type { CaptionDriver, CaptionState, Rect } from './captions.ts';
 import { readingSeconds } from '../shared/captions.ts';
 import { PanelScene } from './scene3d.ts';
+import { createModelStore, creditLine, modelsIn } from './model-assets.ts';
 import type { ScreenRect } from './scene3d.ts';
 import type { Frame } from './timeline.ts';
 
@@ -72,6 +73,7 @@ const overflowEl = byId<HTMLDivElement>('panel-overflow');
 const overflowMeasureEl = byId<HTMLDivElement>('panel-overflow-measure');
 const omissionCue = new OmissionCue(overflowEl, overflowMeasureEl);
 const explodeEl = byId<HTMLButtonElement>('explode');
+const creditEl = byId<HTMLDivElement>('credit');
 const detailEl = byId<HTMLButtonElement>('detail');
 const cutEl = byId<HTMLButtonElement>('cut');
 const undoEl = byId<HTMLButtonElement>('undo');
@@ -123,8 +125,18 @@ const tier = chooseTier();
 // Said once, for the app log of a check run: which tier, on what graphics, and whether the finishing pass is on.
 console.info(`talkthrough: overlay tier ${tier} on ${graphicsName() || 'an unnamed renderer'}`);
 const settings = TIERS[tier];
+/** The real models' meshes: files next to this page, checked against the hashes the catalogue pins; a redraw is asked for as each arrives. */
+const modelStore = createModelStore({
+  read: async (file) => {
+    const response = await fetch(new URL(`../models/${file}`, location.href));
+    if (!response.ok) throw new Error(`${file} could not be read`);
+    return response.arrayBuffer();
+  },
+  changed: () => { request(); },
+});
 const panelScene = new PanelScene({
   tier,
+  models: modelStore,
   makeCanvas: (width, height) => {
     const c = document.createElement('canvas');
     c.width = width;
@@ -386,6 +398,7 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
     panelScene.sync(frame, 1);
   }
   placeExplode(frame);
+  placeCredit(frame);
   // Rehydrate from the current visible frame, then use the real grown-stage and button
   // rectangles rather than the panel requested earlier. Frame keys distinguish replacement.
   const p = placer();
@@ -469,6 +482,7 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
         modelRect = undefined; modelHitRect = undefined; cardRect = undefined;
         frame = omitStageForCue(frame, board);
         placeExplode(frame);
+        placeCredit(frame);
       }
       admission = admission.prioritize(frame, [cue, ...stageKeepOut(frame.panel, modelRect)]);
     }
@@ -928,6 +942,20 @@ function captionUntilChange(now: number): number | undefined {
   const s = captionState;
   if (!s || s.endedAt === undefined) return undefined;
   return Math.max(0, s.endedAt + CAPTION_HOLD_MS - now);
+}
+
+/** The credit line of the real models on the stage, at the stage's foot, and nothing when there are none. */
+function placeCredit(frame: Frame): void {
+  const line = frame.panel && modelRect ? creditLine(frame.objects) : '';
+  if (!line || !frame.panel) { creditEl.style.display = 'none'; return; }
+  if (creditEl.textContent !== line) creditEl.textContent = line;
+  const rect = frame.panel.rect;
+  // Under the model's left edge, at the foot of the stage, kept inside the stage.
+  const left = Math.min(Math.max(rect.x + 12, modelRect?.x ?? 0), rect.x + rect.w - 132);
+  creditEl.style.display = 'block';
+  creditEl.style.left = `${left}px`;
+  creditEl.style.maxWidth = `${Math.max(120, Math.min(420, rect.x + rect.w - left - 12))}px`;
+  creditEl.style.top = `${Math.max(0, rect.y + rect.h - creditEl.offsetHeight - 10)}px`;
 }
 
 /** Shows the Explode / Assemble control at the corner of a finished model with parts to spread, and hides it otherwise. */
@@ -1537,6 +1565,7 @@ function applyScene(message: SceneMessage): void {
       milestones.mark = true;
       milestones.word = true;
       player.play(placedScene(message.scene));
+      void modelStore.ensure(modelsIn(message.scene));
       break;
     case 'pen':
       if (message.on) {
@@ -1678,6 +1707,8 @@ function applyScene(message: SceneMessage): void {
       fader.disarm();
       player.seek(placedScene(message.scene), message.step, message.t, message.view);
       draw(player.update(), true, message.cameraFit);
+      {
+        const report = (): void => {
       if (message.captureMetadata) {
         void painted().then(() => {
           const camera = lastDisplayedFrame?.panel && modelRect ? lastDisplayedFrame.camera : null;
@@ -1695,6 +1726,12 @@ function applyScene(message: SceneMessage): void {
           });
         });
       } else void painted().then(() => window.talkthrough.rendered(message.token));
+        };
+        // A frame that shows a real model is drawn again once its file is in (so a check run never paints the empty stage).
+        const wanted = modelsIn(message.scene).filter((m) => modelStore.state(m) !== 'ready' && modelStore.state(m) !== 'failed');
+        if (wanted.length) void modelStore.ensure(wanted).then(() => { draw(player.update(), true, message.cameraFit); report(); });
+        else report();
+      }
       break;
   }
   request();
