@@ -122,7 +122,10 @@ export function updateConnectors(nodes: ReadonlyMap<number, FlowNode>, frame: Fr
         // Thickening is bounded by what the span and the joined parts allow: the widest ring, at the authored look at least, no wider than half the span and
         // 3/4 of the narrower part. A cord shortened a great deal is squashed, never a ball over what it joins.
         const peak = def.swell ? Math.max(...local.map((_, i) => swellAt(def.swell!, i / Math.max(1, local.length - 1)))) : 1;
-        const room = Math.min(0.5 * length, 0.75 * Math.min(partWidth(na.obj, a, b), partWidth(nb.obj, a, b)));
+        // The parts are measured in the world and the rest is in the connector's own space (it may hang from a scaled group): bring one into the other.
+        const unit = new Vector3().setFromMatrixScale(node.obj.matrixWorld);
+        const toLocal = 3 / Math.max(1e-9, unit.x + unit.y + unit.z);
+        const room = Math.min(0.5 * length, 0.75 * toLocal * Math.min(partWidth(na.obj, a, b), partWidth(nb.obj, a, b)));
         radius = Math.min(radius, Math.max(thick * peak, room) / peak);
       }
       capDepth = 0.25 * length;
