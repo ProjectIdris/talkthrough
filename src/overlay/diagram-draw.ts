@@ -86,6 +86,8 @@ type Env = { ctx: Ctx; view: View; alpha: number; accent: Rgb; px: number; paint
 const panelRadius = (r: Px): number => Math.max(14, Math.min(28, Math.min(r.w, r.h) * 0.075));
 
 export type DiagramPainterOptions = {
+  /** Last check using the actual animated panel bounds, before any content is painted. */
+  admitSurface?: (id: string, bounds: Px) => boolean;
   regrow?: (id: string, want: Px) => Px | undefined;
   onBounds?: (id: string, bounds: Px) => void;
   /** The face a panel wears (light or dark), from the page under it; without it every panel is dark. `key` names the panel, so it keeps its face. */
@@ -154,7 +156,7 @@ export class DiagramPainter {
   }
 
   /** Draws every diagram of the frame; `now` is a clock in milliseconds. Returns true while something is still gliding into place. */
-  draw(ctx: Ctx, diagrams: readonly DiagramFrame[], view: View, now: number): boolean {
+  draw(ctx: Ctx, diagrams: readonly DiagramFrame[], view: View, now: number, admitSurface = this.options.admitSurface): boolean {
     const dt = this.last === undefined ? 0 : Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     this.moving = false;
@@ -168,7 +170,7 @@ export class DiagramPainter {
       ctx.save();
       ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
       try {
-        this.one(ctx, d, view, alpha, dt, seen);
+        this.one(ctx, d, view, alpha, dt, seen, admitSurface);
       } finally {
         ctx.restore();
       }
@@ -218,11 +220,13 @@ export class DiagramPainter {
     return regrow(d.def.id, want) ?? r0;
   }
 
-  private one(ctx: Ctx, d: DiagramFrame, view: View, alpha: number, dt: number, seen: Set<string>): void {
+  private one(ctx: Ctx, d: DiagramFrame, view: View, alpha: number, dt: number, seen: Set<string>, admitSurface?: (id: string, bounds: Px) => boolean): void {
     const theme = THEME;
     const asked = rectOf(d, view);
     // A flow does not go below a readable node size: its card grows (eased, so a late node does not make it jump) until the nodes read.
     const r = d.def.kind === 'flow' ? this.ease(`${d.key}:card`, this.grownFlow(ctx, d, asked, view), dt, seen) : asked;
+    // Admission uses the grown/eased card and its entrance slide, not the authored rectangle.
+    if (admitSurface?.(d.id, { ...r, y: r.y + (1 - d.appear) * 10 }) === false) return;
     this.options.onBounds?.(d.id, r);
     const face = this.options.faceOf?.(`d${d.key}`, r) ?? 'dark';
     const tone = FROST[face];

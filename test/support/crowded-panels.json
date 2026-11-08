@@ -1,0 +1,221 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "",
+      "actions": [
+        {
+          "op": "diagram",
+          "kind": "flow",
+          "id": "flow",
+          "x": 608,
+          "y": 12,
+          "w": 437,
+          "h": 379,
+          "title": "factorial(3), by recursion"
+        },
+        {
+          "op": "node",
+          "id": "n0",
+          "of": "flow",
+          "text": "factorial(3)",
+          "note": "3 \u00d7 factorial(2)"
+        },
+        {
+          "op": "node",
+          "id": "n1",
+          "of": "flow",
+          "text": "factorial(2)",
+          "note": "2 \u00d7 factorial(1)"
+        },
+        {
+          "op": "node",
+          "id": "n2",
+          "of": "flow",
+          "text": "factorial(1)",
+          "note": "base case: 1"
+        },
+        {
+          "op": "node",
+          "id": "n3",
+          "of": "flow",
+          "text": "Result: 6",
+          "note": "3 \u00d7 2 \u00d7 1"
+        },
+        {
+          "op": "edge",
+          "id": "e0",
+          "from": "n0",
+          "to": "n1",
+          "text": "calls"
+        },
+        {
+          "op": "edge",
+          "id": "e1",
+          "from": "n1",
+          "to": "n2",
+          "text": "calls"
+        },
+        {
+          "op": "edge",
+          "id": "e2",
+          "from": "n2",
+          "to": "n3",
+          "text": "returns"
+        },
+        {
+          "op": "diagram",
+          "kind": "timeline",
+          "id": "timeline",
+          "x": 220,
+          "y": 12,
+          "w": 437,
+          "h": 379,
+          "title": "Autumn 1066"
+        },
+        {
+          "op": "node",
+          "id": "t0",
+          "of": "timeline",
+          "when": "20 Sep",
+          "text": "Fulford"
+        },
+        {
+          "op": "node",
+          "id": "t1",
+          "of": "timeline",
+          "when": "25 Sep",
+          "text": "Stamford Bridge"
+        },
+        {
+          "op": "node",
+          "id": "t2",
+          "of": "timeline",
+          "when": "28 Sep",
+          "text": "Normans land"
+        },
+        {
+          "op": "node",
+          "id": "t3",
+          "of": "timeline",
+          "when": "14 Oct",
+          "text": "Hastings"
+        },
+        {
+          "op": "diagram",
+          "kind": "steps",
+          "id": "steps",
+          "x": 30,
+          "y": 450,
+          "w": 379,
+          "h": 483,
+          "title": "Banana bread"
+        },
+        {
+          "op": "node",
+          "id": "s0",
+          "of": "steps",
+          "text": "Cream butter and sugar"
+        },
+        {
+          "op": "node",
+          "id": "s1",
+          "of": "steps",
+          "text": "Beat in eggs and mashed bananas"
+        },
+        {
+          "op": "node",
+          "id": "s2",
+          "of": "steps",
+          "text": "Fold in flour, salt and sugar"
+        },
+        {
+          "op": "node",
+          "id": "s3",
+          "of": "steps",
+          "text": "Bake 60 minutes at 175 C"
+        },
+        {
+          "op": "card",
+          "id": "note",
+          "x": 670,
+          "y": 520,
+          "w": 368,
+          "title": "Read this note",
+          "rows": [
+            "Price is the vertical axis",
+            "Quantity is the horizontal axis",
+            "Equilibrium is where the curves meet",
+            "A shock moves one curve, not both"
+          ]
+        },
+        {
+          "op": "diagram",
+          "kind": "chart",
+          "id": "market",
+          "x": 590,
+          "y": 440,
+          "w": 460,
+          "h": 437,
+          "title": "Supply and demand",
+          "xlabel": "Quantity",
+          "ylabel": "Price",
+          "xrange": [
+            0,
+            10
+          ],
+          "yrange": [
+            0,
+            10
+          ]
+        },
+        {
+          "op": "series",
+          "id": "supply",
+          "of": "market",
+          "color": "blue",
+          "pts": [
+            [
+              1,
+              1.6
+            ],
+            [
+              5,
+              4
+            ],
+            [
+              9,
+              8.8
+            ]
+          ],
+          "label": "Supply"
+        },
+        {
+          "op": "series",
+          "id": "demand",
+          "of": "market",
+          "color": "red",
+          "pts": [
+            [
+              1,
+              9
+            ],
+            [
+              2,
+              6
+            ],
+            [
+              5,
+              4.5
+            ],
+            [
+              9,
+              2.4
+            ]
+          ],
+          "label": "Demand"
+        }
+      ]
+    }
+  ]
+}

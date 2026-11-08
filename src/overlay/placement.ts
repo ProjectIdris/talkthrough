@@ -558,6 +558,8 @@ export class Placer {
     const was = this.cards.get(id) ?? this.homes.get(id)?.to ?? grown;
     const keepOut = [...this.reserved, ...this.controls, ...[...this.cards].filter(([k]) => k !== id).map(([, b]) => b), ...this.stageKeepOut()];
     const placed = this.search(grown, [1], [...keepOut, ...this.reserved, ...this.reserved], [1], 0, true);
+    // A small coverage cost can still mean a whole line of another panel is hidden.
+    if (keepOut.some((r) => overlap(placed, r) > 0)) return undefined;
     if (this.coverage(placed, keepOut) > this.coverage(was, keepOut) + GROWTH_COVER_SLACK) return undefined;
     this.cards.set(id, placed);
     const home = this.homes.get(id);
@@ -577,6 +579,16 @@ export class Placer {
   /** The flat diagram a point on the screen belongs to (it is inside the rectangle the diagram was asked for), and where it was placed. */
   homeOf(x: number, y: number): { from: Box; to: Box } | undefined {
     for (const h of this.homes.values()) if (x >= h.from.x && x <= h.from.x + h.from.w && y >= h.from.y && y <= h.from.y + h.from.h) return h;
+    return undefined;
+  }
+
+  /** Exact surface identity for a newly streamed mark, before placement changes its coordinates. */
+  ownerOf(a: Action): string | undefined {
+    const c = MARK_OPS.has(a.op) ? markCentre(a as Mark, this.aspect) : undefined;
+    if (c) for (const [id, home] of this.homes) {
+      const r = home.from;
+      if (c.x >= r.x && c.x <= r.x + r.w && c.y >= r.y && c.y <= r.y + r.h) return id;
+    }
     return undefined;
   }
 
@@ -801,18 +813,22 @@ export function ownedMarkIds(steps: readonly { actions: readonly Action[] }[], a
  * rectangle it was asked for. A mark written before it (a ring on the page's own graph, then a chart elsewhere) points at the page and stays
  * there, as it does when the answer is drawn as it arrives, where the earlier mark is already on the page when the diagram comes.
  */
-export function ownedByDiagram(steps: readonly { actions: readonly Action[] }[], aspect: number, screenHeight = 1000, sourceAspect = aspect, measureCaption?: (text: string) => number): boolean[][] {
-  const seen: Box[] = [];
+export function ownedByDiagram(steps: readonly { actions: readonly Action[] }[], aspect: number, screenHeight = 1000, sourceAspect = aspect, measureCaption?: (text: string) => number, owners?: Map<string, string>): boolean[][] {
+  const seen: Array<Box & { id: string }> = [];
   return steps.map((step) => step.actions.map((a) => {
     if (a.op === 'diagram') {
-      seen.push({ x: a.x, y: a.y, w: a.w, h: a.h });
+      seen.push({ id: a.id, x: a.x, y: a.y, w: a.w, h: a.h });
       return false;
     }
     if (a.op === 'image') {
-      seen.push({ x: a.dx, y: a.dy, w: a.dw, h: imageCardHeight(a, screenHeight, aspect, sourceAspect, measureCaption) });
+      seen.push({ id: a.id, x: a.dx, y: a.dy, w: a.dw, h: imageCardHeight(a, screenHeight, aspect, sourceAspect, measureCaption) });
       return false;
     }
-    return seen.length > 0 && insideAny(a, seen, aspect);
+    const owner = seen.find(r => insideAny(a, [r], aspect));
+    if (owners && 'id' in a && typeof a.id === 'string') {
+      if (owner) owners.set(a.id, owner.id); else owners.delete(a.id);
+    }
+    return owner !== undefined;
   }));
 }
 
