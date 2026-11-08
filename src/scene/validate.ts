@@ -32,7 +32,7 @@ export type SceneState = {
   /** The ready-made part (piston, valve, cylinder-block...) that each id made by `add` part is; ids of anything else are not here. */
   parts: Map<string, string>;
   /** What joint each object has been given (hinge, slide or fixed), what each coupled object follows, and what each fixed object rides with. */
-  joints: Map<string, 'hinge' | 'slide' | 'fixed'>;
+  joints: Map<string, 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball'>;
   follows: Map<string, string>;
   rides: Map<string, string>;
   /** The axis each object has been set spinning about (a spin of rate zero takes it out): a part inside it turns with it already. */
@@ -689,9 +689,9 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
   if (variant.name === 'loop' && out.kind !== 'stop') {
     // The kind is the object's joint when left out; an amount is a travel, an angle or a size factor by its kind, each in a range that still reads as that motion.
     const joint = state.joints.get(out.id as string);
-    const kind = (out.kind as string | undefined) ?? (joint === 'hinge' ? 'swing' : joint === 'slide' ? 'slide' : undefined);
+    const kind = (out.kind as string | undefined) ?? (joint === 'hinge' || joint === 'pivot' || joint === 'ball' ? 'swing' : joint === 'slide' ? 'slide' : undefined);
     if (kind === undefined) {
-      note(notes, 'dropped', path, 'loop needs a kind, or a hinge or slide joint on the object');
+      note(notes, 'dropped', path, 'loop needs a kind, or a hinge, pivot, ball or slide joint on the object');
       return null;
     }
     const amount = out.amount as number | undefined;
@@ -827,7 +827,18 @@ function checkJoint(out: Record<string, unknown>, state: SceneState, path: strin
     note(notes, 'trimmed', `${path}.min`, 'min was above max; they are swapped');
     [out.min, out.max] = [out.max, out.min];
   }
-  state.joints.set(id, out.kind as 'hinge' | 'slide' | 'fixed');
+  // A point to turn about is named by the part's own points: one that is not there drops the joint, saying which are.
+  if (out.about !== undefined) {
+    const points = state.bodies.get(id)?.anchors ?? { origin: ZERO };
+    if (!Object.hasOwn(points, out.about as string)) {
+      note(notes, 'dropped', `${path}.about`, `unknown point "${String(out.about)}" on "${id}"; available: ${Object.keys(points).join(', ')}`);
+      return false;
+    }
+    delete out.pivot;
+  }
+  if (out.kind !== 'ball') delete out.limit;
+  if (out.kind !== 'hinge' && out.kind !== 'ball') delete out.about;
+  state.joints.set(id, out.kind as 'hinge' | 'slide' | 'fixed' | 'pivot' | 'ball');
   return true;
 }
 
@@ -868,8 +879,14 @@ function checkCouple(out: Record<string, unknown>, state: SceneState, path: stri
     note(notes, 'dropped', `${path}.by`, `${id} cannot follow ${by}: that follows ${id} already (a coupling loop)`);
     return false;
   }
-  const mine = state.joints.get(id);
-  const theirs = state.joints.get(by);
+  // A pivot is a hinge about the part's own axis: coupled to one as to a hinge.
+  const kindOf = (k: string | undefined): string | undefined => (k === 'pivot' ? 'hinge' : k);
+  const mine = kindOf(state.joints.get(id));
+  const theirs = kindOf(state.joints.get(by));
+  if (state.joints.get(id) === 'ball' || state.joints.get(by) === 'ball') {
+    note(notes, 'dropped', path, 'a ball joint is driven by a swing loop or spin on each axis, not coupled');
+    return false;
+  }
   if (out.pitch === undefined && mine !== undefined && theirs !== undefined && mine !== 'fixed' && theirs !== 'fixed' && mine !== theirs) {
     note(notes, 'dropped', path, `a ${theirs} and a ${mine} are coupled with pitch (units of travel for a turn), not ratio`);
     return false;

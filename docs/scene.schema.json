@@ -4761,7 +4761,9 @@
           "enum": [
             "hinge",
             "slide",
-            "fixed"
+            "fixed",
+            "pivot",
+            "ball"
           ]
         },
         "axis": {
@@ -4790,7 +4792,24 @@
           "items": {
             "type": "number"
           },
-          "description": "hinge: from the object to the point it turns about; [x,y,z], each -100 to 100"
+          "description": "hinge or ball: from the object to the point it turns about; [x,y,z], each -100 to 100"
+        },
+        "about": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "hinge or ball: a point of the object by name (built in, a kit part own or one named with anchor) to turn about, instead of pivot; up to 24 characters"
+        },
+        "limit": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "ball: how far each axis may turn each way, degrees [x,y,z]; [x,y,z], each 0 to 360"
         },
         "min": {
           "type": [
@@ -4828,13 +4847,15 @@
         "axis",
         "dir",
         "pivot",
+        "about",
+        "limit",
         "min",
         "max",
         "to",
         "at"
       ],
       "additionalProperties": false,
-      "description": "Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), fixed (rides with to). min and max hold its value. It moves when spin, loop or couple drives it."
+      "description": "Give any object a freedom: hinge (turns about axis through pivot, the point from the object), slide (along axis or a tilted dir: an inclined plane, a wedge), pivot (turns about its own long axis, axis y by default, through its own middle: a forearm, a screw, a tap), ball (turns about all three axes about its pivot point, held to limit [x,y,z] degrees each way: a shoulder, a hip; one swing loop or spin per axis drives it), fixed (rides with to). about names the point to turn about (any point of the part: left, top, a named one) instead of pivot. min and max hold its value. It moves when spin, loop or couple drives it."
     },
     "couple": {
       "type": "object",

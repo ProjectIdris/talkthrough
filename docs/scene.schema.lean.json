@@ -2750,7 +2750,9 @@
           "enum": [
             "hinge",
             "slide",
-            "fixed"
+            "fixed",
+            "pivot",
+            "ball"
           ]
         },
         "axis": {
@@ -2765,6 +2767,12 @@
           "$ref": "#/$defs/2"
         },
         "pivot": {
+          "$ref": "#/$defs/2"
+        },
+        "about": {
+          "$ref": "#/$defs/1"
+        },
+        "limit": {
           "$ref": "#/$defs/2"
         },
         "min": {
@@ -2787,6 +2795,8 @@
         "axis",
         "dir",
         "pivot",
+        "about",
+        "limit",
         "min",
         "max",
         "to",
