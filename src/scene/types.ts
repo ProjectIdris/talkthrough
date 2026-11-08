@@ -117,7 +117,7 @@ export type AddPath = {
 export type OtherPartKind = 'chip' | 'header' | 'port' | 'lens' | 'screen' | 'button' | 'fan' | 'wheel';
 /** A part's name: the parts above and the kit table's rows (a row added to the table is a part at run time; this type knows the rows there are today). */
 export type PartKind = OtherPartKind | KitPartName;
-export type PartVariant = 'black' | 'metal' | 'usb' | 'usb3' | 'ethernet' | 'hdmi' | 'usbc' | 'gold' | 'cutaway' | 'finned' | 'block' | 'ducted';
+export type PartVariant = 'black' | 'metal' | 'usb' | 'usb3' | 'ethernet' | 'hdmi' | 'usbc' | 'gold' | 'cutaway' | 'finned' | 'block' | 'ducted' | 'internal';
 export type AddPart = {
   op: 'add'; shape: 'part'; id: string; parent?: string; parentAnchor?: string; selfAnchor?: string; explode?: Vec3; pos?: Vec3; rot?: Vec3; part: PartKind; variant?: PartVariant;
   size: Vec3; n?: number; color?: Color; material?: string; opacity?: number;

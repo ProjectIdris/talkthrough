@@ -230,10 +230,11 @@ const presets = {
     disc: true,
     fit: ['discAboutZ'],
     settings: { n: { default: 16, min: 6, max: 120 } },
-    values: [['rOut', 'sx/2'], ['rRoot', 'rOut*(n > 40 ? 0.93 : 0.86)'], ['pitch', 'pi*2/n'], ['holes', 'min(6, floor(n/3))']],
+    values: [['rOut', 'sx/2'], ['rRoot', 'rOut*(n > 40 ? 0.93 : 0.86)'], ['pitch', 'pi*2/n'], ['holes', 'min(6, floor(n/3))'],
+      ['inn', "variant == 'internal'"], ['rv', 'rOut/1.1'], ['rti', 'rv*0.93']],
     anchors: [{ name: 'axis', at: [0, 0, 'sz/2'] }],
     features: [
-      { kind: 'slab', surface: 'metal', tint: true, edges: true, depth: 'sz', bevel: 'min(sz*0.12, 0.05)',
+      { kind: 'slab', when: '!inn', surface: 'metal', tint: true, edges: true, depth: 'sz', bevel: 'min(sz*0.12, 0.05)',
         outline: {
           path: [
             { for: { as: 'i', count: 'n' }, let: [['a', 'i*pitch']],
@@ -243,7 +244,12 @@ const presets = {
           ],
           holes: [{ circle: [0, 0, 'rOut*0.16'] }, { when: 'n >= 14', for: { as: 'i', count: 'holes' }, let: [['a', '(i/holes)*pi*2']], circle: ['cos(a)*rOut*0.5', 'sin(a)*rOut*0.5', 'rOut*0.11'] }],
         } },
-      { kind: 'cylinder', surface: 'metal', color: 'darkSteel', edges: true, axis: 'z', r: 'rOut*0.26', h: 'sz*1.25', sides: 'curve' },
+      { kind: 'cylinder', when: '!inn', surface: 'metal', color: 'darkSteel', edges: true, axis: 'z', r: 'rOut*0.26', h: 'sz*1.25', sides: 'curve' },
+      // The internal variant: a ring gear, teeth pointing inward from the valley radius rv (what an outside gear's tip radius is), outside radius sx/2.
+      { kind: 'slab', when: 'inn', surface: 'metal', tint: true, edges: true, depth: 'sz', bevel: 'min(sz*0.12, 0.05)', outline: ring('rOut', 'rv') },
+      { kind: 'slab', when: 'inn', for: { as: 'i', count: 'n' }, let: [['a', 'i*pitch']], surface: 'metal', tint: true, edges: true, depth: 'sz', bevel: 'min(sz*0.12, 0.05)',
+        outline: { path: [['P', 'cos(a - 0.25*pitch)*rv*1.02', 'sin(a - 0.25*pitch)*rv*1.02'], ['P', 'cos(a - 0.17*pitch)*rti', 'sin(a - 0.17*pitch)*rti'],
+          ['P', 'cos(a + 0.17*pitch)*rti', 'sin(a + 0.17*pitch)*rti'], ['P', 'cos(a + 0.25*pitch)*rv*1.02', 'sin(a + 0.25*pitch)*rv*1.02'], ['Z']] } },
     ],
   },
 

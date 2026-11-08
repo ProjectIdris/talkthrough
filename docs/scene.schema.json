@@ -3753,7 +3753,17 @@
             "magnet",
             "ramp",
             "fulcrum",
-            "bolt"
+            "bolt",
+            "gear-train",
+            "rack-and-pinion",
+            "crank-slider",
+            "cam-follower",
+            "lever",
+            "differential",
+            "planetary",
+            "four-bar-linkage",
+            "bicycle-drivetrain",
+            "block-and-tackle"
           ],
           "description": "a part name; another name is taken to the nearest part"
         },
@@ -3771,6 +3781,7 @@
             "finned",
             "block",
             "ducted",
+            "internal",
             null
           ]
         },

@@ -2,6 +2,7 @@
 // Change a field here and both follow; docs/scene-language.md describes the same table.
 
 import { kitParts } from './kit-presets.ts';
+import { assemblyNames } from './assembly.ts';
 import type { KitPartName } from './kit-presets.ts';
 import { MATERIAL_NAMES } from './material-library.ts';
 import { MODELS } from './model-catalogue.ts';
@@ -158,7 +159,7 @@ export const SOLID_SHAPES = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'plan
 /** The parts that are not in the kit table (drawn by their own code); the kit parts follow, as the table has them. A new kit row is a part with no change here. */
 const OTHER_PARTS: readonly OtherPartKind[] = OTHER_PART_NAMES;
 export const PARTS: readonly PartKind[] = [...OTHER_PARTS, ...(kitParts() as KitPartName[])];
-export const PART_VARIANTS = ['black', 'metal', 'usb', 'usb3', 'ethernet', 'hdmi', 'usbc', 'gold', 'cutaway', 'finned', 'block', 'ducted'] as const;
+export const PART_VARIANTS = ['black', 'metal', 'usb', 'usb3', 'ethernet', 'hdmi', 'usbc', 'gold', 'cutaway', 'finned', 'block', 'ducted', 'internal'] as const;
 
 /** The real models' shape, offered only when the build has a model. */
 const ADD_MODEL: Variant = {
@@ -473,7 +474,7 @@ export const VARIANTS: readonly Variant[] = [
     doc: 'A ready-made part fitted to the box size [x,y,z]. ' + partGuide() + ' Anchors (and origin) serve pins, connectors, attaching; numbered: pin1 to pinN (crankshaft n>1), hole1 to holeN. On a face of its parent (right, top...) a part turns to face out unless rot is given; +z faces: port, lens, screen; +y: chip, header, button, fan.',
     fields: {
       shape: { k: 'enum', values: ['part'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
-      part: { k: 'part', values: PARTS }, variant: { k: 'enum', values: PART_VARIANTS, opt: true },
+      part: { k: 'part', values: [...PARTS, ...assemblyNames()] }, variant: { k: 'enum', values: PART_VARIANTS, opt: true },
       size: { k: 'vec3', min: 0.01, max: 100 }, n: { k: 'num', min: 1, max: LIMITS.maxArray, int: true, opt: true },
       color: COLOR_OPT, material: MATERIAL, opacity: OPACITY, at: AT,
     },

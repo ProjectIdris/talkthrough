@@ -622,7 +622,17 @@
             "magnet",
             "ramp",
             "fulcrum",
-            "bolt"
+            "bolt",
+            "gear-train",
+            "rack-and-pinion",
+            "crank-slider",
+            "cam-follower",
+            "lever",
+            "differential",
+            "planetary",
+            "four-bar-linkage",
+            "bicycle-drivetrain",
+            "block-and-tackle"
           ]
         },
         "variant": {
@@ -639,6 +649,7 @@
             "finned",
             "block",
             "ducted",
+            "internal",
             null
           ]
         },

@@ -228,6 +228,25 @@ Mechanism parts are ready-made `part`s for engines, gearboxes and pumps. Each is
 | `fulcrum` | `[width, height, depth]`, a triangular stand with a pivot pin near its apex | `pivot`, `base` |
 | `bolt` | `[head width, length, head width]`, a hex head up and `n` thread ridges (default 8) down the shank | `head`, `tip` |
 
+### Assemblies: working mechanisms as one part
+
+`add part` also takes the name of a working mechanism built from kit parts, already meshed, attached and coupled with the right ratios and directions. It is expanded by the validator into a group (the `add`'s id) and one object for each piece (`<id>-<piece>`), a few named anchors, and the spins, loops, joints and couplings that make it go; each action is validated like one the author wrote, so the author may recolour, label, explode or cut any piece, take over any motion, or build a mechanism of their own instead. The group takes `parent`, `parentAnchor`, `pos`, `rot` and `at` like any group; `color` tints the main piece; `n` sets the count the row names (stages, teeth, planets, lever class), held to its range with a note. An id longer than the piece names allow (31 characters less the longest piece name) is refused. The names are not in the guide's part list (the question text names a matching assembly instead); the rows are in `src/scene/assembly-rows.ts`.
+
+| assembly | default size | `n` | pieces to drive or label | what it does |
+| --- | --- | --- | --- | --- |
+| `gear-train` | `[14,7,4]` | stages 1 to 4 (2) | `pinion0`, `gear1`... | a small gear of 12 teeth driving a gear of 36 on each next shaft: a third of the speed, the other way round, stage after stage |
+| `rack-and-pinion` | `[12,5,2]` | pinion teeth 8 to 24 (12) | `pinion`, `rack` | the pinion rocks (swing loop) and the bar goes the length of the pitch circle that rolls |
+| `crank-slider` | `[4.3,8.3,3.8]` | | `crankshaft`, `piston` | the engine's crank, rod and piston, scaled to the box |
+| `cam-follower` | `[3,8,6]` | | `camshaft`, `valve` | a lobed shaft lifting a valve |
+| `lever` | `[12,5,2.4]` | class 1 to 3 (1) | `beam`, `fulcrum`, `load`, `effort` | the beam rocks about a fulcrum placed for the class |
+| `differential` | `[12,8.7,13]` | | `pinion`, `ring`, `carrier`, `spider-top`, `side-left`, `axle-left` | a pinion of 12 on a ring of 36 at right angles (bevel gears with apexes together), spiders on the carrier, two side gears; the axles turn together as twice the carrier and a little apart (cornering) |
+| `planetary` | `[10,10,2]` | planets 2 to 4 (3) | `sun`, `ring`, `carrier`, `planet0`... | a sun of 12, planets of 12, a fixed ring of 36 (teeth inward): the carrier turns at a quarter of the sun |
+| `four-bar-linkage` | `[10,6,2]` | | `crank-arm`, `coupler`, `rocker`, `ground` | the parallelogram form only: the coupler stays level, the rocker follows the crank turn for turn |
+| `bicycle-drivetrain` | `[18,14,6]` | | `chainring`, `sprocket`, `wheel`, `chain`, `pedal` | 44 teeth driving 16 by a wrapped chain, 2.75 turns for one, the same way, the wheel with the sprocket, the pedal level |
+| `block-and-tackle` | `[7,12,2]` | | `load`, `hand`, `fixed`, `moving` | a fixed and a moving sheave, two strands: the hand goes twice as far as the load rises; each sheave turns by the rope laid on it |
+
+Not made: a clock escapement (its stepping is not a linear spin or coupling), a general four-bar (the rocker's angle comes from solving the loop, not from a ratio), pulley tackles of more than two strands.
+
 ### Assembling at named anchors
 
 On `add part`, `parentAnchor` names a point on `parent` and `selfAnchor` names a point on the new part. On `add group`, `parentAnchor` places the group's origin at that point on its parent. Both require `parent`. If either anchor field is present, an omitted anchor name means `origin`; if neither is present, ordinary `pos` placement is unchanged. Every ready-made part, group and other parent-capable shape has `origin: [0,0,0]`. Mechanism parts also have the names in the table above. Generic shapes have no face sockets: put them inside a mounted group to assemble custom geometry.

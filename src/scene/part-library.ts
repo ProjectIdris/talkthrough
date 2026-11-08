@@ -2,6 +2,7 @@
 // (src/scene/kit-presets.ts); the few drawn by their own code (a chip, a port, a wheel...) are listed here. A part name a scene writes is read as one of these
 // in the way a material name is: its own name, another name it is known by, or one a slip or two away, with a note; nothing like any gives the nearest to list.
 
+import { ASSEMBLY_ROWS } from './assembly-rows.ts';
 import { KIT_PRESETS } from './kit-presets.ts';
 import { closest, norm } from './names.ts';
 
@@ -20,10 +21,12 @@ const OTHER_INFO: Readonly<Record<(typeof OTHER_PARTS)[number], Info>> = {
   wheel: { note: 'n spokes, z', aka: ['tyre', 'tire'] },
 };
 
-const infoOf = (part: string): Info | undefined => (OTHER_INFO as Record<string, Info>)[part] ?? KIT_PRESETS[part];
+const infoOf = (part: string): Info | undefined => (OTHER_INFO as Record<string, Info>)[part] ?? KIT_PRESETS[part] ?? ASSEMBLY_ROWS[part];
 
 /** Every part name, the others first and then the kit in the table's order (read when asked, so a row added to the table is a part). */
 export const partNames = (): string[] => [...OTHER_PARTS, ...Object.keys(KIT_PRESETS)];
+/** What a written name may stand for: the parts, then the assemblies (src/scene/assembly.ts). The guide lists the parts only; an assembly is offered by a hint when the question names one. */
+const writableNames = (): string[] => [...partNames(), ...Object.keys(ASSEMBLY_ROWS)];
 
 export type PartMatch = {
   /** The part the written name stands for. */
@@ -39,7 +42,7 @@ export function resolvePartName(written: unknown): PartMatch {
   if (typeof written !== 'string') return { exact: false, near: [] };
   const n = norm(written.slice(0, 60));
   if (!n) return { exact: false, near: [] };
-  const names = partNames();
+  const names = writableNames();
   const own = names.find((p) => norm(p) === n);
   if (own) return { name: own, exact: true, near: [] };
   const alias = names.find((p) => infoOf(p)?.aka?.some((a) => norm(a) === n));
