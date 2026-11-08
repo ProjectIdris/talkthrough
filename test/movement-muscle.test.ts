@@ -61,12 +61,15 @@ test('a muscle cannot pull a joint past its limits: it stops there and the muscl
   assert.ok(span(plan, 2) > span(plan, 0) * 0.4 + 1e-3, 'it could not reach the length it wanted');
 });
 
-test('a muscle replaces a loop on the part, and a loop after it replaces the muscle', () => {
+test('a muscle replaces a loop written before it; a loop written after it is dropped with a note, until a loop stop frees the part', () => {
   const first = run(upper, fore(), bicep(), hinge(), { op: 'loop', id: 'fore', kind: 'swing', amount: 40, period: 4 }, { op: 'muscle', id: 'bicep', pulls: 'fore', contract: 0.25, period: 4 });
   assert.ok(Math.abs(span(first.plan, 2) - span(first.plan, 0) * 0.75) < 1e-4, 'the muscle drives it');
   const second = run(upper, fore(), bicep(), hinge(), { op: 'muscle', id: 'bicep', pulls: 'fore', contract: 0.25, period: 4 }, { op: 'loop', id: 'fore', kind: 'swing', amount: 40, period: 4 });
-  assert.ok(Math.abs(rotOf(evaluate(second.plan, 1), 'fore')[2]) > 30, 'the loop drives it');
-  assert.ok(Math.abs(span(second.plan, 1) - span(second.plan, 0) * (1 - 0.25 * 0.5)) > 0.05, 'and the muscle no longer does');
+  assert.ok(second.issues.some((i) => /a muscle pulls "fore" already/.test(i.message)), JSON.stringify(second.issues));
+  assert.ok(Math.abs(span(second.plan, 2) - span(second.plan, 0) * 0.75) < 1e-4, 'the muscle still drives it');
+  const freed = run(upper, fore(), bicep(), hinge(), { op: 'muscle', id: 'bicep', pulls: 'fore', contract: 0.25, period: 4 }, { op: 'loop', id: 'fore', kind: 'stop' }, { op: 'loop', id: 'fore', kind: 'swing', amount: 40, period: 4 });
+  assert.deepEqual(freed.issues, []);
+  assert.ok(Math.abs(rotOf(evaluate(freed.plan, 1), 'fore')[2]) > 30, 'the loop drives it once the muscle is stopped');
 });
 
 /** A point of an object in the world: up through its parents, each as the frame has it placed. */

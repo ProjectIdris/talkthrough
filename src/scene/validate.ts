@@ -39,6 +39,8 @@ export type SceneState = {
   spins: Map<string, 'x' | 'y' | 'z'>;
   /** The two ends of each connector made so far: a muscle is one of them. */
   connectors?: Map<string, { from: string; to: string }>;
+  /** The parts a muscle pulls: a loop or coupling written for one is dropped (the muscle drives it) until a loop stop frees it. */
+  muscled?: Set<string>;
   /** Where each 3D solid and group stands and how big it is, with normalized kit dimensions: what a tube or line that ends on a part is held against (attach.ts). */
   bodies: Map<string, Body>;
   /** Tubes and lines with an end in the air so far: a part that arrives later may be what that end was meant for. */
@@ -82,7 +84,7 @@ export function createSceneState(): SceneState {
 export function createDetailState(onScreen: SceneState): SceneState {
   return {
     ids: new Map(onScreen.ids), parents: new Map(onScreen.parents), depth: new Map(onScreen.depth), diagramKinds: new Map(onScreen.diagramKinds), parts: new Map(onScreen.parts), joints: new Map(onScreen.joints), follows: new Map(onScreen.follows), rides: new Map(onScreen.rides), spins: new Map(onScreen.spins),
-    bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [], connectors: new Map(onScreen.connectors ?? []),
+    bodies: new Map(onScreen.bodies), loose: new Map(onScreen.loose), after: [], connectors: new Map(onScreen.connectors ?? []), muscled: new Set(onScreen.muscled ?? []),
     turnSteps: 0, turnActions: 0, copies: onScreen.copies, replaceable: new Set(onScreen.ids.keys()),
     ...(onScreen.stage ? { stage: { ...onScreen.stage } } : {}),
   };
@@ -688,6 +690,13 @@ function validateAction(raw: unknown, state: SceneState, path: string, notes: No
     return null;
   }
   if (variant.name === 'spin' && !checkSpin(out, state, path, notes)) return null;
+  if ((variant.name === 'loop' || variant.name === 'couple') && state.muscled?.has(out.id as string)) {
+    if (variant.name === 'loop' && out.kind === 'stop') state.muscled.delete(out.id as string);
+    else if (!(variant.name === 'couple' && out.stop === true)) {
+      note(notes, 'dropped', path, `a muscle pulls "${out.id as string}" already; write loop with kind stop to free it first`);
+      return null;
+    }
+  }
   if (variant.name === 'loop' && out.kind !== 'stop') {
     // The kind is the object's joint when left out; an amount is a travel, an angle or a size factor by its kind, each in a range that still reads as that motion.
     const joint = state.joints.get(out.id as string);
@@ -943,6 +952,7 @@ function checkMuscle(out: Record<string, unknown>, state: SceneState, path: stri
     note(notes, 'dropped', `${path}.pulls`, `a muscle turns a hinge or pivot joint: give "${pulls}" one first (joint hinge about its end, or pivot) with min and max`);
     return false;
   }
+  (state.muscled ??= new Set()).add(pulls);
   return true;
 }
 
