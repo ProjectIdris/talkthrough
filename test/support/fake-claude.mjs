@@ -22,6 +22,7 @@ const lines = createInterface({ input: process.stdin });
 lines.on('line', function onLine(line) {
   if (line.includes('"type":"control_request"')) {
     gotSchema = line.includes('"jsonSchema"');
+    if (process.env.FAKE_INIT === 'ignore') return; // a command-line tool that does not know the request: no reply, the answer comes as it would without a schema
     send({ type: 'control_response', response: { subtype: process.env.FAKE_INIT === 'error' ? 'error' : 'success', request_id: 'talkthrough-init', response: {}, ...(process.env.FAKE_INIT === 'error' ? { error: 'no thanks' } : {}) } });
     return;
   }

@@ -140,6 +140,20 @@ test('claude: a reply to the schema that says it was not taken refuses the quest
   }
 });
 
+test('claude: a command-line tool that gives no reply to the schema before its answer begins is refused as not having taken it', async () => {
+  process.env.FAKE_MODE = 'ok';
+  process.env.FAKE_INIT = 'ignore';
+  const model = createClaudeModel({ command: process.execPath, prefixArgs: [fakeClaude], timeoutMs: 5000 });
+  try {
+    const error = await failure(model);
+    assert.equal(error.code, 'unavailable');
+    assert.match(error.message, /did not take the schema/);
+  } finally {
+    delete process.env.FAKE_INIT;
+    await model.close?.();
+  }
+});
+
 test('claude: an init message that lists any tool but the structured-output channel is refused', async () => {
   assert.equal(initProblem({ tools: ['StructuredOutput'], mcp_servers: [], slash_commands: [] }), null);
   assert.match(initProblem({ tools: ['StructuredOutput', 'Bash'] }) ?? '', /Bash/);

@@ -143,6 +143,8 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
       let finished = false;
       let stderrTail = '';
       let streamingTool = false;
+      // The reply to the schema (control_response) comes before anything of the answer; a tool that never replied did not read the request.
+      let schemaReplied = false;
       // The API call being streamed, for the figures when the answer is taken before the command-line tool ends its own.
       let call: Json | undefined;
       let settle: ReturnType<typeof setTimeout> | undefined;
@@ -187,6 +189,7 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
       const onEvent = (event: Json) => {
         if (finished) return;
         if (event.type === 'control_response') {
+          schemaReplied = true;
           const reply = (event.response ?? {}) as Json;
           if (reply.subtype === 'error') fail(new ModelError('unavailable', `claude did not take the schema: ${String(reply.error ?? 'no reason given').slice(0, 200)}`));
           return;
@@ -194,6 +197,11 @@ export function createClaudeModel(options: ClaudeModelOptions = {}): Model {
         if (event.type === 'system' && event.subtype === 'init') {
           const problem = initProblem(event);
           if (problem) fail(new ModelError('refused', `refusing to continue: ${problem}`));
+          return;
+        }
+        if (!schemaReplied && (event.type === 'stream_event' || event.type === 'assistant' || event.type === 'result')) {
+          // Text before any reply: this command-line tool ignored the opening request, so the answer is not shaped by the schema (it would end as plain text).
+          fail(new ModelError('unavailable', 'claude did not take the schema: it answered without replying to the request that carries it'));
           return;
         }
         if (event.type === 'stream_event') {
