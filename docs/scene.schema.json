@@ -1450,7 +1450,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A closed hollow ellipsoid section: domes, bowls, curved enclosures and opened layers. size is the full outer ellipsoid diameters [x,y,z], not the cropped bounds. inner (default .85) scales its concentric cavity, not a uniform wall thickness. latitude [south,north] degrees -90..90 (default [-90,90], span at least 1); sweep 1..360 (default 360) runs from +x toward +z around y. Radial rims close the material volume. Rotate to aim the opening. Invalid or unsafe geometry rejects."
+      "description": "A closed hollow ellipsoid section: domes, bowls, curved enclosures, opened layers. size is the full outer diameters [x,y,z]; inner (default .85) scales the cavity concentrically, so the wall is not a constant thickness; latitude [south,north] degrees -90..90 (default [-90,90], span at least 1) cuts a dome or bowl; sweep 1..360 (default 360) runs from +x toward +z around y and leaves an angular opening: rot aims it. Radial rims close the volume; unsafe geometry rejects."
     },
     "addExtrude": {
       "type": "object",
@@ -1682,7 +1682,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets. Ordinary extrusions support disjoint through-hole rings strictly inside the outline, with flat edges only. Optional taper or shift makes a sharp closed transition: the negative-z end is the outline, the positive-z end is outline*taper+shift, scaling about the local origin. Defaults in this mode: taper 1, shift [0,0]. taper 0.05..20; both end coordinates -100..100; depth 0.01..100. Requires a simple polygon, 3..40 points, either winding. Invalid or Float32-unsafe geometry rejects, not repairs. Bevel must be omitted/null/0; through-holes are not supported in this mode."
+      "description": "A flat outline [[x,y],...] in the x,y plane, pushed out depth (0.01..100) along z and centred on it: wings, fins, plates, brackets. A simple polygon of 3..40 points, either winding. holes: up to 8 separate rings of 3 to 24 points, strictly inside the outline and clear of each other (no touching, crossing or nesting), 128 points in all with the outline, flat edges only (bevel 0). taper or shift makes a sharp closed transition: the negative-z end is the outline, the positive-z end is outline*taper+shift about the local origin (taper 0.05..20, defaults 1 and [0,0], ends within -100..100); it takes no bevel or holes. Unsafe geometry rejects, not repairs."
     },
     "addHull": {
       "type": "object",
@@ -2064,7 +2064,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides makes it faceted (default quality tiers: 20/36/64). Optional sweep 1..359 degrees makes a closed sector from +z towards +x about +y; rotate to choose its start. Sector profile: simple closed polygon, 3..40 points (one repeated closing point allowed), radius 0..100, y -100..100. Invalid, touching, intersecting or Float32-unsafe profiles and invalid sweeps are rejected, not repaired. Either winding; exact redundant collinear boundary points are removed. sides is segments per full revolution (sector segments scale proportionally, at most 90 degrees each)."
+      "description": "A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides is the segments per full revolution (default by quality: 20/36/64). sweep 1..359 degrees makes a cutaway: a closed sector from +z towards +x about +y (rot chooses where it starts); the profile is then a simple closed polygon of 3..40 points, radius 0..100, y -100..100, not touching or crossing itself, either winding. Omit sweep for the full lathe. Bad profiles reject, not repair."
     },
     "addPatch": {
       "type": "object",
@@ -2247,7 +2247,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "An open bicubic Bézier sheet: exactly 16 controls [x,y,z], four rows of four in row-major order. Each row runs across u; rows advance v. Corners lie on the sheet; other controls pull its curvature, not interpolation points. Curved panels, canopies, membranes. Two-sided, no thickness or solid cut cap. Use a regular net without folds or collapsed rows."
+      "description": "An open bicubic Bézier sheet: exactly 16 controls [x,y,z], four rows of four in row-major order (rows run across u and advance v). Corners lie on the sheet; the other controls pull its curve, they are not points to interpolate, so use a regular net without folds or collapsed rows. Two-sided, no thickness: curved panels, canopies, membranes."
     },
     "addSweep": {
       "type": "object",
@@ -2460,7 +2460,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A closed polygon outline carried along a smooth open 3D path: curved rails, shaped cables and solid bands. Outline x,y are local section offsets; up sets initial +y, projected perpendicular to the path (default +y, or +x for a vertical start). The section follows with minimum rotation. Flat caps and sharp section corners by default; smooth:true blends shallow wall joins without changing geometry. No bevel or holes. Keep the profile narrow relative to bends; folded or collapsed sampled meshes are rejected."
+      "description": "A closed polygon outline carried along a smooth open 3D path pts: curved rails, shaped cables, solid bands. Outline x,y are section offsets; up sets the initial +y (default +y, or +x for a vertical start). The section follows with minimum rotation, so keep it narrow relative to bends. Flat caps and sharp corners; smooth:true blends shallow wall joins without changing geometry. No bevel, holes, stream or reveal."
     },
     "addLoft": {
       "type": "object",
@@ -2667,7 +2667,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A closed solid joining independently shaped convex end outlines by matching point indices, at z=-depth/2 and +depth/2. Both rings need 3–24 corners, equal counts and the same winding; every interpolated section must stay strictly convex. No closing duplicate, collinear corners, holes or bevel. Use for asymmetric shape-changing transitions; no automatic recentering or point rematching. Optional smooth:true blends shallow wall joins while retaining flat caps and sharp corners."
+      "description": "A closed solid joining two convex end outlines by matching point indices: outline at z=-depth/2, endOutline at +depth/2. Both rings need 3-24 corners, equal counts and the same winding, and every section between must stay strictly convex (no closing repeat, collinear corners, holes or bevel). For solid asymmetric transitions, not hollow ducts; smooth:true blends shallow wall joins and keeps flat caps and sharp corners."
     },
     "addBlob": {
       "type": "object",
@@ -2861,7 +2861,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A soft organic form blended from up to 12 ellipsoid lumps, each at a point of pts with its own box size [x,y,z] in sizes (the same count, or the last is repeated): a heart or other organ, a fruit, an animal body or head, a leaf. Lumps that overlap melt into one skin with smooth necks; soft (0.05 to 1, default 0.5) is how far they blend. Build one form per blob and join forms with tube."
+      "description": "A soft organic form blended from up to 12 ellipsoid lumps, each at a point of pts with its own box size [x,y,z] in sizes (the same count, or the last is repeated). Overlapping lumps melt into one skin with smooth necks; soft (0.05 to 1, default 0.5) is how far they blend. One form per blob; join forms with tube."
     },
     "addTube": {
       "type": "object",
@@ -3049,7 +3049,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A smooth tube through the points: cables, pipes, vessels, stems, limbs. closed true joins it into a continuous loop (three distinct points minimum, no caps or endpoint attachment). flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail."
+      "description": "A smooth tube through the points: cables, pipes, vessels, stems, limbs. closed true joins it into a continuous loop (three distinct points minimum, no caps or endpoint attachment, no wave). flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail. An end that lies on a part is joined to it and goes with it: keep a part that travels along the tube (along, a mouthful) off the ends, or the tube is pulled into a stub."
     },
     "addPath": {
       "type": "object",
@@ -3387,7 +3387,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A physical rope, belt, wire, chain or pipe between two parts of one 3D model, its ends on them, following them as they move (it never links panels, cards or marks: flat diagram arrows are edge). kind straight (default) is taut and shortens as a weight rises; slack hangs in a sag; wrapped is a flat belt round two wheels. fromSide and toSide say where an end meets its object, as seen from the front (left, right, top, bottom, front, back; the rim of a wheel), else its middle; fromAnchor and toAnchor name a point of a ready-made part."
+      "description": "A physical rope, belt, wire, chain or pipe between two parts of one 3D model, its ends on them, following them as they move (never panels, cards or marks: flat diagram arrows are edge). kind straight (default) is taut and shortens as a weight rises; slack hangs in a sag; wrapped is a flat belt round two wheels. fromSide and toSide say where an end meets its object, as seen from the front (left, right, top, bottom, front, back; the rim of a wheel), else its middle; fromAnchor and toAnchor name a point of a ready-made part; fromPoint and toPoint are points in each part's own space. swell and restLength make a muscle or soft cord bulge as its ends approach."
     },
     "addStream": {
       "type": "object",
@@ -3486,6 +3486,20 @@
             "null"
           ],
           "description": "seconds after the step starts; 0 to 60"
+        },
+        "surge": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "flow in beats: the markers speed up and slow down once a beat by this fraction of their speed (0.8 is strong surges, as blood in a pulse); not with by; 0.05 to 0.95"
+        },
+        "beat": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds a beat takes (default 1); 0.2 to 10"
         }
       },
       "required": [
@@ -3503,10 +3517,338 @@
         "by",
         "ratio",
         "opacity",
-        "at"
+        "at",
+        "surge",
+        "beat"
       ],
       "additionalProperties": false,
       "description": "Dots, dashes or arrows travelling along a tube, line, arrow, connector or an edge of a flow diagram, running on by themselves. period is the seconds a marker takes for the whole way (negative runs backwards, default 4); or by a spinning part, ratio laps for each turn. color changes to toColor along the way (shiftAt, 0 to 1, is where)."
+    },
+    "addParticles": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "particles"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "count": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "4 to 80"
+        },
+        "from": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], each 0.05 to 100"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], each 0.05 to 100"
+        },
+        "shift": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "where the middle of the box they fill is, from the middle of the box they start in; [x,y,z], each -100 to 100"
+        },
+        "size": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.01 to 2"
+        },
+        "jitter": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "how far each jostles (default 0.12); 0 to 2"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds a jostle takes (default 1.5); 0.2 to 20"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "draw": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "how spread out they are at first, 0 crowded in the start box to 1 filling the other (default 0); grow it with reveal; 0 to 1"
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "count",
+        "from",
+        "to",
+        "shift",
+        "size",
+        "jitter",
+        "period",
+        "color",
+        "draw",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A cloud of count small particles (default 30) that spread out: they begin in a box of size from at pos and, as reveal takes the cloud from 0 to 1 (it begins at 0, so they start crowded), drift apart to fill a box of size to, centred shift further on, jostling all the while. Diffusion, a gas filling a room, dye in water; a membrane is a plane or box between."
+    },
+    "addForce": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "force"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "on": {
+          "type": "string",
+          "description": "the part the force acts on"
+        },
+        "point": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 24 characters"
+        },
+        "dir": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "the direction it points, [x,y,z] in the scene: [0,-1,0] is down; [x,y,z], each -100 to 100"
+        },
+        "strength": {
+          "type": "number",
+          "description": "0.05 to 30"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "on",
+        "point",
+        "dir",
+        "strength",
+        "color",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "An arrow for a force on a part: from a point of it (point, default center) the way dir points in the scene (not the part: gravity stays down as the part turns), strength units long and thicker the stronger, following the part wherever it goes. Colour it and name it with a pin; scale it to change its strength, loop pulse it to make it come and go."
+    },
+    "addField": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "add"
+          ]
+        },
+        "shape": {
+          "enum": [
+            "field"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "id of a group, part or shape to attach to; create a new parent no later than this child (it carries this along)"
+        },
+        "pos": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], default [0,0,0]; [x,y,z], each -100 to 100"
+        },
+        "kind": {
+          "enum": [
+            "dipole",
+            "radial",
+            "uniform"
+          ]
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            null
+          ]
+        },
+        "size": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.5 to 40"
+        },
+        "count": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "2 to 16"
+        },
+        "gap": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 40"
+        },
+        "flip": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "reverse the way the lines point"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "a colour name (red, orange, yellow, green, teal, blue, purple, pink, white, gray, black) or hex \"#rrggbb\""
+        },
+        "opacity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 1"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "shape",
+        "id",
+        "parent",
+        "pos",
+        "kind",
+        "axis",
+        "size",
+        "count",
+        "gap",
+        "flip",
+        "color",
+        "opacity",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Field lines as arrows in the front plane round pos: dipole (a bar magnet or pair of charges: lines leave the end on the positive axis side and curve round to the other), radial (spokes out from a point charge, in to a mass: flip reverses them), uniform (parallel lines along axis, between plates or near the ground). size is how far they reach (default 5), count how many (default 8), gap the room between poles or plates. One group: clear its id to take them all away."
     },
     "addPart": {
       "type": "object",
@@ -3670,7 +4012,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Each has good proportions; mechanism anchors and the origin of every part can be used by pins, connectors and parentAnchor/selfAnchor placement."
+      "description": "A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Their anchors and origin work for pins, connectors and parentAnchor/selfAnchor."
     },
     "addArray": {
       "type": "object",
@@ -4540,7 +4882,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. piston, shaft and rod are the ids of the piston (never the cylinder block), the crankshaft and the connecting rod. Put the three in one group, the crankshaft turning with spin. On a plain cylinder laid on its side as the crankshaft, the crank draws the pin and runs the rod on it in front of the disc: add no pin of your own. pin is which throw (1 is the first)."
+      "description": "Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. piston, shaft and rod are the ids of the piston (never the cylinder block), the crankshaft and the connecting rod, in one group, the crankshaft turning with spin. On a plain cylinder laid on its side as the crankshaft, the crank draws the pin and runs the rod on it in front of the disc: add no pin of your own. pin is which throw (1 is the first)."
     },
     "cam": {
       "type": "object",
@@ -4656,7 +4998,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A glow that comes on at one point of the cycle of a turning part: the object (a small sphere for a spark, a larger one for the burn) is invisible, flares to its opacity at the crank angle given and dies away over span degrees. by is the crankshaft; angle is degrees into a cycle of cycle degrees (default 720, a four-stroke engine: 0 is the piston at the top starting the intake, 360 the top of the compression)."
+      "description": "A glow at one point of the cycle of a turning part: the object (a small sphere for a spark, a larger one for the burn) is invisible, flares to its opacity at the given angle and dies away over span degrees. by is the crankshaft; angle is degrees into a cycle of cycle degrees (default 720, a four-stroke engine: 0 is the piston at the top starting the intake, 360 the top of the compression)."
     },
     "loop": {
       "type": "object",
@@ -4674,6 +5016,8 @@
             "slide",
             "swing",
             "pulse",
+            "gate",
+            "float",
             "stop",
             null
           ]
@@ -4683,7 +5027,21 @@
             "number",
             "null"
           ],
-          "description": "slide: positive total travel in units; swing: signed degrees each side (negative reverses the swing, zero holds still); pulse: positive size factor (1.3 is 30% bigger, 0.8 smaller); -360 to 360"
+          "description": "slide: positive total travel in units; swing: signed degrees each side (negative reverses the swing, zero holds still); pulse: positive size factor (1.3 is 30% bigger, 0.8 smaller); gate: degrees the hinge opens on half of each cycle; float: units it bobs up and down; -360 to 360"
+        },
+        "damp": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "cycles for the motion to fall to a third of its size, so it settles (a pendulum running down); left out, it never settles; 0.2 to 50"
+        },
+        "tilt": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "float: degrees it rocks from side to side about z (default 4); 0 to 30"
         },
         "axis": {
           "enum": [
@@ -4743,6 +5101,8 @@
         "id",
         "kind",
         "amount",
+        "damp",
+        "tilt",
         "axis",
         "period",
         "by",
@@ -4996,7 +5356,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A beam that rocks about a fulcrum: a hinge at fulcrum, a point of the beam (center, the default, is a seesaw and the first class; left or right, an end, with the load or the effort between it and the other end, is the second and third class; or a point named with anchor), swinging swing degrees each side every period seconds. Attach the load and the effort at points of the beam (parentAnchor) and they rise and fall with it."
+      "description": "A beam that rocks about a fulcrum: a hinge at fulcrum, a point of the beam (center, the default, is a seesaw, the first class; left or right, an end, with the load or the effort between it and the other end, the second and third class; or a point named with anchor), swinging swing degrees each side every period seconds. Attach the load and the effort at points of the beam (parentAnchor) and they rise and fall with it."
     },
     "muscle": {
       "type": "object",
@@ -5052,7 +5412,7 @@
         "at"
       ],
       "additionalProperties": false,
-      "description": "A connector that is a muscle: it shortens by contract (a fraction of its relaxed length, 0.02 to 0.9, default 0.2) and lengthens again every period seconds (default 2), and the part it pulls (pulls, the id of one of its two ends, or from or to, with a hinge or pivot joint with min and max to hold it) is turned by it, not beside it. Join the ends with fromPoint and toPoint or fromAnchor and toAnchor; its belly swells as it shortens (swell). id is the connector."
+      "description": "A connector that is a muscle: it shortens by contract (a fraction of its relaxed length, 0.02 to 0.9; 0.1 to 0.25 for a limb) and lengthens again every period seconds, turning the part it pulls (pulls, the id of one of its two ends, or from or to; that part needs a hinge or pivot joint with min and max). Join the ends with fromPoint and toPoint or fromAnchor and toAnchor; its belly swells as it shortens (swell). id is the connector."
     },
     "pulley": {
       "type": "object",
@@ -5091,6 +5451,20 @@
           ],
           "description": "the axis the wheel turns about: left out, a cylinder turns about its own long axis as it lies and anything else about z"
         },
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-3600 to 3600"
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-3600 to 3600"
+        },
         "at": {
           "type": [
             "number",
@@ -5106,10 +5480,599 @@
         "radius",
         "rpm",
         "axis",
+        "min",
+        "max",
         "at"
       ],
       "additionalProperties": false,
-      "description": "A rope over a wheel: the wheel (wheel) turns rpm turns a minute (default 20, negative the other way) and the load (id) rises by the rope laid on it, 2 x pi x radius for each turn. radius is the rope's radius on the wheel, read from the wheel's size when left out. A winch, a crane drum and a wheel and axle (give the axle's radius) are the same."
+      "description": "A rope over a wheel: the wheel (wheel) turns rpm turns a minute (negative the other way) and the load (id) rises by the rope laid on it, 2 x pi x radius for each turn, without end unless max stops it (the most it may rise, in units; min the least). radius is the rope's radius on the wheel, read from the wheel's size when left out. A winch, a crane drum and a wheel and axle (give the axle's radius) are the same."
+    },
+    "wave": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "wave"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.2 to 4"
+        },
+        "width": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.03 to 0.6"
+        },
+        "count": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 6"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-60 to 60"
+        },
+        "stop": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "amount",
+        "width",
+        "count",
+        "period",
+        "stop",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A wave running along an open tube: peristalsis, a pulse down a vessel. amount is the radius at its crest as a factor (above 1 a swell, below 1 a squeeze), width the fraction of the tube it spans, count how many run at once, period the seconds a crest takes for the whole tube (negative runs backwards). A one-marker stream along the same tube with the same period rides the crest (a mouthful going down). stop true ends it."
+    },
+    "pendulum": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "pendulum"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "from": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pivot": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "[x,y,z], each -100 to 100"
+        },
+        "swing": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1 to 90"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "damp": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.2 to 50"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "from",
+        "pivot",
+        "swing",
+        "period",
+        "damp",
+        "axis",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A weight hanging from a point and swinging: id is the weight, from the part it hangs from (the swing is about its middle) or pivot, the point from the weight to the hang point. swing is degrees each side, period seconds (left out, longer for a longer string), damp cycles for it to settle. It starts let go at the far end. Draw the string as a connector between the two; hang it from a part that does not slide, and write the pendulum after any loop on its parts."
+    },
+    "oscillate": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "oscillate"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.01 to 50"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "damp": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.2 to 50"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "amount",
+        "period",
+        "damp",
+        "axis",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A weight bobbing on a spring or elastic: it moves amount units each way along axis (default y) every period seconds, starting pulled to the low end and let go, and settles if damp (cycles to fall to a third) is given. Draw the spring or elastic as a connector from its fixed end to the weight."
+    },
+    "float": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "float"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "bob": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.01 to 20"
+        },
+        "tilt": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 30"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "damp": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.2 to 50"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "bob",
+        "tilt",
+        "period",
+        "damp",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "Buoyancy, illustrated: the part rides on water, bobbing bob units and rocking tilt degrees every period seconds. Put it at the water line first (drop does that); damp settles it."
+    },
+    "drop": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "drop"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "to": {
+          "type": "number",
+          "description": "-100 to 100"
+        },
+        "bounce": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0 to 0.8"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        },
+        "dur": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds the change takes (default 0.6); 0 to 30"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "to",
+        "bounce",
+        "at",
+        "dur"
+      ],
+      "additionalProperties": false,
+      "description": "Gravity, illustrated: the part falls to height to (y, in the units of the group it is in) with an ever faster pull, and bounces bounce (0 lands dead, 0.8 very springy) times lower each time until it settles. dur left out, it takes as long as the fall."
+    },
+    "pump": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "pump"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "inlet": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "outlet": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "squeeze": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.3 to 0.95"
+        },
+        "open": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-170 to 170"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.2 to 20"
+        },
+        "hinge": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "up to 24 characters"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "inlet",
+        "outlet",
+        "squeeze",
+        "open",
+        "period",
+        "hinge",
+        "axis",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A chamber that squeezes and refills behind one-way valves, for a heart or a bellows: id is the chamber (it shrinks to squeeze of its size, then refills, every period seconds), inlet the flap that opens while it refills and outlet the flap that opens while it squeezes. Each valve turns about its hinge point (a named point of the valve, default left) by open degrees (negative the other way)."
+    },
+    "incline": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "incline"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "ramp": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "angle": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-80 to 80"
+        },
+        "travel": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 100"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "ramp",
+        "angle",
+        "travel",
+        "period",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "An inclined plane: the load (id) slides up and down the slope, travel units in all, every period seconds. The slope is the turn of the ramp (a box turned about z; its length runs along x), or angle degrees."
+    },
+    "wedge": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "wedge"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "drives": {
+          "type": "string"
+        },
+        "angle": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "3 to 70"
+        },
+        "travel": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 100"
+        },
+        "period": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "0.1 to 60"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "drives",
+        "angle",
+        "travel",
+        "period",
+        "axis",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A wedge driven in along axis (default y), travel units in all every period seconds, pushing the part it drives (drives) aside across axis by tan(angle) of its own travel, angle being the wedge's half angle in degrees (default 20): an axe in a log, a door stop. Put the driven part on the side of the wedge it is to be pushed to; write it again for the other side."
+    },
+    "screw": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "enum": [
+            "screw"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "screw": {
+          "type": "string"
+        },
+        "pitch": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-20 to 20"
+        },
+        "rpm": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-600 to 600"
+        },
+        "axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ]
+        },
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-3600 to 3600"
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "-3600 to 3600"
+        },
+        "at": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "seconds after the step starts; 0 to 60"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "screw",
+        "pitch",
+        "rpm",
+        "axis",
+        "min",
+        "max",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A screw and its nut: the screw (screw) turns rpm turns a minute and the nut (id) travels along its length pitch units for each turn (negative the other way), without end unless max stops it (the most it may travel, in units; min the least). A cylinder turns about its own long axis as it lies; axis says otherwise."
     },
     "cut": {
       "type": "object",
@@ -5169,7 +6132,7 @@
         "dur"
       ],
       "additionalProperties": false,
-      "description": "Cut a 3D object and its children open. Choose axis x/y/z or normal [x,y,z], never both. normal is a nonzero local direction with finite components from -100 to 100; magnitude is ignored. to is signed distance along that unit direction from the local origin (not necessarily the center of a hull point cloud); the positive side is removed. Omit direction to keep the active cut direction (initially +z). Direction changes at the action start; only to animates. Closed opaque pieces are capped; open surfaces are not. to 100 removes the cut."
+      "description": "Cut a 3D object and its children open. Choose axis x/y/z or normal [x,y,z] (a nonzero local direction, components -100 to 100, magnitude ignored), never both. to is the signed distance along that unit direction from the local origin (not necessarily the centre of a hull); the positive side is removed, and to 100 removes the cut. Omit the direction to keep the active one (initially +z); it changes at the action's start, only to animates. Closed opaque pieces are capped; open surfaces are not."
     },
     "orbit": {
       "type": "object",
@@ -5380,7 +6343,7 @@
         "dir"
       ],
       "additionalProperties": false,
-      "description": "Guide mode, optional: let the app make one navigation move for the person, in a step that points at it (the wait stays: if the app does not do it, they click). kind is tab (a tab), open (a menu item that opens a submenu) or scroll (a window or area; dir down by default). x,y is the middle of that control on the screenshot (anywhere in the area for scroll). The app does it only in a native window, only if the person has allowed it, says so aloud first, and refuses everything that is not exactly this (a button, a link, a checkbox, a field, anything that saves, sends, deletes or buys). At most one a step."
+      "description": "Guide mode, optional: let the app make one navigation move for the person, in a step that points at it (the wait stays: if the app does not do it, they click). kind is tab, open (a menu item that opens a submenu) or scroll (dir down by default); x,y is the middle of that control on the screenshot (anywhere in the area for scroll). Only in a native window and only if the person has allowed it; the app says so aloud first and refuses anything else (a button, link, checkbox, field, anything that saves, sends, deletes or buys). At most one a step."
     },
     "clear": {
       "type": "object",
@@ -5503,6 +6466,15 @@
           "$ref": "#/$defs/addStream"
         },
         {
+          "$ref": "#/$defs/addParticles"
+        },
+        {
+          "$ref": "#/$defs/addForce"
+        },
+        {
+          "$ref": "#/$defs/addField"
+        },
+        {
           "$ref": "#/$defs/addPart"
         },
         {
@@ -5576,6 +6548,33 @@
         },
         {
           "$ref": "#/$defs/pulley"
+        },
+        {
+          "$ref": "#/$defs/wave"
+        },
+        {
+          "$ref": "#/$defs/pendulum"
+        },
+        {
+          "$ref": "#/$defs/oscillate"
+        },
+        {
+          "$ref": "#/$defs/float"
+        },
+        {
+          "$ref": "#/$defs/drop"
+        },
+        {
+          "$ref": "#/$defs/pump"
+        },
+        {
+          "$ref": "#/$defs/incline"
+        },
+        {
+          "$ref": "#/$defs/wedge"
+        },
+        {
+          "$ref": "#/$defs/screw"
         },
         {
           "$ref": "#/$defs/cut"

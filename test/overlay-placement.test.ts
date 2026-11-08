@@ -297,7 +297,7 @@ test('a diagram that has to grow is placed again for its new size, at that size,
 test('a stage the model asked for small is given more room (blank page first, then page text if that is all there is), never over what is pointed at, and not past a comfortable size', () => {
   const small = { x: 700, y: 200, w: 130, h: 200 };
   const grown = placer().panel(small);
-  assert.ok(grown.w >= 130 * 1.5 && grown.w <= 320 && grown.h <= 560 && inside(grown), `grown on blank page: ${JSON.stringify(grown)}`);
+  assert.ok(grown.w >= 130 * 1.5 && grown.w <= 320 && grown.h <= 620 && inside(grown), `grown on blank page: ${JSON.stringify(grown)}`);
   assert.ok(placer().busy({ x: grown.x - 6, y: grown.y - 10, w: grown.w + 12, h: grown.h + 20 }) < 0.02, 'and still on blank page');
   // Narrow blank room: an explanation is the priority, so it grows onto the text beside the strip rather than stay a sliver.
   const tight = new Placer(textPage(0.85), { aspect: 16 / 9 }).panel({ x: 880, y: 200, w: 100, h: 200 });
@@ -308,8 +308,8 @@ test('a stage the model asked for small is given more room (blank page first, th
   p.reserve(pointed);
   const beside = p.panel(small);
   assert.ok(!overlaps(beside, pointed), JSON.stringify(beside));
-  // A stage already of a comfortable size is left alone.
-  assert.deepEqual(placer().panel({ x: 600, y: 150, w: 320, h: 560 }), { x: 600, y: 150, w: 320, h: 560 });
+  // A stage already of a comfortable size (a fair share of the screen's height) is left alone.
+  assert.deepEqual(placer().panel({ x: 600, y: 100, w: 320, h: 620 }), { x: 600, y: 100, w: 320, h: 620 });
   // A page that is all text: the stage still gets its room; it does not stay small to spare the text.
   const crowded = new Placer(textPage(1), { aspect: 16 / 9 }).panel(small);
   assert.ok(crowded.w >= small.w * 1.5, JSON.stringify(crowded));
