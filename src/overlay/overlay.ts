@@ -48,7 +48,7 @@ import { followupKeepOut, followupSpot } from './followup-placement.ts';
 import type { CaptionDriver, CaptionState, Rect } from './captions.ts';
 import { readingSeconds } from '../shared/captions.ts';
 import { PanelScene } from './scene3d.ts';
-import { HEAVY_MODEL_TRIANGLES, cornerFor, createModelStore, creditLine, failedNote, modelTriangles, modelsIn, withoutFailedModels } from './model-assets.ts';
+import { HEAVY_MODEL_TRIANGLES, cornerFor, createModelStore, creditLine, failedNote, modelTriangles, modelsIn, takeApartable, withoutFailedModels } from './model-assets.ts';
 import type { ScreenRect } from './scene3d.ts';
 import type { Frame } from './timeline.ts';
 
@@ -127,6 +127,7 @@ console.info(`talkthrough: overlay tier ${tier} on ${graphicsName() || 'an unnam
 const settings = TIERS[tier];
 /** The real models' meshes: files next to this page, checked against the hashes the catalogue pins; a redraw is asked for as each arrives. */
 const modelStore = createModelStore({
+  maxTexture: settings.modelTexture,
   read: async (file) => {
     const response = await fetch(new URL(`../models/${file}`, location.href));
     if (!response.ok) throw new Error(`${file} could not be read`);
@@ -997,7 +998,7 @@ function placeCredit(frame: Frame): void {
 
 /** Shows the Explode / Assemble control at the corner of a finished model with parts to spread, and hides it otherwise. */
 function placeExplode(frame: Frame): void {
-  if (!controlRect || !player.settled || frame.objects.length < 2 || pen.active) {
+  if (!controlRect || !player.settled || takeApartable(frame.objects).length < 2 || pen.active) {
     explodeEl.style.display = 'none';
     detailEl.style.display = 'none';
     cutEl.style.display = 'none';

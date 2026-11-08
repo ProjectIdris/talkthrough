@@ -83,5 +83,5 @@ test('the guide tells the model what the judge sets showed it missing', () => {
 
 test('the prompt keeps to its budget: the guide and the lean schema are sent with every question', () => {
   assert.ok(sceneGuide.length <= 44800, `the guide is ${sceneGuide.length} characters`);
-  assert.ok(JSON.stringify(sceneSchemaLean).length <= 33700, `the lean schema is ${JSON.stringify(sceneSchemaLean).length} characters`);
+  assert.ok(JSON.stringify(sceneSchemaLean).length <= 33900, `the lean schema is ${JSON.stringify(sceneSchemaLean).length} characters`);
 });

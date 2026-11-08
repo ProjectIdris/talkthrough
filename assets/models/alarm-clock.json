@@ -1,0 +1,188 @@
+{
+  "id": "alarm-clock",
+  "name": "Alarm clock",
+  "description": "A twin-bell alarm clock with its glass, hour, minute and second hands, as a textured model",
+  "aliases": [
+    "alarm clock",
+    "clock",
+    "bedside clock"
+  ],
+  "format": "gltf",
+  "licence": {
+    "id": "CC0-1.0",
+    "version": "1.0",
+    "statedOn": "https://polyhaven.com/license",
+    "statement": "Our assets are all licensed as CC0. You do not need to give credit."
+  },
+  "source": {
+    "name": "Poly Haven",
+    "url": "https://polyhaven.com/a/alarm_clock_01",
+    "version": "Alarm Clock 01, 1k glTF, published 2021-08-13",
+    "authors": [
+      "Yann Kervran (rigging)",
+      "James Ray Cock (modelling and texturing)"
+    ],
+    "cacheFolder": "ph-alarm-clock-01"
+  },
+  "retrieved": "2026-11-08",
+  "changes": "Passed through: geometry, UV coordinates, materials and the 1k textures are the source's own, unchanged. Added: a root that puts the model on the scene's axes, in metres, centred on its own middle, and a tag on each named part.",
+  "orient": {
+    "up": "y+",
+    "front": "z+"
+  },
+  "scale": {
+    "unitsToMetres": 1
+  },
+  "caveats": [],
+  "files": [
+    {
+      "entry": "alarm_clock_01.bin",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/alarm_clock_01/alarm_clock_01.bin",
+      "bytes": 284408,
+      "sha256": "74b589dc31596fe9350e8ef6d123571955d58cee9955060d831fa0f3055758c6"
+    },
+    {
+      "entry": "alarm_clock_01_1k.gltf",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/alarm_clock_01/alarm_clock_01_1k.gltf",
+      "bytes": 10056,
+      "sha256": "ca16e83e334e28f8eaf2bf1fbf8ce043b7e4fe5d0e171d01a264b12f5f42a78c"
+    },
+    {
+      "entry": "textures/alarm_clock_01_arm_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/alarm_clock_01/alarm_clock_01_arm_1k.jpg",
+      "bytes": 538163,
+      "sha256": "99727eb8908dfea5aac2a2353af7ff60857e40c50b396d7efbe15df685fe4918"
+    },
+    {
+      "entry": "textures/alarm_clock_01_diff_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/alarm_clock_01/alarm_clock_01_diff_1k.jpg",
+      "bytes": 404998,
+      "sha256": "deb82094c2c1aa8cda0a0ce7192b193a81c5376743344503764abbcd2db19ac1"
+    },
+    {
+      "entry": "textures/alarm_clock_01_nor_gl_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/alarm_clock_01/alarm_clock_01_nor_gl_1k.jpg",
+      "bytes": 420026,
+      "sha256": "a0a7b35de5712e23d06832e49516ec0e1170aa159eb60ec9b2af0b0df2102fa4"
+    }
+  ],
+  "parts": [
+    {
+      "key": "body",
+      "name": "Clock body and glass",
+      "aliases": [
+        "clock body",
+        "case",
+        "face"
+      ],
+      "confidence": "atlas",
+      "nodes": [
+        "alarm_clock_01"
+      ]
+    },
+    {
+      "key": "hour-hand",
+      "name": "Hour hand",
+      "aliases": [
+        "hour hand",
+        "short hand"
+      ],
+      "confidence": "atlas",
+      "nodes": [
+        "houd_hand"
+      ]
+    },
+    {
+      "key": "minute-hand",
+      "name": "Minute hand",
+      "aliases": [
+        "minute hand",
+        "long hand"
+      ],
+      "confidence": "atlas",
+      "nodes": [
+        "minute_hand"
+      ]
+    },
+    {
+      "key": "second-hand",
+      "name": "Second hand",
+      "aliases": [
+        "second hand"
+      ],
+      "confidence": "atlas",
+      "nodes": [
+        "second_hand"
+      ]
+    }
+  ],
+  "built": {
+    "file": "alarm-clock.glb",
+    "bytes": 3017188,
+    "sha256": "783a73ee344b333a8a878d2a02254fe47f1622aef8752a0aaa014c00c63a3096",
+    "triangles": 8985,
+    "size": [
+      0.131651,
+      0.174155,
+      0.066749
+    ],
+    "parts": {
+      "body": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.131651,
+          0.174155,
+          0.066749
+        ],
+        "closed": false,
+        "triangles": 8560
+      },
+      "hour-hand": {
+        "center": [
+          0.00588,
+          -0.039252,
+          0.016068
+        ],
+        "size": [
+          0.02046,
+          0.0447,
+          0.000593
+        ],
+        "closed": false,
+        "triangles": 200
+      },
+      "minute-hand": {
+        "center": [
+          -0.021117,
+          -0.010284,
+          0.015462
+        ],
+        "size": [
+          0.050875,
+          0.030578,
+          0.000602
+        ],
+        "closed": false,
+        "triangles": 152
+      },
+      "second-hand": {
+        "center": [
+          0.009105,
+          0.001433,
+          0.015015
+        ],
+        "size": [
+          0.024956,
+          0.052116,
+          0.000158
+        ],
+        "closed": false,
+        "triangles": 73
+      }
+    }
+  }
+}

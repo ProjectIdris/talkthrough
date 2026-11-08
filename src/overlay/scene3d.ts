@@ -27,6 +27,7 @@ import { DETAIL, boxGeometry, defaultBevel, drawFraction, extrudeGeometry, lathe
 import type { Detail } from './geometry.ts';
 import { closedTubeGeometry } from './closed-tube.ts';
 import { SURFACE_NAMES, TIERS, applySurface, makeSurface } from './materials.ts';
+import { modelSurface } from './model-surface.ts';
 import type { Surface, Tier } from './materials.ts';
 import { buildPart } from './parts.ts';
 import { TAG_HEIGHT_FACTOR, tagTextPx } from './theme.ts';
@@ -295,8 +296,26 @@ export class PanelScene {
     switch (def.shape) {
       case 'group': case 'array': case 'field': case 'model': break;
       case 'meshpart': {
-        const geometry = this.deps.models?.geometry(def.model, def.part);
-        if (!geometry) { node.waitsFor = this.deps.models && this.deps.models.state(def.model) !== 'failed' ? def.model : undefined; break; }
+        const pieces = this.deps.models?.pieces(def.model, def.part);
+        const geometry = pieces?.[0]?.geometry;
+        if (!pieces || !geometry) { node.waitsFor = this.deps.models && this.deps.models.state(def.model) !== 'failed' ? def.model : undefined; break; }
+        if (def.textured) {
+          // The model's own materials, one piece for each of the source's: drawn through the overlay's physical material with the maps this tier allows.
+          const group = new Group();
+          for (const piece of pieces) {
+            const geo = piece.geometry.clone().scale(def.unitsPerMetre, def.unitsPerMetre, def.unitsPerMetre);
+            const surface = piece.material ? modelSurface(piece.material, settings) : makeSurface('plastic', settings);
+            const mesh = new Mesh(geo, surface);
+            mesh.castShadow = settings.shadows;
+            mesh.receiveShadow = settings.shadows;
+            node.geometries.push(geo);
+            node.materials.push(surface);
+            node.pieces.push({ object: mesh, surface, tint: false, color: [255, 255, 255], lines: undefined, closed: false });
+            group.add(mesh);
+          }
+          node.obj = group;
+          break;
+        }
         // The file's mesh is in metres and centred on itself; it is drawn at the model's scale, as a closed solid when the source is watertight.
         const scaled = geometry.clone().scale(def.unitsPerMetre, def.unitsPerMetre, def.unitsPerMetre);
         node.obj = addMesh(scaled, def.material, false);

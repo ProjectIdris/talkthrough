@@ -1,0 +1,108 @@
+{
+  "id": "measuring-tape",
+  "name": "Measuring tape",
+  "description": "A retractable tape measure in its case, as one textured object",
+  "aliases": [
+    "measuring tape",
+    "tape measure",
+    "tape"
+  ],
+  "format": "gltf",
+  "licence": {
+    "id": "CC0-1.0",
+    "version": "1.0",
+    "statedOn": "https://polyhaven.com/license",
+    "statement": "Our assets are all licensed as CC0. You do not need to give credit."
+  },
+  "source": {
+    "name": "Poly Haven",
+    "url": "https://polyhaven.com/a/measuring_tape_01",
+    "version": "Measuring Tape 01, 1k glTF, published 2021-10-15",
+    "authors": [
+      "Kuutti Siitonen"
+    ],
+    "cacheFolder": "ph-measuring-tape-01"
+  },
+  "retrieved": "2026-11-08",
+  "changes": "Passed through: geometry, UV coordinates, materials and the 1k textures are the source's own, unchanged. Added: a root that puts the model on the scene's axes, in metres, centred on its own middle, and a tag on each named part.",
+  "orient": {
+    "up": "y+",
+    "front": "z+"
+  },
+  "scale": {
+    "unitsToMetres": 1
+  },
+  "caveats": [
+    "A single scanned or modelled object: it can be labelled as a whole, but has no named parts to cut or take apart."
+  ],
+  "files": [
+    {
+      "entry": "measuring_tape_01.bin",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/measuring_tape_01/measuring_tape_01.bin",
+      "bytes": 94680,
+      "sha256": "9255ba5bde1df6dcbfd7103577809c4af44525fed7d2b41d17ff83ead712dfc6"
+    },
+    {
+      "entry": "measuring_tape_01_1k.gltf",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/measuring_tape_01/measuring_tape_01_1k.gltf",
+      "bytes": 2720,
+      "sha256": "f4d36918fcbe3de138fbf7a0c5cc1ab2c7c049db6a5e7ee24673d78d3d9ed74d"
+    },
+    {
+      "entry": "textures/measuring_tape_01_arm_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/measuring_tape_01/measuring_tape_01_arm_1k.jpg",
+      "bytes": 143061,
+      "sha256": "721fa78a93d9727250123b16a8389ed815801f923bc07e6eb2e5568c5aa5f9d0"
+    },
+    {
+      "entry": "textures/measuring_tape_01_diff_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/measuring_tape_01/measuring_tape_01_diff_1k.jpg",
+      "bytes": 83801,
+      "sha256": "7b66c2a9a5e794336d1456dd9de684ea94bf80a0f8b821c36a0fc2cdf0804052"
+    },
+    {
+      "entry": "textures/measuring_tape_01_nor_gl_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/measuring_tape_01/measuring_tape_01_nor_gl_1k.jpg",
+      "bytes": 121717,
+      "sha256": "956bf080bb51987c2d3929e9b68fdea4e36f47c9fbf0b7dfe08260d5410f6c27"
+    }
+  ],
+  "parts": [
+    {
+      "key": "whole",
+      "name": "Measuring tape",
+      "aliases": [],
+      "confidence": "atlas",
+      "nodes": [
+        "measuring_tape_01"
+      ]
+    }
+  ],
+  "built": {
+    "file": "measuring-tape.glb",
+    "bytes": 445184,
+    "sha256": "a947441fd19e3a5b89f27f62510c805e36dd0077120e966729ddd3bec21713e9",
+    "triangles": 2868,
+    "size": [
+      0.040566,
+      0.073414,
+      0.169419
+    ],
+    "parts": {
+      "whole": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.040566,
+          0.073414,
+          0.169419
+        ],
+        "closed": true,
+        "triangles": 2868
+      }
+    }
+  }
+}

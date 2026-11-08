@@ -126,7 +126,7 @@ export type AddModel = {
 } & At;
 /** One named part of a real model, as the planner makes it (never written): the mesh is the model's file's, drawn at `unitsPerMetre`. */
 export type AddMeshPart = {
-  op: 'add'; shape: 'meshpart'; id: string; parent: string; model: string; part: string; unitsPerMetre: number; closed: boolean; material: string; explode?: Vec3;
+  op: 'add'; shape: 'meshpart'; id: string; parent: string; model: string; part: string; unitsPerMetre: number; closed: boolean; material: string; /** Drawn with the model's own textured materials, not a flat colour. */ textured?: boolean; explode?: Vec3;
 } & At;
 export type AddArray = { op: 'add'; shape: 'array'; id: string; of: string; count: number; step?: Vec3; turn?: Vec3 } & At;
 export type AddText = {

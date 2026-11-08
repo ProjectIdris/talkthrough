@@ -21,6 +21,12 @@ export const LICENCES = {
 export const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 const CONFIDENCE = ['atlas', 'grouped', 'approximate'];
+
+/** The only hosts a glTF model's files may be fetched from: the original publishers'. Another host is a reviewed code change, never a manifest edit. */
+export const FETCH_HOSTS = ['dl.polyhaven.org', '3d-api.si.edu'];
+
+/** Where a model's source files live in the cache: a folder of its own for a glTF model, the source's folder for an archive's. */
+export const cacheFolder = (m) => join(CACHE_DIR, m.format === 'gltf' ? m.source.cacheFolder : m.source.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
 
 /** Problems with a manifest, as plain sentences (an empty list means it is sound). */
@@ -47,12 +53,28 @@ export function manifestProblems(m) {
   need(m.release === undefined || (typeof m.release.blocked === 'boolean' && (!m.release.blocked || typeof m.release.why === 'string')), 'release is { blocked, why }');
   need(m.orient && ['x+','x-','y+','y-','z+','z-'].includes(m.orient.up) && ['x+','x-','y+','y-','z+','z-'].includes(m.orient.front), 'orient needs up and front, each one of x+ x- y+ y- z+ z-');
   need(m.scale && Number.isFinite(m.scale.unitsToMetres) && m.scale.unitsToMetres > 0, 'scale.unitsToMetres is missing');
+  need(m.format === undefined || m.format === 'obj' || m.format === 'gltf', 'format is obj or gltf');
+  const gltf = m.format === 'gltf';
   need(Array.isArray(m.files) && m.files.length > 0, 'files is empty');
   const fileIds = new Set();
   for (const f of m.files ?? []) {
-    need(typeof f.id === 'string' && typeof f.entry === 'string', 'a file needs an id and an entry');
-    need(!fileIds.has(f.id), `file ${f.id} is listed twice`);
-    fileIds.add(f.id);
+    need(typeof f.entry === 'string' && f.entry.length > 0, 'a file needs an entry');
+    const id = f.id ?? f.entry;
+    if (!gltf) need(typeof f.id === 'string', 'a file needs an id and an entry');
+    need(!fileIds.has(id), `file ${id} is listed twice`);
+    fileIds.add(id);
+    if (gltf) {
+      let host;
+      try { const u = new URL(f.url); host = u.protocol === 'https:' ? u.hostname : undefined; } catch { /* not a url */ }
+      need(host !== undefined && FETCH_HOSTS.includes(host), `${f.entry}: url must be https on one of ${FETCH_HOSTS.join(', ')}`);
+      need(Number.isInteger(f.bytes) && f.bytes > 0 && typeof f.sha256 === 'string' && /^[0-9a-f]{64}$/.test(f.sha256), `${f.entry}: bytes and sha256 must be pinned`);
+    }
+  }
+  if (gltf) {
+    need(m.files.filter((f) => /[.](gltf|glb)$/i.test(f.entry)).length === 1, 'exactly one .gltf or .glb file is the model');
+    need(m.source && typeof m.source.cacheFolder === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(m.source.cacheFolder), 'source.cacheFolder is the folder of its own in the cache');
+    need(typeof m.retrieved === 'string' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(m.retrieved), 'retrieved (the date the files were fetched) is missing');
+    need(m.licence && typeof m.licence.statement === 'string' && typeof m.licence.statedOn === 'string', 'a glTF model records the licence as its page states it (licence.statement, licence.statedOn)');
   }
   need(Array.isArray(m.parts) && m.parts.length > 0, 'parts is empty');
   const keys = new Set();
@@ -62,8 +84,8 @@ export function manifestProblems(m) {
     keys.add(p.key);
     need(typeof p.name === 'string' && p.name.length > 0, `part ${p.key} has no name`);
     need(CONFIDENCE.includes(p.confidence), `part ${p.key} needs a confidence (${CONFIDENCE.join(', ')})`);
-    need(Array.isArray(p.nodes) && p.nodes.length > 0 || p.derive, `part ${p.key} names no file`);
-    for (const n of p.nodes ?? []) need(fileIds.has(n), `part ${p.key} names ${n}, which is not in files`);
+    need(Array.isArray(p.nodes) && p.nodes.length > 0 || p.derive, `part ${p.key} names no ${gltf ? 'node' : 'file'}`);
+    if (!gltf) for (const n of p.nodes ?? []) need(fileIds.has(n), `part ${p.key} names ${n}, which is not in files`);
   }
   return out;
 }

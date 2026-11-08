@@ -7,7 +7,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { bounds, isClosed, merge, orientation, parseObj, transformPositions, weld, writeGlb } from './obj-glb.mjs';
-import { BUILT_DIR, CACHE_DIR, manifestProblems, readManifests, sha256 } from './manifest.mjs';
+import { buildGltfModel } from './gltf-pass.mjs';
+import { BUILT_DIR, cacheFolder, manifestProblems, readManifests, sha256 } from './manifest.mjs';
 
 const args = process.argv.slice(2);
 const pin = args.includes('--pin');
@@ -16,6 +17,7 @@ const round = (v, d = 6) => Math.round(v * 10 ** d) / 10 ** d;
 
 /** The built GLB bytes and what was measured while making them. */
 export function buildModel(m, readFile) {
+  if (m.format === 'gltf') return buildGltfModel(m, (f) => Buffer.from(readFile(f, 'bytes')));
   const rows = orientation(m.orient.up, m.orient.front);
   const files = new Map(m.files.map((f) => [f.id, f]));
   const parts = m.parts.map((p) => {
@@ -52,13 +54,13 @@ if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}`) {
     if (only.length && !only.includes(m.id)) continue;
     const problems = manifestProblems(m);
     if (problems.length) { console.error(`${m.id}: manifest is not sound: ${problems.join('; ')}`); failed++; continue; }
-    const folder = join(CACHE_DIR, m.source.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
-    const readFile = (f) => {
+    const folder = cacheFolder(m);
+    const readFile = (f, as = 'text') => {
       const path = join(folder, f.entry);
       if (!existsSync(path)) throw new Error(`${f.id} is not in the cache (run assets:fetch)`);
       const data = readFileSync(path);
       if (f.sha256 && sha256(data) !== f.sha256) throw new Error(`${f.id} does not match its pinned hash`);
-      return data.toString('latin1');
+      return as === 'bytes' ? data : data.toString('latin1');
     };
     try {
       const built = buildModel(m, readFile);

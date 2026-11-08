@@ -1,0 +1,171 @@
+{
+  "id": "camera",
+  "name": "Vintage camera",
+  "description": "A vintage bellows-less box camera with its lens and strap, as a textured model",
+  "aliases": [
+    "camera",
+    "vintage camera",
+    "film camera",
+    "old camera"
+  ],
+  "format": "gltf",
+  "licence": {
+    "id": "CC0-1.0",
+    "version": "1.0",
+    "statedOn": "https://polyhaven.com/license",
+    "statement": "Our assets are all licensed as CC0. You do not need to give credit."
+  },
+  "source": {
+    "name": "Poly Haven",
+    "url": "https://polyhaven.com/a/Camera_01",
+    "version": "Camera 01, 1k glTF, published 2020-03-30",
+    "authors": [
+      "Rajil Jose Macatangay"
+    ],
+    "cacheFolder": "ph-camera-01"
+  },
+  "retrieved": "2026-11-08",
+  "changes": "Passed through: geometry, UV coordinates, materials and the 1k textures are the source's own, unchanged. Added: a root that puts the model on the scene's axes, in metres, centred on its own middle, and a tag on each named part.",
+  "orient": {
+    "up": "y+",
+    "front": "z+"
+  },
+  "scale": {
+    "unitsToMetres": 1
+  },
+  "caveats": [],
+  "files": [
+    {
+      "entry": "Camera_01.bin",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/Camera_01/Camera_01.bin",
+      "bytes": 845028,
+      "sha256": "d3d2c78458a4823bc9821c2ba3994c95d15b044c7a1444ba089b163f74c3fcf2"
+    },
+    {
+      "entry": "Camera_01_1k.gltf",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/Camera_01/Camera_01_1k.gltf",
+      "bytes": 9886,
+      "sha256": "9c5ca3104579c84ffcebdee5c6e5e09821fe8d4a5cd9ce95ed32d81507450ee3"
+    },
+    {
+      "entry": "textures/Camera_01_body_arm_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/Camera_01/Camera_01_body_arm_1k.jpg",
+      "bytes": 228449,
+      "sha256": "a3b1928d258fdb23687fb005a3d764b008475abb13b47a2bb87ed81200274635"
+    },
+    {
+      "entry": "textures/Camera_01_body_diff_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/Camera_01/Camera_01_body_diff_1k.jpg",
+      "bytes": 175778,
+      "sha256": "89b77ec525e933f9f2702e2ccb0c8ba32ecef31dac241bc034e3eddc9481f4f7"
+    },
+    {
+      "entry": "textures/Camera_01_body_nor_gl_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/Camera_01/Camera_01_body_nor_gl_1k.jpg",
+      "bytes": 271892,
+      "sha256": "c7ec0d96ae9b5f16559069f1a4c9a006f3ec1d49a7707269a280fe23786db144"
+    },
+    {
+      "entry": "textures/Camera_01_lens_body_arm_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/Camera_01/Camera_01_lens_body_arm_1k.jpg",
+      "bytes": 163109,
+      "sha256": "6fef8a44334428a8f095315fa8043678994abcc671473cf43f7ca63ec10eb98f"
+    },
+    {
+      "entry": "textures/Camera_01_lens_body_diff_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/Camera_01/Camera_01_lens_body_diff_1k.jpg",
+      "bytes": 106198,
+      "sha256": "aafa05c5b106b960b21547ef9d4662083dfc7138261cbab1f10e143afe046b68"
+    },
+    {
+      "entry": "textures/Camera_01_lens_body_nor_gl_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/Camera_01/Camera_01_lens_body_nor_gl_1k.jpg",
+      "bytes": 147816,
+      "sha256": "3d5e695a57ce38f0e35558f43f30497fff2f8cc844c903c95462d105b58cb333"
+    },
+    {
+      "entry": "textures/Camera_01_strap_arm_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/Camera_01/Camera_01_strap_arm_1k.jpg",
+      "bytes": 159433,
+      "sha256": "17beca6e0542a1a28146b52cff06aad2e404541359e452deca83b74d01505c50"
+    },
+    {
+      "entry": "textures/Camera_01_strap_diff_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/Camera_01/Camera_01_strap_diff_1k.jpg",
+      "bytes": 132449,
+      "sha256": "3d4c9cb463b330b7ea4fc713f6dc90a0c5e6d9d3ba707b6921fe0a2d1f9ab146"
+    },
+    {
+      "entry": "textures/Camera_01_strap_nor_gl_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/Camera_01/Camera_01_strap_nor_gl_1k.jpg",
+      "bytes": 199844,
+      "sha256": "5d4d99d5b1640d5a4d3c2227c264c232279773b5c92e4a6c50d2f34217880202"
+    }
+  ],
+  "parts": [
+    {
+      "key": "strap",
+      "name": "Strap",
+      "aliases": [
+        "strap"
+      ],
+      "confidence": "atlas",
+      "nodes": [
+        "Camera_01_strap"
+      ]
+    },
+    {
+      "key": "body",
+      "name": "Camera body and lens",
+      "aliases": [
+        "camera body",
+        "lens"
+      ],
+      "confidence": "atlas",
+      "nodes": [
+        "Camera_01"
+      ]
+    }
+  ],
+  "built": {
+    "file": "camera.glb",
+    "bytes": 2436424,
+    "sha256": "538e0612753fce31aa31da50426567ed4336853d20afab07d2a033e80de7b31a",
+    "triangles": 26987,
+    "size": [
+      0.213902,
+      0.077847,
+      0.262824
+    ],
+    "parts": {
+      "strap": {
+        "center": [
+          0,
+          -0.010019,
+          0
+        ],
+        "size": [
+          0.213902,
+          0.057808,
+          0.262824
+        ],
+        "closed": true,
+        "triangles": 4668
+      },
+      "body": {
+        "center": [
+          0.028648,
+          0.00014,
+          -0.045134
+        ],
+        "size": [
+          0.14734,
+          0.077567,
+          0.088838
+        ],
+        "closed": false,
+        "triangles": 22319
+      }
+    }
+  }
+}

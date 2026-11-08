@@ -14,10 +14,13 @@ export function catalogueSource(manifests) {
     licence: { id: m.licence.id, name: LICENCES[m.licence.id].name, version: m.licence.version, url: LICENCES[m.licence.id].url },
     release: { blocked: m.release?.blocked === true, why: m.release?.why },
     credit: LICENCES[m.licence.id].credit ? m.credit : undefined,
-    size: m.built.size, realLengthMetres: m.scale.realLengthMetres, caveats: m.caveats ?? [],
+    format: m.format ?? 'obj',
+    // One object with no parts of its own (a scan, or a model of one thing): it is labelled whole, never exploded or cut.
+    single: m.parts.length === 1,
+    size: m.built.size, realLengthMetres: m.scale.realLengthMetres ?? Math.max(...m.built.size), caveats: m.caveats ?? [],
     built: { file: m.built.file, bytes: m.built.bytes, sha256: m.built.sha256, triangles: m.built.triangles },
     parts: m.parts.map((p) => ({
-      key: p.key, name: p.name, aliases: p.aliases ?? [], confidence: p.confidence, color: p.color, closed: m.built.parts[p.key].closed,
+      key: p.key, name: p.name, aliases: p.aliases ?? [], confidence: p.confidence, color: p.color ?? [255, 255, 255], closed: m.built.parts[p.key].closed,
       center: m.built.parts[p.key].center, size: m.built.parts[p.key].size, triangles: m.built.parts[p.key].triangles,
     })),
   }));
@@ -38,11 +41,15 @@ export type ModelPart = {
 };
 export type ModelEntry = {
   id: string; name: string; description: string; aliases: string[];
+  /** obj: parts built from a source's meshes and drawn in a flat colour; gltf: the artist's own textured materials, passed through. */
+  format: 'obj' | 'gltf';
+  /** One object with no parts of its own: label the whole, never explode or cut it. */
+  single: boolean;
   licence: { id: string; name: string; version: string; url: string };
   /** A model held back from every release (the installer is not built while one is). */
-  release: { blocked: boolean; why: string | undefined };
+  release: { blocked: boolean; why?: string };
   /** The credit line the licence asks to be shown (CC BY); none for CC0. */
-  credit: string | undefined;
+  credit?: string;
   /** The whole model's size in metres, and the real length of its subject. */
   size: Vec3; realLengthMetres: number; caveats: string[];
   built: { file: string; bytes: number; sha256: string; triangles: number };
@@ -70,10 +77,15 @@ export function creditsSource(manifests) {
     if (m.licence.earlierNotice) lines.push(`- Earlier notice, kept on record: ${m.licence.earlierNotice.evidence} name ${m.licence.earlierNotice.name}; the current grant above is what is relied on.`);
     if (m.release?.blocked) lines.push(`- Held back from releases: ${m.release.why}.`);
     if (m.credit) lines.push(`- Credit: ${m.credit}`);
+    if (m.licence.statement) lines.push(`- As the licence is stated at ${m.licence.statedOn}: ${m.licence.statement}`);
+    if (m.source.authors?.length) lines.push(`- Made by: ${m.source.authors.join(', ')}${m.licence.id === 'CC0-1.0' ? ' (no credit is required; named here as a courtesy)' : ''}`);
+    if (m.retrieved) lines.push(`- Fetched on ${m.retrieved} from: ${m.files.filter((f) => f.url).map((f) => f.url).slice(0, 1).join('')}${m.files.length > 1 ? ` and ${m.files.length - 1} more files named in the manifest` : ''}`);
     lines.push(`- Changes: ${m.changes}`);
     if (m.licence.note) lines.push(`- Note: ${m.licence.note}`);
     lines.push(`- Built file: ${m.built.file}, ${m.built.bytes} bytes, sha256 ${m.built.sha256}`);
-    lines.push(`- Parts (confidence; source element ids): ${m.parts.map((p) => `${p.name} (${p.confidence}; ${(p.nodes ?? []).join(' ')})`).join('; ')}`);
+    lines.push(m.format === 'gltf'
+      ? `- Parts (source node): ${m.parts.map((p) => `${p.name} (${(p.nodes ?? []).join(' ')})`).join('; ')}`
+      : `- Parts (confidence; source element ids): ${m.parts.map((p) => `${p.name} (${p.confidence}; ${(p.nodes ?? []).join(' ')})`).join('; ')}`);
     for (const c of m.caveats ?? []) lines.push(`- Limit: ${c}`);
     lines.push('');
   }

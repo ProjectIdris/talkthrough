@@ -13,7 +13,7 @@ const run = (state = createSceneState(), ...actions: unknown[]) => {
 const heart = MODELS.find((m) => m.id === 'heart')!;
 
 test('the catalogue has the heart and the brain with their licence, credit and named parts', () => {
-  assert.deepEqual(MODELS.map((m) => m.id).sort(), ['brain', 'heart']);
+  assert.deepEqual(MODELS.map((m) => m.id).sort(), ['alarm-clock', 'bolt-cutters', 'brain', 'camera', 'drill', 'electric-motor', 'heart', 'measuring-tape', 'mousetrap', 'telegraph-key']);
   assert.equal(heart.licence.id, 'CC-BY-4.0');
   assert.match(heart.credit ?? '', /BodyParts3D/);
   for (const m of MODELS) for (const p of m.parts) assert.ok(p.size.every((v) => v > 0) && p.center.every(Number.isFinite), `${m.id}.${p.key} has a size and a centre`);
@@ -66,7 +66,7 @@ test('a part written by its name or alias is read as the part, with a note; one 
 test('a name that is not a model is dropped with the models there are and the way back to shapes', () => {
   const r = run(createSceneState(), { op: 'add', shape: 'model', id: 'e', model: 'v8 engine' });
   assert.equal(r.ops, '');
-  assert.ok(r.issues.some((m) => /no model "v8 engine"/.test(m) && /brain, heart/.test(m) && /shapes/.test(m)), JSON.stringify(r.issues));
+  assert.ok(r.issues.some((m) => /no model "v8 engine"/.test(m) && m.includes(MODELS.map((m) => m.id).join(', ')) && /shapes/.test(m)), JSON.stringify(r.issues));
 });
 
 test('a model written by an alias is the model; clear takes its parts with it; writing it again replaces it and its parts', () => {
@@ -90,10 +90,11 @@ function startOver(state: ReturnType<typeof createSceneState>): void {
 
 test('the guide lists the models, their parts and how to use them, and the lean schema names them', () => {
   assert.match(sceneGuide, /add \{shape:model/);
-  assert.ok(sceneGuide.includes('add {shape:model, model, size}): brain, heart.'));
+  assert.ok(sceneGuide.includes(`add {shape:model, model, size}): ${MODELS.map((m) => m.id).join(', ')}.`));
   assert.ok(sceneGuide.includes('id.part'));
   // The guide holds the rule once and the ids; the parts are looked up by the validator, so each model costs its id and no more.
-  for (const m of MODELS) for (const p of m.parts) assert.ok(!sceneGuide.includes(p.key), `the guide does not list ${m.id}'s part ${p.key}`);
+  // (a part key that is also an everyday word, or a model's own id, may appear for another reason: only the anatomy parts are checked)
+  for (const m of MODELS.filter((x) => x.format === 'obj')) for (const p of m.parts) assert.ok(!sceneGuide.includes(p.key), `the guide does not list ${m.id}'s part ${p.key}`);
   const bullet = sceneGuide.split('\n').find((l) => l.startsWith('- Real models'))!;
   assert.ok(bullet.length - MODELS.map((m) => m.id).join(', ').length < 700, `the rule is stated once, in ${bullet.length} characters`);
   assert.ok(JSON.stringify(sceneSchemaLean).includes('"heart"'));
@@ -114,7 +115,7 @@ test('a name close to a model or a part is taken for it with a note when it is p
   assert.equal(near.ops, 'highlight:h.ascending-aorta');
   assert.ok(near.issues.some((m) => /h\.ventricle/.test(m) && /nearest parts of h are/.test(m) && /left-ventricle/.test(m)), JSON.stringify(near.issues));
   const gone = run(createSceneState(), { op: 'add', shape: 'model', id: 'e', model: 'engine' });
-  assert.ok(gone.issues.some((m) => /the real models are brain, heart/.test(m)));
+  assert.ok(gone.issues.some((m) => m.includes(`the real models are ${MODELS.map((m) => m.id).join(', ')}`)));
 });
 
 test('writing a model again keeps what the author attached to it or to a part, and takes only its own parts', () => {
@@ -132,4 +133,27 @@ test('writing a model again keeps what the author attached to it or to a part, a
   startOver(first.state);
   const next = run(first.state, { op: 'add', shape: 'model', id: 'h', model: 'heart' });
   assert.equal(next.ops, 'add:h');
+});
+
+test('a model of one piece is labelled whole: part names are refused with the way to say it, nothing is taken apart or cut, and a model with parts keeps its parts', () => {
+  const drill = MODELS.find((m) => m.id === 'drill')!;
+  assert.equal(drill.single, true);
+  assert.equal(drill.parts.length, 1);
+  const s = run(createSceneState(), { op: 'add', shape: 'model', id: 'd', model: 'power drill' });
+  assert.equal(s.ops, 'add:d');
+  assert.ok(!s.state.ids.has('d.whole'), 'no part ids exist for a one-piece model');
+  const whole = run(s.state, { op: 'pin', id: 'p', on: 'd', text: 'Chuck' }, { op: 'highlight', id: 'd' });
+  assert.deepEqual(whole.issues, []);
+  assert.equal(whole.ops, 'pin:p highlight:d');
+  const part = run(s.state, { op: 'highlight', id: 'd.whole' }, { op: 'pin', id: 'q', on: 'd.chuck', text: 'x' });
+  assert.equal(part.ops, '');
+  assert.ok(part.issues.some((m) => /one piece with no parts to name/.test(m) && /use "d" for the whole/.test(m)), JSON.stringify(part.issues));
+  const apart = run(s.state, { op: 'explode', id: 'd', to: 1 }, { op: 'cut', id: 'd', axis: 'x', to: 0 });
+  assert.equal(apart.ops, '');
+  assert.ok(apart.issues.some((m) => /explode: "d" is the model "drill".*one piece.*take apart/.test(m)) && apart.issues.some((m) => /cut: "d".*cut open/.test(m)), JSON.stringify(apart.issues));
+  // a model with parts is not affected, and neither is a group holding a one-piece model beside others
+  const camera = run(createSceneState(), { op: 'add', shape: 'model', id: 'c', model: 'camera' });
+  assert.ok(camera.state.ids.has('c.strap') && camera.state.ids.has('c.body'));
+  assert.equal(run(camera.state, { op: 'explode', id: 'c', to: 1 }, { op: 'highlight', id: 'c.body' }).ops, 'explode:c highlight:c.body');
+  assert.ok(sceneGuide.includes('drill') && /one piece each: label it as a whole/.test(sceneGuide));
 });

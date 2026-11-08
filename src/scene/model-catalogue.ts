@@ -15,11 +15,15 @@ export type ModelPart = {
 };
 export type ModelEntry = {
   id: string; name: string; description: string; aliases: string[];
+  /** obj: parts built from a source's meshes and drawn in a flat colour; gltf: the artist's own textured materials, passed through. */
+  format: 'obj' | 'gltf';
+  /** One object with no parts of its own: label the whole, never explode or cut it. */
+  single: boolean;
   licence: { id: string; name: string; version: string; url: string };
   /** A model held back from every release (the installer is not built while one is). */
-  release: { blocked: boolean; why: string | undefined };
+  release: { blocked: boolean; why?: string };
   /** The credit line the licence asks to be shown (CC BY); none for CC0. */
-  credit: string | undefined;
+  credit?: string;
   /** The whole model's size in metres, and the real length of its subject. */
   size: Vec3; realLengthMetres: number; caveats: string[];
   built: { file: string; bytes: number; sha256: string; triangles: number };
@@ -27,6 +31,207 @@ export type ModelEntry = {
 };
 
 export const MODELS: readonly ModelEntry[] = [
+  {
+    "id": "alarm-clock",
+    "name": "Alarm clock",
+    "description": "A twin-bell alarm clock with its glass, hour, minute and second hands, as a textured model",
+    "aliases": [
+      "alarm clock",
+      "clock",
+      "bedside clock"
+    ],
+    "licence": {
+      "id": "CC0-1.0",
+      "name": "CC0 1.0 Universal",
+      "version": "1.0",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    "release": {
+      "blocked": false
+    },
+    "format": "gltf",
+    "single": false,
+    "size": [
+      0.131651,
+      0.174155,
+      0.066749
+    ],
+    "realLengthMetres": 0.174155,
+    "caveats": [],
+    "built": {
+      "file": "alarm-clock.glb",
+      "bytes": 3017188,
+      "sha256": "783a73ee344b333a8a878d2a02254fe47f1622aef8752a0aaa014c00c63a3096",
+      "triangles": 8985
+    },
+    "parts": [
+      {
+        "key": "body",
+        "name": "Clock body and glass",
+        "aliases": [
+          "clock body",
+          "case",
+          "face"
+        ],
+        "confidence": "atlas",
+        "color": [
+          255,
+          255,
+          255
+        ],
+        "closed": false,
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.131651,
+          0.174155,
+          0.066749
+        ],
+        "triangles": 8560
+      },
+      {
+        "key": "hour-hand",
+        "name": "Hour hand",
+        "aliases": [
+          "hour hand",
+          "short hand"
+        ],
+        "confidence": "atlas",
+        "color": [
+          255,
+          255,
+          255
+        ],
+        "closed": false,
+        "center": [
+          0.00588,
+          -0.039252,
+          0.016068
+        ],
+        "size": [
+          0.02046,
+          0.0447,
+          0.000593
+        ],
+        "triangles": 200
+      },
+      {
+        "key": "minute-hand",
+        "name": "Minute hand",
+        "aliases": [
+          "minute hand",
+          "long hand"
+        ],
+        "confidence": "atlas",
+        "color": [
+          255,
+          255,
+          255
+        ],
+        "closed": false,
+        "center": [
+          -0.021117,
+          -0.010284,
+          0.015462
+        ],
+        "size": [
+          0.050875,
+          0.030578,
+          0.000602
+        ],
+        "triangles": 152
+      },
+      {
+        "key": "second-hand",
+        "name": "Second hand",
+        "aliases": [
+          "second hand"
+        ],
+        "confidence": "atlas",
+        "color": [
+          255,
+          255,
+          255
+        ],
+        "closed": false,
+        "center": [
+          0.009105,
+          0.001433,
+          0.015015
+        ],
+        "size": [
+          0.024956,
+          0.052116,
+          0.000158
+        ],
+        "triangles": 73
+      }
+    ]
+  },
+  {
+    "id": "bolt-cutters",
+    "name": "Bolt cutters",
+    "description": "Long-handled bolt cutters, as one textured object",
+    "aliases": [
+      "bolt cutters",
+      "bolt cutter",
+      "bolt croppers"
+    ],
+    "licence": {
+      "id": "CC0-1.0",
+      "name": "CC0 1.0 Universal",
+      "version": "1.0",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    "release": {
+      "blocked": false
+    },
+    "format": "gltf",
+    "single": true,
+    "size": [
+      0.151046,
+      0.802581,
+      0.036027
+    ],
+    "realLengthMetres": 0.802581,
+    "caveats": [
+      "A single scanned or modelled object: it can be labelled as a whole, but has no named parts to cut or take apart."
+    ],
+    "built": {
+      "file": "bolt-cutters.glb",
+      "bytes": 2496808,
+      "sha256": "470c491d351b1bf2831d69511bcdb18a01243a5eaf8881db0de84874f13217a0",
+      "triangles": 3410
+    },
+    "parts": [
+      {
+        "key": "whole",
+        "name": "Bolt cutters",
+        "aliases": [],
+        "confidence": "atlas",
+        "color": [
+          255,
+          255,
+          255
+        ],
+        "closed": false,
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.151046,
+          0.802581,
+          0.036027
+        ],
+        "triangles": 3410
+      }
+    ]
+  },
   {
     "id": "brain",
     "name": "Human brain",
@@ -50,6 +255,8 @@ export const MODELS: readonly ModelEntry[] = [
       "why": "a local prototype only: not published and not packed into a release until it is cleared for one"
     },
     "credit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
+    "format": "obj",
+    "single": false,
     "size": [
       0.138834,
       0.16596,
@@ -545,6 +752,218 @@ export const MODELS: readonly ModelEntry[] = [
     ]
   },
   {
+    "id": "camera",
+    "name": "Vintage camera",
+    "description": "A vintage bellows-less box camera with its lens and strap, as a textured model",
+    "aliases": [
+      "camera",
+      "vintage camera",
+      "film camera",
+      "old camera"
+    ],
+    "licence": {
+      "id": "CC0-1.0",
+      "name": "CC0 1.0 Universal",
+      "version": "1.0",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    "release": {
+      "blocked": false
+    },
+    "format": "gltf",
+    "single": false,
+    "size": [
+      0.213902,
+      0.077847,
+      0.262824
+    ],
+    "realLengthMetres": 0.262824,
+    "caveats": [],
+    "built": {
+      "file": "camera.glb",
+      "bytes": 2436424,
+      "sha256": "538e0612753fce31aa31da50426567ed4336853d20afab07d2a033e80de7b31a",
+      "triangles": 26987
+    },
+    "parts": [
+      {
+        "key": "strap",
+        "name": "Strap",
+        "aliases": [
+          "strap"
+        ],
+        "confidence": "atlas",
+        "color": [
+          255,
+          255,
+          255
+        ],
+        "closed": true,
+        "center": [
+          0,
+          -0.010019,
+          0
+        ],
+        "size": [
+          0.213902,
+          0.057808,
+          0.262824
+        ],
+        "triangles": 4668
+      },
+      {
+        "key": "body",
+        "name": "Camera body and lens",
+        "aliases": [
+          "camera body",
+          "lens"
+        ],
+        "confidence": "atlas",
+        "color": [
+          255,
+          255,
+          255
+        ],
+        "closed": false,
+        "center": [
+          0.028648,
+          0.00014,
+          -0.045134
+        ],
+        "size": [
+          0.14734,
+          0.077567,
+          0.088838
+        ],
+        "triangles": 22319
+      }
+    ]
+  },
+  {
+    "id": "drill",
+    "name": "Power drill",
+    "description": "A corded power drill with its chuck and trigger, as one textured object",
+    "aliases": [
+      "drill",
+      "power drill",
+      "electric drill"
+    ],
+    "licence": {
+      "id": "CC0-1.0",
+      "name": "CC0 1.0 Universal",
+      "version": "1.0",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    "release": {
+      "blocked": false
+    },
+    "format": "gltf",
+    "single": true,
+    "size": [
+      0.18288,
+      0.185062,
+      0.052415
+    ],
+    "realLengthMetres": 0.185062,
+    "caveats": [
+      "A single scanned or modelled object: it can be labelled as a whole, but has no named parts to cut or take apart."
+    ],
+    "built": {
+      "file": "drill.glb",
+      "bytes": 500292,
+      "sha256": "a5afd4c33c8d24b4c2f5a0978047654e81835adcf38a4f7de916dfd2cee7683b",
+      "triangles": 2926
+    },
+    "parts": [
+      {
+        "key": "whole",
+        "name": "Power drill",
+        "aliases": [],
+        "confidence": "atlas",
+        "color": [
+          255,
+          255,
+          255
+        ],
+        "closed": false,
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.18288,
+          0.185062,
+          0.052415
+        ],
+        "triangles": 2926
+      }
+    ]
+  },
+  {
+    "id": "electric-motor",
+    "name": "Davenport electric motor",
+    "description": "Thomas Davenport's 1837 patent model of the first US electric motor, a scan of the museum object",
+    "aliases": [
+      "electric motor",
+      "davenport motor",
+      "early electric motor",
+      "motor"
+    ],
+    "licence": {
+      "id": "CC0-1.0",
+      "name": "CC0 1.0 Universal",
+      "version": "1.0",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    "release": {
+      "blocked": false
+    },
+    "format": "gltf",
+    "single": true,
+    "size": [
+      0.262645,
+      0.370017,
+      0.377809
+    ],
+    "realLengthMetres": 0.377809,
+    "caveats": [
+      "A single scanned or modelled object: it can be labelled as a whole, but has no named parts to cut or take apart.",
+      "The source's textures are larger than the page draws them at; they are reduced when loaded, to the size each tier allows."
+    ],
+    "built": {
+      "file": "electric-motor.glb",
+      "bytes": 4335360,
+      "sha256": "d26c1f8dbdfca5abc178136004ccc52ec6c6877be03fcfb423e397975fcf8be1",
+      "triangles": 100002
+    },
+    "parts": [
+      {
+        "key": "whole",
+        "name": "Davenport electric motor",
+        "aliases": [],
+        "confidence": "atlas",
+        "color": [
+          255,
+          255,
+          255
+        ],
+        "closed": false,
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.262645,
+          0.370017,
+          0.377809
+        ],
+        "triangles": 100002
+      }
+    ]
+  },
+  {
     "id": "heart",
     "name": "Human heart",
     "description": "An adult human heart: four chambers, valves, papillary muscles, great vessels and coronary arteries, as separate named parts.",
@@ -567,6 +986,8 @@ export const MODELS: readonly ModelEntry[] = [
       "why": "a local prototype only: not published and not packed into a release until it is cleared for one"
     },
     "credit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
+    "format": "obj",
+    "single": false,
     "size": [
       0.115695,
       0.14217,
@@ -1024,6 +1445,191 @@ export const MODELS: readonly ModelEntry[] = [
           0.0913
         ],
         "triangles": 4386
+      }
+    ]
+  },
+  {
+    "id": "measuring-tape",
+    "name": "Measuring tape",
+    "description": "A retractable tape measure in its case, as one textured object",
+    "aliases": [
+      "measuring tape",
+      "tape measure",
+      "tape"
+    ],
+    "licence": {
+      "id": "CC0-1.0",
+      "name": "CC0 1.0 Universal",
+      "version": "1.0",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    "release": {
+      "blocked": false
+    },
+    "format": "gltf",
+    "single": true,
+    "size": [
+      0.040566,
+      0.073414,
+      0.169419
+    ],
+    "realLengthMetres": 0.169419,
+    "caveats": [
+      "A single scanned or modelled object: it can be labelled as a whole, but has no named parts to cut or take apart."
+    ],
+    "built": {
+      "file": "measuring-tape.glb",
+      "bytes": 445184,
+      "sha256": "a947441fd19e3a5b89f27f62510c805e36dd0077120e966729ddd3bec21713e9",
+      "triangles": 2868
+    },
+    "parts": [
+      {
+        "key": "whole",
+        "name": "Measuring tape",
+        "aliases": [],
+        "confidence": "atlas",
+        "color": [
+          255,
+          255,
+          255
+        ],
+        "closed": true,
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.040566,
+          0.073414,
+          0.169419
+        ],
+        "triangles": 2868
+      }
+    ]
+  },
+  {
+    "id": "mousetrap",
+    "name": "Mousetrap",
+    "description": "A wooden snap mousetrap with its spring bar, as one textured object",
+    "aliases": [
+      "mousetrap",
+      "mouse trap",
+      "snap trap"
+    ],
+    "licence": {
+      "id": "CC0-1.0",
+      "name": "CC0 1.0 Universal",
+      "version": "1.0",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    "release": {
+      "blocked": false
+    },
+    "format": "gltf",
+    "single": true,
+    "size": [
+      0.054988,
+      0.017934,
+      0.100444
+    ],
+    "realLengthMetres": 0.100444,
+    "caveats": [
+      "A single scanned or modelled object: it can be labelled as a whole, but has no named parts to cut or take apart."
+    ],
+    "built": {
+      "file": "mousetrap.glb",
+      "bytes": 2233796,
+      "sha256": "04def5d43d0c40c2b8a905c65115407c6e3623cc0dc17e95c07e9812ac8194c3",
+      "triangles": 5136
+    },
+    "parts": [
+      {
+        "key": "whole",
+        "name": "Mousetrap",
+        "aliases": [],
+        "confidence": "atlas",
+        "color": [
+          255,
+          255,
+          255
+        ],
+        "closed": false,
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.054988,
+          0.017934,
+          0.100444
+        ],
+        "triangles": 5136
+      }
+    ]
+  },
+  {
+    "id": "telegraph-key",
+    "name": "Morse-Vail telegraph key",
+    "description": "A Morse-Vail telegraph key from about 1844, a scan of the museum object",
+    "aliases": [
+      "telegraph key",
+      "morse key",
+      "morse code key",
+      "telegraph"
+    ],
+    "licence": {
+      "id": "CC0-1.0",
+      "name": "CC0 1.0 Universal",
+      "version": "1.0",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    "release": {
+      "blocked": false
+    },
+    "format": "gltf",
+    "single": true,
+    "size": [
+      0.169078,
+      0.07655,
+      0.050837
+    ],
+    "realLengthMetres": 0.169078,
+    "caveats": [
+      "A single scanned or modelled object: it can be labelled as a whole, but has no named parts to cut or take apart.",
+      "The source's textures are larger than the page draws them at; they are reduced when loaded, to the size each tier allows."
+    ],
+    "built": {
+      "file": "telegraph-key.glb",
+      "bytes": 7582656,
+      "sha256": "40aed26cdcb2b5a9b29d6fad85ce3b7ff2309c39ab893320c4f3fc69fc99cc0a",
+      "triangles": 150000
+    },
+    "parts": [
+      {
+        "key": "whole",
+        "name": "Morse-Vail telegraph key",
+        "aliases": [],
+        "confidence": "atlas",
+        "color": [
+          255,
+          255,
+          255
+        ],
+        "closed": true,
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.169078,
+          0.07655,
+          0.050837
+        ],
+        "triangles": 150000
       }
     ]
   }

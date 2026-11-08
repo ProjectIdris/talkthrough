@@ -227,6 +227,7 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
         // A part of a real model written by its name or an alias (h.Left ventricle): the part it meant, said in a note.
         const base = v.slice(0, v.indexOf('.'));
         const model = state.models?.has(base) ? MODELS.find((m) => m.id === state.models!.get(base)) : undefined;
+        if (model?.single) return bad(`unknown id "${v}": the model "${base}" (${model.name}) is one piece with no parts to name; use "${base}" for the whole of it`);
         if (model) {
           const { part, near } = resolvePart(model, v.slice(v.indexOf('.') + 1));
           if (!part) {
@@ -641,6 +642,15 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
       }
     }
   }
+  // A model that is one piece (a scan, a single object) is labelled as a whole: nothing to take apart or cut open.
+  if (variant.name === 'explode' || variant.name === 'cut') {
+    const target = own(raw, 'id');
+    const single = typeof target === 'string' && state.models?.has(target) ? MODELS.find((m) => m.id === state.models!.get(target)) : undefined;
+    if (single?.single) {
+      note(notes, 'dropped', path, `${variant.name}: "${target}" is the model "${single.id}" (${single.name}), which is one piece with no parts to ${variant.name === 'cut' ? 'cut open' : 'take apart'}; label it as a whole`);
+      return null;
+    }
+  }
   // Strict admission precedes the ordinary, deliberately lenient field parser and any state changes.
   if (variant.name === 'addHull') {
     const result = resolveHullPoints(own(raw, 'pts'));
@@ -928,7 +938,8 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
         state.ids.delete(old); state.parents.delete(old); state.depth.delete(old);
       }
       (state.models ??= new Map()).set(id, model.id);
-      for (const p of model.parts) {
+      // A model of one piece has no parts to name: only the whole is an id (the planner still draws it as one part).
+      for (const p of model.single ? [] : model.parts) {
         const pid = partId(id, p.key);
         state.ids.set(pid, 'group');
         state.parents.set(pid, id);

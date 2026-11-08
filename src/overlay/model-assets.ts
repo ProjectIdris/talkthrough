@@ -3,7 +3,7 @@
 // catalogue's, or that points at anything outside itself, is refused, and a model that cannot be loaded leaves its parts empty so the scene still plays.
 
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import type { BufferGeometry, Mesh, Object3D } from 'three';
+import type { BufferGeometry, Material, Mesh, Object3D, Texture } from 'three';
 import { MODELS } from '../scene/model-catalogue.ts';
 import type { ModelEntry } from '../scene/model-catalogue.ts';
 import type { Frame } from './timeline.ts';
@@ -18,11 +18,17 @@ export interface ModelStore {
   ensure(models: Iterable<string>): Promise<void>;
   /** The part's mesh geometry, centred on itself, in metres: shared with the store, so never changed or disposed by the caller. */
   geometry(model: string, part: string): BufferGeometry | undefined;
+  /** What a textured part is drawn from: one piece for each of the source's materials, each centred on the part and in metres, with the source's own material (shared; never changed or disposed by the caller). An OBJ-built part has one piece and no material. */
+  pieces(model: string, part: string): ModelPiece[] | undefined;
   /** Why a model failed, for the log. */
   failure(model: string): string | undefined;
 }
 
+export type ModelPiece = { geometry: BufferGeometry; material: Material | undefined };
+
 export type StoreOptions = {
+  /** The longest side, in pixels, a texture may keep: a larger one is reduced when the model loads, so a tier never holds more than it can draw. */
+  maxTexture?: number;
   /** Reads the bytes of a built model file by its name (`heart.glb`). */
   read: (file: string) => Promise<ArrayBuffer>;
   /** Called when a model finishes loading or fails, so a waiting frame can be drawn again. */
@@ -53,11 +59,41 @@ export function externalReference(json: Record<string, unknown>): string | undef
   return undefined;
 }
 
+/**
+ * A texture larger than the tier allows is drawn smaller onto a canvas of its own and the original is let go (the page holds only what it can use).
+ * Where there is no canvas (a test), it is left as it is.
+ */
+export function shrinkTextures(root: Object3D, cap: number): void {
+  if (typeof OffscreenCanvas === 'undefined') return;
+  const seen = new Set<Texture>();
+  root.traverse((node) => {
+    const mesh = node as Mesh;
+    if (!mesh.isMesh) return;
+    for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      for (const value of Object.values(material as unknown as Record<string, unknown>)) {
+        const texture = value as Texture | null;
+        if (!texture || !texture.isTexture || seen.has(texture)) continue;
+        seen.add(texture);
+        const image = texture.image as { width?: number; height?: number; close?: () => void } | undefined;
+        if (!image?.width || !image.height || Math.max(image.width, image.height) <= cap) continue;
+        const k = cap / Math.max(image.width, image.height);
+        const canvas = new OffscreenCanvas(Math.max(1, Math.round(image.width * k)), Math.max(1, Math.round(image.height * k)));
+        const context = canvas.getContext('2d');
+        if (!context) continue;
+        context.drawImage(image as unknown as CanvasImageSource, 0, 0, canvas.width, canvas.height);
+        image.close?.();
+        texture.image = canvas;
+        texture.needsUpdate = true;
+      }
+    }
+  });
+}
+
 export function createModelStore(options: StoreOptions): ModelStore {
   const catalogue = options.catalogue ?? MODELS;
   const states = new Map<string, ModelState>();
   const failures = new Map<string, string>();
-  const parts = new Map<string, Map<string, BufferGeometry>>();
+  const parts = new Map<string, Map<string, ModelPiece[]>>();
   const waiting = new Map<string, Promise<void>>();
 
   const parse = (buffer: ArrayBuffer): Promise<Object3D> => new Promise((ok, bad) => new GLTFLoader().parse(buffer, '', (gltf) => ok(gltf.scene), (error) => bad(error instanceof Error ? error : new Error(String(error)))));
@@ -74,10 +110,26 @@ export function createModelStore(options: StoreOptions): ModelStore {
       const external = externalReference(json);
       if (external) throw new Error(`${entry.built.file}: ${external}`);
       const root = await parse(bytes);
-      const named = new Map<string, BufferGeometry>();
-      root.traverse((node) => {
+      const named = new Map<string, ModelPiece[]>();
+      if (entry.format === 'gltf') {
+        // The artist's own meshes and materials, passed through: each mesh is moved into the model's space (the file's own root puts it on the scene's axes, in metres,
+        // centred) and then centred on its part, which is where the planner puts the part.
+        root.updateMatrixWorld(true);
+        root.traverse((node) => {
+          const mesh = node as Mesh;
+          if (!mesh.isMesh) return;
+          let owner: Object3D | null = mesh;
+          while (owner && typeof owner.userData.part !== 'string') owner = owner.parent;
+          const part = entry.parts.find((p) => p.key === owner?.userData.part);
+          if (!part) return;
+          const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld).translate(-part.center[0], -part.center[1], -part.center[2]);
+          const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+          named.set(part.key, [...(named.get(part.key) ?? []), { geometry, material }]);
+        });
+        if (options.maxTexture) shrinkTextures(root, options.maxTexture);
+      } else root.traverse((node) => {
         const mesh = node as Mesh;
-        if (mesh.isMesh && entry.parts.some((p) => p.key === mesh.name)) named.set(mesh.name, mesh.geometry);
+        if (mesh.isMesh && entry.parts.some((p) => p.key === mesh.name)) named.set(mesh.name, [{ geometry: mesh.geometry, material: undefined }]);
       });
       const missing = entry.parts.filter((p) => !named.has(p.key)).map((p) => p.key);
       if (missing.length) throw new Error(`${entry.built.file} lacks parts: ${missing.join(', ')}`);
@@ -95,7 +147,8 @@ export function createModelStore(options: StoreOptions): ModelStore {
   return {
     state: (model) => states.get(model) ?? 'idle',
     failure: (model) => failures.get(model),
-    geometry: (model, part) => parts.get(model)?.get(part),
+    geometry: (model, part) => parts.get(model)?.get(part)?.[0]?.geometry,
+    pieces: (model, part) => parts.get(model)?.get(part),
     async ensure(models) {
       const runs: Promise<void>[] = [];
       for (const id of models) {
@@ -198,4 +251,9 @@ export function modelTriangles(objects: readonly { def: { shape?: string; model?
     if (model && !seen.has(model.id)) { seen.add(model.id); total += model.built.triangles; }
   }
   return total;
+}
+
+/** The objects that can be taken apart or cut: everything but a model of one piece and its one mesh, so a lone drill is not offered an Explode it cannot do. */
+export function takeApartable<T extends { def: { shape?: string; model?: unknown } }>(objects: readonly T[]): T[] {
+  return objects.filter((o) => !((o.def.shape === 'model' || o.def.shape === 'meshpart') && findModel(o.def.model)?.single === true));
 }

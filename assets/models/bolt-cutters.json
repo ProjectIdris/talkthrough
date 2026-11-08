@@ -1,0 +1,109 @@
+{
+  "id": "bolt-cutters",
+  "name": "Bolt cutters",
+  "description": "Long-handled bolt cutters, as one textured object",
+  "aliases": [
+    "bolt cutters",
+    "bolt cutter",
+    "bolt croppers"
+  ],
+  "format": "gltf",
+  "licence": {
+    "id": "CC0-1.0",
+    "version": "1.0",
+    "statedOn": "https://polyhaven.com/license",
+    "statement": "Our assets are all licensed as CC0. You do not need to give credit."
+  },
+  "source": {
+    "name": "Poly Haven",
+    "url": "https://polyhaven.com/a/bolt_cutters_01",
+    "version": "Bolt Cutters 01, 1k glTF, published 2022-12-02",
+    "authors": [
+      "Yann Kervran (rigging)",
+      "Antanas Kep (modelling and texturing)"
+    ],
+    "cacheFolder": "ph-bolt-cutters-01"
+  },
+  "retrieved": "2026-11-08",
+  "changes": "Passed through: geometry, UV coordinates, materials and the 1k textures are the source's own, unchanged. Added: a root that puts the model on the scene's axes, in metres, centred on its own middle, and a tag on each named part.",
+  "orient": {
+    "up": "y+",
+    "front": "z+"
+  },
+  "scale": {
+    "unitsToMetres": 1
+  },
+  "caveats": [
+    "A single scanned or modelled object: it can be labelled as a whole, but has no named parts to cut or take apart."
+  ],
+  "files": [
+    {
+      "entry": "bolt_cutters_01.bin",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/bolt_cutters_01/bolt_cutters_01.bin",
+      "bytes": 94700,
+      "sha256": "ca59727481d2edca3a3177966d816c2e074f7ee182cef94b7fc4b67d6ded8aa2"
+    },
+    {
+      "entry": "bolt_cutters_01_1k.gltf",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/bolt_cutters_01/bolt_cutters_01_1k.gltf",
+      "bytes": 2797,
+      "sha256": "eedd7c98341e85013c753af0406bac3b58d4e485a2730e611c08dcb4cc2f3a81"
+    },
+    {
+      "entry": "textures/bolt_cutters_01_arm_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/bolt_cutters_01/bolt_cutters_01_arm_1k.jpg",
+      "bytes": 810127,
+      "sha256": "1335d3c5e266be103dcf983c34450213d23796d66b1c7ba0bfc1026ee77041b2"
+    },
+    {
+      "entry": "textures/bolt_cutters_01_diff_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/bolt_cutters_01/bolt_cutters_01_diff_1k.jpg",
+      "bytes": 777857,
+      "sha256": "e525175e4e94d2e7800dd24e8f1005ae0b34b06572cd71ef144b5fabe245fb24"
+    },
+    {
+      "entry": "textures/bolt_cutters_01_nor_gl_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/bolt_cutters_01/bolt_cutters_01_nor_gl_1k.jpg",
+      "bytes": 812150,
+      "sha256": "49228dda2096f76534907f3b93b632a5129eda96d48e4102565fdb84ca74a5f1"
+    }
+  ],
+  "parts": [
+    {
+      "key": "whole",
+      "name": "Bolt cutters",
+      "aliases": [],
+      "confidence": "atlas",
+      "nodes": [
+        "bolt_cutters_01"
+      ]
+    }
+  ],
+  "built": {
+    "file": "bolt-cutters.glb",
+    "bytes": 2496808,
+    "sha256": "470c491d351b1bf2831d69511bcdb18a01243a5eaf8881db0de84874f13217a0",
+    "triangles": 3410,
+    "size": [
+      0.151046,
+      0.802581,
+      0.036027
+    ],
+    "parts": {
+      "whole": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0.151046,
+          0.802581,
+          0.036027
+        ],
+        "closed": false,
+        "triangles": 3410
+      }
+    }
+  }
+}

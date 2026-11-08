@@ -28,12 +28,16 @@ export type TierSettings = {
   micro: 0 | 1 | 2;
   /** A circuit board's own surface: 0 plain, 1 traces and pads, 2 with silkscreen. */
   board: 0 | 1 | 2;
+  /** A real model's textured materials (model-surface.ts): its colour map only, or that with its normal, roughness, metal and occlusion maps. */
+  modelMaps: 'colour' | 'full';
+  /** The longest side, in pixels, a real model's texture keeps on this tier (larger ones are reduced when the model loads). */
+  modelTexture: number;
 };
 
 export const TIERS: Record<Tier, TierSettings> = {
-  low: { msaa: false, shadows: false, shadowMapSize: 512, edges: false, maxPixelRatio: 1, clearcoat: false, micro: 0, board: 1 },
-  mid: { msaa: true, shadows: true, shadowMapSize: 1024, edges: true, maxPixelRatio: 1.5, clearcoat: true, micro: 1, board: 2 },
-  high: { msaa: true, shadows: true, shadowMapSize: 2048, edges: true, maxPixelRatio: 2, clearcoat: true, micro: 2, board: 2 },
+  low: { msaa: false, shadows: false, shadowMapSize: 512, edges: false, maxPixelRatio: 1, clearcoat: false, micro: 0, board: 1, modelMaps: 'colour', modelTexture: 1024 },
+  mid: { msaa: true, shadows: true, shadowMapSize: 1024, edges: true, maxPixelRatio: 1.5, clearcoat: true, micro: 1, board: 2, modelMaps: 'full', modelTexture: 2048 },
+  high: { msaa: true, shadows: true, shadowMapSize: 2048, edges: true, maxPixelRatio: 2, clearcoat: true, micro: 2, board: 2, modelMaps: 'full', modelTexture: 2048 },
 };
 
 /** The surfaces a scene can name, and two the parts kit uses inside itself: painted metal and rough cast metal. */

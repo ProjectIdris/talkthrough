@@ -7,14 +7,22 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { CACHE_DIR, manifestProblems, readManifests, sha256 } from './manifest.mjs';
+import { FETCH_HOSTS, cacheFolder, manifestProblems, readManifests, sha256 } from './manifest.mjs';
 import { httpRange, readDirectory, readEntry } from './zip-range.mjs';
 
 const args = process.argv.slice(2);
 const pin = args.includes('--pin');
 const only = args.filter((a) => !a.startsWith('--'));
 
-const cachePath = (m, f) => join(CACHE_DIR, m.source.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), f.entry);
+const cachePath = (m, f) => join(cacheFolder(m), f.entry);
+
+/** A glTF model's file, from the publisher's own address the manifest names (https, an allowed host, and still on one after any redirect). */
+async function fromUrl(f) {
+  const res = await fetch(f.url, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`${f.url}: HTTP ${res.status}`);
+  if (!FETCH_HOSTS.includes(new URL(res.url).hostname)) throw new Error(`${f.url} led to ${new URL(res.url).hostname}, which is not an allowed host`);
+  return Buffer.from(await res.arrayBuffer());
+}
 const directories = new Map();
 
 /** The archive's directory, checked against the size the manifest recorded (a re-published archive is not the one that was reviewed). */
@@ -40,7 +48,9 @@ let failed = 0;
 for (const { file, manifest: m } of readManifests()) {
   if (only.length && !only.includes(m.id)) continue;
   console.log(`${m.id}: ${m.parts.length} parts`);
-  if (pin) {
+  if (pin && m.format === 'gltf') {
+    // A glTF model lists its files and their addresses by hand; pinning records what they are.
+  } else if (pin) {
     // The files a part names, in the order they appear; the archive folder is the manifest's.
     const ids = [...new Set(m.parts.flatMap((p) => p.nodes ?? []))];
     const known = new Map((m.files ?? []).map((f) => [f.id, f]));
@@ -54,16 +64,16 @@ for (const { file, manifest: m } of readManifests()) {
   for (const f of m.files) {
     const path = cachePath(m, f);
     let data = existsSync(path) ? readFileSync(path) : undefined;
-    if (data && f.sha256 && sha256(data) !== f.sha256) { console.error(`  ${f.id}: the cached file does not match its pinned hash; removed`); rmSync(path); data = undefined; }
+    if (data && f.sha256 && sha256(data) !== f.sha256) { console.error(`  ${f.id ?? f.entry}: the cached file does not match its pinned hash; removed`); rmSync(path); data = undefined; }
     if (!data) {
-      try { data = await fromArchive(m, f.entry); } catch (e) { console.error(`  ${f.id}: ${e.message}`); failed++; continue; }
+      try { data = m.format === 'gltf' ? await fromUrl(f) : await fromArchive(m, f.entry); } catch (e) { console.error(`  ${f.id ?? f.entry}: ${e.message}`); failed++; continue; }
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, data);
       fetched++;
       bytes += data.length;
     }
     if (pin) { f.bytes = data.length; f.sha256 = sha256(data); }
-    else if (f.sha256 !== sha256(data) || f.bytes !== data.length) { console.error(`  ${f.id}: does not match the manifest (hash or size); refused`); rmSync(path); failed++; }
+    else if (f.sha256 !== sha256(data) || f.bytes !== data.length) { console.error(`  ${f.id ?? f.entry}: does not match the manifest (hash or size); refused`); rmSync(path); failed++; }
   }
   if (pin) writeFileSync(file, JSON.stringify(m, null, 2) + '\n');
   console.log(`  ${m.files.length} files, ${fetched} fetched (${(bytes / 1048576).toFixed(1)} MB)`);

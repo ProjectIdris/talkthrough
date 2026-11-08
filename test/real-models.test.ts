@@ -5,7 +5,10 @@ import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import test from 'node:test';
-import { BoxGeometry } from 'three';
+import type { Plugin } from 'esbuild';
+import { Box3, BoxGeometry, MeshPhysicalMaterial, MeshStandardMaterial, Texture, Vector3 } from 'three';
+import { TIERS } from '../src/overlay/materials.ts';
+import { modelSurface } from '../src/overlay/model-surface.ts';
 import type { BufferGeometry, Mesh } from 'three';
 import { createSceneState, sceneGuide, validateScene } from '../src/scene/index.ts';
 import type { Scene } from '../src/scene/index.ts';
@@ -13,7 +16,7 @@ import { MODELS } from '../src/scene/model-catalogue.ts';
 import type { ModelEntry } from '../src/scene/model-catalogue.ts';
 import { modelScale } from '../src/scene/models.ts';
 import { PanelScene } from '../src/overlay/scene3d.ts';
-import { cornerFor, createModelStore, creditLine, externalReference, failedNote, HEAVY_MODEL_TRIANGLES, modelTriangles, modelsIn, withoutFailedModels } from '../src/overlay/model-assets.ts';
+import { cornerFor, createModelStore, creditLine, externalReference, failedNote, HEAVY_MODEL_TRIANGLES, modelTriangles, modelsIn, takeApartable, withoutFailedModels } from '../src/overlay/model-assets.ts';
 import type { ModelState, ModelStore } from '../src/overlay/model-assets.ts';
 import { frameAt } from '../src/overlay/timeline.ts';
 // @ts-expect-error plain script modules
@@ -26,6 +29,16 @@ import { manifestProblems, readManifests } from '../scripts/assets/manifest.mjs'
 import { shipModels } from '../scripts/assets/ship.mjs';
 
 const heart = MODELS.find((m) => m.id === 'heart')!;
+/** The page decodes a texture with the browser's createImageBitmap; Node has none, so a stand-in gives each image a size and nothing else. */
+function withImageDecoder<T>(run: () => Promise<T>): Promise<T> {
+  const g = globalThis as Record<string, unknown>;
+  const before = { createImageBitmap: g.createImageBitmap, self: g.self };
+  g.createImageBitmap = async () => ({ width: 8, height: 8, close() {} });
+  g.self = globalThis;
+  return run().finally(() => { g.createImageBitmap = before.createImageBitmap; if (before.self === undefined) delete g.self; else g.self = before.self; });
+}
+const anatomy = MODELS.filter((m) => m.format === 'obj');
+const objects = MODELS.filter((m) => m.format === 'gltf');
 const validated = (raw: unknown, state = createSceneState()): Scene => {
   const r = validateScene(raw, state);
   assert.ok(r.scene, JSON.stringify(r.issues));
@@ -73,6 +86,7 @@ function fakeStore(initial: ModelState): ModelStore & { set(s: ModelState): void
     ensure: async () => {},
     failure: () => undefined,
     geometry: (_m, _p) => (state === 'ready' ? new BoxGeometry(0.02, 0.04, 0.01) : undefined),
+    pieces: (_m, _p) => (state === 'ready' ? [{ geometry: new BoxGeometry(0.02, 0.04, 0.01), material: undefined }] : undefined),
   };
 }
 
@@ -196,16 +210,26 @@ test('the catalogue and the credits file are what the manifests say', () => {
 const built = existsSync(join(import.meta.dirname, '..', 'assets', 'built', 'heart.glb'));
 test('the real built models load in three\'s own loader, with every named part and the sizes the catalogue says', { skip: built ? false : 'run npm run assets first' }, async () => {
   const store = createModelStore({ read: async (file) => ab(readFileSync(join(import.meta.dirname, '..', 'assets', 'built', file))) });
-  await store.ensure(MODELS.map((m) => m.id));
+  await withImageDecoder(() => store.ensure(MODELS.map((m) => m.id)));
   for (const m of MODELS) {
     assert.equal(store.state(m.id), 'ready', `${m.id}: ${store.failure(m.id)}`);
     let triangles = 0;
     for (const p of m.parts) {
-      const g = store.geometry(m.id, p.key)!;
-      g.computeBoundingBox();
-      const size = g.boundingBox!.getSize(new (g.boundingBox!.min.constructor as new () => import('three').Vector3)());
-      p.size.forEach((s, i) => assert.ok(Math.abs(size.toArray()[i]! - s) < 1e-5 + s * 1e-3, `${m.id}.${p.key} axis ${i}: ${size.toArray()[i]} vs ${s}`));
-      triangles += (g.index?.count ?? 0) / 3;
+      const pieces = store.pieces(m.id, p.key)!;
+      assert.ok(pieces.length > 0, `${m.id}.${p.key} has a mesh`);
+      const box = new Box3();
+      for (const piece of pieces) {
+        piece.geometry.computeBoundingBox();
+        box.union(piece.geometry.boundingBox!);
+        triangles += (piece.geometry.index?.count ?? piece.geometry.getAttribute('position').count) / 3;
+        // a textured model keeps the artist's materials; an anatomy part has none of its own
+        assert.equal(piece.material !== undefined, m.format === 'gltf', `${m.id}.${p.key} material`);
+      }
+      const size = box.getSize(new Vector3()).toArray();
+      p.size.forEach((s, i) => assert.ok(Math.abs(size[i]! - s) < 1e-5 + s * 1e-3, `${m.id}.${p.key} axis ${i}: ${size[i]} vs ${s}`));
+      // centred on the part, so the planner's place for it is the right one
+      const middle = box.getCenter(new Vector3()).toArray();
+      middle.forEach((c, i) => assert.ok(Math.abs(c) < 1e-5 + p.size[i]! * 1e-3, `${m.id}.${p.key} is centred on itself (axis ${i}: ${c})`));
     }
     assert.equal(triangles, m.built.triangles, `${m.id} triangles`);
   }
@@ -323,25 +347,35 @@ test('BodyParts3D is credited as its current grant says, the older file notice i
   assert.match(out.credits, /Left ventricle \(atlas; FJ\d+\)/, 'the source element ids of each part');
   assert.match(out.credits, /MIT licence covers that code only: it excludes the models named here/);
   assert.match(out.credits, /Held back from releases/);
-  for (const m of MODELS) {
+  assert.deepEqual(anatomy.map((m) => m.id).sort(), ['brain', 'heart']);
+  for (const m of anatomy) {
     assert.equal(m.licence.id, 'CC-BY-4.0');
     assert.equal(m.credit, 'BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International');
     assert.equal(m.release.blocked, true);
   }
+  for (const m of objects) {
+    assert.equal(m.licence.id, 'CC0-1.0');
+    assert.equal(m.credit, undefined, 'CC0 asks for no credit');
+    assert.equal(m.release.blocked, false);
+  }
   // an earlier notice must say that it is kept
-  const manifest = JSON.parse(JSON.stringify(readManifests()[0].manifest));
+  const manifest = JSON.parse(JSON.stringify(readManifests().find((x: { manifest: { id: string } }) => x.manifest.id === 'heart').manifest));
   assert.deepEqual(manifestProblems(manifest), []);
   manifest.licence.earlierNotice.kept = false;
   assert.match(manifestProblems(manifest).join(';'), /earlier licence notice/);
-  // a release leaves out what is held: no file copied, no credits for it, and it says so
+});
+
+test('a release leaves out what is held (no file, no credits for it, and it says so) and carries the rest', { skip: built ? false : 'run npm run assets first' }, () => {
   const dir = mkdtempSync(join(tmpdir(), 'tt-rel-'));
   try {
     mkdirSync(join(dir, 'models'));
     writeFileSync(join(dir, 'models', 'heart.glb'), 'an earlier build');
     const r = shipModels({ strict: true, release: true, out: dir });
-    assert.deepEqual([...r.dropped].sort(), MODELS.map((m) => m.id).sort());
-    assert.deepEqual(r.shipped, []);
-    assert.ok(!existsSync(join(dir, 'models')) && !existsSync(join(dir, 'CREDITS.md')), 'no model file and no credits in a release that carries none');
+    assert.deepEqual([...r.dropped].sort(), anatomy.map((m) => m.id).sort());
+    assert.deepEqual([...r.shipped].sort(), objects.map((m) => m.id).sort());
+    assert.ok(!existsSync(join(dir, 'models', 'heart.glb')) && existsSync(join(dir, 'models', 'drill.glb')), 'the held file is removed, the carried one is there');
+    const credits = readFileSync(join(dir, 'CREDITS.md'), 'utf8');
+    assert.ok(!credits.includes('BodyParts3D') && credits.includes('Power drill'), 'the credits list only what is carried');
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -349,11 +383,29 @@ test('a release builds the app with a catalogue that does not list the held mode
   const { build } = await import('esbuild');
   // @ts-expect-error plain script module
   const { releaseCatalogue, releaseSplit } = await import('../scripts/assets/release.mjs');
-  assert.deepEqual(releaseSplit().kept, [], 'both anatomy models are held');
+  assert.deepEqual(releaseSplit().kept.map((m: { id: string }) => m.id).sort(), objects.map((m) => m.id).sort(), 'both anatomy models are held, the CC0 objects are carried');
   const dir = mkdtempSync(join(tmpdir(), 'tt-bundle-'));
   try {
+    const entry = join(import.meta.dirname, '..', 'src', 'scene', 'index.ts');
+    // a release with the real manifests: the anatomy is gone from the guide and the validator, the objects stay
+    const mixed = join(dir, 'mixed.mjs');
+    await build({ entryPoints: [entry], outfile: mixed, bundle: true, platform: 'node', format: 'esm', plugins: [releaseCatalogue], logLevel: 'silent' });
+    const kept = await import(pathToFileURL(mixed).href);
+    const line = kept.sceneGuide.split('\n').find((l: string) => l.startsWith('- Real models')) as string;
+    assert.ok(line.includes('drill') && !/\bheart\b/.test(line) && !/\bbrain\b/.test(line), 'the guide offers the objects and not the anatomy');
+    const gone = kept.validateStep({ say: 'x', actions: [{ op: 'panel', x: 400, y: 80, w: 500, h: 700 }, { op: 'add', shape: 'model', id: 'h', model: 'heart' }] }, kept.createSceneState());
+    assert.ok(!(gone.step?.actions ?? []).some((a: { op: string; id?: string }) => a.id === 'h'), 'a held model is dropped');
+    // and with every model held there is no model line and no model shape at all
     const out = join(dir, 'scene.mjs');
-    await build({ entryPoints: [join(import.meta.dirname, '..', 'src', 'scene', 'index.ts')], outfile: out, bundle: true, platform: 'node', format: 'esm', plugins: [releaseCatalogue], logLevel: 'silent' });
+    // @ts-expect-error plain script module
+    const { catalogueSource } = await import('../scripts/assets/index.mjs');
+    const none: Plugin = {
+      name: 'none-left',
+      setup(b) {
+        b.onLoad({ filter: /model-catalogue\.ts$/ }, () => ({ contents: catalogueSource([]), loader: 'ts', resolveDir: join(import.meta.dirname, '..', 'src', 'scene') }));
+      },
+    };
+    await build({ entryPoints: [entry], outfile: out, bundle: true, platform: 'node', format: 'esm', plugins: [none], logLevel: 'silent' });
     const lib = await import(pathToFileURL(out).href);
     assert.ok(!lib.sceneGuide.includes('Real models'), 'no model line');
     assert.ok(!lib.sceneGuide.includes('with no real model below'), 'no pointer to models that are not there');
@@ -373,4 +425,32 @@ test('a frame with a dense real model on it is told apart by its triangles, each
   assert.ok(modelTriangles(frame.objects) >= HEAVY_MODEL_TRIANGLES, 'the heart is dense enough for the light level');
   const plain = validated({ steps: [{ say: 'Box.', actions: [{ op: 'panel', x: 400, y: 80, w: 500, h: 700 }, { op: 'add', shape: 'box', id: 'b', size: [1, 1, 1] }] }] });
   assert.equal(modelTriangles(frameAt(plain.steps, 0, 5).objects), 0);
+});
+
+test('Explode and Cut are offered for what can be taken apart: not for a model of one piece alone, but for one with parts', () => {
+  const frameOf = (actions: unknown[]) => frameAt(validated({ steps: [{ say: 'x', actions: [{ op: 'panel', x: 400, y: 80, w: 500, h: 700 }, ...actions] }] }).steps, 0, 5);
+  const drill = { op: 'add', shape: 'model', id: 'd', model: 'drill' };
+  const lone = frameOf([drill]);
+  assert.ok(lone.objects.length >= 2, 'the group and its mesh would pass the old count of two');
+  assert.equal(takeApartable(lone.objects).length, 0);
+  assert.ok(takeApartable(frameOf([{ op: 'add', shape: 'model', id: 'c', model: 'camera' }]).objects).length >= 2, 'a camera has a strap and a body');
+  assert.ok(takeApartable(frameOf([drill, { op: 'add', shape: 'box', id: 'a', size: [1, 1, 1] }, { op: 'add', shape: 'box', id: 'b', size: [1, 1, 1] }]).objects).length >= 2, 'two shapes beside the drill still can');
+});
+
+test('a textured model\'s surface carries its colour map on every tier, its other maps only where the tier draws them, and glass is the overlay\'s glass', () => {
+  const map = new Texture(), normal = new Texture(), arm = new Texture();
+  const source = new MeshStandardMaterial({ map, normalMap: normal, roughnessMap: arm, metalnessMap: arm, roughness: 1, metalness: 1 });
+  const low = modelSurface(source, TIERS.low), mid = modelSurface(source, TIERS.mid), high = modelSurface(source, TIERS.high);
+  for (const s of [low, mid, high]) { assert.equal(s.map, map); assert.equal(s.userData.name, 'textured'); assert.equal(s.color.getHex(), 0xffffff); }
+  assert.equal(low.normalMap, null);
+  assert.equal(low.roughnessMap, null);
+  assert.ok(low.metalness <= 0.1, 'a metal factor with no metal map would turn the colour map to dark chrome');
+  assert.equal(mid.normalMap, normal);
+  assert.equal(high.roughnessMap, arm);
+  assert.equal(high.metalness, 1, 'the factor stands where its map is drawn');
+  const glass = modelSurface(new MeshStandardMaterial({ transparent: true, opacity: 0.8 }), TIERS.mid);
+  assert.equal(glass.userData.name, 'glass');
+  assert.equal(modelSurface(Object.assign(new MeshPhysicalMaterial(), { transmission: 1 }), TIERS.low).userData.name, 'glass');
+  // the tiers' budgets: smaller textures and fewer maps on the lower one
+  assert.ok(TIERS.low.modelTexture < TIERS.mid.modelTexture && TIERS.low.modelMaps === 'colour' && TIERS.mid.modelMaps === 'full');
 });
