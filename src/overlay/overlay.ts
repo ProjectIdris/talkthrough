@@ -135,6 +135,8 @@ const modelStore = createModelStore({
   changed: () => { request(); },
   log: (message) => console.error(`talkthrough: ${message}`),
 });
+/** The corner of the stage the small print is in (see cornerFor). */
+let creditCorner: number | undefined;
 /** The models the last frame had to leave out, for the stage's note. */
 let modelsLeftOut: string[] = [];
 const panelScene = new PanelScene({
@@ -403,7 +405,6 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
     panelScene.sync(frame, 1);
   }
   placeExplode(frame);
-  placeCredit(frame);
   // Rehydrate from the current visible frame, then use the real grown-stage and button
   // rectangles rather than the panel requested earlier. Frame keys distinguish replacement.
   const p = placer();
@@ -487,7 +488,6 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
         modelRect = undefined; modelHitRect = undefined; cardRect = undefined;
         frame = omitStageForCue(frame, board);
         placeExplode(frame);
-        placeCredit(frame);
       }
       admission = admission.prioritize(frame, [cue, ...stageKeepOut(frame.panel, modelRect)]);
     }
@@ -512,6 +512,8 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
     milestones.mark = true;
     milestone('first-mark');
   }
+  // Last, when the pin tags have their places: the small print keeps clear of them too.
+  placeCredit(frame);
   return frame;
 }
 
@@ -964,7 +966,10 @@ function placeCredit(frame: Frame): void {
     const r = el.getBoundingClientRect();
     avoid.push({ x: r.left, y: r.top, w: r.width, h: r.height });
   }
-  const at = cornerFor(stage, { w: creditEl.offsetWidth, h: creditEl.offsetHeight }, avoid);
+  avoid.push(...board.shownRects());
+  // It stays in the corner it has while that is clear, so it does not hop about as tags glide.
+  const at = cornerFor(stage, { w: creditEl.offsetWidth, h: creditEl.offsetHeight }, avoid, 10, creditCorner);
+  creditCorner = at.corner;
   creditEl.style.left = `${at.x}px`;
   creditEl.style.top = `${at.y}px`;
 }

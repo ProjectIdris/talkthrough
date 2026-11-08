@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import test from 'node:test';
 import { BoxGeometry } from 'three';
 import type { BufferGeometry, Mesh } from 'three';
-import { createSceneState, validateScene } from '../src/scene/index.ts';
+import { createSceneState, sceneGuide, validateScene } from '../src/scene/index.ts';
 import type { Scene } from '../src/scene/index.ts';
 import { MODELS } from '../src/scene/model-catalogue.ts';
 import type { ModelEntry } from '../src/scene/model-catalogue.ts';
@@ -266,19 +267,52 @@ test('a model that cannot be loaded leaves the stage without it and its pins, sa
   assert.equal(creditLine(kept.frame.objects), '', 'no credit for what is not shown');
 });
 
-test('the small print of the stage takes the corner with least in the way, the foot first', () => {
+test('the small print of the stage takes the corner with least in the way, the foot first, keeps it while it is clear, and keeps off the pin tags', () => {
   const stage = { x: 100, y: 100, w: 800, h: 600 };
   const size = { w: 300, h: 40 };
-  assert.deepEqual(cornerFor(stage, size, []), { x: 110, y: 650 }, 'the left foot when nothing is in the way');
+  const xy = (c: { x: number; y: number }) => ({ x: c.x, y: c.y });
+  assert.deepEqual(xy(cornerFor(stage, size, [])), { x: 110, y: 650 }, 'the left foot when nothing is in the way');
   // the model fills the left foot: the right foot
-  assert.deepEqual(cornerFor(stage, size, [{ x: 100, y: 500, w: 400, h: 200 }]), { x: 590, y: 650 });
+  const model = { x: 100, y: 500, w: 400, h: 200 };
+  assert.deepEqual(xy(cornerFor(stage, size, [model])), { x: 590, y: 650 });
   // both feet taken: a corner at the top
-  assert.deepEqual(cornerFor(stage, size, [{ x: 100, y: 500, w: 800, h: 200 }]), { x: 110, y: 110 });
+  assert.deepEqual(xy(cornerFor(stage, size, [{ x: 100, y: 500, w: 800, h: 200 }])), { x: 110, y: 110 });
+  // a pin tag in the left foot is as much in the way as the model
+  const tag = { x: 150, y: 640, w: 120, h: 40 };
+  assert.deepEqual(xy(cornerFor(stage, size, [tag])), { x: 590, y: 650 });
+  // it stays where it is while that is clear, and moves when it is not
+  const left = cornerFor(stage, size, []);
+  assert.equal(left.corner, 0);
+  assert.equal(cornerFor(stage, size, [{ x: 700, y: 640, w: 100, h: 40 }], 10, 0).corner, 0, 'a tag at the right foot does not move it from the left');
+  assert.equal(cornerFor(stage, size, [tag], 10, 0).corner, 1, 'a tag on it does');
   // everything taken: the one with the least overlap, never outside the stage
   const c = cornerFor(stage, size, [{ x: 100, y: 100, w: 800, h: 600 }]);
   assert.ok(c.x >= stage.x && c.y >= stage.y && c.x + size.w <= stage.x + stage.w && c.y + size.h <= stage.y + stage.h);
   // a note wider than the stage still fits it
   assert.equal(cornerFor({ x: 0, y: 0, w: 200, h: 100 }, { w: 400, h: 20 }, []).x, 10);
+});
+
+test('a pin whose model was left out, or whose file has not come yet, is no fault of the pin: nothing is logged for it', () => {
+  const scene = validated({ steps: [{ say: 'A heart.', actions: [{ op: 'panel', x: 400, y: 80, w: 500, h: 700 }, { op: 'add', shape: 'model', id: 'h', model: 'heart', size: 6 }, { op: 'pin', id: 'p', on: 'h.left-ventricle', text: 'LV' }] }] });
+  const frame = frameAt(scene.steps, 0, 5);
+  const key = frame.objects.find((o) => o.id === 'h.left-ventricle')!.key;
+  const warned: string[] = [];
+  const warn = console.warn;
+  console.warn = (...a: unknown[]) => { warned.push(a.join(' ')); };
+  try {
+    const waiting = new PanelScene({ tier: 'low', models: fakeStore('loading') });
+    waiting.sync(frame, 1);
+    assert.equal(waiting.project(key, undefined, 800, 600)?.visible ?? false, false);
+    assert.equal(waiting.project(key + 999, undefined, 800, 600), undefined, 'a node that is not there');
+    assert.deepEqual(warned, []);
+    // a part that is built and cannot be seen is still reported, once
+    const plain = new PanelScene({ tier: 'low' });
+    const g = validated({ steps: [{ say: 'A box.', actions: [{ op: 'panel', x: 400, y: 80, w: 500, h: 700 }, { op: 'add', shape: 'box', id: 'b', size: [1, 1, 1], opacity: 0 }] }] });
+    const f = frameAt(g.steps, 0, 5);
+    plain.sync(f, 1);
+    plain.project(f.objects.find((o) => o.id === 'b')!.key, undefined, 800, 600);
+    assert.equal(warned.length, 1, warned.join('|'));
+  } finally { console.warn = warn; }
 });
 
 test('BodyParts3D is credited as its current grant says, the older file notice is kept on record, and the prototype is held back from every release', () => {
@@ -299,10 +333,35 @@ test('BodyParts3D is credited as its current grant says, the older file notice i
   assert.deepEqual(manifestProblems(manifest), []);
   manifest.licence.earlierNotice.kept = false;
   assert.match(manifestProblems(manifest).join(';'), /earlier licence notice/);
-  // the release path refuses while any model is held, before it looks for files
+  // a release leaves out what is held: no file copied, no credits for it, and it says so
   const dir = mkdtempSync(join(tmpdir(), 'tt-rel-'));
   try {
-    assert.throws(() => shipModels({ strict: true, release: true, out: dir }), /held back/);
-    assert.ok(!existsSync(join(dir, 'models')), 'nothing was copied');
+    mkdirSync(join(dir, 'models'));
+    writeFileSync(join(dir, 'models', 'heart.glb'), 'an earlier build');
+    const r = shipModels({ strict: true, release: true, out: dir });
+    assert.deepEqual([...r.dropped].sort(), MODELS.map((m) => m.id).sort());
+    assert.deepEqual(r.shipped, []);
+    assert.ok(!existsSync(join(dir, 'models')) && !existsSync(join(dir, 'CREDITS.md')), 'no model file and no credits in a release that carries none');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('a release builds the app with a catalogue that does not list the held models: no model line in the guide, no model shape, and a scene that asks for one says so', async () => {
+  const { build } = await import('esbuild');
+  // @ts-expect-error plain script module
+  const { releaseCatalogue, releaseSplit } = await import('../scripts/assets/release.mjs');
+  assert.deepEqual(releaseSplit().kept, [], 'both anatomy models are held');
+  const dir = mkdtempSync(join(tmpdir(), 'tt-bundle-'));
+  try {
+    const out = join(dir, 'scene.mjs');
+    await build({ entryPoints: [join(import.meta.dirname, '..', 'src', 'scene', 'index.ts')], outfile: out, bundle: true, platform: 'node', format: 'esm', plugins: [releaseCatalogue], logLevel: 'silent' });
+    const lib = await import(pathToFileURL(out).href);
+    assert.ok(!lib.sceneGuide.includes('Real models'), 'no model line');
+    assert.ok(!lib.sceneGuide.includes('with no real model below'), 'no pointer to models that are not there');
+    assert.ok(!JSON.stringify(lib.sceneSchemaLean).includes('"heart"'));
+    const r = lib.validateStep({ say: 'x', actions: [{ op: 'panel', x: 400, y: 80, w: 500, h: 700 }, { op: 'add', shape: 'model', id: 'h', model: 'heart' }] }, lib.createSceneState());
+    assert.ok(!(r.step?.actions ?? []).some((a: { op: string; id?: string }) => a.id === 'h'), 'the add is dropped');
+    assert.ok(r.issues.length > 0);
+    // and the full catalogue of a developer build still has them
+    assert.ok(sceneGuide.includes('Real models'));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

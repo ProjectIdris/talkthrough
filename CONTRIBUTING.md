@@ -32,7 +32,7 @@ The app works on your real screen: be careful with `--visible-to-capture` and wi
 
 ## Real models
 
-The 3D models of real things (a heart, a brain) are described by manifests in `assets/models` and fetched once into an ignored cache, never committed; see [docs/real-models.md](docs/real-models.md). Without them the app still runs and those models are drawn from shapes, and the two tests that read the built files skip.
+The 3D models of real things (a heart, a brain) are described by manifests in `assets/models` and fetched once into an ignored cache, never committed; see [docs/real-models.md](docs/real-models.md). Without them the app still runs: a scene that uses one of those models shows the stage without it and says so, and the tests that read the built files skip.
 
 ## Testing
 

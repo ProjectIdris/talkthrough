@@ -167,7 +167,7 @@ type Box = { x: number; y: number; w: number; h: number };
  * Where the stage's small print goes: the corner of the stage, at its foot first, that has the least of the model, the controls or anything else
  * in the way (the first one clear of all of them, else the one with the least overlap).
  */
-export function cornerFor(stage: Box, size: { w: number; h: number }, avoid: readonly Box[], margin = 10): { x: number; y: number } {
+export function cornerFor(stage: Box, size: { w: number; h: number }, avoid: readonly Box[], margin = 10, current?: number): { x: number; y: number; corner: number } {
   const w = Math.min(size.w, stage.w - 2 * margin), h = Math.min(size.h, stage.h - 2 * margin);
   const left = stage.x + margin, right = stage.x + stage.w - margin - w, top = stage.y + margin, bottom = stage.y + stage.h - margin - h;
   const corners = [{ x: left, y: bottom }, { x: right, y: bottom }, { x: left, y: top }, { x: right, y: top }];
@@ -175,10 +175,12 @@ export function cornerFor(stage: Box, size: { w: number; h: number }, avoid: rea
     const dx = Math.min(c.x + w, a.x + a.w) - Math.max(c.x, a.x), dy = Math.min(c.y + h, a.y + a.h) - Math.max(c.y, a.y);
     return sum + (dx > 0 && dy > 0 ? dx * dy : 0);
   }, 0);
-  let best = corners[0]!, bestOverlap = overlap(best);
-  for (const c of corners.slice(1)) {
-    const o = overlap(c);
-    if (o < bestOverlap) { best = c; bestOverlap = o; }
+  // The corner it is in, while nothing is in the way there.
+  if (current !== undefined && corners[current] && overlap(corners[current]!) === 0) return { ...corners[current]!, corner: current };
+  let best = 0, bestOverlap = overlap(corners[0]!);
+  for (let i = 1; i < corners.length; i++) {
+    const o = overlap(corners[i]!);
+    if (o < bestOverlap) { best = i; bestOverlap = o; }
   }
-  return best;
+  return { ...corners[best]!, corner: best };
 }

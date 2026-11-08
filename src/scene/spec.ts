@@ -152,6 +152,18 @@ export const PARTS = [
 ] as const;
 export const PART_VARIANTS = ['black', 'metal', 'usb', 'usb3', 'ethernet', 'hdmi', 'usbc', 'gold', 'cutaway', 'finned'] as const;
 
+/** The real models' shape, offered only when the build has a model. */
+const ADD_MODEL: Variant = {
+
+    name: 'addModel', op: 'add', shapes: ['model'], creates: 'group',
+    doc: 'A real model of a real thing (the list is in the rules), with its named parts as objects id.part. size is its longest side (default its real size, a heart about 5, a brain about 7); a model turns and attaches like any object.',
+    fields: {
+      shape: { k: 'enum', values: ['model'] }, id: { k: 'newId' }, model: { k: 'enum', values: MODELS.map((m) => m.id) },
+      parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
+      size: { k: 'num', min: 0.5, max: 60, opt: true }, at: AT,
+    },
+};
+
 export const VARIANTS: readonly Variant[] = [
   {
     name: 'box', op: 'box', creates: 'mark',
@@ -458,15 +470,8 @@ export const VARIANTS: readonly Variant[] = [
       color: COLOR_OPT, opacity: OPACITY, at: AT,
     },
   },
-  {
-    name: 'addModel', op: 'add', shapes: ['model'], creates: 'group',
-    doc: 'A real model of a real thing (the list is in the rules), with its named parts as objects id.part. size is its longest side (default its real size, a heart about 5, a brain about 7); a model turns and attaches like any object.',
-    fields: {
-      shape: { k: 'enum', values: ['model'] }, id: { k: 'newId' }, model: { k: 'enum', values: MODELS.map((m) => m.id) },
-      parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
-      size: { k: 'num', min: 0.5, max: 60, opt: true }, at: AT,
-    },
-  },
+  // The real models a build has (a release leaves out those held back; with none there is no such shape).
+  ...(MODELS.length === 0 ? [] : [ADD_MODEL]),
   {
     name: 'addArray', op: 'add', shapes: ['array'], creates: 'group',
     doc: 'Copies of an existing object, count in all (the original is the first). step moves each copy [x,y,z] from the last; turn rotates each copy about the origin of the group the original sits in, which is how to put blades round a hub.',

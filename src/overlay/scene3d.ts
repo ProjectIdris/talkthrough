@@ -1122,7 +1122,8 @@ export class PanelScene {
   project(key: number, point: Vec3 | undefined, width: number, height: number, anchor?: string): { x: number; y: number; visible: boolean } | undefined {
     const node = this.nodes.get(key);
     const hidden = () => {
-      if (!this.pinWarnings.has(key) && this.pinWarnings.size < 128) { this.pinWarnings.add(key); console.warn(`talkthrough: pin target ${key} has no visible surface`); }
+      // A target that is not there (a model left out) or still waiting for its file is no fault of the pin: no warning for it.
+      if (node && !node.waitsFor && !this.pinWarnings.has(key) && this.pinWarnings.size < 128) { this.pinWarnings.add(key); console.warn(`talkthrough: pin target ${key} has no visible surface`); }
       return { x: 0, y: 0, visible: false };
     };
     if (!node) { hidden(); return undefined; }

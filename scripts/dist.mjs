@@ -15,7 +15,7 @@ if (checkNativeInputs('node_modules') !== 0) {
   throw new Error('Native debug paths must be sanitized in a disposable packaging copy before building; see docs/setup.md.');
 }
 ensureElectronOrExit(); // electron-builder packs the Electron in node_modules/electron/dist
-run(process.execPath, ['scripts/build.mjs']);
-shipModels({ strict: true, release: true }); // the installer carries the real models: refuse to pack one that cannot show them
+run(process.execPath, ['scripts/build.mjs', '--release']); // the models held back are left out, and the build says which
+shipModels({ strict: true, release: true }); // the installer carries the real models it lists: refuse to pack one that cannot show them
 const cli = createRequire(import.meta.url).resolve('electron-builder/cli.js');
 run(process.execPath, [cli, '--win', '--x64', '--publish', 'never', ...process.argv.slice(2)]);

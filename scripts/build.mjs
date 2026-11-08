@@ -5,6 +5,10 @@ import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { build } from 'esbuild';
 import { shipModels } from './assets/ship.mjs';
+import { releaseCatalogue } from './assets/release.mjs';
+
+// `--release` builds what is shipped: the real models held back are left out of the catalogue the app is built with (see scripts/assets/release.mjs).
+const release = process.argv.includes('--release');
 
 const node = { platform: 'node', format: 'cjs' };
 const browser = { platform: 'browser', format: 'iife' };
@@ -35,7 +39,7 @@ for (const { entry, out, platform, format, external } of targets) {
     console.log(`skip ${entry} (not written yet)`);
     continue;
   }
-  await build({ entryPoints: [entry], outfile: out, bundle: true, platform, format, target: 'es2023', external, sourcemap: true, logLevel: 'warning' });
+  await build({ entryPoints: [entry], outfile: out, bundle: true, platform, format, target: 'es2023', external, sourcemap: true, logLevel: 'warning', plugins: release ? [releaseCatalogue] : [] });
   console.log(`built ${out}`);
 }
 for (const [from, to] of pages) {
@@ -47,5 +51,5 @@ for (const [from, to] of pages) {
   copyFileSync(from, to);
   console.log(`copied ${to}`);
 }
-const models = shipModels();
+const models = shipModels({ release });
 if (models.shipped.length) console.log('copied models', models.shipped.join(', '));

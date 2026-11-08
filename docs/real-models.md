@@ -10,7 +10,7 @@ Talkthrough can draw a thing as it really is (today a human heart and a brain) i
 npm run assets        # fetch what the manifests name, build assets/built/*.glb, check the generated files
 ```
 
-The fetch reads only the files the manifests name, by byte range out of the source archive, and checks each against the size and sha256 the manifest pins. It is the only time anything is downloaded; the app itself never fetches a model. `assets/cache/` and `assets/built/` are ignored by git. `npm run build` copies the built files into `dist/models/` (without them it warns and the models are drawn from shapes); `npm run dist` refuses to pack without them.
+The fetch reads only the files the manifests name, by byte range out of the source archive, and checks each against the size and sha256 the manifest pins. It is the only time anything is downloaded; the app itself never fetches a model. `assets/cache/` and `assets/built/` are ignored by git. `npm run build` copies the built files into `dist/models/` (without them it warns, and a scene that uses one of those models shows the stage without it and says so); `npm run dist` builds a release (`npm run build -- --release`) and refuses to pack without the files of the models it carries.
 
 ## Adding a model
 
@@ -20,7 +20,7 @@ The fetch reads only the files the manifests name, by byte range out of the sour
 
 ## Releases
 
-A manifest can hold its model back (`release: { blocked: true, why }`): the model is for local use, and `npm run dist` refuses to build while any model is held. The two anatomy models are held as a prototype until they are cleared for a release. Where a source's files still carry an older licence notice than its current grant, the manifest records the older notice (`licence.earlierNotice`) and the credits file keeps it.
+A manifest can hold its model back (`release: { blocked: true, why }`): the model is for local use. A release build leaves held models out: they are not in the catalogue the app is built with (so the guide, the schema and the validator never offer them and answers use shapes), their files and credits are not shipped, and the build says what it left out. The two anatomy models are held as a prototype until they are cleared for a release. Where a source's files still carry an older licence notice than its current grant, the manifest records the older notice (`licence.earlierNotice`) and the credits file keeps it.
 
 ## Credits
 
