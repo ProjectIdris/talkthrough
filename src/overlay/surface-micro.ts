@@ -4,7 +4,7 @@
 // and silkscreen, drawn on the faces that look up and down. Each layer is a few arithmetic steps per pixel; a tier that does not ask for a layer
 // compiles without it.
 
-import type { MeshPhysicalMaterial } from 'three';
+import type { BufferGeometry, MeshPhysicalMaterial } from 'three';
 
 export type MicroSurface = {
   /** How far roughness swings about its recipe value (0 none, 0.3 a lot): the rest of the layer is one more number each. */
@@ -64,33 +64,37 @@ void boardLayers(vec2 q, float aa, out float trace, out float pad, out float hol
 
 export function applyMicroSurface(material: MeshPhysicalMaterial, o: MicroSurface): void {
   if (o.rough <= 0 && o.bump <= 0 && o.board === 0) return;
+  const unit = { value: 1 };
+  material.userData.boardUnit = unit;
   const previous = material.onBeforeCompile;
   const previousKey = material.customProgramCacheKey();
   const defines = [o.rough > 0 ? '#define MICRO_ROUGH' : '', o.bump > 0 ? '#define MICRO_BUMP' : '', o.board > 0 ? '#define MICRO_BOARD' : '', o.board > 1 ? '#define MICRO_SILK' : ''].join('\n');
-  const grain = o.grain.toFixed(2), rough = o.rough.toFixed(3), bump = o.bump.toFixed(3);
+  // The numbers go in as uniforms, not into the program: every material of a tier then shares one program (steel, iron, brass and cast differ only in three floats).
+  const own = { microGrain: { value: o.grain }, microRoughAmt: { value: o.rough }, microBumpAmt: { value: o.bump }, boardUnit: unit };
   material.onBeforeCompile = function (shader, renderer) {
     previous.call(this, shader, renderer);
+    Object.assign(shader.uniforms, own);
     shader.vertexShader = shader.vertexShader
       .replace('void main() {', 'varying vec3 vMicroP;\nvarying vec3 vMicroN;\nvoid main() {')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vMicroP = position;\n  vMicroN = normal;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('void main() {', `${defines}\nvarying vec3 vMicroP;\nvarying vec3 vMicroN;\n${COMMON}\n#ifdef MICRO_BOARD\n${BOARD}\n#endif\nvoid main() {
+      .replace('void main() {', `${defines}\nuniform float microGrain;\nuniform float microRoughAmt;\nuniform float microBumpAmt;\nuniform float boardUnit;\nvarying vec3 vMicroP;\nvarying vec3 vMicroN;\n${COMMON}\n#ifdef MICRO_BOARD\n${BOARD}\n#endif\nvoid main() {
   float microRough = 1.0;
   float microHeight = 0.0;
   float boardMetal = 0.0;
   float boardRough = -1.0;
   float boardHeight = 0.0;
 #ifdef MICRO_ROUGH
-  float mn = microNoise(vMicroP * ${grain}) * 0.65 + microNoise(vMicroP * ${grain} * 2.7) * 0.35;
+  float mn = microNoise(vMicroP * microGrain) * 0.65 + microNoise(vMicroP * microGrain * 2.7) * 0.35;
   // Out of reach of the pixels the variation fades to nothing (a surface seen from far has no grain, and aliasing would only crawl).
   float microFoot = max(length(dFdx(vMicroP)), length(dFdy(vMicroP)));
-  microRough = 1.0 + ${rough} * (mn * 2.0 - 1.0) * (1.0 - smoothstep(0.2, 0.5, microFoot * ${grain} * 2.7));
+  microRough = 1.0 + microRoughAmt * (mn * 2.0 - 1.0) * (1.0 - smoothstep(0.2, 0.5, microFoot * microGrain * 2.7));
 #endif
 #ifdef MICRO_BUMP
   {
-    float g2 = ${grain} * 2.2;
+    float g2 = microGrain * 2.2;
     float fp = max(length(dFdx(vMicroP)), length(dFdy(vMicroP)));
-    microHeight = (microNoise(vMicroP * g2) - 0.5) * ${bump} * 0.03 / g2 * (1.0 - smoothstep(0.2, 0.5, fp * g2));
+    microHeight = (microNoise(vMicroP * g2) - 0.5) * microBumpAmt * 0.03 / g2 * (1.0 - smoothstep(0.2, 0.5, fp * g2));
   }
 #endif`)
       .replace('#include <color_fragment>', `#include <color_fragment>
@@ -98,7 +102,7 @@ export function applyMicroSurface(material: MeshPhysicalMaterial, o: MicroSurfac
   {
     float up = abs(vMicroN.y);
     if (up > 0.9) {
-      vec2 q = vMicroP.xz;
+      vec2 q = vMicroP.xz / boardUnit;
       float aa = max(fwidth(q.x), fwidth(q.y)) * 0.7;
       float trace, pad, hole, silk;
       boardLayers(q, aa, trace, pad, hole, silk);
@@ -136,7 +140,7 @@ export function applyMicroSurface(material: MeshPhysicalMaterial, o: MicroSurfac
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 #if defined(MICRO_BUMP) || defined(MICRO_BOARD)
   {
-    float hgt = microHeight + boardHeight * 0.004;
+    float hgt = microHeight + boardHeight * 0.004 * boardUnit;
     vec2 dHdxy = vec2(dFdx(hgt), dFdy(hgt));
     vec3 q0 = dFdx(-vViewPosition.xyz);
     vec3 q1 = dFdy(-vViewPosition.xyz);
@@ -148,5 +152,17 @@ export function applyMicroSurface(material: MeshPhysicalMaterial, o: MicroSurfac
   }
 #endif`);
   };
-  material.customProgramCacheKey = () => `${previousKey}|micro-v1|${defines.replace(/\s+/g, '')}|${grain}|${rough}|${bump}`;
+  material.customProgramCacheKey = () => `${previousKey}|micro-v2|${defines.replace(/\s+/g, '')}`;
+}
+
+/** The pattern of a board is drawn for a board about 6 by 4; this sets its scale from the geometry so a board written at any size carries the same detail. */
+export function fitBoardPattern(material: MeshPhysicalMaterial, geometry: BufferGeometry): void {
+  const unit = material.userData.boardUnit as { value: number } | undefined;
+  if (!unit) return;
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  if (!box) return;
+  const w = box.max.x - box.min.x, d = box.max.z - box.min.z;
+  if (!(w > 0 && d > 0)) return;
+  unit.value = Math.min(100, Math.max(0.01, Math.sqrt(w * d) / Math.sqrt(24)));
 }

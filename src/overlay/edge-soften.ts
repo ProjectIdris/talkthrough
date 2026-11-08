@@ -109,13 +109,15 @@ varying vec3 vEdgeBary;\nvarying vec4 vEdgeAlt;\nvarying vec3 vEdgeN0;\nvarying 
     float t0 = 1.0 - smoothstep(0.0, edgeW, vEdgeBary.x * vEdgeAlt.x);
     float t1 = 1.0 - smoothstep(0.0, edgeW, vEdgeBary.y * vEdgeAlt.y);
     float t2 = 1.0 - smoothstep(0.0, edgeW, vEdgeBary.z * vEdgeAlt.z);
-    edgeAdd += (t0 * t0 * vEdgeN0 + t1 * t1 * vEdgeN1 + t2 * t2 * vEdgeN2) * 1.2;
+    // A bent normal on a mirror finish picks up whatever dark part of the room is there and draws a grey band: polished metal takes much less of it.
+    float soft = mix(1.0, 0.25, clamp(metalnessFactor, 0.0, 1.0));
+    edgeAdd += (t0 * t0 * vEdgeN0 + t1 * t1 * vEdgeN1 + t2 * t2 * vEdgeN2) * 1.2 * soft;
     if (dot(edgeAdd, edgeAdd) > 0.0) normal = normalize(normal + edgeAdd);
     // the thin light line a small fillet shows along its length
     float rim = max(t0 * t0, max(t1 * t1, t2 * t2)) * step(0.0001, dot(edgeAdd, edgeAdd));
-    diffuseColor.rgb *= 1.0 + 0.22 * rim;
+    diffuseColor.rgb *= 1.0 + 0.22 * rim * soft;
     roughnessFactor = max(0.05, roughnessFactor - 0.12 * rim);
   }`);
   };
-  material.customProgramCacheKey = () => `${previousKey}|edge-soften-v3`;
+  material.customProgramCacheKey = () => `${previousKey}|edge-soften-v4`;
 }

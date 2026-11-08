@@ -4,7 +4,7 @@
 //   npm run build
 //   (run it as `env -u ELECTRON_RUN_AS_NODE` if your shell sets that)
 //   npx electron scripts/overlay-frames.cjs <scene.json> --out <dir> --steps 0:0.5,1:2 \
-//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--controls <boxes.json>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--gpu yes] [--clean yes] [--metrics yes] [--hold <ms>]
+//       [--size 1920x1080] [--dpr 1] [--hidden] [--backdrop <image>] [--controls <boxes.json>] [--after <earlier-scene.json>] \n//       [--tier low|mid|high] [--gpu yes] [--clean yes] [--metrics yes] [--hold <ms>] [--idle <ms>]
 //
 // --steps is a list of step:seconds pairs (seconds into that step; earlier steps are complete).
 // --dpr sets the display scale; offscreen windows always render at 1, so use --hidden (a hidden, non-offscreen window) for dpr other than 1.
@@ -110,8 +110,10 @@ app.whenReady().then(async () => {
   const seek = async (scene, step, t, name) => {
     const mine = ++token;
     const done = new Promise((r) => pending.set(mine, r));
+    const sentAt = Date.now();
     win.webContents.send(CHANNEL.scene, { kind: 'seek', scene, step, t, token: mine, cameraFit: 'instant' });
     await Promise.race([done, sleep(10000).then(() => { throw new Error('no frame painted for ' + name); })]);
+    console.log('paint', name, Date.now() - sentAt, 'ms'); // the first of a run is the cold one: shaders compile on it
     await sleep(120 + Number(args.hold || 0)); // --hold <ms>: wait longer so tags that glide or fade in real time have arrived
     const image = await capture();
     const file = path.join(args.out, name + '.png');
@@ -280,6 +282,7 @@ app.whenReady().then(async () => {
     scene.steps = base.steps.concat(scene.steps);
   }
   const offset = base ? base.steps.length : 0;
+  if (args.idle) await sleep(Number(args.idle)); // --idle <ms>: leave the page alone this long before the first step (what the app has: the overlay is up well before anyone asks)
   for (const pair of args.steps.split(',')) {
     const [s, t] = pair.split(':').map(Number);
     await seek(scene, s + offset, t, `${label}-s${s}-t${String(t).replace('.', '_')}`);

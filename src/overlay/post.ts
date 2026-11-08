@@ -56,8 +56,8 @@ export class Finishing {
     this.occluded = new WebGLRenderTarget(1, 1, { type: HalfFloatType, depthBuffer: false });
     this.toned = new WebGLRenderTarget(1, 1, { type: UnsignedByteType, depthBuffer: false });
     this.gtao = new GTAOPass(scene, camera, 1, 1, { depthTexture: this.depth });
-    this.gtao.updateGtaoMaterial({ radius: level === 'full' ? 1.3 : 1.1, distanceExponent: 1.2, thickness: 2, scale: level === 'full' ? 2.4 : 2.0, samples: level === 'full' ? 16 : 8, distanceFallOff: 1, screenSpaceRadius: false });
-    this.gtao.blendIntensity = 0.9;
+    this.gtao.updateGtaoMaterial({ radius: level === 'full' ? 1.2 : 1.1, distanceExponent: 1.2, thickness: 2, scale: 1.4, samples: 16, distanceFallOff: 1, screenSpaceRadius: false });
+    this.gtao.blendIntensity = 0.7;
     // The colour in the target is premultiplied by its alpha: take that out before toning and put it back after.
     const material = this.output.material;
     const start = 'gl_FragColor = texture2D( tDiffuse, vUv );';

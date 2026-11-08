@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BoxGeometry, BufferGeometry, Float32BufferAttribute, MeshPhysicalMaterial, PerspectiveCamera, Scene, SphereGeometry } from 'three';
 import type { WebGLRenderer } from 'three';
-import { TIERS, makeSurface } from '../src/overlay/materials.ts';
+import { SURFACE_NAMES, TIERS, makeSurface } from '../src/overlay/materials.ts';
+import { PanelScene } from '../src/overlay/scene3d.ts';
 import { StudioEnvironment, STUDIO_LIGHTS } from '../src/overlay/studio.ts';
+import { fitBoardPattern } from '../src/overlay/surface-micro.ts';
 import { applyEdgeSoften, softenEdges, EDGE_ATTRIBUTES } from '../src/overlay/edge-soften.ts';
 import { Finishing } from '../src/overlay/post.ts';
 import { MATERIAL_NAMES } from '../src/scene/material-library.ts';
@@ -12,11 +14,12 @@ import { MATERIAL_NAMES } from '../src/scene/material-library.ts';
 
 const METALS = ['metal', 'steel', 'iron', 'brass', 'copper', 'cast'];
 const fakeShader = () => ({
+  uniforms: {},
   vertexShader: 'void main() {\n#include <begin_vertex>\n}',
   fragmentShader: 'void main() {\n#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <metalnessmap_fragment>\n#include <normal_fragment_maps>\n}',
 } as never);
-const compiled = (m: MeshPhysicalMaterial): { vertexShader: string; fragmentShader: string } => {
-  const shader = fakeShader() as { vertexShader: string; fragmentShader: string };
+const compiled = (m: MeshPhysicalMaterial): { vertexShader: string; fragmentShader: string; uniforms: Record<string, { value: number }> } => {
+  const shader = fakeShader() as { vertexShader: string; fragmentShader: string; uniforms: Record<string, { value: number }> };
   m.onBeforeCompile(shader as never, undefined as never);
   return shader;
 };
@@ -95,4 +98,39 @@ test('the mid tier finishes at half resolution and with fewer samples than the h
   assert.equal(size(full).width, 800);
   light.dispose();
   full.dispose();
+});
+
+test('the fine surface of every metal shares one program and differs only in its uniforms, so a tier compiles it once', () => {
+  const keys = new Set(['steel', 'metal', 'iron', 'brass', 'copper', 'cast'].map((n) => makeSurface(n, TIERS.high).customProgramCacheKey()));
+  assert.equal(keys.size, 1, [...keys].join(' / '));
+  const steel = compiled(makeSurface('steel', TIERS.high)).uniforms, iron = compiled(makeSurface('iron', TIERS.high)).uniforms;
+  assert.notEqual(steel.microGrain!.value, iron.microGrain!.value);
+  assert.notEqual(steel.microBumpAmt!.value, iron.microBumpAmt!.value);
+});
+
+test('a board pattern is drawn for the size of the board: the same detail on a board written ten times larger or smaller', () => {
+  const unitOf = (w: number, d: number) => {
+    const m = makeSurface('pcb', TIERS.high);
+    fitBoardPattern(m, new BoxGeometry(w, 0.2, d));
+    return compiled(m).uniforms.boardUnit!.value;
+  };
+  assert.ok(Math.abs(unitOf(6, 4) - 1) < 0.01, 'the reference board is unchanged');
+  assert.ok(Math.abs(unitOf(60, 40) / unitOf(6, 4) - 10) < 0.01);
+  assert.ok(Math.abs(unitOf(0.6, 0.4) / unitOf(6, 4) - 0.1) < 0.001);
+});
+
+test('the prewarm group has a solid in every surface, the same surfaces every time (their programs stay alive), and is built as a model is', () => {
+  for (const tier of ['low', 'mid', 'high'] as const) {
+    const panel = new PanelScene({ tier });
+    const first = panel.prewarmGroup();
+    assert.equal(first.children.length, SURFACE_NAMES.length);
+    const second = panel.prewarmGroup();
+    const surfaces = (g: typeof first) => g.children.map((m) => (m as unknown as { material: unknown }).material);
+    assert.deepEqual(surfaces(second), surfaces(first), 'one set of surfaces for good');
+    for (const m of first.children) {
+      assert.equal(m.castShadow, TIERS[tier].shadows);
+      assert.equal(m.frustumCulled, false);
+    }
+    assert.ok(!panel.scene.children.includes(first), 'it is not part of the scene until the caller adds it');
+  }
 });

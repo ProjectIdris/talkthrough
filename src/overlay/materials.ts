@@ -84,6 +84,9 @@ const RECIPES: Record<SurfaceName, Recipe> = {
   section: { roughness: 0.7, metalness: 0.1 },
 };
 
+/** Every surface the renderer has a recipe for (the library's materials and the kit's own). */
+export const SURFACE_NAMES = Object.keys(RECIPES) as SurfaceName[];
+
 export type Surface = MeshPhysicalMaterial & { userData: { base: number; glow: number; name?: string } };
 
 export function makeSurface(name: string | undefined, tier: TierSettings, finish: SurfaceFinish = {}): Surface {
