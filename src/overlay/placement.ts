@@ -237,6 +237,16 @@ const STAGE_GROW = 2;
 const STAGE_BIGGEST = { w: 320, h: 560 };
 /** Growth under this factor is not worth moving the stage for. */
 const STAGE_GROW_LEAST = 1.12;
+/**
+ * A stage shorter than a fair share of the screen's height is made taller, keeping its width, where the page under the added height has little on it
+ * (the screen is wider than tall, so a stage as wide as it is tall is a wide slab, and a tall or compact model is limited by its height). A fair share is
+ * this many units of height; growth under STAGE_TALLER_LEAST is not worth a move; the page under what is added may have at most this share of its cells
+ * inked at all (little text: a margin, a gutter, a blank column) and at most this share of controls and figures.
+ */
+const STAGE_FAIR_HEIGHT = 620;
+const STAGE_TALLER_LEAST = 30;
+const STAGE_TALLER_INK = 0.15;
+const STAGE_TALLER_FIXTURES = 0.1;
 
 /** A place has to be this much cheaper (a few percent of the page's text under it) before a card, diagram or stage leaves where it was asked for: text may be covered when that reads better. */
 const MOVE_WORTH = 8;
@@ -466,10 +476,44 @@ export class Placer {
     // is where it reads best); it is made smaller only when no place of its size is clear of what the answer points at.
     const keep = [...this.reserved, ...this.reserved, ...this.reserved, ...this.controls, ...this.cards.values()];
     const full = this.search(want, [1], keep, [1], 0, false, 0, { w: 0, h: 0 }, false);
-    const placed = this.enlarge(keep.some((r) => overlap(full, r) > 0) ? this.search(want, [1, 0.88, 0.76, 0.64, 0.52], keep) : full);
+    const placed = this.taller(this.enlarge(keep.some((r) => overlap(full, r) > 0) ? this.search(want, [1, 0.88, 0.76, 0.64, 0.52], keep) : full));
     this.stage = placed;
     this.stageControls = [];
     return placed;
+  }
+
+  /**
+   * A stage shorter than a fair share of the screen is made taller, keeping its width and everything it already covered: the tallest height (to
+   * STAGE_FAIR_HEIGHT) that, grown up, down or both ways, adds only page with little on it and stays clear of the cards and the page's controls (hard) and
+   * of what the answer points at (a preference: a place that would cover another pointed-at spot is passed over, and a spot the stage already covers is
+   * left out of the reckoning). When nothing qualifies it stays as it is. The growth is made here, in the placement, so cards written after it keep
+   * off the taller stage and the rectangle the page eases to always holds the one it eased from.
+   */
+  private taller(box: Box): Box {
+    const lo = this.margin, top = lo, bottom = 1000 - lo;
+    const target = Math.min(STAGE_FAIR_HEIGHT, bottom - top);
+    if (box.h > target - STAGE_TALLER_LEAST) return box;
+    const hard = [...this.controls, ...this.cards.values()];
+    const spots = this.reserved.filter((r) => overlap(box, r) <= 0);
+    const quiet = (strip: Box): boolean => {
+      if (strip.h <= 0) return true;
+      const padded = { x: strip.x - 6, y: strip.y - 6, w: strip.w + 12, h: strip.h + 12 };
+      return this.ink.mean(padded) <= STAGE_TALLER_INK && this.fixtures.mean(padded) <= STAGE_TALLER_FIXTURES;
+    };
+    for (let h = target; h >= box.h + STAGE_TALLER_LEAST; h -= 20) {
+      let best: { box: Box; cost: number } | undefined;
+      for (const y0 of [box.y, box.y + box.h - h, box.y + (box.h - h) / 2]) {
+        const y = clamp(y0, top, bottom - h);
+        const grown = { x: box.x, y, w: box.w, h };
+        if (hard.some((r) => overlap(grown, r) > 0) || spots.some((r) => overlap(grown, r) > 0)) continue;
+        const above = { x: box.x, y, w: box.w, h: box.y - y }, below = { x: box.x, y: box.y + box.h, w: box.w, h: y + h - box.y - box.h };
+        if (!quiet(above) || !quiet(below)) continue;
+        const cost = (above.h > 0 ? this.coverage(above, []) : 0) + (below.h > 0 ? this.coverage(below, []) : 0);
+        if (!best || cost < best.cost - 1e-9) best = { box: { x: box.x, y: Math.round(y), w: box.w, h: Math.round(h) }, cost };
+      }
+      if (best) return best.box;
+    }
+    return box;
   }
 
   /**
