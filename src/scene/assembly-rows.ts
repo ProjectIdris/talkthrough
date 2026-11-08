@@ -81,8 +81,8 @@ export type AssemblyRow = {
   steps: readonly AsmStep[];
 };
 
-// A compound gear train: n stages, each a small gear driving a large one on the next shaft, and the large gear carries the next small one on its shaft. Every shaft
-// is a child of the large gear it turns with, and the next small gear a child of the shaft, so one spin per large gear is all the motion there is. The planes the
+// A compound gear train: n stages, each a small gear driving a large one on the next shaft, and the large gear carries the next small one on its shaft. Each large gear
+// turns by its ratio to the small gear it meshes with, and the small gear beside it by one to the large gear, so every coupling is between gears that mesh or share a shaft. The planes the
 // meshes lie in are one behind another so no gear meets a gear it does not drive. The teeth are in proportion (a tip radius of k per tooth, so the teeth are one size)
 // and the centre distance is the least that leaves each gear's tips clear of the other's roots; the large gear's turn is set so a tooth meets a gap at the line of centres.
 const gearTrain: AssemblyRow = {
@@ -104,20 +104,22 @@ const gearTrain: AssemblyRow = {
     ['rpm', 'min(120, 10*pow(3, n - 1))'],
   ],
   pieces: [
-    // The input gear, then each stage's large gear; a shaft hangs from the large gear it turns with and the next small gear from that shaft.
+    // The shafts first, so that each gear is added on a shaft that already holds its middle; then the input gear, each stage's large gear and the small gear beside it on
+    // the same shaft (a sibling, not a child, that turns with the large gear by a ratio of one, so every coupling is between two gears that mesh or share a shaft).
+    { key: 'shaft0', part: 'shaft', size: ['k*5', 'k*5', 't*1.9'], n: 1, pos: ['-n*dist/2 + (rs - rl)/2', 0, '(0 - (n - 1)/2)*pz'] },
+    { key: 'shaft{s}', for: { as: 'i', count: 'n' }, let: [['s', 'i + 1'], ['lo', 's - 1'], ['hi', 'min(s, n - 1)']], part: 'shaft', n: 1,
+      size: ['k*5', 'k*5', '(hi - lo)*pz + t*1.9'], pos: ['(s - n/2)*dist + (rs - rl)/2', 0, '(i - (n - 1)/2)*pz + (hi - lo)*pz/2'] },
     { key: 'pinion0', part: 'gear', size: ['2*rs', '2*rs', 't'], n: 'ns', tint: true, pos: ['-n*dist/2 + (rs - rl)/2', 0, '(0 - (n - 1)/2)*pz'] },
-    { key: 'shaft0', part: 'shaft', on: 'pinion0', size: ['k*5', 'k*5', 't*1.9'], n: 1 },
     { key: 'gear{s}', for: { as: 'i', count: 'n' }, let: [['s', 'i + 1']], part: 'gear', size: ['2*rl', '2*rl', 't'], n: 'nl', color: 'blue',
       pos: ['(s - n/2)*dist + (rs - rl)/2', 0, '(i - (n - 1)/2)*pz'], rot: [0, 0, 'rotl'] },
-    { key: 'shaft{s}', for: { as: 'i', count: 'n' }, let: [['s', 'i + 1'], ['lo', 's - 1'], ['hi', 'min(s, n - 1)']], on: 'gear{s}', part: 'shaft', n: 1,
-      size: ['k*5', 'k*5', '(hi - lo)*pz + t*1.9'], pos: [0, 0, '(hi - lo)*pz/2'] },
-    { key: 'pinion{s}', for: { as: 'i', count: 'n - 1' }, let: [['s', 'i + 1']], on: 'shaft{s}', part: 'gear', size: ['2*rs', '2*rs', 't'], n: 'ns', tint: true,
-      pos: [0, 0, 'pz/2'], rot: [0, 0, '-rotl'] },
+    { key: 'pinion{s}', for: { as: 'i', count: 'n - 1' }, let: [['s', 'i + 1']], part: 'gear', size: ['2*rs', '2*rs', 't'], n: 'ns', tint: true,
+      pos: ['(s - n/2)*dist + (rs - rl)/2', 0, '(s - (n - 1)/2)*pz'] },
   ],
   anchors: [{ name: 'input', at: ['-n*dist/2 + (rs - rl)/2', 0, '(0 - (n - 1)/2)*pz + t/2'] }, { name: 'output', at: ['n*dist/2 + (rs - rl)/2', 0, '((n - 1)/2)*pz + t/2'] }],
   steps: [
     { op: 'spin', refs: { id: 'pinion0' }, fields: { rpm: 'rpm' } },
-    { op: 'spin', refs: { id: 'gear{s}', by: 'pinion0' }, fields: { ratio: 'pow(-q, s)' }, for: { as: 'i', count: 'n' }, let: [['s', 'i + 1']] },
+    { op: 'spin', refs: { id: 'gear{s}', by: 'pinion{s - 1}' }, fields: { ratio: '-q' }, for: { as: 'i', count: 'n' }, let: [['s', 'i + 1']] },
+    { op: 'spin', refs: { id: 'pinion{s}', by: 'gear{s}' }, fields: { ratio: 1 }, for: { as: 'i', count: 'n - 1' }, let: [['s', 'i + 1']] },
   ],
 };
 
@@ -279,12 +281,14 @@ const planetary: AssemblyRow = {
     ['t', 'min(sz*0.8, rs*0.7)'], ['rc', 'ns/(ns + nr)'], ['rp', '-(1 - rc)'], ['rpm', 16], ['cr', 'dist + rs*0.55'],
   ],
   pieces: [
-    { key: 'ring', part: 'gear', size: ['2.2*k*nr', '2.2*k*nr', 't'], n: 'nr', tint: true, texts: { variant: 'internal' } },
     { key: 'sun', part: 'gear', size: ['2*rs', '2*rs', 't'], n: 'ns', color: 'orange' },
     { key: 'sun-shaft', on: 'sun', part: 'shaft', size: ['rs*0.4', 'rs*0.4', 't*3'], n: 1, pos: [0, 0, 't*1.1'] },
+    { key: 'ring', part: 'gear', size: ['2.2*k*nr', '2.2*k*nr', 't'], n: 'nr', tint: true, texts: { variant: 'internal' } },
     { key: 'carrier', shape: 'group' },
     { key: 'carrier-plate', on: 'carrier', shape: 'cylinder', size: ['2*cr', 't*0.3', '2*cr'], color: 'gray', rot: [90, 0, 0], pos: [0, 0, '-(t/2 + t*0.25)'], fields: { opacity: 0.4 } },
     { key: 'carrier-shaft', on: 'carrier', part: 'shaft', size: ['rs*0.4', 'rs*0.4', 't*3'], n: 1, pos: [0, 0, '-(t/2 + t*1.5)'] },
+    { key: 'pin{i}', for: { as: 'i', count: 'n' }, let: [['a', 'i*360/n']], on: 'carrier', part: 'shaft', size: ['rs*0.35', 'rs*0.35', 't*2.6'], n: 1,
+      pos: ['dist*cos(a*deg)', 'dist*sin(a*deg)', 't*0.3'] },
     { key: 'planet{i}', for: { as: 'i', count: 'n' }, let: [['a', 'i*360/n']], on: 'carrier', part: 'gear', size: ['2*rs', '2*rs', 't'], n: 'ns', color: 'teal',
       pos: ['dist*cos(a*deg)', 'dist*sin(a*deg)', 0], rot: [0, 0, 'a + 165'] },
   ],
