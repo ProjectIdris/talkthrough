@@ -2952,6 +2952,46 @@
           ],
           "description": "up to 24 characters"
         },
+        "fromPoint": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "local point on from, following its rotation and scale; takes precedence over fromAnchor/fromSide; not for wrapped belts; [x,y,z], each -100 to 100"
+        },
+        "toPoint": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "local point on to, following its rotation and scale; takes precedence over toAnchor/toSide; not for wrapped belts; [x,y,z], each -100 to 100"
+        },
+        "swell": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "straight/slack: smooth [along 0 to 1, radius factor] profile, as for tube; tapered cords or muscle bellies; 2 to 8 points [x,y], each 0 to 10"
+        },
+        "restLength": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "straight/slack: local path length at authored radius. Radius scales by sqrt(restLength/currentLength), bounded to 0.25–4; illustrative volume preservation, not forces or tissue simulation; 0.01 to 400"
+        },
         "sag": {
           "type": [
             "number",
@@ -3049,6 +3089,10 @@
         "toSide",
         "fromAnchor",
         "toAnchor",
+        "fromPoint",
+        "toPoint",
+        "swell",
+        "restLength",
         "sag",
         "radius",
         "color",

@@ -7,7 +7,7 @@ import type { Object3D } from 'three';
 import type { Rgb } from '../scene/colors.ts';
 import type { AddConnector, AddPath, AddStream, AddTube, Vec3 } from '../scene/types.ts';
 import { arcPoint, beltPoints, endPoint, ropePoints, roundOf } from './connector.ts';
-import { drawFraction, tubeGeometry } from './geometry.ts';
+import { drawFraction, swellAt, tubeGeometry } from './geometry.ts';
 import { applySurface, setSurfaceOpacity } from './materials.ts';
 import type { Surface } from './materials.ts';
 import { markerPlaces, markerSize, streamColour } from './stream.ts';
@@ -21,7 +21,7 @@ export type FlowNode = {
   geometries: BufferGeometry[];
   anchors?: Record<string, Vec3>;
   alpha: number;
-  path?: { geo: BufferGeometry; sampled: Vec3[]; head: Mesh | undefined; body: boolean };
+  path?: { geo: BufferGeometry; sampled: Vec3[]; head: Mesh | undefined; body: boolean; radius?: number };
   connector?: { mesh: Mesh; signature: string };
   stream?: { markers: Mesh[]; kind: 'dot' | 'dash' | 'arrow' };
   attached?: { base: Vec3[]; along: number[]; signature: string };
@@ -69,8 +69,8 @@ export function updateConnectors(nodes: ReadonlyMap<number, FlowNode>, frame: Fr
       continue;
     }
     for (const p of node.pieces) if (p.surface) setSurfaceOpacity(p.surface, p.surface.opacity * held);
-    const a = endPoint(na.obj, fa.def, def.fromSide, def.fromAnchor, na.anchors);
-    const b = endPoint(nb.obj, fb.def, def.toSide, def.toAnchor, nb.anchors);
+    const a = endPoint(na.obj, fa.def, def.fromSide, def.fromAnchor, na.anchors, undefined, def.fromPoint);
+    const b = endPoint(nb.obj, fb.def, def.toSide, def.toAnchor, nb.anchors, undefined, def.toPoint);
     const thick = def.radius ?? ROPE_RADIUS;
     let world: Vec3[];
     let across: Vector3 | undefined;
@@ -91,9 +91,19 @@ export function updateConnectors(nodes: ReadonlyMap<number, FlowNode>, frame: Fr
       return [v.x, v.y, v.z];
     });
     const along = across ? across.clone().transformDirection(inverse) : undefined;
+    if (def.restLength !== undefined && def.kind !== 'wrapped') {
+      // Use the full local path, not a first-frame measurement or the world chord:
+      // slack, parent scale and reverse seeks must all give the same shape.
+      let length = 0;
+      for (let i = 1; i < local.length; i++) {
+        const p = local[i]!, prev = local[i - 1]!;
+        length += Math.hypot(p[0] - prev[0], p[1] - prev[1], p[2] - prev[2]);
+      }
+      radius *= Math.max(0.25, Math.min(4, Math.sqrt(def.restLength / Math.max(length, 1e-9))));
+    }
     const signature = [radius, flat, ...(along ? [along.x, along.y, along.z] : []), ...local.flat()].map((x) => Math.round(x * 1e5)).join(',');
     if (signature !== node.connector.signature) {
-      const geo = tubeGeometry(local, radius, flat, radial, undefined, along ? [along.x, along.y, along.z] : undefined);
+      const geo = tubeGeometry(local, radius, flat, radial, def.kind === 'wrapped' ? undefined : def.swell, along ? [along.x, along.y, along.z] : undefined);
       const old = node.path.geo;
       node.connector.mesh.geometry = geo;
       const at = node.geometries.indexOf(old);
@@ -102,6 +112,11 @@ export function updateConnectors(nodes: ReadonlyMap<number, FlowNode>, frame: Fr
       old.dispose();
       node.path.geo = geo;
       node.path.sampled = local;
+      // Streams must clear the widest current ring, including contraction and
+      // taper. A uniform marker size avoids pulsing as it traverses the profile.
+      node.path.radius = def.kind !== 'wrapped' && (def.swell || def.restLength !== undefined)
+        ? radius * (def.swell ? Math.max(...local.map((_, i) => swellAt(def.swell!, i / Math.max(1, local.length - 1)))) : 1)
+        : undefined;
       node.connector.signature = signature;
     }
     drawFraction(node.path.geo, o.draw);
@@ -209,8 +224,8 @@ export function buildStream(node: FlowNode, o: ObjectFrame, addMesh: AddMesh): v
 }
 
 /** The least size of the markers of a stream, and their size when the scene does not say: a bead clearly wider than the pipe they run in. */
-function defaultSize(path: ObjectFrame): number {
-  const radius = (path.def as { radius?: number }).radius;
+function defaultSize(path: ObjectFrame, effectiveRadius?: number): number {
+  const radius = effectiveRadius ?? (path.def as { radius?: number }).radius;
   return Math.max(0.11, (radius ?? ROPE_RADIUS) * 3);
 }
 
@@ -228,14 +243,15 @@ export function updateStreams(nodes: ReadonlyMap<number, FlowNode>, frame: Frame
     // It sits on its path whatever the spread does to the parts round it.
     node.obj.position.set(0, 0, 0);
     const holder = o.parentKey !== null ? byKey.get(o.parentKey) : undefined;
-    const sampled = o.parentKey !== null ? nodes.get(o.parentKey)?.path?.sampled : undefined;
+    const path = o.parentKey !== null ? nodes.get(o.parentKey)?.path : undefined;
+    const sampled = path?.sampled;
     if (!holder || !sampled || sampled.length < 2 || holder.draw < 0.02) {
       node.obj.visible = false;
       continue;
     }
     const def = o.def as AddStream;
     // Never narrower than a bead that stands out of its pipe: a marker inside an opaque pipe is not there.
-    const size = Math.max(def.size ?? 0, defaultSize(holder));
+    const size = Math.max(def.size ?? 0, defaultSize(holder, path?.radius));
     const to = def.toColor !== undefined ? parseColor(def.toColor) : undefined;
     const places = markerPlaces(o.phase ?? 0, stream.markers.length);
     const closed = holder.shape === 'tube' && (holder.def as AddTube).closed === true;

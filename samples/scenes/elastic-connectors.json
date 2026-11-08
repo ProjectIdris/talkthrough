@@ -1,0 +1,396 @@
+{
+  "steps": [
+    {
+      "say": "One general connector can illustrate a muscle or an elastic cord. Both ends are fixed to local points on moving parts. These are schematic visuals, not force or tissue simulations.",
+      "actions": [
+        {
+          "op": "panel",
+          "x": 75,
+          "y": 100,
+          "w": 850,
+          "h": 740
+        },
+        {
+          "op": "orbit",
+          "az": 12,
+          "el": 8,
+          "dur": 0
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "arm",
+          "pos": [
+            -2.4,
+            0,
+            0
+          ]
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "upper",
+          "parent": "arm"
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "upper-shaft",
+          "parent": "upper",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "size": [
+            0.4,
+            2.8,
+            0.4
+          ],
+          "material": "plastic",
+          "color": "#e8dece"
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "elbow",
+          "parent": "upper",
+          "size": [
+            0.66,
+            0.6,
+            0.6
+          ],
+          "material": "plastic",
+          "color": "#e8dece"
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "shoulder",
+          "parent": "upper",
+          "pos": [
+            0,
+            2.9,
+            0
+          ],
+          "size": [
+            0.64,
+            0.65,
+            0.58
+          ],
+          "material": "plastic",
+          "color": "#e8dece"
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "forearm",
+          "parent": "arm",
+          "rot": [
+            0,
+            0,
+            12
+          ]
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "radius",
+          "parent": "forearm",
+          "pos": [
+            0.12,
+            -1.25,
+            0
+          ],
+          "size": [
+            0.27,
+            2.5,
+            0.3
+          ],
+          "material": "plastic",
+          "color": "#e8dece"
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "ulna",
+          "parent": "forearm",
+          "pos": [
+            -0.16,
+            -1.24,
+            -0.12
+          ],
+          "size": [
+            0.23,
+            2.5,
+            0.25
+          ],
+          "material": "plastic",
+          "color": "#d3c8b8"
+        },
+        {
+          "op": "add",
+          "shape": "sphere",
+          "id": "wrist",
+          "parent": "forearm",
+          "pos": [
+            -0.01,
+            -2.5,
+            -0.04
+          ],
+          "size": [
+            0.55,
+            0.42,
+            0.4
+          ],
+          "material": "plastic",
+          "color": "#e8dece"
+        },
+        {
+          "op": "add",
+          "shape": "connector",
+          "id": "muscle",
+          "parent": "arm",
+          "from": "upper",
+          "to": "forearm",
+          "fromPoint": [
+            0.25,
+            2.65,
+            0.32
+          ],
+          "toPoint": [
+            0.18,
+            -0.8,
+            0.32
+          ],
+          "radius": 0.36,
+          "restLength": 3.45,
+          "swell": [
+            [
+              0,
+              0.14
+            ],
+            [
+              0.15,
+              0.3
+            ],
+            [
+              0.42,
+              1
+            ],
+            [
+              0.65,
+              0.95
+            ],
+            [
+              0.85,
+              0.3
+            ],
+            [
+              1,
+              0.14
+            ]
+          ],
+          "material": "tissue",
+          "color": "#c74c5d",
+          "roughness": 0.58
+        },
+        {
+          "op": "add",
+          "shape": "group",
+          "id": "fixture",
+          "pos": [
+            2.4,
+            0,
+            0
+          ]
+        },
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "rail",
+          "parent": "fixture",
+          "pos": [
+            0,
+            0.2,
+            -0.25
+          ],
+          "size": [
+            0.16,
+            4.8,
+            0.16
+          ],
+          "material": "metal",
+          "color": "#8a9aad",
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "fixed",
+          "parent": "fixture",
+          "pos": [
+            0,
+            2.4,
+            0
+          ],
+          "size": [
+            1.4,
+            0.4,
+            0.6
+          ],
+          "material": "metal",
+          "color": "#7b8d9d",
+          "bevel": 0.08,
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "box",
+          "id": "slider",
+          "parent": "fixture",
+          "pos": [
+            0,
+            -1.6,
+            0
+          ],
+          "size": [
+            1.4,
+            0.4,
+            0.6
+          ],
+          "material": "metal",
+          "color": "#7b8d9d",
+          "bevel": 0.08,
+          "edges": false
+        },
+        {
+          "op": "add",
+          "shape": "connector",
+          "id": "cord",
+          "parent": "fixture",
+          "from": "fixed",
+          "to": "slider",
+          "fromPoint": [
+            0,
+            -0.2,
+            0.38
+          ],
+          "toPoint": [
+            0,
+            0.2,
+            0.38
+          ],
+          "radius": 0.24,
+          "restLength": 3.6,
+          "swell": [
+            [
+              0,
+              0.35
+            ],
+            [
+              0.2,
+              1
+            ],
+            [
+              0.8,
+              1
+            ],
+            [
+              1,
+              0.35
+            ]
+          ],
+          "material": "rubber",
+          "color": "#31b6b1"
+        },
+        {
+          "op": "pin",
+          "id": "muscle-label",
+          "on": "muscle",
+          "point": [
+            0.34,
+            1.15,
+            0.32
+          ],
+          "text": "Muscle-like connector",
+          "off": [
+            -160,
+            -15
+          ],
+          "color": "#df6979"
+        },
+        {
+          "op": "pin",
+          "id": "cord-label",
+          "on": "cord",
+          "point": [
+            0,
+            0.5,
+            0.38
+          ],
+          "text": "Elastic cord",
+          "off": [
+            130,
+            -15
+          ],
+          "color": "#49c9c0"
+        }
+      ]
+    },
+    {
+      "say": "The elbow and slider move using ordinary motion commands. As the attachment points get closer, the same radius profile grows wider. The connector follows the motion; it does not cause it.",
+      "actions": [
+        {
+          "op": "turn",
+          "id": "forearm",
+          "to": [
+            0,
+            0,
+            112
+          ],
+          "at": 0.25,
+          "dur": 3
+        },
+        {
+          "op": "move",
+          "id": "slider",
+          "to": [
+            0,
+            0.7,
+            0
+          ],
+          "at": 0.25,
+          "dur": 3
+        }
+      ]
+    },
+    {
+      "say": "Returning the parts restores the earlier length and thickness, without relying on a simulated history.",
+      "actions": [
+        {
+          "op": "turn",
+          "id": "forearm",
+          "to": [
+            0,
+            0,
+            12
+          ],
+          "at": 0.25,
+          "dur": 3
+        },
+        {
+          "op": "move",
+          "id": "slider",
+          "to": [
+            0,
+            -1.6,
+            0
+          ],
+          "at": 0.25,
+          "dur": 3
+        }
+      ]
+    }
+  ]
+}
