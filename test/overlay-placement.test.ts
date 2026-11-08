@@ -322,7 +322,7 @@ test('wrapped card drawn at a feasible bottom-edge position stays on screen', as
   const p = new Placer(pageGrid(new Uint8Array(COLS * ROWS).fill(255), COLS, ROWS), {aspect: 1.5, height: 800});
   const card = placeAction(p, {op:'card',id:'long',x:20,y:900,w:250,title:'A long title that wraps around',rows:['A long row that wraps across two lines','A second long row that wraps across two lines','A third long row that wraps across two lines']}, 800) as Extract<Action,{op:'card'}>;
   const corners: number[][] = [];
-  const ctx = new Proxy({measureText:(s:string)=>({width:s.length*12})} as Record<string, unknown>, {get(t,k:string){return k in t ? t[k] : (...a:number[])=>{if(k==='arcTo' && corners.length<4) corners.push(a);};},set(t,k:string,v){t[k]=v;return true;}}) as unknown as CanvasRenderingContext2D;
+  const ctx = new Proxy({measureText:(s:string)=>({width:s.length*12}),createLinearGradient:()=>({addColorStop(){}})} as Record<string, unknown>, {get(t,k:string){return k in t ? t[k] : (...a:number[])=>{if(k==='arcTo' && corners.length<4) corners.push(a);};},set(t,k:string,v){t[k]=v;return true;}}) as unknown as CanvasRenderingContext2D;
   drawCard(ctx, {mark:card,key:1,id:'long',color:[1,1,1],opacity:1,appear:1,fade:1,pulse:0,pulseColor:undefined,tinted:false}, {view,project:()=>undefined}, 0);
   assert.ok(corners[1]![1]! <= view.height, `drawn bottom ${corners[1]![1]} exceeds ${view.height}`);
 });

@@ -331,6 +331,10 @@ export type TimelineLayout = {
   events: Map<string, TimelineSlot>;
   /** True when the labels do not fit inside the area (the caller can make them smaller and try again). */
   overflow: boolean;
+  /** True when two labels still overlap (a layout that overflows but has no overlap is better than one that has). */
+  overlap: boolean;
+  /** How far the labels run past the area, in pixels (0 when they fit); the caller takes the least when nothing fits. */
+  overrun: number;
 };
 
 /** Where each event falls along the axis, 0 to 1: by its pos when all have one, else evenly in the order written. */
@@ -375,12 +379,12 @@ export function timelineLayout(events: readonly TimelineEvent[], area: Px, pad: 
       const x = Math.max(inner.x, Math.min(inner.x + inner.w - w, dotX - w / 2));
       let best: { rect: Px; side: -1 | 1; cost: number } | undefined;
       const prefer: -1 | 1 = i % 2 === 0 ? -1 : 1;
-      for (let level = 0; level < 3 && !(best && best.cost === 0); level++) {
+      for (let level = 0; level < Math.max(3, Math.min(events.length, 8)) && !(best && best.cost === 0); level++) {
         for (const side of [prefer, -prefer] as Array<-1 | 1>) {
           const top = side === -1 ? y - stem - level * rowH - h : y + stem + level * rowH;
           const rect = { x, y: top, w, h };
           const outside = Math.max(0, inner.y - rect.y) + Math.max(0, rect.y + rect.h - (inner.y + inner.h));
-          const cost = placed.reduce((c, p) => c + overlapArea(rect, p, 6), 0) + outside * 40 + level * 2;
+          const cost = placed.reduce((c, p) => c + overlapArea(rect, p, 6) * 4, 0) + outside * 40 + level * 2;
           if (!best || cost < best.cost) best = { rect, side, cost };
           if (cost === 0) break;
         }
@@ -396,7 +400,7 @@ export function timelineLayout(events: readonly TimelineEvent[], area: Px, pad: 
       slot.dot = { x: slot.dot.x, y: slot.dot.y + shift };
       slot.rect = { ...slot.rect, y: slot.rect.y + shift };
     }
-    return { horizontal, axis: { a: { x: inner.x, y: y + shift }, b: { x: inner.x + inner.w, y: y + shift } }, events: out, overflow: unresolved || bottom - top > inner.h + 0.5 };
+    return { horizontal, axis: { a: { x: inner.x, y: y + shift }, b: { x: inner.x + inner.w, y: y + shift } }, events: out, overflow: unresolved || bottom - top > inner.h + 0.5, overlap: unresolved, overrun: Math.max(0, bottom - top - inner.h) };
   }
   const x = inner.x + Math.min(34, inner.w * 0.14);
   const room = Math.max(40, inner.x + inner.w - x - stem - 6);
@@ -414,7 +418,7 @@ export function timelineLayout(events: readonly TimelineEvent[], area: Px, pad: 
   for (const r of rows) out.set(r.e.id, { dot: { x, y: inner.y + f[r.i]! * inner.h }, f: f[r.i]!, rect: { x: x + stem + 6, y: r.y, w: r.w, h: r.h }, side: 1 });
   const lastRow = rows[rows.length - 1];
   const used = lastRow ? lastRow.y + lastRow.h - (rows[0]?.y ?? 0) : 0;
-  return { horizontal, axis: { a: { x, y: inner.y }, b: { x, y: inner.y + inner.h } }, events: out, overflow: used > inner.h + 0.5 };
+  return { horizontal, axis: { a: { x, y: inner.y }, b: { x, y: inner.y + inner.h } }, events: out, overflow: used > inner.h + 0.5, overlap: false, overrun: Math.max(0, used - inner.h) };
 }
 
 // ---- Steps ---------------------------------------------------------------------------------------
