@@ -145,7 +145,7 @@ export type ObjectFrame = {
 };
 
 export type Frame = {
-  panel: { rect: Rect; appear: number; fade: number; frame: boolean } | null;
+  panel: { rect: Rect; appear: number; fade: number; frame: boolean; /** A clear has taken it: it is fading out, and holds no space against what arrives. */ leaving?: boolean } | null;
   marks: MarkFrame[];
   /** The flat diagrams (flow, timeline, steps, chart) on the screen, and what is drawn in each. */
   diagrams: DiagramFrame[];
@@ -1314,7 +1314,7 @@ export function evaluate(plan: StepPlan, t: number): Frame {
   for (const p of plan.panels) {
     if (!visibleAt(p, t)) continue;
     const r = valueAt(p.rect, t);
-    panel = { rect: { x: r[0] ?? 0, y: r[1] ?? 0, w: r[2] ?? 0, h: r[3] ?? 0 }, appear: appearOf(p, t), fade: fadeOf(p, t), frame: p.frame };
+    panel = { rect: { x: r[0] ?? 0, y: r[1] ?? 0, w: r[2] ?? 0, h: r[3] ?? 0 }, appear: appearOf(p, t), fade: fadeOf(p, t), frame: p.frame, leaving: p.diedAt !== undefined && p.diedAt <= t };
   }
   return {
     panel, marks, diagrams: phasedDiagrams(diagrams, motion), objects, nextKey: plan.nextKey, motion, ...(ahead ? { ahead } : {}),

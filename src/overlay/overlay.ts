@@ -20,7 +20,7 @@ import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import type { Env as LabelEnv } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
 import { PageMemory } from './page-memory.ts';
-import { OmissionCue, SurfaceAdmission, admittedFrame, omitStageForCue, surfacesOverlap, withoutReplacedSurfaces } from './surface-admission.ts';
+import { OmissionCue, SurfaceAdmission, admittedFrame, omitStageForCue, stageKeepOut, surfacesOverlap, withoutReplacedSurfaces } from './surface-admission.ts';
 import { Placer, cardFootprint, displayBoxesFromPixels, followDiagram, markFootprint, ownedByDiagram, pageGrid, foreseePoints, placeAction, reserveMarks, settleMark, splitOwned } from './placement.ts';
 import { FaceBook, THEME, fontAt } from './theme.ts';
 import { snapToControl } from '../shared/controls.ts';
@@ -405,7 +405,9 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
       const r = elementRect(el);
       return r ? [units(r)] : [];
     });
-    p.syncRenderedStage(modelRect ? units(modelRect) : undefined, visibleButtons);
+    // A stage a clear is taking away neither pushes the surfaces that arrive where it stood nor holds them off (see stageKeepOut).
+    const stageNow = stageKeepOut(frame.panel, modelRect)[0];
+    p.syncRenderedStage(stageNow ? units(stageNow) : undefined, visibleButtons);
     for (const surface of surfaces) { const current = p.surface(surface.id); if (current) p.syncHomeDisplay(surface.id, surface.box, current); }
     frame = { ...frame,
       marks: frame.marks.map((m) => {
@@ -425,7 +427,9 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
   board.beginFrame({ width: view.width, height: view.height, model: modelRect, dragging, now: labelClock(), ...(cardRect ? { within: cardRect } : {}) });
   board.keep(new Set(frame.marks.filter((m) => m.mark.op === 'pin').map((m) => m.key)));
   pinGeometry = [];
-  let admission = new SurfaceAdmission(modelRect ? [modelRect] : []);
+  // A stage that a clear is taking away does not hold space against what arrives (it is still drawn, fading).
+  const stageHeld = stageKeepOut(frame.panel, modelRect);
+  let admission = new SurfaceAdmission(stageHeld);
   const paintTime = labelClock();
   const admitSurface = (id: string) => admission.shown.has(id);
   const annotator = {
@@ -451,14 +455,14 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
   overflowEl.style.display = admission.omitted.size ? 'block' : 'none';
   if (admission.omitted.size) {
     const size = omissionCue.size(frame.marks.length + frame.diagrams.length + 1, view.width);
-    const obstacles = [...admission.shown.values(), ...(modelRect ? [modelRect] : []), ...overlayControlRects()];
+    const obstacles = [...admission.shown.values(), ...stageHeld, ...overlayControlRects()];
     const at = followupSpot(view, size, obstacles);
     const cue = { ...at, w: size.w, h: size.h };
     let hiddenStage = 0;
     if (obstacles.some(r => surfacesOverlap(cue, r))) {
       // No gap even for the cue: give it a dedicated slot, omitting intersecting panels too.
       // The stage is normally first priority, but cannot obscure this last-resort explanation.
-      if (modelRect && surfacesOverlap(cue, modelRect)) {
+      if (modelRect && stageHeld.length > 0 && surfacesOverlap(cue, modelRect)) {
         hiddenStage = 1;
         renderer?.setScissorTest(false); renderer?.clear();
         frameEl.style.display = 'none';
@@ -466,7 +470,7 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
         frame = omitStageForCue(frame, board);
         placeExplode(frame);
       }
-      admission = admission.prioritize(frame, [cue, ...(modelRect ? [modelRect] : [])]);
+      admission = admission.prioritize(frame, [cue, ...stageKeepOut(frame.panel, modelRect)]);
     }
     const count = admission.omitted.size + hiddenStage;
     omissionCue.show(count);

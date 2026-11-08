@@ -106,3 +106,11 @@ export class OmissionCue {
     if (this.live.textContent !== text) this.live.textContent = text;
   }
 }
+
+/**
+ * What the stage holds against the surfaces being admitted: its rectangle, while it is there to stay. A stage a clear has taken (`leaving`) is fading out
+ * and, like a leaving panel, yields to what arrives, so a chart that replaces the model is neither hidden nor counted in the omission cue while the model fades.
+ */
+export function stageKeepOut(panel: Frame['panel'], rect: Box | undefined): Box[] {
+  return rect && !panel?.leaving ? [rect] : [];
+}
