@@ -9,19 +9,19 @@ function Read-Controls($hwndArg) {
   if ($hwndArg -ne 0) { $handle = [IntPtr]$hwndArg } else { $handle = Front-Window }
   if ($handle -eq [IntPtr]::Zero) { return @{ out = '' } }
   if (Has-Browser $handle) { return @{ skip = 'browser' } }
-  $AE = [System.Windows.Automation.AutomationElement]
-  $CT = [System.Windows.Automation.ControlType]
+  $AE = [AutomationElement]
+  $CT = [ControlType]
   $root = $AE::FromHandle($handle)
   $types = @($CT::Button, $CT::CheckBox, $CT::ComboBox, $CT::Edit, $CT::Hyperlink, $CT::ListItem, $CT::MenuItem, $CT::RadioButton, $CT::TabItem, $CT::TreeItem, $CT::SplitButton)
-  $conds = @(foreach ($t in $types) { New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty, $t) })
-  $cond = New-Object System.Windows.Automation.OrCondition([System.Windows.Automation.Condition[]]$conds)
-  $cache = New-Object System.Windows.Automation.CacheRequest
+  $conds = @(foreach ($t in $types) { New-Object PropertyCondition($AE::ControlTypeProperty, $t) })
+  $cond = New-Object OrCondition([Condition[]]$conds)
+  $cache = New-Object CacheRequest
   $cache.Add($AE::BoundingRectangleProperty)
   $cache.Add($AE::ControlTypeProperty)
   $cache.Add($AE::IsOffscreenProperty)
-  $cache.TreeScope = [System.Windows.Automation.TreeScope]::Element
+  $cache.TreeScope = [TreeScope]::Element
   $scope = $cache.Activate()
-  try { $found = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond) } finally { $scope.Dispose() }
+  try { $found = $root.FindAll([TreeScope]::Descendants, $cond) } finally { $scope.Dispose() }
   $out = New-Object System.Collections.Generic.List[string]
   foreach ($e in $found) {
     if ($out.Count -ge 800) { break }

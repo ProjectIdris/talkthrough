@@ -62,7 +62,7 @@ export type GuideNavigation = {
 
 export type GuideEnd = 'finished' | 'escape' | 'superseded' | 'idle' | 'failed';
 
-export type GuideListener = { down(click: Click): void; up(click: Click): void; outside?(click: Click): void; cancelClick?(): void; escape(): void; /** Any other key: while the app is about to act for the person, typing stops it. */ key?(): void };
+export type GuideListener = { down(click: Click): void; up(click: Click): void; outside?(click: Click): void; cancelClick?(): void; escape(): void; /** Any other key: while the app is about to act for the person, typing stops it. */ key?(): void; /** The mouse wheel: the person is scrolling for themselves, which stops a move at once, even while the app waits for a yes. */ wheel?(): void };
 export type GuideWatch = (() => void) & { clicks?(on: boolean): void };
 
 export type GuideDeps = {
@@ -402,6 +402,12 @@ export function createGuide(deps: GuideDeps) {
     // Typing, or any other key, while the app is about to act stops it (not while it waits for a yes: the keys are how they say it).
     key: () => {
       if (phase === 'navigating' && !asking) navStop = 'key';
+    },
+    // The wheel is the person's hand on the screen, never an answer: it stops the move, and an open question is answered no.
+    wheel: () => {
+      if (phase !== 'navigating') return;
+      navStop = 'wheel';
+      if (asking) deps.navigation?.consent?.cancel();
     },
   };
 
