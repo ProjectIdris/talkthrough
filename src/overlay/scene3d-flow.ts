@@ -46,9 +46,25 @@ export function buildConnector(node: FlowNode, o: ObjectFrame, addMesh: AddMesh,
 
 const box = new Box3(), boxSize = new Vector3();
 
-/** How wide a part stands across the line from one anchor to the other: the widest of its bounding box's sides that the line does not run along. */
-function partWidth(obj: Object3D, a: Vector3, b: Vector3): number {
-  box.setFromObject(obj);
+const corner = new Vector3(), toSpace = new Matrix4();
+
+/**
+ * How wide a part stands across the line from one anchor to the other: the widest of its bounding box's sides that the line does not run along. The box is
+ * built in the space the line is in (the connector's own, which may hang from a group turned or scaled any way): each drawn piece's own box, its corners
+ * taken through the piece's place and into that space, so nothing is boxed twice. a and b are in that space too.
+ */
+function partWidth(obj: Object3D, a: Vector3, b: Vector3, into: Matrix4): number {
+  box.makeEmpty();
+  obj.traverse((o) => {
+    const geometry = (o as Mesh).geometry as BufferGeometry | undefined;
+    if (!(o as Mesh).isMesh || !geometry) return;
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    const g = geometry.boundingBox;
+    if (!g || g.isEmpty()) return;
+    o.updateWorldMatrix(true, false);
+    toSpace.multiplyMatrices(into, o.matrixWorld);
+    for (const x of [g.min.x, g.max.x]) for (const y of [g.min.y, g.max.y]) for (const z of [g.min.z, g.max.z]) box.expandByPoint(corner.set(x, y, z).applyMatrix4(toSpace));
+  });
   // A part with nothing drawn in it (a bare group) says nothing about width: it bounds nothing.
   if (box.isEmpty()) return Infinity;
   box.getSize(boxSize);
@@ -122,7 +138,9 @@ export function updateConnectors(nodes: ReadonlyMap<number, FlowNode>, frame: Fr
         // Thickening is bounded by what the span and the joined parts allow: the widest ring, at the authored look at least, no wider than half the span and
         // 3/4 of the narrower part. A cord shortened a great deal is squashed, never a ball over what it joins.
         const peak = def.swell ? Math.max(...local.map((_, i) => swellAt(def.swell!, i / Math.max(1, local.length - 1)))) : 1;
-        const room = Math.min(0.5 * length, 0.75 * Math.min(partWidth(na.obj, a, b), partWidth(nb.obj, a, b)));
+        // The parts are measured in the connector's own space, where the span and the radius are (it may hang from a group scaled differently on each axis).
+        const first = new Vector3(...local[0]!), last = new Vector3(...local[local.length - 1]!);
+        const room = Math.min(0.5 * length, 0.75 * Math.min(partWidth(na.obj, first, last, inverse), partWidth(nb.obj, first, last, inverse)));
         radius = Math.min(radius, Math.max(thick * peak, room) / peak);
       }
       capDepth = 0.25 * length;
