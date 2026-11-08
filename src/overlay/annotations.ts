@@ -18,6 +18,8 @@ export type Annotator = {
   view: View;
   /** The 3D stage in pixels, when there is one: tags are drawn smaller beside a small stage so they do not outweigh the model. */
   stage?: { w: number; h: number };
+  /** Refuse a panel whose measured, animated bounds would cover an earlier surface. */
+  admitSurface?: (id: string, bounds: { x: number; y: number; w: number; h: number }) => boolean;
   /** Where a point of a 3D object is in the window. */
   project: (key: number, point: Vec3 | undefined, anchor?: string) => { x: number; y: number; visible: boolean } | undefined;
   /** The screenshot (or backdrop) image crops are taken from. */
@@ -342,6 +344,7 @@ export function drawCard(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): v
   const H = y + pad * 0.7;
   const slide = (1 - p) * 10;
   const top = y0 + slide;
+  if (a.admitSurface?.(m.id, { x, y: top, w: W, h: H }) === false) { ctx.restore(); return; }
   // Frost: the panel wears the face of the page under it (light over a light page, dark over a dark one).
   const tone = FROST[a.faceOf?.(`m${m.key}`, { x, y: y0, w: W, h: H }) ?? 'dark'];
 
@@ -421,6 +424,7 @@ export function drawImage(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): 
   ctx.restore();
   const cap = caption.length ? capPx * (0.9 + caption.length) : 0;
   const x = snapPx((mk.dx / 1000) * view.width, view.dpr), y = snapPx((mk.dy / 1000) * view.height, view.dpr);
+  if (a.admitSurface?.(m.id, { x, y: y + (1 - p) * 10, w: w + pad * 2, h: h + pad * 2 + cap }) === false) return;
   ctx.save();
   ctx.globalAlpha = alpha * Math.min(1, p * 1.5);
   ctx.translate(0, (1 - p) * 10);

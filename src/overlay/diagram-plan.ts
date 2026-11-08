@@ -39,6 +39,9 @@ export type DiagramItemFrame = {
   done: number;
 };
 export type DiagramFrame = {
+  /** This step added or highlighted the panel or one of its pieces. */
+  currentStep?: boolean;
+  leaving?: boolean;
   key: number; id: string; def: DiagramAction; color: string | undefined; opacity: number;
   appear: number; fade: number; pulse: number; pulseColor: string | undefined;
   /** What the diagram holds, in the order it was made. */
@@ -201,9 +204,12 @@ export function evaluateDiagrams(dp: DiagramPlan, t: number): DiagramFrame[] {
     const dpulse = pulseAt(d, t);
     const dappear = ease(progress(t, d.bornAt, DIAGRAM_APPEAR_SECONDS));
     const dfade = d.diedAt === undefined ? 1 : 1 - progress(t, d.diedAt, DIAGRAM_WIPE_SECONDS);
+    const touched = (i: Inst) => (i.bornAt >= 0 && i.bornAt <= t) || i.pulses.some(p => p.start <= t);
+    let currentStep = touched(d);
     const items: DiagramItemFrame[] = [];
     for (const it of dp.insts) {
       if (it.parentKey !== d.key || it.def.op === 'diagram' || !visibleAt(it, t)) continue;
+      if (touched(it)) currentStep = true;
       // A piece that is not born yet is kept (so the layout is steady while a diagram builds), at appear 0.
       const s = styleAt(it, t);
       const p = pulseAt(it, t);
@@ -215,6 +221,7 @@ export function evaluateDiagrams(dp: DiagramPlan, t: number): DiagramFrame[] {
       });
     }
     out.push({
+      currentStep, leaving: d.diedAt !== undefined && d.diedAt <= t,
       key: d.key, id: d.id, def: d.def, color: ds.color, opacity: ds.opacity,
       appear: dappear, fade: clamp01(dfade), pulse: dpulse.amount, pulseColor: dpulse.color, items,
     });

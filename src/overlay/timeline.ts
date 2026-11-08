@@ -85,6 +85,10 @@ export type FocusFrame = {
 };
 
 export type MarkFrame = {
+  /** Added or highlighted in this step; retained frames reset this when the next step starts. */
+  currentStep?: boolean;
+  /** Clearing has begun, including its first frame before fade decreases. */
+  leaving?: boolean;
   key: number; id: string; mark: Mark; color: Rgb; opacity: number;
   /** 0..1, how far the mark has drawn in. */
   appear: number;
@@ -1078,6 +1082,8 @@ export function evaluate(plan: StepPlan, t: number): Frame {
       fade = Math.min(fade, fadeOf(host, t));
     }
     marks.push({
+      currentStep: m.bornAt >= 0 || plan.pulses.some(p => p.key === m.key && p.start <= t),
+      leaving: m.diedAt !== undefined && m.diedAt <= t,
       key: m.key, id: m.id, mark: m.mark, color: asRgb(valueAt(m.color, t)), opacity: valueAt(m.opacity, t)[0] ?? 1,
       appear, fade, pulse: pulse.amount, pulseColor: pulse.color, tinted: m.tinted, ...(m.onKey !== undefined ? { onKey: m.onKey } : {}),
     });
