@@ -38,7 +38,7 @@ test('a how-does-it-work question about a model that holds no mechanism is told 
     assert.match(hint, /How it works: /);
     assert.match(hint, /build the working mechanism large and animated/);
     assert.match(hint, /stand beside it at its own size/);
-    assert.ok(!hint.includes('add {shape:model'), 'it is not told to use the model as the subject');
+    assert.ok(hint.includes('add {shape:model, id:"<id>", model:"' + id + '"}'), 'it is told to stand the real model beside the mechanism');
   }
   assert.ok(MODELS.every((m) => m.mechanism === false), 'no model holds a working mechanism yet: the flag is generated, and the hint keys on it');
 });
