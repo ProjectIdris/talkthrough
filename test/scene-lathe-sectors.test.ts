@@ -83,7 +83,7 @@ test('invalid sectors neither consume ids nor consume replacement permission', (
   assert.equal(state.ids.has('body'), false);
   const initial = validateScene({ steps: [{ say: '', actions: [
     { op: 'add', shape: 'group', id: 'holder' },
-    { op: 'add', shape: 'box', id: 'body', parent: 'holder', size: [2, 3, 4] },
+    { op: 'add', shape: 'box', id: 'body', parent: 'holder', size: [2, 3, 4], opacity: 0.5 }, // see-through: a solid child inside a closed opaque box would be repaired (a style action), which this test is not about
     { op: 'add', shape: 'box', id: 'child', parent: 'body', size: [1, 1, 1] },
   ] }] }, state);
   assert.equal(initial.scene?.steps[0]?.actions.length, 3);

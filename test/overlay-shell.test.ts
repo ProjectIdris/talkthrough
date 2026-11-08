@@ -103,7 +103,7 @@ test('shell replacement and backward seek retain the requested hemisphere',()=>{
 });
 
 test('shell parents retain their transform for automatic attachment to child solids',()=>{
-  const parent=shell({pos:[10,0,0]}),child={op:'add',shape:'box',id:'child',parent:'piece',size:[2,2,2]};
+  const parent=shell({pos:[10,0,0],opacity:.5}),child={op:'add',shape:'box',id:'child',parent:'piece',size:[2,2,2]};
   const wire={op:'add',shape:'tube',id:'wire',pts:[[1,0,0],[5,0,0]],radius:.05};
   assert.equal((validated([parent,child,wire]).steps[0]!.actions[2] as {attach?:unknown}).attach,undefined);
   const r=validateScene({steps:[{say:'x',actions:[parent,child,{...wire,pts:[[11,0,0],[15,0,0]]}]}]},createSceneState());
