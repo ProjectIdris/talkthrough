@@ -834,7 +834,10 @@ function drawChart(env: Env, d: DiagramFrame, area: Px, pad: number): void {
   const data = { series: series.map((s) => ({ pts: s.def.pts as Array<[number, number]> })), dots: dots.map((p) => ({ x: p.def.x, y: p.def.y })), ...(d.def.xrange ? { xrange: d.def.xrange } : {}), ...(d.def.yrange ? { yrange: d.def.yrange } : {}) };
   const probe = chartLayout(data, area, { left: 40, bottom: 30, top: 8, right: 20 });
   const yLabelW = Math.max(0, ...probe.yTicks.map((t) => ctx.measureText(formatTick(t.v, probe.yStep)).width));
-  const labelRoom = Math.max(0, ...series.map((s) => (s.def.label ? Math.min(area.w * 0.28, ctx.measureText(s.def.label).width + 10) : 0)));
+  // The names are drawn in the title font at 1.1 times the tick size, so the room for them is measured in that font.
+  ctx.font = fontAt(theme.titleFont, tickPx * 1.1);
+  const labelRoom = Math.max(0, ...series.map((s) => (s.def.label ? Math.min(area.w * 0.28, ctx.measureText(s.def.label).width + 14) : 0)));
+  ctx.font = fontAt(theme.font, tickPx);
   const baseRoom = {
     left: pad * 0.6 + yLabelW + (d.def.ylabel ? tickPx * 1.5 : 0) + 8,
     bottom: tickPx * 2 + (d.def.xlabel ? tickPx * 1.6 : 0) + 6,

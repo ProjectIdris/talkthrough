@@ -64,12 +64,12 @@ export type FrostFace = {
 
 export const FROST: Readonly<Record<Face, FrostFace>> = {
   light: {
-    ink: '#16202e', muted: '#5b6b82', faint: 'rgba(30,50,90,0.10)', chip: 'rgba(255,255,255,0.94)', chipLine: 'rgba(30,50,90,0.14)',
+    ink: '#16202e', muted: '#4a5970', faint: 'rgba(30,50,90,0.10)', chip: 'rgba(255,255,255,0.94)', chipLine: 'rgba(30,50,90,0.14)',
     panelTop: 'rgba(255,255,255,0.93)', panelFoot: 'rgba(243,247,255,0.88)', border: 'rgba(255,255,255,0.95)', ring: 'rgba(30,50,90,0.09)', shadow: 'rgba(50,70,120,0.22)',
     tint: 0.13, tintLine: 0.46, row: 'rgba(30,58,120,0.045)', core: '#ffffff',
   },
   dark: {
-    ink: '#f2f6fc', muted: '#a3b4cc', faint: 'rgba(255,255,255,0.09)', chip: 'rgba(14,20,34,0.90)', chipLine: 'rgba(255,255,255,0.15)',
+    ink: '#f2f6fc', muted: '#b0bfd6', faint: 'rgba(255,255,255,0.09)', chip: 'rgba(14,20,34,0.90)', chipLine: 'rgba(255,255,255,0.15)',
     panelTop: 'rgba(30,40,64,0.92)', panelFoot: 'rgba(17,24,41,0.88)', border: 'rgba(255,255,255,0.14)', ring: 'rgba(0,0,0,0.28)', shadow: 'rgba(2,6,16,0.52)',
     tint: 0.18, tintLine: 0.46, row: 'rgba(255,255,255,0.055)', core: '#0e1424',
   },

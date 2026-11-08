@@ -63,6 +63,13 @@ test('ink and muted text read (4.5 to 1) on the panel of each face over the ligh
       }
       const chip = over(rgba(tone.chip), panel);
       assert.ok(contrast(rgba(tone.muted).slice(0, 3) as [number, number, number], chip) >= 4.5, `${face} face: the muted text on a label chip`);
+      // The muted text also sits on chips and rows tinted by an accent (timeline chips, flow notes, the lit step row): the tint is laid over the panel.
+      for (let i = 0; i < FROST_ACCENTS.length; i++) for (const extra of [0, 0.03]) {
+        const acc = frostAccent(i);
+        const tinted = over([acc[0], acc[1], acc[2], tone.tint + extra], panel);
+        const c = contrast(rgba(tone.muted).slice(0, 3) as [number, number, number], tinted);
+        assert.ok(c >= 4.5, `${face} face: the muted text on accent ${i} tint (+${extra}) over a page of ${page}: ${c.toFixed(2)}`);
+      }
     }
   }
   // Writing on an accent (a number in its disc, a date in its pill) is white, or near black on a light accent.
@@ -178,6 +185,22 @@ test('a short timeline panel still writes every date, event and note inside itse
   const ys = names.map((n) => g.drawn.find((d) => d.text === n)?.y).filter((y): y is number => y !== undefined).sort((a, b) => a - b);
   assert.equal(ys.length, 6, 'six names are written');
   for (let i = 1; i < ys.length; i++) assert.ok(ys[i]! - ys[i - 1]! >= 12, `names ${i} and ${i + 1} are a line apart: ${ys.map((y) => y.toFixed(0)).join(' ')}`);
+});
+
+test('the name of a series ending at the right edge of the chart is written beside its end, in the room kept for it, not inside the plot', () => {
+  // The room is measured in the font the name is drawn in (bold, 1.1 times the tick size), so the widest name still fits it.
+  for (const name of ['Charlie', 'Consumer curve', 'Consumer surplus']) {
+    const chart: Action[] = [
+      { op: 'diagram', id: 'c', kind: 'chart', x: 600, y: 100, w: 360, h: 380, xrange: [0, 20], yrange: [0, 100] },
+      { op: 'series', id: 's0', of: 'c', pts: [[0, 10], [20, 60]], label: name, curve: true } as Action,
+    ];
+    const g = fakeCtx();
+    new DiagramPainter().draw(g.ctx, plan(chart).diagrams, view, 0);
+    const label = g.drawn.find((d) => d.text === name);
+    const right = g.drawn.filter((d) => d.text === '20').sort((p, q) => q.x - p.x)[0];
+    assert.ok(label && right, 'the name and the last tick are written');
+    assert.ok(label!.x > right!.x, `"${name}" starts at ${label!.x.toFixed(0)}, right of the end of the plot (${right!.x.toFixed(0)})`);
+  }
 });
 
 // ---- Note cards wear it too --------------------------------------------------------------------------------------------------
