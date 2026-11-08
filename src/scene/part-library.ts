@@ -16,7 +16,7 @@ const OTHER_INFO: Readonly<Record<(typeof OTHER_PARTS)[number], Info>> = {
   lens: { aka: ['camera lens'] },
   screen: { aka: ['display', 'monitor'] },
   button: { aka: ['key', 'switch'] },
-  fan: { note: 'n blades', aka: ['propeller', 'rotor'] },
+  fan: { note: 'n blades', aka: ['propeller'] },
   wheel: { note: 'n spokes, z', aka: ['tyre', 'tire'] },
 };
 

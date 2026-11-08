@@ -509,7 +509,7 @@ const presets = {
 
   // The support a lever turns on: a triangular stand on a foot plate with a pivot pin near its apex.
   fulcrum: {
-    aka: ['pivot', 'lever support', 'stand'],
+    aka: ['pivot', 'stand'],
     color: [134, 140, 154],
     values: [['foot', 'sy*0.1'], ['pr', 'min(sx,sy)*0.06'], ['py', 'sy/2 - sy*0.1']],
     anchors: [{ name: 'pivot', at: [0, 'py', 0] }, { name: 'base', at: [0, '-sy/2', 0] }],
