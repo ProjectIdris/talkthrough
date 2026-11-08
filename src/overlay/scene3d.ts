@@ -36,6 +36,7 @@ import type { Part } from './explode.ts';
 import { PATCH_SEGMENTS } from '../scene/patch.ts';
 import { patchGeometry, patchEdges } from './patch.ts';
 import { Cutaway } from './cutaway.ts';
+import { isVisible, visibleBounds } from './visible-bounds.ts';
 import { latheSectorEdges, latheSectorGeometry } from './lathe-sector.ts';
 import { buildConnector, buildStream, updateAttached, updateConnectors, updateStreams } from './scene3d-flow.ts';
 import type { FlowNode } from './scene3d-flow.ts';
@@ -723,7 +724,7 @@ export class PanelScene {
       const sprite = node.obj;
       if (!(sprite instanceof Sprite)) continue;
       sprite.center.set(0.5, 0.5);
-      if (!sprite.visible) continue;
+      if (!isVisible(sprite)) continue;
       sprite.getWorldPosition(p);
       const depth = -p.clone().applyMatrix4(this.camera.matrixWorldInverse).z;
       if (depth <= 0) continue;
@@ -787,14 +788,14 @@ export class PanelScene {
   private partSpheres(): PartHull[] {
     const spheres: PartHull[] = [];
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
+      if (!isVisible(node.obj) || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
       for (const p of node.pieces) {
         const mesh = p.object as Mesh;
         const geo = mesh.geometry;
-        if (!geo) continue;
+        if (!geo || !isVisible(mesh)) continue;
         if (mesh instanceof InstancedMesh) {
           // The geometry is one instance; the piece is where all of them are.
-          const box = new Box3().setFromObject(mesh);
+          const box = visibleBounds(mesh, new Box3());
           if (!box.isEmpty()) spheres.push({ sphere: box.getBoundingSphere(new Sphere()), corners: boxCorners(box, undefined) });
           continue;
         }
@@ -817,10 +818,10 @@ export class PanelScene {
     const p = new Vector3();
     const proj = this.camera.projectionMatrix.elements;
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
+      if (!isVisible(node.obj) || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
       for (const piece of node.pieces) {
         const mesh = piece.object as Mesh;
-        box.setFromObject(mesh);
+        visibleBounds(mesh, box);
         if (box.isEmpty()) continue;
         let a0 = Infinity, b0 = Infinity, a1 = -Infinity, b1 = -Infinity;
         for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
@@ -863,7 +864,7 @@ export class PanelScene {
     let anywhere = false;
     this.scene.traverseVisible((o) => {
       if (!((o as Mesh).isMesh || (o as LineSegments).isLineSegments || (o as Sprite).isSprite)) return;
-      box.setFromObject(o);
+      visibleBounds(o, box);
       if (box.isEmpty()) return;
       for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
         p.set(x, y, z);
@@ -917,8 +918,8 @@ export class PanelScene {
     const box = new Box3();
     const corner = new Vector3();
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
-      box.setFromObject(node.obj);
+      if (!isVisible(node.obj) || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
+      visibleBounds(node.obj, box);
       if (box.isEmpty()) continue;
       for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) far = Math.max(far, corner.set(x, y, z).distanceTo(from));
     }
@@ -932,8 +933,8 @@ export class PanelScene {
     // How solid the model is, by its biggest part: a shadow under a see-through shell would grey the layers inside it.
     let biggest = 0, solidity = 1, smallestRadius = Infinity;
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
-      const b = new Box3().setFromObject(node.obj);
+      if (!isVisible(node.obj) || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream) continue;
+      const b = visibleBounds(node.obj, new Box3());
       if (!b.isEmpty()) {
         this.box.union(b);
         this.hasBox = true;
@@ -999,10 +1000,6 @@ export class PanelScene {
       return { x: 0, y: 0, visible: false };
     };
     if (!node) { hidden(); return undefined; }
-    const isVisible = (obj: Object3D): boolean => {
-      for (let p: Object3D | null = obj; p; p = p.parent) if (!p.visible) return false;
-      return true;
-    };
     if (!isVisible(node.obj) || node.alpha <= 0.003) return hidden();
     // Scene text is a camera-facing sprite drawn with depth testing disabled.
     // Its origin is also used by the text-layout and clipping calculations.
@@ -1027,7 +1024,7 @@ export class PanelScene {
     const explicit = named ?? point;
     if (explicit) candidates.push(new Vector3(...explicit).applyMatrix4(node.obj.matrixWorld));
     else {
-      const box = new Box3().setFromObject(node.obj);
+      const box = visibleBounds(node.obj, new Box3());
       if (!box.isEmpty()) candidates.push(box.getCenter(new Vector3()));
       if (node.path?.sampled.length) for (let i = 0; i < 12; i++) {
         const p = node.path.sampled[Math.floor((node.path.sampled.length - 1) * i / 11)]!;
@@ -1150,12 +1147,12 @@ export class PanelScene {
     const hulls: Pt[][] = [];
     const corner = new Vector3();
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.path || node.stream) continue;
+      if (!isVisible(node.obj) || node.obj instanceof Sprite || node.path || node.stream) continue;
       for (const piece of node.pieces) {
         const o = piece.object;
-        if (!(o instanceof Mesh) || !o.visible) continue;
+        if (!(o instanceof Mesh) || !isVisible(o)) continue;
         const box = new Box3();
-        if (o instanceof InstancedMesh) box.setFromObject(o);
+        if (o instanceof InstancedMesh) visibleBounds(o, box);
         else {
           const geo = o.geometry as BufferGeometry;
           if (!geo.boundingBox) geo.computeBoundingBox();

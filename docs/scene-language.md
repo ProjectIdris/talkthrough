@@ -237,6 +237,8 @@ This is base-pose placement, not a live joint or a physics constraint. Ordinary 
 
 All take `id` and optionally `at` and `dur`. These apply to 3D objects (`move`, `along`, `turn`, `scale`, `explode`, `reveal`) or to any object or mark (`style`, `highlight`). `style` and `highlight` on a group reach everything inside it.
 
+A fully hidden parent hides its descendants, including children added after it was hidden. Hidden subtrees do not affect camera framing, contact shadows, label space or cut caps. Showing them includes them again. See [`visible-model-bounds.json`](../samples/scenes/visible-model-bounds.json).
+
 | op | fields | |
 |---|---|---|
 | `move` | `to: [x,y,z]` | tween to an absolute position |

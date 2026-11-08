@@ -16,6 +16,7 @@ import {
 import type { Material, Object3D, StencilOp } from 'three';
 import { hatched, sectionTone } from './materials.ts';
 import type { Frame } from './timeline.ts';
+import { isVisible, visibleBounds } from './visible-bounds.ts';
 
 /** What the cutting needs to know of a drawn object: its three.js root, its meshes, and how it looks just now. */
 export type CutPiece = {
@@ -63,7 +64,8 @@ export class Cutaway {
     let radius = 10;
     if (user > 0 || frame.objects.some((o) => o.cut)) {
       this.box.makeEmpty();
-      for (const node of nodes.values()) if (node.obj.visible) this.box.expandByObject(node.obj);
+      const visible = new Box3();
+      for (const node of nodes.values()) this.box.union(visibleBounds(node.obj, visible));
       if (!this.box.isEmpty()) radius = Math.max(1, this.box.getSize(new Vector3()).length());
     }
     if (user > 0 && !this.box.isEmpty()) {
@@ -130,7 +132,7 @@ export class Cutaway {
       material.clipShadows = true;
       material.side = DoubleSide;
       if (p.lines) (p.lines.material as Material).clippingPlanes = planes;
-      const capped = p.closed && (material as { userData?: { base?: number } }).userData?.base === 1 && node.alpha >= 0.98 && node.obj.visible;
+      const capped = p.closed && (material as { userData?: { base?: number } }).userData?.base === 1 && node.alpha >= 0.98 && isVisible(mesh);
       // One helper set for each plane that cuts this part; spare ones are put away.
       while (state.helpers.length > planes.length) this.retire(state.helpers.pop()!);
       for (let i = 0; i < planes.length; i++) {

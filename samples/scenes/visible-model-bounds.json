@@ -1,0 +1,32 @@
+{
+  "v": 1,
+  "steps": [
+    {
+      "say": "The visible solid should fill the stage, with a close contact shadow.",
+      "actions": [
+        { "op": "panel", "x": 100, "y": 100, "w": 600, "h": 500 },
+        { "op": "orbit", "az": 22, "el": 18, "dur": 0 },
+        { "op": "add", "shape": "box", "id": "body", "size": [2, 1.5, 1.5], "color": "teal", "material": "plastic" },
+        { "op": "pin", "id": "label", "on": "body", "text": "Visible solid" }
+      ]
+    },
+    {
+      "say": "Hidden detail arrives under a hidden group. The visible solid, its framing and its shadow should remain unchanged, with no floating cut faces.",
+      "actions": [
+        { "op": "add", "shape": "group", "id": "hidden" },
+        { "op": "style", "id": "hidden", "opacity": 0, "dur": 0 },
+        { "op": "add", "shape": "box", "id": "remote", "parent": "hidden", "size": [12, 10, 8], "pos": [20, 0, 0], "color": "orange" },
+        { "op": "add", "shape": "part", "part": "header", "id": "pins", "parent": "hidden", "size": [8, 4, 6], "pos": [-20, 0, 0] },
+        { "op": "cut", "id": "hidden", "axis": "z", "to": 0, "dur": 0 }
+      ]
+    },
+    {
+      "say": "Showing the group now includes the extra pieces in the framing and restores their cut faces.",
+      "actions": [ { "op": "style", "id": "hidden", "opacity": 1, "dur": 0 } ]
+    },
+    {
+      "say": "Hiding it again returns to the original solid and contact shadow.",
+      "actions": [ { "op": "style", "id": "hidden", "opacity": 0, "dur": 0 } ]
+    }
+  ]
+}
