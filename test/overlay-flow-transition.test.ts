@@ -5,6 +5,7 @@ import type { Scene } from '../src/scene/types.ts';
 import { DiagramPainter } from '../src/overlay/diagram-draw.ts';
 import type { Px } from '../src/overlay/diagram-layout.ts';
 import { emptyFrame, planStep, settle } from '../src/overlay/timeline.ts';
+import { FROST } from '../src/overlay/theme.ts';
 
 /** Record the actual rounded rectangles painted by DiagramPainter, not its intended layout. */
 function canvasGeometry() {
@@ -20,7 +21,8 @@ function canvasGeometry() {
       if (k === 'restore') return () => Object.assign(t, stack.pop());
       if (k === 'beginPath') return () => { corners = []; points = []; };
       if (k === 'moveTo' || k === 'lineTo') return (x: number, y: number) => points.push({ x, y });
-      if (k === 'stroke') return () => { if (t.lineWidth === 2.3) edges.push([...points]); };
+      // An arrow is stroked with a gradient (from the colour of its first node to the colour of its second).
+      if (k === 'stroke') return () => { if (typeof t.strokeStyle === 'object') edges.push([...points]); };
       if (k === 'arcTo') return (...args: number[]) => corners.push(args);
       if (k === 'createLinearGradient') return () => ({ addColorStop() {} });
       if (k === 'measureText') return (s: string) => ({ width: s.length * Number(/([\d.]+)px/.exec(String(t.font))?.[1] ?? 10) * 0.52 });
@@ -28,8 +30,9 @@ function canvasGeometry() {
         if (corners.length !== 4) return;
         const [a, b, c] = corners as [number[], number[], number[], number[]];
         const box = { x: c[0]!, y: a[1]!, w: a[0]! - c[0]!, h: b[1]! - a[1]! };
-        if (t.fillStyle === 'rgba(14,19,31,0.9)') nodes.push(box);
-        if (t.fillStyle === 'rgba(19,25,39,0.97)') labels.push(box);
+        // A node is a capsule tinted with its accent; an edge label is the face's chip.
+        if (typeof t.fillStyle === 'string' && new RegExp(`^rgba\\(\\d+,\\d+,\\d+,${FROST.dark.tint}\\)$`).test(t.fillStyle)) nodes.push(box);
+        if (t.fillStyle === FROST.dark.chip) labels.push(box);
       };
       return k in t ? t[k] : () => undefined;
     },

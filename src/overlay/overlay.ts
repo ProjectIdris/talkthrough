@@ -20,7 +20,7 @@ import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
 import type { Env as LabelEnv } from './labels.ts';
 import { snapperFor } from './page-gray.ts';
 import { PageMemory } from './page-memory.ts';
-import { THEME, fontAt } from './theme.ts';
+import { FaceBook, THEME, fontAt } from './theme.ts';
 import { Placer, cardFootprint, displayBoxesFromPixels, followDiagram, markFootprint, ownedByDiagram, ownedMarkIds, pageGrid, foreseePoints, placeAction, reserveMarks, settleMark, splitOwned } from './placement.ts';
 import { snapToControl } from '../shared/controls.ts';
 import type { ControlBox } from '../shared/controls.ts';
@@ -424,6 +424,7 @@ function draw(frame: Frame, seekView = false, cameraFit?: 'instant'): Frame {
   const annotator = {
     view,
     ...(stageSize ? { stage: stageSize } : {}),
+    faceOf: (key: string, rect: { x: number; y: number; w: number; h: number }) => faces.of(key, rect),
     place: (key: number, request: Parameters<typeof board.place>[1]) => board.place(key, request, labelEnvironment),
     project: (key: number, point: Parameters<typeof panelScene.project>[1], anchor?: Parameters<typeof panelScene.project>[4]) => panelScene.project(key, point, view.width, view.height, anchor),
     onPinGeometry: (g: { key: number; anchor: { x: number; y: number }; leaderEnd: { x: number; y: number }; radius: number; alpha: number }) => {
@@ -458,7 +459,10 @@ function cropSource(): { image: CanvasImageSource; width: number; height: number
 const board = new LabelBoard();
 /** The ids of the marks that belong to a flat diagram (placement.ts): drawn over its card, where the rest stay under it. */
 const ownedMarks = new Set<string>();
+/** The face (light or dark) each flat diagram and note card wears: the page under it decides, with a little hysteresis so it never flickers over a mid-tone page (theme.ts). The same signal as the light frame behind a 3D stage. */
+const faces = new FaceBook((r) => placer()?.brightness({ x: (r.x / view.width) * 1000, y: (r.y / view.height) * 1000, w: (r.w / view.width) * 1000, h: (r.h / view.height) * 1000 }));
 const diagramPainter = new DiagramPainter({
+  faceOf: (key, rect) => faces.of(key, rect),
   onBounds: (id, box) => placer()?.publishSurface(id, { x: box.x / view.width * 1000, y: box.y / view.height * 1000, w: box.w / view.width * 1000, h: box.h / view.height * 1000 }),
   // A flow card that had to grow is placed again for its new size, off the page's text and figures (placement.ts).
   regrow: (id, want) => {

@@ -110,12 +110,14 @@ function dotsOf(frame: Frame): Array<[number, number]> {
 
 test('dots are drawn along the arrow, and are in other places a moment later', () => {
   const first = settle(run(...flow, { op: 'add', shape: 'stream', id: 's', along: 'e', mark: 'dot', count: 3, period: 4 }));
-  const none = dotsOf(settle(run(...flow)));
-  const a = dotsOf(first), b = dotsOf(withMotion(first, 0.6));
-  assert.equal(none.length, 0, 'no dots without a stream');
+  // The diagram's own discs (a node's number, the dot that ends an arrow) are drawn with or without a stream; only what a stream adds counts.
+  const plain = dotsOf(settle(run(...flow)));
+  const added = (all: Array<[number, number]>) => all.filter(([x, y]) => !plain.some(([px, py]) => px === x && py === y));
+  const a = added(dotsOf(first)), b = added(dotsOf(withMotion(first, 0.6)));
+  assert.ok(plain.length > 0 && added(plain).length === 0, 'the diagram has its own discs, and no stream dots without a stream');
   assert.ok(a.length >= 2 && b.length >= 2, `${a.length} ${b.length}`);
   assert.notDeepEqual(a, b);
-  assert.deepEqual(dotsOf(first), a, 'the same lap count draws the same places');
+  assert.deepEqual(added(dotsOf(first)), a, 'the same lap count draws the same places');
   // they run along one line from the first node toward the second: left to right here
   const xs = a.map((d) => d[0]).sort((p, q) => p - q);
   const moved = b.map((d) => d[0]).sort((p, q) => p - q);

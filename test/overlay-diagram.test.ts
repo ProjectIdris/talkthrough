@@ -139,6 +139,7 @@ test('chart ticks stay distinct and numeric through the painter at tiny and offs
     const drawn: Array<{ text: string; x: number; y: number; width: number; height: number }> = [];
     type Segment = { from: { x: number; y: number }; to: { x: number; y: number } };
     const strokes: Segment[][] = [];
+    const clips: Array<{ x: number; y: number; w: number; h: number }> = [];
     let path: Segment[] = [];
     let last: { x: number; y: number } | undefined;
     const state: Record<string, unknown> = { font: '10px x' };
@@ -154,6 +155,8 @@ test('chart ticks stay distinct and numeric through the painter at tiny and offs
           last = next;
         };
         if (k === 'stroke') return () => strokes.push(path);
+        // The plot is clipped for the series with a margin of 2 across and 4 above and below.
+        if (k === 'rect') return (x: number, y: number, w: number, h: number) => { clips.push({ x, y, w, h }); };
         if (k === 'fillText') return (text: string, x: number, y: number) => {
           const fontPx = Number(/([\d.]+)px/.exec(String(t.font))?.[1] ?? 10);
           drawn.push({ text, x, y, width: text.length * 7, height: fontPx * 1.2 });
@@ -173,14 +176,13 @@ test('chart ticks stay distinct and numeric through the painter at tiny and offs
     const yTicks = drawn.filter((label) => !xTicks.includes(label));
     const numberValue = (text: string) => text.endsWith('k') ? Number(text.slice(0, -1)) * 1000 : Number(text);
     const grid = strokes.find((segments) => segments.length >= 4 && segments.some(({ from, to }) => from.x === to.x) && segments.some(({ from, to }) => from.y === to.y)) ?? [];
-    const axis = strokes.find((segments) => segments.length === 2 && segments.some(({ from, to }) => from.x === to.x) && segments.some(({ from, to }) => from.y === to.y));
-    assert.ok(axis, 'the painter drew the chart axes');
-    const verticalAxis = axis!.find(({ from, to }) => from.x === to.x)!;
-    const horizontalAxis = axis!.find(({ from, to }) => from.y === to.y)!;
-    const plotLeft = verticalAxis.from.x;
-    const plotTop = Math.min(verticalAxis.from.y, verticalAxis.to.y);
-    const plotBottom = Math.max(verticalAxis.from.y, verticalAxis.to.y);
-    const plotRight = Math.max(horizontalAxis.from.x, horizontalAxis.to.x);
+    const clip = clips[0];
+    assert.ok(clip, 'the painter drew the plot');
+    assert.ok(strokes.some((segments) => segments.length === 1 && segments[0]!.from.y === segments[0]!.to.y && segments[0]!.from.y === clip!.y + clip!.h - 4), 'and a line along its foot');
+    const plotLeft = clip!.x + 2;
+    const plotTop = clip!.y + 4;
+    const plotBottom = clip!.y + clip!.h - 4;
+    const plotRight = clip!.x + clip!.w - 2;
     const verticalGrid = grid.filter(({ from, to }) => from.x === to.x).map(({ from }) => from.x);
     const horizontalGrid = grid.filter(({ from, to }) => from.y === to.y).map(({ from }) => from.y);
     for (const [axis, labels] of [['x', xTicks], ['y', yTicks]] as const) {
