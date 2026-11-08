@@ -287,7 +287,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addShell', op: 'add', shapes: ['shell'], creates: 'solid',
-    doc: 'A closed hollow ellipsoid section: domes, bowls, curved enclosures and opened layers. size is the full outer ellipsoid diameters [x,y,z], not the cropped bounds. inner (default .85) scales its concentric cavity, not a uniform wall thickness. latitude [south,north] degrees -90..90 (default [-90,90], span at least 1); sweep 1..360 (default 360) runs from +x toward +z around y. Radial rims close the material volume. Rotate to aim the opening. Invalid or unsafe geometry rejects.',
+    doc: 'A closed hollow ellipsoid section: domes, bowls, curved enclosures, opened layers. size is the full outer diameters [x,y,z]; inner (default .85) scales the cavity concentrically, so the wall is not a constant thickness; latitude [south,north] degrees -90..90 (default [-90,90], span at least 1) cuts a dome or bowl; sweep 1..360 (default 360) runs from +x toward +z around y and leaves an angular opening: rot aims it. Radial rims close the volume; unsafe geometry rejects.',
     fields: {
       shape: { k: 'enum', values: ['shell'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       size: { k: 'vec3', min: 0.01, max: 100 }, inner: { k: 'num', min: 0.01, max: 0.99, opt: true },
@@ -297,7 +297,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addExtrude', op: 'add', shapes: ['extrude'], creates: 'solid',
-    doc: 'A flat outline [[x,y],...] in the x,y plane, pushed out depth along z and centred on it: wings, fins, plates, brackets. Ordinary extrusions support disjoint through-hole rings strictly inside the outline, with flat edges only. Optional taper or shift makes a sharp closed transition: the negative-z end is the outline, the positive-z end is outline*taper+shift, scaling about the local origin. Defaults in this mode: taper 1, shift [0,0]. taper 0.05..20; both end coordinates -100..100; depth 0.01..100. Requires a simple polygon, 3..40 points, either winding. Invalid or Float32-unsafe geometry rejects, not repairs. Bevel must be omitted/null/0; through-holes are not supported in this mode.',
+    doc: 'A flat outline [[x,y],...] in the x,y plane, pushed out depth (0.01..100) along z and centred on it: wings, fins, plates, brackets. A simple polygon of 3..40 points, either winding. holes: up to 8 separate rings of 3 to 24 points, strictly inside the outline and clear of each other (no touching, crossing or nesting), 128 points in all with the outline, flat edges only (bevel 0). taper or shift makes a sharp closed transition: the negative-z end is the outline, the positive-z end is outline*taper+shift about the local origin (taper 0.05..20, defaults 1 and [0,0], ends within -100..100); it takes no bevel or holes. Unsafe geometry rejects, not repairs.',
     fields: {
       shape: { k: 'enum', values: ['extrude'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: LIMITS.maxOutline, lo: WORLD.min, hi: WORLD.max },
@@ -317,7 +317,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addLathe', op: 'add', shapes: ['lathe'], creates: 'solid',
-    doc: 'A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides makes it faceted (default quality tiers: 20/36/64). Optional sweep 1..359 degrees makes a closed sector from +z towards +x about +y; rotate to choose its start. Sector profile: simple closed polygon, 3..40 points (one repeated closing point allowed), radius 0..100, y -100..100. Invalid, touching, intersecting or Float32-unsafe profiles and invalid sweeps are rejected, not repaired. Either winding; exact redundant collinear boundary points are removed. sides is segments per full revolution (sector segments scale proportionally, at most 90 degrees each).',
+    doc: 'A profile [[radius,y],...] spun round the y axis: bodies, nozzles, rings, bottles. sides is the segments per full revolution (default by quality: 20/36/64). sweep 1..359 degrees makes a cutaway: a closed sector from +z towards +x about +y (rot chooses where it starts); the profile is then a simple closed polygon of 3..40 points, radius 0..100, y -100..100, not touching or crossing itself, either winding. Omit sweep for the full lathe. Bad profiles reject, not repair.',
     fields: {
       shape: { k: 'enum', values: ['lathe'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       profile: { k: 'pts2', min: 2, max: LIMITS.maxOutline, lo: WORLD.min, hi: WORLD.max },
@@ -327,7 +327,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addPatch', op: 'add', shapes: ['patch'], creates: 'solid',
-    doc: 'An open bicubic Bézier sheet: exactly 16 controls [x,y,z], four rows of four in row-major order. Each row runs across u; rows advance v. Corners lie on the sheet; other controls pull its curvature, not interpolation points. Curved panels, canopies, membranes. Two-sided, no thickness or solid cut cap. Use a regular net without folds or collapsed rows.',
+    doc: 'An open bicubic Bézier sheet: exactly 16 controls [x,y,z], four rows of four in row-major order (rows run across u and advance v). Corners lie on the sheet; the other controls pull its curve, they are not points to interpolate, so use a regular net without folds or collapsed rows. Two-sided, no thickness: curved panels, canopies, membranes.',
     fields: {
       shape: { k: 'enum', values: ['patch'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       pts: { k: 'pts', min: 16, max: 16, lo: WORLD.min, hi: WORLD.max, doc: 'exactly 16 finite controls in -100..100; never trimmed or clamped; numerically unsafe sampled nets are rejected' },
@@ -336,7 +336,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addSweep', op: 'add', shapes: ['sweep'], creates: 'solid',
-    doc: 'A closed polygon outline carried along a smooth open 3D path: curved rails, shaped cables and solid bands. Outline x,y are local section offsets; up sets initial +y, projected perpendicular to the path (default +y, or +x for a vertical start). The section follows with minimum rotation. Flat caps and sharp section corners by default; smooth:true blends shallow wall joins without changing geometry. No bevel or holes. Keep the profile narrow relative to bends; folded or collapsed sampled meshes are rejected.',
+    doc: 'A closed polygon outline carried along a smooth open 3D path pts: curved rails, shaped cables, solid bands. Outline x,y are section offsets; up sets the initial +y (default +y, or +x for a vertical start). The section follows with minimum rotation, so keep it narrow relative to bends. Flat caps and sharp corners; smooth:true blends shallow wall joins without changing geometry. No bevel, holes, stream or reveal.',
     fields: {
       shape: { k: 'enum', values: ['sweep'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
@@ -348,7 +348,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addLoft', op: 'add', shapes: ['loft'], creates: 'solid',
-    doc: 'A closed solid joining independently shaped convex end outlines by matching point indices, at z=-depth/2 and +depth/2. Both rings need 3–24 corners, equal counts and the same winding; every interpolated section must stay strictly convex. No closing duplicate, collinear corners, holes or bevel. Use for asymmetric shape-changing transitions; no automatic recentering or point rematching. Optional smooth:true blends shallow wall joins while retaining flat caps and sharp corners.',
+    doc: 'A closed solid joining two convex end outlines by matching point indices: outline at z=-depth/2, endOutline at +depth/2. Both rings need 3-24 corners, equal counts and the same winding, and every section between must stay strictly convex (no closing repeat, collinear corners, holes or bevel). For solid asymmetric transitions, not hollow ducts; smooth:true blends shallow wall joins and keeps flat caps and sharp corners.',
     fields: {
       shape: { k: 'enum', values: ['loft'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       outline: { k: 'pts2', min: 3, max: 24, lo: WORLD.min, hi: WORLD.max },
@@ -359,7 +359,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addBlob', op: 'add', shapes: ['blob'], creates: 'solid',
-    doc: 'A soft organic form blended from up to 12 ellipsoid lumps, each at a point of pts with its own box size [x,y,z] in sizes (the same count, or the last is repeated): a heart or other organ, a fruit, an animal body or head, a leaf. Lumps that overlap melt into one skin with smooth necks; soft (0.05 to 1, default 0.5) is how far they blend. Build one form per blob and join forms with tube.',
+    doc: 'A soft organic form blended from up to 12 ellipsoid lumps, each at a point of pts with its own box size [x,y,z] in sizes (the same count, or the last is repeated). Overlapping lumps melt into one skin with smooth necks; soft (0.05 to 1, default 0.5) is how far they blend. One form per blob; join forms with tube.',
     fields: {
       shape: { k: 'enum', values: ['blob'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       pts: { k: 'pts', min: 1, max: LIMITS.maxLumps, lo: WORLD.min, hi: WORLD.max },
@@ -369,7 +369,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addTube', op: 'add', shapes: ['tube'], creates: 'path',
-    doc: 'A smooth tube through the points: cables, pipes, vessels, stems, limbs. closed true joins it into a continuous loop (three distinct points minimum, no caps or endpoint attachment). flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail.',
+    doc: 'A smooth tube through the points: cables, pipes, vessels, stems, limbs. closed true joins it into a continuous loop (three distinct points minimum, no caps or endpoint attachment, no wave). flat (0.05 to 1) squashes it to a ribbon; draw below 1 starts it partly drawn. swell [[along 0 to 1, radius factor],...] (2 to 8 points) makes the radius change along it: a vessel that tapers, a stem that thickens, a tail. An end that lies on a part is joined to it and goes with it: keep a part that travels along the tube (along, a mouthful) off the ends, or the tube is pulled into a stub.',
     fields: {
       shape: { k: 'enum', values: ['tube'] }, id: { k: 'newId' }, parent: PARENT, explode: EXPLODE,
       pts: { k: 'pts', min: 2, max: LIMITS.maxPts, lo: WORLD.min, hi: WORLD.max },
@@ -389,7 +389,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addConnector', op: 'add', shapes: ['connector'], creates: 'path',
-    doc: 'A physical rope, belt, wire, chain or pipe between two parts of one 3D model, its ends on them, following them as they move (it never links panels, cards or marks: flat diagram arrows are edge). kind straight (default) is taut and shortens as a weight rises; slack hangs in a sag; wrapped is a flat belt round two wheels. fromSide and toSide say where an end meets its object, as seen from the front (left, right, top, bottom, front, back; the rim of a wheel), else its middle; fromAnchor and toAnchor name a point of a ready-made part.',
+    doc: 'A physical rope, belt, wire, chain or pipe between two parts of one 3D model, its ends on them, following them as they move (never panels, cards or marks: flat diagram arrows are edge). kind straight (default) is taut and shortens as a weight rises; slack hangs in a sag; wrapped is a flat belt round two wheels. fromSide and toSide say where an end meets its object, as seen from the front (left, right, top, bottom, front, back; the rim of a wheel), else its middle; fromAnchor and toAnchor name a point of a ready-made part; fromPoint and toPoint are points in each part\'s own space. swell and restLength make a muscle or soft cord bulge as its ends approach.',
     fields: {
       shape: { k: 'enum', values: ['connector'] }, id: { k: 'newId' }, parent: PARENT,
       from: { k: 'ref', of: 'object3d', doc: 'the object one end is on' }, to: { k: 'ref', of: 'object3d', doc: 'the object the other end is on' },
@@ -419,7 +419,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addParticles', op: 'add', shapes: ['particles'], creates: 'solid',
-    doc: 'A cloud of count small particles (default 30) that spread out: they begin in a box of size from at pos and, as reveal takes the cloud from 0 to 1 (it begins at 0, so they start crowded), drift apart to fill a box of size to, centred shift further on, all the while jostling. Diffusion, a gas filling a room, a drop of dye in water. A membrane is a plane or box between.',
+    doc: 'A cloud of count small particles (default 30) that spread out: they begin in a box of size from at pos and, as reveal takes the cloud from 0 to 1 (it begins at 0, so they start crowded), drift apart to fill a box of size to, centred shift further on, jostling all the while. Diffusion, a gas filling a room, dye in water; a membrane is a plane or box between.',
     fields: {
       shape: { k: 'enum', values: ['particles'] }, id: { k: 'newId' }, parent: PARENT, pos: POS,
       count: { k: 'num', min: 4, max: 80, int: true, opt: true }, from: { k: 'vec3', min: 0.05, max: 100 }, to: { k: 'vec3', min: 0.05, max: 100 },
@@ -430,7 +430,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addForce', op: 'add', shapes: ['force'], creates: 'solid', attach: 'on',
-    doc: 'An arrow for a force on a part: from a point of it (point, default center) the way dir points in the scene (not the part: gravity stays down as the part turns), strength units long and thicker the stronger, following the part wherever it goes. Colour it, name it with a pin; scale it up or down to change its strength, loop pulse it to make it come and go. It goes when the part does.',
+    doc: 'An arrow for a force on a part: from a point of it (point, default center) the way dir points in the scene (not the part: gravity stays down as the part turns), strength units long and thicker the stronger, following the part wherever it goes. Colour it and name it with a pin; scale it to change its strength, loop pulse it to make it come and go.',
     fields: {
       shape: { k: 'enum', values: ['force'] }, id: { k: 'newId' }, on: { k: 'ref', of: 'object3d', doc: 'the part the force acts on' },
       point: { k: 'str', min: 1, max: 24, opt: true }, dir: { k: 'vec3', min: -100, max: 100, doc: 'the direction it points, [x,y,z] in the scene: [0,-1,0] is down' },
@@ -439,7 +439,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addField', op: 'add', shapes: ['field'], creates: 'group',
-    doc: 'Field lines as arrows, drawn for you in the front plane round pos: dipole (a bar magnet or a pair of charges: lines leave the end on the positive axis side and curve round to the other), radial (spokes out from a point charge or in to a mass: flip reverses them), uniform (parallel lines along axis, between plates or near the ground). size is how far they reach (default 5), count how many (default 8), gap the room between poles or plates (dipole, uniform). One group: clear its id to take them all away.',
+    doc: 'Field lines as arrows in the front plane round pos: dipole (a bar magnet or pair of charges: lines leave the end on the positive axis side and curve round to the other), radial (spokes out from a point charge, in to a mass: flip reverses them), uniform (parallel lines along axis, between plates or near the ground). size is how far they reach (default 5), count how many (default 8), gap the room between poles or plates. One group: clear its id to take them all away.',
     fields: {
       shape: { k: 'enum', values: ['field'] }, id: { k: 'newId' }, parent: PARENT, pos: POS,
       kind: { k: 'enum', values: ['dipole', 'radial', 'uniform'] }, axis: { k: 'enum', values: ['x', 'y'], opt: true },
@@ -449,7 +449,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'addPart', op: 'add', shapes: ['part'], creates: 'group',
-    doc: 'A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Each has good proportions; mechanism anchors and the origin of every part can be used by pins, connectors and parentAnchor/selfAnchor placement.',
+    doc: 'A ready-made part fitted to the box size [x,y,z]. Electronics: chip (variant black or metal), header (n pins per row, two rows), port (variant usb, usb3, ethernet, hdmi, usbc; its opening faces +z), lens, screen, button, fan (n blades, axis y), wheel (n spokes, axis z). Mechanism, axis y: cylinder-block (variant cutaway or finned; the bore is round in x,z), piston, connecting-rod (small end up), valve (head down), spark-plug (tip down), spring (n coils), pipe, elbow, housing (variant cutaway); axis z: crankshaft (n throws), camshaft (n lobes), gear (n teeth), bearing (n balls). Their anchors and origin work for pins, connectors and parentAnchor/selfAnchor.',
     fields: {
       shape: { k: 'enum', values: ['part'] }, id: { k: 'newId' }, parent: PARENT, parentAnchor: PARENT_ANCHOR, selfAnchor: SELF_ANCHOR, explode: EXPLODE, pos: POS, rot: ROT,
       part: { k: 'enum', values: PARTS }, variant: { k: 'enum', values: PART_VARIANTS, opt: true },
@@ -547,7 +547,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'crank', op: 'crank',
-    doc: 'Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. piston, shaft and rod are the ids of the piston (never the cylinder block), the crankshaft and the connecting rod. Put the three in one group, the crankshaft turning with spin. On a plain cylinder laid on its side as the crankshaft, the crank draws the pin and runs the rod on it in front of the disc: add no pin of your own. pin is which throw (1 is the first).',
+    doc: 'Tie a piston to a spinning crankshaft through a connecting rod: the piston slides up and down its cylinder (along y, in the x,y plane) as the crank pin goes round, and the rod swings to join them. piston, shaft and rod are the ids of the piston (never the cylinder block), the crankshaft and the connecting rod, in one group, the crankshaft turning with spin. On a plain cylinder laid on its side as the crankshaft, the crank draws the pin and runs the rod on it in front of the disc: add no pin of your own. pin is which throw (1 is the first).',
     fields: {
       piston: { k: 'ref', of: 'object3d', opt: true }, id: { k: 'ref', of: 'object3d', opt: true, doc: 'the same as piston' },
       shaft: { k: 'ref', of: 'object3d' }, rod: { k: 'ref', of: 'object3d', opt: true },
@@ -565,7 +565,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'flash', op: 'flash',
-    doc: 'A glow that comes on at one point of the cycle of a turning part: the object (a small sphere for a spark, a larger one for the burn) is invisible, flares to its opacity at the crank angle given and dies away over span degrees. by is the crankshaft; angle is degrees into a cycle of cycle degrees (default 720, a four-stroke engine: 0 is the piston at the top starting the intake, 360 the top of the compression).',
+    doc: 'A glow at one point of the cycle of a turning part: the object (a small sphere for a spark, a larger one for the burn) is invisible, flares to its opacity at the given angle and dies away over span degrees. by is the crankshaft; angle is degrees into a cycle of cycle degrees (default 720, a four-stroke engine: 0 is the piston at the top starting the intake, 360 the top of the compression).',
     fields: {
       id: { k: 'ref', of: 'object3d' }, by: { k: 'ref', of: 'object3d', doc: 'the part whose turning times it' },
       angle: { k: 'num', min: 0, max: 3600 }, span: { k: 'num', min: 1, max: 720 },
@@ -608,7 +608,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'lever', op: 'lever',
-    doc: 'A beam that rocks about a fulcrum: a hinge at fulcrum, a point of the beam (center, the default, is a seesaw and the first class; left or right, an end, with the load or the effort between it and the other end, is the second and third class; or a point named with anchor), swinging swing degrees each side every period seconds. Attach the load and the effort at points of the beam (parentAnchor) and they rise and fall with it.',
+    doc: 'A beam that rocks about a fulcrum: a hinge at fulcrum, a point of the beam (center, the default, is a seesaw, the first class; left or right, an end, with the load or the effort between it and the other end, the second and third class; or a point named with anchor), swinging swing degrees each side every period seconds. Attach the load and the effort at points of the beam (parentAnchor) and they rise and fall with it.',
     fields: {
       id: { k: 'ref', of: 'object3d' }, fulcrum: { k: 'str', min: 1, max: 24, opt: true },
       swing: { k: 'num', min: 1, max: 90, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true },
@@ -617,7 +617,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'muscle', op: 'muscle',
-    doc: 'A connector that is a muscle: it shortens by contract (a fraction of its relaxed length, 0.02 to 0.9, default 0.2) and lengthens again every period seconds (default 2), and the part it pulls (pulls, the id of one of its two ends, or from or to, with a hinge or pivot joint with min and max to hold it) is turned by it, not beside it. Join the ends with fromPoint and toPoint or fromAnchor and toAnchor; its belly swells as it shortens (swell). id is the connector.',
+    doc: 'A connector that is a muscle: it shortens by contract (a fraction of its relaxed length, 0.02 to 0.9) and lengthens again every period seconds, turning the part it pulls (pulls, the id of one of its two ends, or from or to; that part needs a hinge or pivot joint with min and max). Join the ends with fromPoint and toPoint or fromAnchor and toAnchor; its belly swells as it shortens (swell). id is the connector.',
     fields: {
       id: { k: 'ref', of: 'object3d' }, pulls: { k: 'str', min: 1, max: 40, doc: 'the id of the part it pulls (an end of the connector), or from or to for that end' },
       contract: { k: 'num', min: 0.02, max: 0.9, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true },
@@ -626,21 +626,22 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'pulley', op: 'pulley',
-    doc: 'A rope over a wheel: the wheel (wheel) turns rpm turns a minute (default 20, negative the other way) and the load (id) rises by the rope laid on it, 2 x pi x radius for each turn. radius is the rope\'s radius on the wheel, read from the wheel\'s size when left out. A winch, a crane drum and a wheel and axle (give the axle\'s radius) are the same.',
+    doc: 'A rope over a wheel: the wheel (wheel) turns rpm turns a minute (negative the other way) and the load (id) rises by the rope laid on it, 2 x pi x radius for each turn, without end unless max stops it (the most it may rise, in units; min the least). radius is the rope\'s radius on the wheel, read from the wheel\'s size when left out. A winch, a crane drum and a wheel and axle (give the axle\'s radius) are the same.',
     fields: {
       id: { k: 'ref', of: 'object3d' }, wheel: { k: 'ref', of: 'object3d' },
       radius: { k: 'num', min: 0.01, max: 100, opt: true }, rpm: { k: 'num', min: -600, max: 600, opt: true },
-      axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true, doc: 'the axis the wheel turns about: left out, a cylinder turns about its own long axis as it lies and anything else about z' }, at: AT,
+      axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true, doc: 'the axis the wheel turns about: left out, a cylinder turns about its own long axis as it lies and anything else about z' },
+      min: { k: 'num', min: -3600, max: 3600, opt: true }, max: { k: 'num', min: -3600, max: 3600, opt: true }, at: AT,
     },
   },
   {
     name: 'wave', op: 'wave',
-    doc: 'A wave running along a tube: peristalsis, a pulse down a vessel. amount is the radius at its crest as a factor (above 1 a swell, below 1 a squeeze; default 1.6), width the fraction of the tube it spans (default 0.2), count how many run at once, period the seconds a crest takes for the whole tube (default 4, negative runs backwards). A one-marker stream along the same tube with the same period rides the crest (a mouthful going down). stop true ends it.',
+    doc: 'A wave running along an open tube: peristalsis, a pulse down a vessel. amount is the radius at its crest as a factor (above 1 a swell, below 1 a squeeze), width the fraction of the tube it spans, count how many run at once, period the seconds a crest takes for the whole tube (negative runs backwards). A one-marker stream along the same tube with the same period rides the crest (a mouthful going down). stop true ends it.',
     fields: { id: { k: 'ref', of: 'object3d' }, amount: { k: 'num', min: 0.2, max: 4, opt: true }, width: { k: 'num', min: 0.03, max: 0.6, opt: true }, count: { k: 'num', min: 1, max: 6, int: true, opt: true }, period: { k: 'num', min: -60, max: 60, opt: true }, stop: { k: 'bool', opt: true }, at: AT },
   },
   {
     name: 'pendulum', op: 'pendulum',
-    doc: 'A weight hanging from a point and swinging: id is the weight, from the part it hangs from (the swing is about its middle) or pivot, the point from the weight to the hang point. swing is degrees each side (default 25), period seconds (left out, longer for a longer string), damp cycles for it to settle. It starts let go at the far end. Draw the string as a connector between the two.',
+    doc: 'A weight hanging from a point and swinging: id is the weight, from the part it hangs from (the swing is about its middle) or pivot, the point from the weight to the hang point. swing is degrees each side, period seconds (left out, longer for a longer string), damp cycles for it to settle. It starts let go at the far end. Draw the string as a connector between the two; hang it from a part that does not slide, and write the pendulum after any loop on its parts.',
     fields: {
       id: { k: 'ref', of: 'object3d' }, from: { k: 'ref', of: 'object3d', opt: true }, pivot: { k: 'vec3', ...WORLD, opt: true },
       swing: { k: 'num', min: 1, max: 90, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true }, damp: { k: 'num', min: 0.2, max: 50, opt: true }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT,
@@ -648,22 +649,22 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'oscillate', op: 'oscillate',
-    doc: 'A weight bobbing on a spring or elastic: it moves amount units each way along axis (default y) every period seconds (default 1.5), starting pulled to the low end and let go, and settles if damp (cycles to fall to a third) is given. Draw the spring or elastic as a connector from its fixed end to the weight.',
+    doc: 'A weight bobbing on a spring or elastic: it moves amount units each way along axis (default y) every period seconds, starting pulled to the low end and let go, and settles if damp (cycles to fall to a third) is given. Draw the spring or elastic as a connector from its fixed end to the weight.',
     fields: { id: { k: 'ref', of: 'object3d' }, amount: { k: 'num', min: 0.01, max: 50, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true }, damp: { k: 'num', min: 0.2, max: 50, opt: true }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT },
   },
   {
     name: 'float', op: 'float',
-    doc: 'Buoyancy, illustrated: the part rides on water, bobbing bob units up and down (default 0.15) and rocking tilt degrees (default 4) every period seconds (default 3). Put it at the water line first (drop does that); damp settles it.',
+    doc: 'Buoyancy, illustrated: the part rides on water, bobbing bob units and rocking tilt degrees every period seconds. Put it at the water line first (drop does that); damp settles it.',
     fields: { id: { k: 'ref', of: 'object3d' }, bob: { k: 'num', min: 0.01, max: 20, opt: true }, tilt: { k: 'num', min: 0, max: 30, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true }, damp: { k: 'num', min: 0.2, max: 50, opt: true }, at: AT },
   },
   {
     name: 'drop', op: 'drop',
-    doc: 'Gravity, illustrated: the part falls to height to (y, in the units of the group it is in) with an ever faster pull, and bounces bounce (0 lands dead, 0.8 very springy, default 0.3) times lower each time until it settles. dur left out, it takes as long as the fall.',
+    doc: 'Gravity, illustrated: the part falls to height to (y, in the units of the group it is in) with an ever faster pull, and bounces bounce (0 lands dead, 0.8 very springy) times lower each time until it settles. dur left out, it takes as long as the fall.',
     fields: { id: { k: 'ref', of: 'object3d' }, to: { k: 'num', min: -100, max: 100 }, bounce: { k: 'num', min: 0, max: 0.8, opt: true }, at: AT, dur: DUR },
   },
   {
     name: 'pump', op: 'pump',
-    doc: 'A chamber that squeezes and refills behind one-way valves: id is the chamber (it shrinks to squeeze of its size, default 0.7, then refills, every period seconds, default 1.2), inlet the flap that opens while it refills and outlet the flap that opens while it squeezes. Each valve turns about its hinge point (a named point of the valve, default left) by open degrees (default 70, negative the other way).',
+    doc: 'A chamber that squeezes and refills behind one-way valves, for a heart or a bellows: id is the chamber (it shrinks to squeeze of its size, then refills, every period seconds), inlet the flap that opens while it refills and outlet the flap that opens while it squeezes. Each valve turns about its hinge point (a named point of the valve, default left) by open degrees (negative the other way).',
     fields: {
       id: { k: 'ref', of: 'object3d' }, inlet: { k: 'ref', of: 'object3d', opt: true }, outlet: { k: 'ref', of: 'object3d', opt: true },
       squeeze: { k: 'num', min: 0.3, max: 0.95, opt: true }, open: { k: 'num', min: -170, max: 170, opt: true }, period: { k: 'num', min: 0.2, max: 20, opt: true },
@@ -672,22 +673,22 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'incline', op: 'incline',
-    doc: 'An inclined plane: the load (id) slides up and down the slope, travel units in all (default 4) every period seconds (default 4). The slope is the turn of the ramp (a box turned about z; its length runs along x), or angle degrees.',
+    doc: 'An inclined plane: the load (id) slides up and down the slope, travel units in all, every period seconds. The slope is the turn of the ramp (a box turned about z; its length runs along x), or angle degrees.',
     fields: { id: { k: 'ref', of: 'object3d' }, ramp: { k: 'ref', of: 'object3d', opt: true }, angle: { k: 'num', min: -80, max: 80, opt: true }, travel: { k: 'num', min: 0.1, max: 100, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true }, at: AT },
   },
   {
     name: 'wedge', op: 'wedge',
-    doc: 'A wedge driven in along axis (default y), travel units in all (default 2) every period seconds (default 3), pushing the part it drives (drives) aside across axis by tan(angle) of its own travel, angle being the half angle of the wedge in degrees (default 20): an axe in a log, a door stop. Put the driven part to the side of the wedge it is to be pushed to. Write it again for the other side.',
+    doc: 'A wedge driven in along axis (default y), travel units in all every period seconds, pushing the part it drives (drives) aside across axis by tan(angle) of its own travel, angle being the wedge\'s half angle in degrees (default 20): an axe in a log, a door stop. Put the driven part on the side of the wedge it is to be pushed to; write it again for the other side.',
     fields: { id: { k: 'ref', of: 'object3d' }, drives: { k: 'ref', of: 'object3d' }, angle: { k: 'num', min: 3, max: 70, opt: true }, travel: { k: 'num', min: 0.1, max: 100, opt: true }, period: { k: 'num', min: 0.1, max: 60, opt: true }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT },
   },
   {
     name: 'screw', op: 'screw',
-    doc: 'A screw and its nut: the screw (screw) turns rpm turns a minute (default 30) and the nut (id) travels along its length pitch units for each turn (default 0.5, negative the other way). A cylinder turns about its own long axis as it lies; axis says otherwise.',
-    fields: { id: { k: 'ref', of: 'object3d' }, screw: { k: 'ref', of: 'object3d' }, pitch: { k: 'num', min: -20, max: 20, opt: true }, rpm: { k: 'num', min: -600, max: 600, opt: true }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, at: AT },
+    doc: 'A screw and its nut: the screw (screw) turns rpm turns a minute and the nut (id) travels along its length pitch units for each turn (negative the other way), without end unless max stops it (the most it may travel, in units; min the least). A cylinder turns about its own long axis as it lies; axis says otherwise.',
+    fields: { id: { k: 'ref', of: 'object3d' }, screw: { k: 'ref', of: 'object3d' }, pitch: { k: 'num', min: -20, max: 20, opt: true }, rpm: { k: 'num', min: -600, max: 600, opt: true }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, min: { k: 'num', min: -3600, max: 3600, opt: true }, max: { k: 'num', min: -3600, max: 3600, opt: true }, at: AT },
   },
   {
     name: 'cut', op: 'cut',
-    doc: 'Cut a 3D object and its children open. Choose axis x/y/z or normal [x,y,z], never both. normal is a nonzero local direction with finite components from -100 to 100; magnitude is ignored. to is signed distance along that unit direction from the local origin (not necessarily the center of a hull point cloud); the positive side is removed. Omit direction to keep the active cut direction (initially +z). Direction changes at the action start; only to animates. Closed opaque pieces are capped; open surfaces are not. to 100 removes the cut.',
+    doc: 'Cut a 3D object and its children open. Choose axis x/y/z or normal [x,y,z] (a nonzero local direction, components -100 to 100, magnitude ignored), never both. to is the signed distance along that unit direction from the local origin (not necessarily the centre of a hull); the positive side is removed, and to 100 removes the cut. Omit the direction to keep the active one (initially +z); it changes at the action\'s start, only to animates. Closed opaque pieces are capped; open surfaces are not.',
     fields: { id: { k: 'ref', of: 'object3d' }, axis: { k: 'enum', values: ['x', 'y', 'z'], opt: true }, normal: { k: 'vec3', min: -100, max: 100, opt: true, doc: 'nonzero local cut direction; do not combine with axis' }, to: { k: 'num', min: -100, max: 100 }, at: AT, dur: DUR },
   },
   {
@@ -716,7 +717,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'go', op: 'go',
-    doc: 'Guide mode, optional: let the app make one navigation move for the person, in a step that points at it (the wait stays: if the app does not do it, they click). kind is tab (a tab), open (a menu item that opens a submenu) or scroll (a window or area; dir down by default). x,y is the middle of that control on the screenshot (anywhere in the area for scroll). The app does it only in a native window, only if the person has allowed it, says so aloud first, and refuses everything that is not exactly this (a button, a link, a checkbox, a field, anything that saves, sends, deletes or buys). At most one a step.',
+    doc: 'Guide mode, optional: let the app make one navigation move for the person, in a step that points at it (the wait stays: if the app does not do it, they click). kind is tab, open (a menu item that opens a submenu) or scroll (dir down by default); x,y is the middle of that control on the screenshot (anywhere in the area for scroll). Only in a native window and only if the person has allowed it; the app says so aloud first and refuses anything else (a button, link, checkbox, field, anything that saves, sends, deletes or buys). At most one a step.',
     fields: {
       kind: { k: 'enum', values: ['tab', 'open', 'scroll'] },
       x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN },

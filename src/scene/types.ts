@@ -180,7 +180,7 @@ export type LeverAction = { op: 'lever'; id: string; fulcrum?: string; swing?: n
 /** A connector that pulls the part it is on: it contracts between its two points and the part's hinge or pivot is turned to make it so. */
 export type MuscleAction = { op: 'muscle'; id: string; pulls: string; contract?: number; period?: number; phase?: number } & At;
 /** A rope over a wheel in one op: the wheel turns and the load slides by the rope laid on it. */
-export type PulleyAction = { op: 'pulley'; id: string; wheel: string; radius?: number; rpm?: number; axis?: 'x' | 'y' | 'z' } & At;
+export type PulleyAction = { op: 'pulley'; id: string; wheel: string; radius?: number; rpm?: number; axis?: 'x' | 'y' | 'z'; min?: number; max?: number } & At;
 /** Gravity and its kin, illustrated, each in one op over the loops, joints and couplings: a weight hanging and swinging, bobbing on a spring, floating, falling and bouncing. */
 export type PendulumAction = { op: 'pendulum'; id: string; from?: string; pivot?: Vec3; swing?: number; period?: number; damp?: number; axis?: 'x' | 'y' | 'z' } & At;
 export type OscillateAction = { op: 'oscillate'; id: string; amount?: number; period?: number; damp?: number; axis?: 'x' | 'y' | 'z' } & At;
@@ -191,7 +191,7 @@ export type PumpAction = { op: 'pump'; id: string; inlet?: string; outlet?: stri
 /** The last simple machines: a load on a slope, a wedge pushing a part aside, a screw and its nut. */
 export type InclineAction = { op: 'incline'; id: string; ramp?: string; angle?: number; travel?: number; period?: number } & At;
 export type WedgeAction = { op: 'wedge'; id: string; drives: string; angle?: number; travel?: number; period?: number; axis?: 'x' | 'y' | 'z' } & At;
-export type ScrewAction = { op: 'screw'; id: string; screw: string; pitch?: number; rpm?: number; axis?: 'x' | 'y' | 'z' } & At;
+export type ScrewAction = { op: 'screw'; id: string; screw: string; pitch?: number; rpm?: number; axis?: 'x' | 'y' | 'z'; min?: number; max?: number } & At;
 /** A wave running along a tube. */
 export type WaveAction = { op: 'wave'; id: string; amount?: number; width?: number; count?: number; period?: number; stop?: boolean } & At;
 export type FlashAction = { op: 'flash'; id: string; by: string; angle: number; span: number; cycle?: number } & At;

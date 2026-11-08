@@ -499,11 +499,23 @@ function fitStage(raw: Record<string, unknown>, state: SceneState, path: string,
   return next;
 }
 
-function validateAction(raw: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>, mountedChildrenAt: ReadonlyMap<string, number>, bodies: BodyVersions): Action | null {
-  if (!isObject(raw)) {
+/** A shape written as the op (op "force" for add with shape force, as a model has done): read as the add it was meant to be, with a note. */
+function shapeAsOp(raw: object, path: string, notes: Notes): object {
+  const op = own(raw, 'op');
+  if (typeof op !== 'string' || VARIANTS.some((v) => v.op === op)) return raw;
+  const shape = own(raw, 'shape');
+  if (shape !== undefined && shape !== null) return raw;
+  if (!VARIANTS.some((v) => v.op === 'add' && (v.shapes as readonly string[] | undefined)?.includes(op))) return raw;
+  note(notes, 'trimmed', path, `repaired: op "${op}" read as add with shape ${op}`);
+  return { ...raw, op: 'add', shape: op };
+}
+
+function validateAction(rawIn: unknown, state: SceneState, path: string, notes: Notes, parentFirstAt: ReadonlyMap<string, number>, mountedChildrenAt: ReadonlyMap<string, number>, bodies: BodyVersions): Action | null {
+  if (!isObject(rawIn)) {
     note(notes, 'dropped', path, 'action is not an object');
     return null;
   }
+  const raw = shapeAsOp(rawIn, path, notes);
   const variant = pickVariant(raw);
   if (typeof variant === 'string') {
     note(notes, 'dropped', path, variant);

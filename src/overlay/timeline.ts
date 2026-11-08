@@ -814,7 +814,7 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       // It turns about its own axis: a cylinder's is its long one, as it lies; a kit wheel or anything else turns as a disc seen from the front, about z.
       const axis = a.axis ?? (wheel.def.shape === 'cylinder' ? longAxis(wheel, at).axis : undefined);
       applyAction(plan, { op: 'spin', id: a.wheel, rpm: a.rpm ?? 20, axis: axis ?? 'z', at }, at, spinRamp, context);
-      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', axis: 'y', at }, at, spinRamp, context);
+      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', axis: 'y', ...(a.min !== undefined ? { min: a.min } : {}), ...(a.max !== undefined ? { max: a.max } : {}), at }, at, spinRamp, context);
       applyAction(plan, { op: 'couple', id: a.id, by: a.wheel, pitch: 2 * Math.PI * radius, at }, at, spinRamp, context);
       return;
     }
@@ -919,7 +919,7 @@ function applyAction(plan: StepPlan, a: Action, at: number, spinRamp: (spin: Spi
       const axis = a.axis ?? long.axis;
       const dir: Vec3 = a.axis === undefined ? long.dir : a.axis === 'x' ? [1, 0, 0] : a.axis === 'y' ? [0, 1, 0] : [0, 0, 1];
       applyAction(plan, { op: 'spin', id: a.screw, rpm: a.rpm ?? 30, axis, at }, at, spinRamp, context);
-      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', dir, at }, at, spinRamp, context);
+      applyAction(plan, { op: 'joint', id: a.id, kind: 'slide', dir, ...(a.min !== undefined ? { min: a.min } : {}), ...(a.max !== undefined ? { max: a.max } : {}), at }, at, spinRamp, context);
       applyAction(plan, { op: 'couple', id: a.id, by: a.screw, pitch: a.pitch ?? 0.5, at }, at, spinRamp, context);
       return;
     }

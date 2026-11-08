@@ -860,6 +860,12 @@
         "axis": {
           "$ref": "#/$defs/6"
         },
+        "min": {
+          "$ref": "#/$defs/0"
+        },
+        "max": {
+          "$ref": "#/$defs/0"
+        },
         "at": {
           "$ref": "#/$defs/0"
         }
@@ -871,6 +877,8 @@
         "pitch",
         "rpm",
         "axis",
+        "min",
+        "max",
         "at"
       ],
       "additionalProperties": false
@@ -3653,6 +3661,12 @@
         "axis": {
           "$ref": "#/$defs/6"
         },
+        "min": {
+          "$ref": "#/$defs/0"
+        },
+        "max": {
+          "$ref": "#/$defs/0"
+        },
         "at": {
           "$ref": "#/$defs/0"
         }
@@ -3664,6 +3678,8 @@
         "radius",
         "rpm",
         "axis",
+        "min",
+        "max",
         "at"
       ],
       "additionalProperties": false
