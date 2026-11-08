@@ -12,6 +12,9 @@ import { TOUR_CHANNEL } from '../../src/shared/visual-tour.ts';
 const require = createRequire(__filename);
 require('./profile-guard.cjs')(process.env.TT_TEST_PROFILE, (receipt: unknown) => writeFileSync(join(__dirname, 'profile.json'), JSON.stringify(receipt)));
 app.on('window-all-closed', () => {});
+// Windows stops painting a window that other windows fully cover (native occlusion), so a preview opened behind another window, or under this
+// fixture's own welcome window, never produces its frame and the waits below time out. These windows are checked, not watched: keep them painting.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 async function until(check: () => Promise<boolean>, what: string): Promise<void> {
   const deadline = Date.now() + 10000;
