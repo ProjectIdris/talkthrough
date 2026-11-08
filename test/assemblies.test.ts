@@ -254,6 +254,29 @@ test('crank slider and cam and follower and the lever classes all move, and move
   }
 });
 
+test('cam and follower: the stem of the valve rides on the lobe through the whole turn (no gap, no sinking into it)', () => {
+  const b = built('cam-follower');
+  const camAdd = b.add('a-camshaft'), valveAdd = b.add('a-valve');
+  const cw = (camAdd.size as number[])[0]!, vh = (valveAdd.size as number[])[1]!;
+  // The kit camshaft: a base circle of 0.27 of its width, a nose at half of it, a smooth flank of 64 degrees each side of the nose.
+  const rBase = 0.27 * cw, rNose = 0.5 * cw, flank = 64;
+  let worst = 0, travel = 0, lo = Infinity, hi = -Infinity;
+  for (let t = 0; t <= 3.01; t += 0.05) {
+    const w = worldAt(b, t);
+    const cam = w('a-camshaft');
+    const axis = centre(cam);
+    const nose = new Vector3(0, 1, 0).transformDirection(cam);
+    const theta = (Math.acos(Math.max(-1, Math.min(1, nose.dot(new Vector3(0, -1, 0))))) * 180) / Math.PI;
+    const r = theta >= flank ? rBase : rBase + (rNose - rBase) * 0.5 * (1 + Math.cos((Math.PI * theta) / flank));
+    const stemTop = centre(w('a-valve')).y + vh / 2;
+    worst = Math.max(worst, Math.abs(axis.y - r - stemTop));
+    lo = Math.min(lo, stemTop); hi = Math.max(hi, stemTop);
+    travel = hi - lo;
+  }
+  assert.ok(worst < 0.02 * cw, `the valve's stem top is within ${worst} of the lobe's surface`);
+  assert.ok(travel > 0.15 * cw, `and it travels (${travel})`);
+});
+
 test('four-bar linkage (parallelogram): the coupler stays level, the rocker follows the crank turn for turn, and the joints stay joined', () => {
   const b = built('four-bar-linkage');
   const crank = b.add('a-crank-bar'), coupler = b.add('a-coupler-bar'), rocker = b.add('a-rocker-bar');

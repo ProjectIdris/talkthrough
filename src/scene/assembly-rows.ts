@@ -183,15 +183,17 @@ const camFollower: AssemblyRow = {
   size: [3, 8, 6],
   n: { default: 1, min: 1, max: 1, what: 'follower' },
   drive: { key: 'camshaft', what: 'the camshaft: spin it at any rpm and the valve follows' },
-  values: [['s', 'min(sx/1.3, sy/3.55, sz/2.6)']],
+  // The camshaft kit part has a base circle of 0.27 of its width and a nose at half of it, flanks of 64 degrees each side; the valve stands with its stem top on the base circle at rest and
+  // is pushed down by the nose's height over those same 128 degrees, so the stem rides on the lobe the whole turn.
+  values: [['s', 'min(sx/1.3, sy/3.62, sz/2.6)'], ['rb', '0.27*1.3*s'], ['rn', '0.5*1.3*s']],
   pieces: [
     { key: 'camshaft', part: 'camshaft', size: ['1.3*s', '1.3*s', '2.6*s'], n: 1, pos: [0, '1.09*s', 0], rot: [0, 0, 135] },
-    { key: 'valve', part: 'valve', size: ['0.7*s', '2.6*s', '0.7*s'], pos: [0, '-0.5*s', 0] },
+    { key: 'valve', part: 'valve', size: ['0.7*s', '2.6*s', '0.7*s'], pos: [0, '1.09*s - rb - 1.3*s', 0] },
   ],
-  anchors: [{ name: 'input', at: [0, '1.09*s', 'sz/2'] }, { name: 'output', at: [0, '-1.8*s', 0] }],
+  anchors: [{ name: 'input', at: [0, '1.09*s', 'sz/2'] }, { name: 'output', at: [0, '1.09*s - rb - 2.6*s', 0] }],
   steps: [
     { op: 'spin', refs: { id: 'camshaft' }, fields: { rpm: 20 } },
-    { op: 'cam', refs: { id: 'valve', by: 'camshaft' }, fields: { lift: '0.5*s', open: 110 } },
+    { op: 'cam', refs: { id: 'valve', by: 'camshaft' }, fields: { lift: 'rn - rb', open: 128 } },
   ],
 };
 
