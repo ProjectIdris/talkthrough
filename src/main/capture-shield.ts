@@ -41,6 +41,7 @@ export function createCaptureShield(options: {
   const wait = options.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const windows = new Set<ShieldWindow>();
   let raised = false;
+  let pending: Promise<void> = Promise.resolve(); // the change reaching the picture, for as long as the windows are up
   let waiting = 0; // captures asked for and not yet finished
   let tail: Promise<unknown> = Promise.resolve();
 
@@ -71,20 +72,21 @@ export function createCaptureShield(options: {
       if (!options.enabled) return work(Promise.resolve());
       waiting++;
       const run = async (): Promise<ReturnType<typeof work> extends Promise<infer T> ? T : never> => {
-        let settled: Promise<void> = Promise.resolve();
         if (!raised) {
           // Nothing on the screen to wait for when no window of ours is up: a window shown during the capture is shown already out of it.
           const needsWait = anyVisible();
           protect(true);
           raised = true;
-          if (needsWait) settled = wait(settleMs);
+          pending = needsWait ? wait(settleMs) : Promise.resolve();
         }
         try {
-          return await work(settled) as never;
+          // Every capture run while the windows are up gets the same wait, so one queued behind a capture that failed early never reads inside it.
+          return await work(pending) as never;
         } finally {
           waiting--;
           if (waiting === 0) {
             raised = false;
+            pending = Promise.resolve();
             protect(false);
           }
         }

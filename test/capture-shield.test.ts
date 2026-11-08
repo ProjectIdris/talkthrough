@@ -83,6 +83,24 @@ test('captures run one at a time, and the protection is kept up between them and
   assert.equal(events.filter((e) => e === 'a:up').length, 2, 'a later capture raises it again');
 });
 
+test('a capture queued behind one that fails early still waits for the change to reach the picture', async () => {
+  reset();
+  const open = gate();
+  const shield = createCaptureShield({ enabled: true, wait: () => { events.push('wait'); return open.promise; } });
+  shield.add(new W('a'));
+  const first = gate();
+  const one = shield.around(async () => { await first.promise; throw new Error('no source'); });
+  let secondRead = false;
+  const two = shield.around(async (settled) => { await settled; secondRead = true; events.push('two reads'); });
+  first.open();
+  await assert.rejects(one, /no source/);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(secondRead, false, 'the second must not read inside the time the flag needs to take effect');
+  open.open();
+  await two;
+  assert.deepEqual(events, ['a:up', 'wait', 'two reads', 'a:down']);
+});
+
 test('a capture that fails still lowers the windows, and the next one runs', async () => {
   reset();
   const a = new W('a');
