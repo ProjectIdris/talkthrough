@@ -37,6 +37,7 @@ test('a how-does-it-work question about a model that holds no mechanism is told 
     assert.match(hint, new RegExp('(' + id + ')'), q);
     assert.match(hint, /How it works: /);
     assert.match(hint, /step 1 opens on the real model at stage size/);
+    assert.ok(hint.includes("on a wide panel (about 880 by 480 units, below the page's heading)"), 'a wide panel for the pair, under the heading');
     assert.match(hint, /build the working mechanism large and animated beside it/);
     assert.match(hint, /Each assembly gets a new id of its own/);
     assert.match(hint, /Clear nothing: the real model and every assembly already built stay on stage/);
