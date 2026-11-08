@@ -203,6 +203,68 @@ test('the name of a series ending at the right edge of the chart is written besi
   }
 });
 
+/** The chips (tinted rounded rectangles) a timeline draws, found as the rounded paths filled with the face's tint, and the words drawn; `widen` scales the width of every character. */
+function timelineChips(actions: Action[], face: Face, widen: number): { chips: Array<{ x: number; y: number; w: number; h: number }>; words: string[] } {
+  const state: Record<string, unknown> = { font: '10px x', fillStyle: '' };
+  const chips: Array<{ x: number; y: number; w: number; h: number }> = [];
+  const words: string[] = [];
+  let corners: number[][] = [];
+  const px = (): number => Number(/([\d.]+)px/.exec(String(state.font))?.[1] ?? 10);
+  const ctx = new Proxy(state, {
+    get(t, k: string) {
+      if (k === 'createLinearGradient') return () => ({ addColorStop: () => {} });
+      if (k === 'measureText') return (s: string) => ({ width: s.length * px() * widen });
+      if (k === 'beginPath') return () => { corners = []; };
+      if (k === 'arcTo') return (...a: number[]) => { corners.push(a); };
+      if (k === 'fillText') return (s: string) => { words.push(s); };
+      if (k === 'fill') return () => {
+        const alpha = /rgba\(\d+,\s*\d+,\s*\d+,\s*([\d.]+)\)/.exec(String(t.fillStyle))?.[1];
+        if (alpha !== undefined && Math.abs(Number(alpha) - FROST[face].tint) < 1e-6 && corners.length === 4) chips.push({ x: corners[3]![0]!, y: corners[0]![1]!, w: corners[0]![0]! - corners[3]![0]!, h: corners[1]![1]! - corners[0]![1]! });
+      };
+      if (k in t) return t[k];
+      return () => undefined;
+    },
+    set(t, k: string, v) { t[k] = v; return true; },
+  }) as unknown as CanvasRenderingContext2D;
+  new DiagramPainter({ faceOf: () => face }).draw(ctx, plan(actions).diagrams, view, 0);
+  return { chips, words };
+}
+
+test('no two timeline chips overlap, on either face, at any panel size, from four to eight events and with words wider than the font is expected to make them', () => {
+  const years = (n: number, long: boolean, close: boolean): Array<[string, string, string, number]> => Array.from({ length: n }, (_, i) => [`${10 + i} Oct`, long ? `A long event title number ${i}` : `Event ${i}`, long ? 'A longer note that wraps a few times over' : 'note', 100 + i * (close ? 1 : 20)]);
+  const sets: Record<string, Array<[string, string, string, number]>> = {
+    autumn: [['20 Sep', 'Fulford', 'Norse army beats the northern earls', 263], ['25 Sep', 'Stamford Bridge', 'Harold destroys the Norse army', 268], ['28 Sep', 'Normans land', 'William at Pevensey', 271], ['14 Oct', 'Hastings', 'Harold killed; Norman victory', 287]],
+    'six long': years(6, true, false),
+    'eight close': years(8, false, true),
+    'eight long': years(8, true, false),
+  };
+  let cases = 0;
+  for (const [name, events] of Object.entries(sets)) for (const face of ['dark', 'light'] as Face[]) for (const widen of [0.52, 0.72]) for (let w = 250; w <= 950; w += 100) for (let h = 150; h <= 450; h += 100) {
+    const { chips } = timelineChips([
+      { op: 'diagram', id: 't', kind: 'timeline', x: 30, y: 600, w, h, title: 'Autumn 1066' } as Action,
+      ...events.map(([when, text, note, pos], i) => ({ op: 'node', id: 'e' + i, of: 't', when, text, note, pos }) as Action),
+    ], face, widen);
+    cases++;
+    assert.equal(chips.length, events.length, `${name}: a chip for each event (${face}, ${w}x${h}, ${widen})`);
+    for (let i = 0; i < chips.length; i++) for (let j = i + 1; j < chips.length; j++) {
+      const a = chips[i]!, b = chips[j]!;
+      const across = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), down = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      assert.ok(!(across > 1 && down > 1), `${name}: chips ${i} and ${j} overlap on the ${face} face at ${w}x${h} units, characters ${widen} wide`);
+    }
+  }
+  assert.ok(cases >= 100);
+});
+
+test('the face changes only the colours: the same panel is laid out the same on both faces', () => {
+  const events: Action[] = [
+    { op: 'diagram', id: 't', kind: 'timeline', x: 30, y: 600, w: 600, h: 290, title: 'Autumn 1066' } as Action,
+    ...[['20 Sep', 'Fulford', 'Norse army beats the northern earls', 263], ['28 Sep', 'Normans land', 'William at Pevensey', 271], ['14 Oct', 'Hastings', 'Harold killed; Norman victory', 287]].map(([when, text, note, pos], i) => ({ op: 'node', id: 'e' + i, of: 't', when, text, note, pos }) as Action),
+  ];
+  const dark = timelineChips(events, 'dark', 0.55), light = timelineChips(events, 'light', 0.55);
+  assert.deepEqual(dark.chips, light.chips, 'the chips are where they are on either face');
+  assert.deepEqual(dark.words, light.words, 'and every line of words is the same');
+});
+
 // ---- Note cards wear it too --------------------------------------------------------------------------------------------------
 
 test('a note card wears the face it is given, numbers its rows in accents in turn, and keeps the scene\'s tint when there is one', () => {

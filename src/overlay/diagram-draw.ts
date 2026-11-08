@@ -552,7 +552,7 @@ function drawTimeline(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Se
   const measureAt = (font: string) => (t: string): number => { ctx.font = font; return ctx.measureText(t).width; };
   type Label = { when: string[]; text: string[]; note: string[]; w: number; h: number; pillW: number; inline: boolean };
   // In a short panel the date sits in its pill beside the event (when the event is one short line), instead of in a row of its own.
-  const build = (px: number, compact: boolean, wrap: number): { labels: Map<string, Label>; lay: ReturnType<typeof timelineLayout> } => {
+  const build = (px: number, compact: boolean, wrap: number, notes = true): { labels: Map<string, Label>; lay: ReturnType<typeof timelineLayout> } => {
   const whenPx = px * 0.92, textPx = px, notePx = px * 0.84;
   // A label is a tinted chip: a pill with the date, then the event and its note, with room round them.
   const padX = Math.max(10, px * 0.95), padY = Math.max(compact ? 6 : 8, px * (compact ? 0.5 : 0.7)), pillH = whenPx * 1.75, pillGap = px * 0.4;
@@ -565,7 +565,7 @@ function drawTimeline(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Se
     const when = e.def.when ? wrapLines(measureAt(fontAt(theme.titleFont, whenPx)), e.def.when, maxW, 1) : [];
     const text = wrapLines(measureAt(fontAt(theme.font, textPx)), e.def.text, maxW, tall ? 5 : 3);
     // A narrower wrap makes more lines, so the note may have a third: it is cut only when nothing is left of its room.
-    const note = e.def.note ? wrapLines(measureAt(fontAt(theme.font, notePx)), e.def.note, maxW, wrap < 1 ? 3 : 2) : [];
+    const note = notes && e.def.note ? wrapLines(measureAt(fontAt(theme.font, notePx)), e.def.note, maxW, wrap < 1 ? 3 : 2) : [];
     let w = 0, pillW = 0;
     for (const l of when) { pillW = measureAt(fontAt(theme.titleFont, whenPx))(l) + whenPx * 1.4; w = Math.max(w, pillW); }
     for (const l of text) w = Math.max(w, measureAt(fontAt(theme.font, textPx))(l));
@@ -581,20 +581,24 @@ function drawTimeline(env: Env, d: DiagramFrame, area: Px, pad: number, seen: Se
   // If the labels do not fit the room, the text comes down a size at a time (to a floor) until they do.
   // Roomy first (a row for the date); a little smaller is better than cramped, then the date goes beside the event, then the words wrap narrower
   // (a panel with height to spare and little width), and last the words go smaller still, down to a floor.
-  const tries: Array<[boolean, number, number]> = [];
-  for (const [compact, wrap, sizes] of [[false, 1, [1.02, 0.94, 0.865]], [true, 1, [1.02, 0.94, 0.865, 0.8]], [true, 0.7, [1.02, 0.94, 0.865, 0.8, 0.73, 0.67, 0.62]]] as Array<[boolean, number, number[]]>) for (const f of sizes) tries.push([compact, wrap, f]);
+  // Last of all, when nothing fits with its notes, the notes go (a date and an event with no note is better than chips written over each other).
+  const tries: Array<[boolean, number, number, boolean]> = [];
+  for (const [compact, wrap, sizes, notes] of [[false, 1, [1.02, 0.94, 0.865], true], [true, 1, [1.02, 0.94, 0.865, 0.8], true], [true, 0.7, [1.02, 0.94, 0.865, 0.8, 0.73, 0.67, 0.62], true], [true, 0.7, [0.94, 0.8, 0.67], false]] as Array<[boolean, number, number[], boolean]>) for (const f of sizes) tries.push([compact, wrap, f, notes]);
   // Which attempt fits is worked out once for the labels, the room and the text size, not on every frame (each attempt measures every label).
   const signature = JSON.stringify([Math.round(area.w), Math.round(area.h), Math.round(pad), Math.round(env.px * 10), events.map((e) => [e.def.text, e.def.when, e.def.note, e.def.pos])]);
   const remembered = env.painter.timelineChoices.get(d.key);
   env.painter.timelineLive.add(d.key);
   let index = remembered && remembered.signature === signature ? remembered.index : -1;
   if (index < 0) {
-    index = tries.length - 1;
-    for (let k = 0; k < tries.length; k++) if (!build(env.px * tries[k]![2], tries[k]![0], tries[k]![1]).lay.overflow) { index = k; break; }
+    // The first that fits; failing that the first whose chips at least do not overlap (a cut or an overrun is better than chips over each other); failing that the last.
+    const lays = (k: number) => build(env.px * tries[k]![2], tries[k]![0], tries[k]![1], tries[k]![3]).lay;
+    index = tries.findIndex((_, k) => !lays(k).overflow);
+    if (index < 0) index = tries.findIndex((_, k) => !lays(k).overlap);
+    if (index < 0) index = tries.length - 1;
     env.painter.timelineChoices.set(d.key, { signature, index });
   }
   const chosen = tries[index]!;
-  const made = build(env.px * chosen[2], chosen[0], chosen[1]);
+  const made = build(env.px * chosen[2], chosen[0], chosen[1], chosen[3]);
   const compact = chosen[0];
   const px = env.px * chosen[2];
   const { labels, lay } = made;
