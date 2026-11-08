@@ -47,7 +47,7 @@ export type SceneState = {
   /** The two ends of each connector made so far: a muscle is one of them. */
   /** The real model each model object stands for (object id to catalogue id), so its parts can be named. */
   models?: Map<string, string>;
-  connectors?: Map<string, { from: string; to: string; kind?: string }>;
+  connectors?: Map<string, { from: string; to: string; kind?: string; sided?: string[] }>;
   /** The tubes made so far, and whether each is a closed loop: a wave runs along an open tube. */
   tubes?: Map<string, { closed: boolean }>;
   /** The min and max each joint was given: a muscle on a joint with no room to turn cannot move it. */
@@ -1055,7 +1055,7 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
     else state.diagramKinds.delete(id);
     if (variant.name === 'addPart') state.parts.set(id, out.part as string);
     else state.parts.delete(id);
-    if (variant.name === 'addConnector') (state.connectors ??= new Map()).set(id, { from: out.from as string, to: out.to as string, kind: (out.kind as string | undefined) ?? 'straight' });
+    if (variant.name === 'addConnector') (state.connectors ??= new Map()).set(id, { from: out.from as string, to: out.to as string, kind: (out.kind as string | undefined) ?? 'straight', sided: (['from', 'to'] as const).filter((e) => out[`${e}Side`] !== undefined || out[`${e}Point`] !== undefined || out[`${e}Anchor`] !== undefined).map((e) => out[e] as string) });
     else state.connectors?.delete(id);
     if (variant.name === 'addTube') (state.tubes ??= new Map()).set(id, { closed: out.closed === true });
     else state.tubes?.delete(id);
@@ -1270,10 +1270,16 @@ function fitConnector(out: Record<string, unknown>, state: SceneState, path: str
     if (!wheel || out[`${end}Point`] !== undefined || out[`${end}Anchor`] !== undefined || spinsAnywhere(state, wheelId)) continue;
     if (side === undefined) {
       // A rope that ends on a pulley wheel with no side would run to its axle through the wheel: it is seated in the rim, where it leaves along the tangent.
+      // Only a pulley: a wheel part, or a short cylinder that a rope already leaves from a side or a point (a plain disc is a bob, a seat or a plate, and a rope to its middle is meant). Never a rope to another disc, and never a rope that
+      // hangs the wheel from above (a moving pulley is tied by its axle).
+      const flatDisc = (b: ReturnType<typeof state.bodies.get>): boolean => b?.shape === 'cylinder' && !!b.size && b.size[1] <= 0.5 * Math.max(b.size[0], b.size[2]);
       const body = state.bodies.get(wheelId);
-      const pulley = body?.part === 'wheel' || (body?.shape === 'cylinder' && !!body.size && body.size[1] <= 0.5 * Math.max(body.size[0], body.size[2]));
-      const farEnd = endWorld(state, out[far] as string, out[`${far}Side`] as string | undefined, out[`${far}Anchor`] as string | undefined, out[`${far}Point`] as Vec3 | undefined);
-      const seat = pulley && farEnd ? seatTangent(wheel, farEnd) : undefined;
+      const roped = [...(state.connectors?.values() ?? [])].some((c) => c.sided?.includes(wheelId));
+      const pulley = body?.part === 'wheel' || (flatDisc(body) && roped);
+      const farId = out[far] as string, farBody = state.bodies.get(farId);
+      const farEnd = endWorld(state, farId, out[`${far}Side`] as string | undefined, out[`${far}Anchor`] as string | undefined, out[`${far}Point`] as Vec3 | undefined);
+      const hangs = farEnd !== undefined && farEnd[1] - wheel.c[1] > wheel.rp;
+      const seat = pulley && farEnd && farBody?.part !== 'wheel' && !flatDisc(farBody) && !hangs ? seatTangent(wheel, farEnd) : undefined;
       if (!seat) continue;
       const p = applyInverse(worldOf(state.bodies, wheelId), seat).map((v) => Math.round(v * 1000) / 1000) as Vec3;
       out[`${end}Point`] = p;
@@ -1347,12 +1353,10 @@ function checkCoupling(out: Record<string, unknown>, state: SceneState, path: st
   return true;
 }
 
-/** A rack and its pinion, when a coupling or a loop of a slide by another part joins a long flat box with a gear. */
+/** A rack and its pinion, when a coupling with a pitch joins a long flat box with a gear (a slide loop by a gear is a rod or a slider the model drives, not a rack claim). */
 function rackPair(out: Record<string, unknown>, state: SceneState, op: string): { gear: Round; bar: NonNullable<ReturnType<typeof barOf>> } | undefined {
   const id = out.id as string, by = out.by as string;
-  if (op === 'spin') return undefined;
-  const slides = op === 'couple' ? out.pitch !== undefined : (out.kind ?? state.joints.get(id)) === 'slide';
-  if (!slides) return undefined;
+  if (op !== 'couple' || out.pitch === undefined) return undefined;
   for (const [g, r] of [[by, id], [id, by]] as const) {
     const gear = roundOf(state.bodies, g), bar = barOf(state.bodies, r);
     if (gear?.kind === 'gear' && bar) return { gear, bar };
@@ -1360,11 +1364,15 @@ function rackPair(out: Record<string, unknown>, state: SceneState, op: string): 
   return undefined;
 }
 
+const RACK_SLIP = 0.2;
+
 /** A rack meets its pinion with the pitch circle on its toothed face; a near miss is repaired (the later of the two moves), a far one refused with the nearest place. */
 function checkRack(out: Record<string, unknown>, state: SceneState, path: string, notes: Notes, op: string, gear: Round, bar: NonNullable<ReturnType<typeof barOf>>): boolean {
   const id = out.id as string, by = out.by as string;
   const moving = laterOf(state, gear.id, bar.id) === gear.id ? 'pinion' : 'bar';
   const fit = rackFit(gear, bar, moving);
+  // Only a small slip is a rack meant to touch: a gear further off than a fifth of its pitch radius, or turned the wrong way, is a gear driving a carriage or a screw, and is left where it is.
+  if (fit.verdict !== 'ok' && (fit.by === 0 || fit.by > RACK_SLIP * gear.rp)) return true;
   if (fit.verdict === 'refuse') {
     const place = fit.by > 0 ? ` (the nearest place for ${fit.moves[0]!.id} is [${fit.moves[0]!.to.join(',')}])` : '';
     note(notes, 'dropped', path, `${id} cannot ${op === 'loop' ? 'move' : 'follow'} ${by}: ${fit.why}${place}`);

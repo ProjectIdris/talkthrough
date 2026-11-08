@@ -86,40 +86,42 @@ test('a belt written after the spin: gears the check had moved go back, a coupli
 
 const rack = (extra: Act = {}): Act => ({ op: 'add', shape: 'box', id: 'rack', pos: [0, 0, 0], size: [6, 0.4, 0.5], at: 0.3, ...extra });
 
-test('a pinion over its rack is brought to touch it with its pitch circle; the later of the two moves', () => {
-  const r = run([rack(), gear('pin', [0, 1.5, 0], 2, 16, { at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'spin', id: 'pin', rpm: 10, at: 1 }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
+test('a pinion a little off its rack is brought to touch it with its pitch circle; the later of the two moves', () => {
+  const r = run([rack(), gear('pin', [0, 1.3, 0], 2, 16, { at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'spin', id: 'pin', rpm: 10, at: 1 }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
   const pin = r.moves.find((m) => m.id === 'pin')!.to as number[];
   assert.ok(Math.abs(pin[1]! - (0.2 + rp(2, 16))) < 0.01, `the pitch circle stands on the face (${pin[1]})`);
   assert.ok(r.repairs.some((n) => n.includes('rack rack and pinion pin')), r.notes.join('\n'));
-  const rackLater = run([gear('pin', [0, 1.5, 0], 2, 16, { at: 0.3 }), rack({ at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
+  const rackLater = run([gear('pin', [0, 1.3, 0], 2, 16, { at: 0.3 }), rack({ at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
   const moved = rackLater.moves.find((m) => m.id === 'rack')!.to as number[];
-  assert.ok(Math.abs(1.5 - moved[1]! - 0.2 - rp(2, 16)) < 0.01, 'the rack comes up to the pinion when it is the later');
+  assert.ok(Math.abs(1.3 - moved[1]! - 0.2 - rp(2, 16)) < 0.01, 'the rack comes up to the pinion when it is the later');
 });
 
 test('a pinion below the rack, a rack that runs up, and a pinion already touching all come out right or are left alone', () => {
-  const below = run([rack(), gear('pin', [0.5, -1.4, 0], 2, 16, { at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
+  const below = run([rack(), gear('pin', [0.5, -1.3, 0], 2, 16, { at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
   assert.ok(Math.abs((below.moves.find((m) => m.id === 'pin')!.to as number[])[1]! + 0.2 + rp(2, 16)) < 0.01, 'below the rack');
-  const up = run([rack({ rot: [0, 0, 90] }), gear('pin', [1.5, 0.5, 0], 2, 16, { at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'y' }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
+  const up = run([rack({ rot: [0, 0, 90] }), gear('pin', [1.3, 0.5, 0], 2, 16, { at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'y' }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
   assert.ok(Math.abs((up.moves.find((m) => m.id === 'pin')!.to as number[])[0]! - 0.2 - rp(2, 16)) < 0.01, 'a rack standing up');
   const ok = run([rack(), gear('pin', [0, 0.2 + rp(2, 16), 0], 2, 16, { at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
   assert.deepEqual(ok.repairs, []);
   assert.deepEqual(ok.moves, []);
 });
 
-test('a pinion not over its rack along its axis is brought over it; a pinion far from it, or turned to run along it, is refused', () => {
-  const off = run([rack(), gear('pin', [0, 1.13, 2], 2, 16, { at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
-  const to = off.moves.find((m) => m.id === 'pin')!.to as number[];
-  assert.equal(to[2], 0, 'in the plane of the rack');
-  const far = run([rack(), gear('pin', [0, 12, 0], 2, 16, { at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
-  assert.ok(far.dropped.some((n) => n.includes('rack cannot follow pin') && n.includes('nearest place')), far.notes.join('\n'));
-  const square = run([rack(), gear('pin', [0, 1.13, 0], 2, 16, { at: 0.6, rot: [0, 90, 0] }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
-  assert.ok(square.dropped.some((n) => n.includes('axis does not run across the rack')), square.notes.join('\n'));
+test('a pinion that is more than a small slip from its rack (off it along its axis, far from it, or turned to run along it) is a gear driving a carriage, and is left where it is', () => {
+  const couple = { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 };
+  const slide = { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' };
+  const cases: Array<[string, Act]> = [['off along its axis', gear('pin', [0, 1.13, 2], 2, 16, { at: 0.6 })], ['far', gear('pin', [0, 12, 0], 2, 16, { at: 0.6 })], ['turned along it', gear('pin', [0, 1.13, 0], 2, 16, { at: 0.6, rot: [0, 90, 0] })]];
+  for (const [what, pin] of cases) {
+    const r = run([rack(), pin, slide, couple]);
+    assert.deepEqual(r.moves, [], what);
+    assert.deepEqual(r.notes, [], what);
+  }
 });
 
-test('a slide loop of the rack by the pinion fits it as a couple does; a short box with a pitch (a nut on a screw) is no rack', () => {
-  const loop = run([rack(), gear('pin', [0, 1.5, 0], 2, 16, { at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'loop', id: 'rack', kind: 'slide', by: 'pin', amount: 2, at: 1 }]);
-  assert.ok(loop.repairs.some((n) => n.includes('rack rack and pinion pin')), loop.notes.join('\n'));
-  const nut = run([rack({ size: [0.6, 0.4, 0.5] }), gear('pin', [0, 1.5, 0], 2, 16, { at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
+test('a slide loop by a gear (a piston rod, a slider a crank wheel drives) is no rack claim and moves nothing; a short box with a pitch (a nut on a screw) is no rack either', () => {
+  const loop = run([rack(), gear('pin', [0, 1.3, 0], 2, 16, { at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'loop', id: 'rack', kind: 'slide', by: 'pin', amount: 2, at: 1 }]);
+  assert.deepEqual(loop.moves, []);
+  assert.deepEqual(loop.repairs, []);
+  const nut = run([rack({ size: [0.6, 0.4, 0.5] }), gear('pin', [0, 1.3, 0], 2, 16, { at: 0.6 }), { op: 'joint', id: 'rack', kind: 'slide', axis: 'x' }, { op: 'couple', id: 'rack', by: 'pin', pitch: 5.8, at: 1 }]);
   assert.deepEqual(nut.repairs, []);
   assert.deepEqual(nut.moves, []);
 });
@@ -137,4 +139,22 @@ test('a rope that ends on a pulley wheel with no side is seated in the rim along
   assert.equal(spin.find('rope').fromPoint, undefined, 'a spinning wheel carries a point round');
   const post = run([{ op: 'add', shape: 'cylinder', id: 'w', pos: [0, 3, 0], size: [1, 4, 1], at: 0.2 }, load(), { op: 'add', shape: 'connector', id: 'rope', from: 'w', to: 'load', toSide: 'top', radius: 0.06, at: 0.8 }]);
   assert.equal(post.find('rope').fromPoint, undefined, 'a tall cylinder is a post, not a pulley');
+});
+
+const rope = (extra: Act = {}): Act => ({ op: 'add', shape: 'connector', id: 'rope', radius: 0.05, at: 0.8, ...extra });
+const disc = (id: string, pos: number[], size = [3, 0.4, 3]): Act => ({ op: 'add', shape: 'cylinder', id, pos, size, at: 0.3 });
+
+test('a rope to the middle of a plain disc (a bob, a swing seat, a plate) or to a wheel it hangs from is meant and left; a pulley wheel with a rope away from it is still seated', () => {
+  const bob = run([{ op: 'add', shape: 'sphere', id: 'pivot', pos: [0, 4, 0], size: [0.2, 0.2, 0.2], at: 0.2 }, disc('bob', [2, 1.5, 0], [1, 0.4, 1]), rope({ from: 'pivot', to: 'bob' })]);
+  assert.deepEqual(bob.repairs, [], 'a pendulum string to a disc bob');
+  const seat = run([{ op: 'add', shape: 'box', id: 'beam', pos: [0, 4, 0], size: [6, 0.3, 0.5], at: 0.2 }, disc('seat', [0, 0.5, 0]), rope({ id: 'ropeL', from: 'beam', to: 'seat', fromSide: 'left' }), rope({ id: 'ropeR', from: 'beam', to: 'seat', fromSide: 'right' })]);
+  assert.deepEqual(seat.repairs, [], 'two ropes to the middle of a swing seat');
+  const link = run([disc('p1', [0, 0, 0]), disc('p2', [4, 0, 0]), rope({ from: 'p1', to: 'p2' })]);
+  assert.deepEqual(link.repairs, [], 'a link between two discs');
+  const hung = run([{ op: 'add', shape: 'box', id: 'beam', pos: [0, 5, 0], size: [4, 0.3, 0.5], at: 0.2 }, wheel({ id: 'moving', pos: [1, 2, 0] }), rope({ from: 'beam', to: 'moving' })]);
+  assert.deepEqual(hung.repairs, [], 'a moving pulley tied by its axle to the beam above');
+  const over = run([wheel(), load(), rope({ from: 'w', to: 'load' })]);
+  assert.equal(over.repairs.length, 1, 'a rope away from a pulley wheel');
+  const second = run([disc('w', [0, 3, 0], [2, 0.4, 2]), load(), { op: 'add', shape: 'box', id: 'weight', pos: [-4, 0, 0], size: [1, 1, 1], at: 0.4 }, rope({ id: 'a', from: 'w', to: 'load', fromSide: 'right' }), rope({ id: 'b', from: 'w', to: 'weight' })]);
+  assert.equal(second.repairs.length, 1, 'a short cylinder with a rope already leaving a side is a pulley, so the second rope is seated');
 });
