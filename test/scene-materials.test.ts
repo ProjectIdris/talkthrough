@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MATERIAL_LIBRARY, MATERIAL_NAMES, fitTint, luminance, materialRow } from '../src/scene/material-library.ts';
 import { MATERIALS, sceneGuide, sceneSchemaLean, createSceneState, validateStep } from '../src/scene/index.ts';
-import { makeSurface, applySurface, RECIPES, SURFACE_LAYERS, TIERS } from '../src/overlay/materials.ts';
+import { makeSurface, applySurface, TIERS } from '../src/overlay/materials.ts';
+import { treatmentOf } from '../src/overlay/surface-treatment.ts';
 import { MATERIAL_COLOR, defaultColor } from '../src/overlay/timeline.ts';
 import type { AddAction } from '../src/scene/index.ts';
 
@@ -60,21 +61,11 @@ test('the renderer draws a white bone at its palest bone, and an unbanded plasti
   assert.equal(plastic.color.r, 1);
 });
 
-test('a surface layer registered by name runs once when a material that names it is made, and a name nothing is registered for is skipped', () => {
-  let calls = 0;
-  SURFACE_LAYERS.test_layer = (m) => { calls++; m.roughness = 0.123; };
-  try {
-    // Naming the layer in a recipe is the whole of wiring one (the fibre layer plugs in this way).
-    assert.equal(calls, 0);
-    RECIPES.muscle.layers = ['test_layer', 'not_registered'];
-    const material = makeSurface('muscle', TIERS.mid);
-    assert.equal(calls, 1);
-    assert.equal(material.roughness, 0.123);
-    assert.notEqual(makeSurface('bone', TIERS.mid).roughness, 0.123, 'a material that names no layer is untouched');
-  } finally {
-    delete SURFACE_LAYERS.test_layer;
-    delete RECIPES.muscle.layers;
-  }
+test('the fibre layer is under the named materials: a muscle, tendon or rope path has it without asking, the scene can ask for it on any, and bone has none', () => {
+  for (const material of ['muscle', 'tendon', 'rope']) assert.equal(treatmentOf({ material }), 'fibres', material);
+  for (const material of ['bone', 'steel', 'plastic', undefined]) assert.equal(treatmentOf({ material }), undefined, String(material));
+  assert.equal(treatmentOf({ material: 'steel', treatment: 'fibres' }), 'fibres', 'asked for by the scene');
+  assert.equal(treatmentOf({ treatment: 'fibres' }), 'fibres');
 });
 
 test('a scene that names a new material is kept, and one that names a material that does not exist is refused', () => {

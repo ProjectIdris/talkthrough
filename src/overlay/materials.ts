@@ -40,19 +40,9 @@ type Recipe = {
   opacity?: number; envMapIntensity?: number; emissive?: number; doubleSided?: boolean;
   /** A soft light along the edges that turn from the viewer (cloth, skin, tissue). */
   sheen?: number;
-  /** Surface layers this material wears (fibres, grain and the like), by name in SURFACE_LAYERS; none are built yet. */
-  layers?: readonly string[];
 };
 
-/**
- * Where a surface layer plugs in. A layer is a function of the material it is given (and the tier): it may add a map, a shader chunk or a normal
- * perturbation to it, and runs once when the material is made. A recipe names its layers in `layers`; a name with nothing registered is skipped, so a
- * material can name a layer before the layer exists. Empty today.
- */
-export type SurfaceLayer = (material: MeshPhysicalMaterial, tier: TierSettings) => void;
-export const SURFACE_LAYERS: Record<string, SurfaceLayer> = {};
-
-export const RECIPES: Record<SurfaceName, Recipe> = {
+const RECIPES: Record<SurfaceName, Recipe> = {
   plastic: { roughness: 0.46, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.4 },
   metal: { roughness: 0.3, metalness: 1, envMapIntensity: 1.1 },
   rubber: { roughness: 0.92, metalness: 0 },
@@ -101,7 +91,6 @@ export function makeSurface(name: string | undefined, tier: TierSettings, finish
     m.sheenColor.setRGB(1, 0.9, 0.88);
   }
   m.userData = { base: r.opacity ?? 1, glow: r.emissive ?? 0, name };
-  for (const layer of r.layers ?? []) SURFACE_LAYERS[layer]?.(m, tier);
   m.opacity = m.userData.base;
   m.depthWrite = !m.transparent;
   if (name === 'section') hatched(m);

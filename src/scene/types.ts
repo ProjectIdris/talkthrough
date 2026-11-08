@@ -102,8 +102,10 @@ export type AddBlob = {
 } & Surface & At;
 /** An end of a tube or line that lies on a 3D part: the part and the point on it (in the part's own space), which the end keeps wherever the part goes. Set by the validator, never written. */
 export type AttachEnd = { to: string; at: Vec3 };
+/** Fixed material detail on swept paths; no additional strands or displacement. */
+export type PathTreatment = 'fibres';
 export type AddTube = {
-  op: 'add'; shape: 'tube'; id: string; parent?: string; explode?: Vec3; pts: Vec3[]; radius: number; flat?: number; swell?: Vec2[]; closed?: boolean; draw?: number;
+  op: 'add'; shape: 'tube'; id: string; treatment?: PathTreatment; parent?: string; explode?: Vec3; pts: Vec3[]; radius: number; flat?: number; swell?: Vec2[]; closed?: boolean; draw?: number;
   attach?: [AttachEnd | null, AttachEnd | null];
 } & Surface & At;
 export type AddPath = {
@@ -127,7 +129,7 @@ export type AddGroup = { op: 'add'; shape: 'group'; id: string; parent?: string;
 export type Side = 'left' | 'right' | 'top' | 'bottom' | 'front' | 'back';
 /** A rope, belt, wire, chain or pipe between two objects, drawn as a tube that follows them as they move. */
 export type AddConnector = {
-  op: 'add'; shape: 'connector'; id: string; parent?: string; from: string; to: string; kind?: 'straight' | 'slack' | 'wrapped';
+  op: 'add'; shape: 'connector'; id: string; treatment?: PathTreatment; parent?: string; from: string; to: string; kind?: 'straight' | 'slack' | 'wrapped';
   fromSide?: Side; toSide?: Side; fromAnchor?: string; toAnchor?: string; sag?: number; radius?: number; draw?: number;
   fromPoint?: Vec3; toPoint?: Vec3; swell?: Vec2[]; restLength?: number;
 } & Surface & At;

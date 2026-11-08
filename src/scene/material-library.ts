@@ -14,6 +14,8 @@ export type MaterialRow = {
   color: Rgb3;
   /** The lightness range (relative luminance) a tint is held to; absent: no limit. */
   band?: readonly [number, number];
+  /** The surface layer a path-shaped object (tube, connector) of this material wears when the scene names none: fibres along a muscle, a tendon, a rope. */
+  treatment?: 'fibres';
 };
 
 export const MATERIAL_LIBRARY = [
@@ -26,15 +28,15 @@ export const MATERIAL_LIBRARY = [
   { name: 'paper', color: [246, 241, 229] },
   { name: 'tissue', color: [226, 140, 138] },
   { name: 'bone', color: [172, 148, 108], band: [0.07, 0.35] },
-  { name: 'muscle', color: [168, 52, 56], band: [0.05, 0.25] },
-  { name: 'tendon', color: [160, 154, 134], band: [0.07, 0.33] },
+  { name: 'muscle', color: [168, 52, 56], band: [0.05, 0.25], treatment: 'fibres' },
+  { name: 'tendon', color: [160, 154, 134], band: [0.07, 0.33], treatment: 'fibres' },
   { name: 'skin', color: [206, 142, 112], band: [0.06, 0.37] },
   { name: 'steel', color: [150, 160, 174], band: [0.14, 0.66] },
   { name: 'iron', color: [104, 108, 116], band: [0.135, 0.3] },
   { name: 'brass', color: [196, 156, 62], band: [0.15, 0.6] },
   { name: 'copper', color: [196, 112, 70], band: [0.14, 0.55] },
   { name: 'wood', color: [158, 108, 62], band: [0.075, 0.35] },
-  { name: 'rope', color: [176, 148, 100], band: [0.08, 0.38] },
+  { name: 'rope', color: [176, 148, 100], band: [0.08, 0.38], treatment: 'fibres' },
   { name: 'water', color: [72, 150, 220], band: [0.12, 0.34] },
 ] as const satisfies readonly MaterialRow[];
 
