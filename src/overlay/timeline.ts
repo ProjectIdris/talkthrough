@@ -149,6 +149,11 @@ export type Frame = {
   userCut?: number;
   /** What is turning, and how the parts are tied to it. */
   motion: Motion;
+  /**
+   * The machine as it will be later in the same step, when something in it has not started turning yet (a loop written to begin a few seconds in): the camera
+   * fits the stage to it from the start, so the model is not drawn large and then made smaller when the machine starts.
+   */
+  ahead?: Motion;
 };
 
 export function emptyFrame(): Frame {
@@ -1112,6 +1117,8 @@ export function evaluate(plan: StepPlan, t: number): Frame {
     });
   }
   const motion = motionOf(plan, objects, spinTime, diagrams);
+  const coming = spinTime < plan.duration ? motionOf(plan, objects, plan.duration, diagrams) : undefined;
+  const ahead = coming && coming.spins.some((s) => s.rate !== 0 && !motion.spins.some((m) => m.key === s.key && m.rate !== 0)) ? coming : undefined;
   applyPoses(objects, motion);
   applyPhases(objects, motion);
   let panel: Frame['panel'] = null;
@@ -1121,7 +1128,7 @@ export function evaluate(plan: StepPlan, t: number): Frame {
     panel = { rect: { x: r[0] ?? 0, y: r[1] ?? 0, w: r[2] ?? 0, h: r[3] ?? 0 }, appear: appearOf(p, t), fade: fadeOf(p, t), frame: p.frame };
   }
   return {
-    panel, marks, diagrams: phasedDiagrams(diagrams, motion), objects, nextKey: plan.nextKey, motion,
+    panel, marks, diagrams: phasedDiagrams(diagrams, motion), objects, nextKey: plan.nextKey, motion, ...(ahead ? { ahead } : {}),
     camera: {
       az: valueAt(plan.az, t)[0] ?? 0, el: valueAt(plan.el, t)[0] ?? 0, zoom: valueAt(plan.zoom, t)[0] ?? 1,
       focus: focusAt(plan.focus, t),
@@ -1284,13 +1291,15 @@ const SWEEP_LONGEST = 60;
  * The poses a running machine takes over its whole cycle, for the camera to fit the stage to everything the model does and not only to how it stands at
  * rest (a wing flapped out of its rest shape, a door swung toward the viewer). A pure function of the frame's motion and not of the time it is asked at:
  * every turning angle is put back to its start and run on by moments spread over the slowest cycle (one that does not meet a faster one's rhythm), so
- * the same machine gives the same set at any moment and the camera does not breathe. A frame with nothing turning gives none.
+ * the same machine gives the same set at any moment and the camera does not breathe. It reads the machine the frame will have later in its step (`ahead`)
+ * when something has not started yet, so a loop written to begin at 3 s is fitted from 0. A frame with nothing turning, now or later in the step, gives none.
  */
 export function sweptPoses(frame: Frame, count = SWEEP_SAMPLES): Array<ReadonlyMap<number, Pose>> {
-  const running = frame.motion.spins.filter((s) => s.rate !== 0);
+  const motion = frame.ahead ?? frame.motion;
+  const running = motion.spins.filter((s) => s.rate !== 0);
   if (running.length === 0) return [];
   const span = Math.min(SWEEP_LONGEST, Math.max(...running.map((s) => 360 / Math.abs(s.rate))));
-  const base: Motion = { ...frame.motion, spins: frame.motion.spins.map((s) => (s.rate !== 0 && !s.lock ? { ...s, angle: 0 } : s)) };
+  const base: Motion = { ...motion, spins: motion.spins.map((s) => (s.rate !== 0 && !s.lock ? { ...s, angle: 0 } : s)) };
   const bare = frame.objects.map((o) => {
     const { pose: _gone, ...rest } = o;
     return rest as ObjectFrame;

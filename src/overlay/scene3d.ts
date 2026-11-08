@@ -574,12 +574,18 @@ export class PanelScene {
       this.restSpheres = this.partSpheres();
       this.sweepHulls = this.sweptHulls(frame, offsets, spreads);
       layout(offsets);
-    } else {
-      this.sweepHulls = [];
-      this.sweepKey = '';
     }
     this.scene.updateMatrixWorld(true);
-    if (!frame.objects.some((o) => o.pose || o.pulse !== 0)) this.restSpheres = this.partSpheres();
+    if (!frame.objects.some((o) => o.pose || o.pulse !== 0)) {
+      this.restSpheres = this.partSpheres();
+      // Nothing is moving yet but something will be, later in this step: the camera is already fitted to it.
+      this.sweepHulls = frame.ahead ? this.sweptHulls(frame, offsets, spreads) : [];
+      if (!frame.ahead) this.sweepKey = '';
+      else {
+        layout(offsets);
+        this.scene.updateMatrixWorld(true);
+      }
+    }
     // Connectors and streams are placed from where their parts now are; what hangs on a connector then needs its matrices again.
     updateAttached(this.nodes, frame, this.detail.radial, PATH_RADIUS);
     if (updateConnectors(this.nodes, frame, this.detail.radial)) this.scene.updateMatrixWorld(true);
@@ -746,7 +752,14 @@ export class PanelScene {
     // The distance comes from a sphere round the visible parts; it also takes in an opened (exploded) model, which is
     // laid out by now, so the camera stands back for it without being told.
     const az = cam.az * DEG, el = Math.max(-89, Math.min(89, cam.el)) * DEG;
-    const fit = this.eased(this.fitTarget(az, el, tan, aspect), view?.now);
+    // A sweep may reach the screen's edge, not only the stage's: how much wider than the stage that is, each way, from the stage's middle.
+    const room = { x: 1, y: 1 };
+    if (view) {
+      const cx = view.rect.x + view.rect.w / 2, cy = view.rect.y + view.rect.h / 2;
+      room.x = Math.max(1, (0.96 * Math.min(cx, view.width - cx)) / (view.rect.w / 2));
+      room.y = Math.max(1, (0.96 * Math.min(cy, view.height - cy)) / (view.rect.h / 2));
+    }
+    const fit = this.eased(this.fitTarget(az, el, tan, aspect, room), view?.now);
     let base = (FRAMING_UNITS / 2 / (aspect >= 1 ? 1 : aspect)) / tan;
     if (fit) base = Math.max(MIN_FIT_DISTANCE, fit.radius);
     void standBack;
@@ -873,7 +886,7 @@ export class PanelScene {
    */
   private sweptHulls(frame: Frame, offsets: Map<number, Vec3> | undefined, spreads: ReadonlyMap<number, number>): PartHull[] {
     const q = (v: readonly number[], k: number): string => v.map((x) => Math.round(x * k)).join(',');
-    const m = frame.motion;
+    const m = frame.ahead ?? frame.motion;
     const key = frame.objects.map((o) => `${o.key}:${o.parentKey}:${q(o.pos, 4)}:${q(o.rot, 1)}:${q(o.scale, 4)}:${o.opacity * o.appear * o.fade > 0.003 ? 1 : 0}`).join('|')
       + '#' + JSON.stringify([m.cranks, m.cams, m.loops, m.joints, m.couples, m.muscles, m.spins.map((s) => [s.key, s.axis, s.rate !== 0, s.lock ?? null])]);
     if (key === this.sweepKey) return this.sweepHulls;
@@ -968,22 +981,22 @@ export class PanelScene {
    * margin. A tall or long model fills its stage instead of leaving it mostly empty, and, being made from the rest pose, it does not breathe
    * when a part pulses or a machine moves. Never further than the all-round sphere would put it.
    */
-  private fitTarget(az: number, el: number, tan: number, aspect: number): { center: Vector3; radius: number } | undefined {
-    const groups = [this.restSpheres, this.sweepHulls];
+  private fitTarget(az: number, el: number, tan: number, aspect: number, room = { x: 1, y: 1 }): { center: Vector3; radius: number } | undefined {
+    const groups: Array<[PartHull[], number, number]> = [[this.restSpheres, 1, 1], [this.sweepHulls, room.x, room.y]];
     if (this.restSpheres.length === 0) return undefined;
     const lo = new Vector3(Infinity, Infinity, Infinity), hi = new Vector3(-Infinity, -Infinity, -Infinity);
-    for (const parts of groups) for (const p of parts) for (const c of p.corners) { lo.min(c); hi.max(c); }
+    for (const [parts] of groups) for (const p of parts) for (const c of p.corners) { lo.min(c); hi.max(c); }
     const center = lo.add(hi).multiplyScalar(0.5);
     const toCam = new Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
     const right = new Vector3().crossVectors(new Vector3(0, 1, 0), toCam);
     if (right.lengthSq() < 1e-9) right.set(1, 0, 0);
     right.normalize();
     const up = new Vector3().crossVectors(toCam, right).normalize();
-    const tanY = tan, tanX = tan * aspect;
-    const kx = Math.sqrt(1 + tanX * tanX), ky = Math.sqrt(1 + tanY * tanY);
     const rel = new Vector3();
     let dist = 0;
-    for (const { sphere: s, corners } of groups.flat()) {
+    for (const [parts, sx, sy] of groups) for (const { sphere: s, corners } of parts) {
+      const tanY = tan * sy, tanX = tan * aspect * sx;
+      const kx = Math.sqrt(1 + tanX * tanX), ky = Math.sqrt(1 + tanY * tanY);
       // Each part needs the nearer of what its box asks and what its bounding sphere asks: a long thin part is held by its box, a round one by its sphere.
       let byBox = 0;
       for (const c of corners) {
