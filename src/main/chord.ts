@@ -44,6 +44,8 @@ export type ChordTracker = {
   keyUp(keycode: number): void;
   /** True while the chord is held. */
   readonly held: boolean;
+  /** True while any key of the chord is down (the chord may be held, or about to be made): a moment to leave the key hook alone. */
+  readonly active: boolean;
   /** Forget everything (e.g. after the hook restarts); fires stop if the chord was held. */
   reset(): void;
 };
@@ -106,6 +108,9 @@ export function createChordTracker(events: ChordEvents, keys: ChordKeys = parseH
     },
     get held() {
       return held;
+    },
+    get active() {
+      return down.size > 0;
     },
     reset() {
       down.clear();

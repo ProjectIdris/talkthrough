@@ -1,4 +1,4 @@
-import { app, clipboard, dialog, safeStorage, screen, shell } from 'electron';
+import { app, clipboard, dialog, powerMonitor, safeStorage, screen, shell } from 'electron';
 import { spawn } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
@@ -23,6 +23,7 @@ import { gridOf } from './frame-grid.ts';
 import type { Click } from './guide.ts';
 import { startHotkey, watchGuideInput } from './hotkey.ts';
 import { parseHotkey, pressChord } from './chord.ts';
+import { createHookCare, createStallMeter, kindOfEvent } from './hook-health.ts';
 import { createFrontWindowReader } from './front-window.ts';
 import { createSkipCheck } from './skip-list.ts';
 import { createSettingsService } from './settings-service.ts';
@@ -467,6 +468,20 @@ async function main(): Promise<void> {
   // What the tray icon says follows what the page is told (status and notices); the tray exists a little later, so it is handed over then.
   let trayStatusTarget: { setState(state: TrayState): void } | undefined;
   const trayStatus = createTrayStatus((state) => trayStatusTarget?.setState(state));
+  // The key hook (started further down) is counted, and restarted when an answer ends or when the system has had input the hook never heard.
+  let hotkey: ReturnType<typeof startHotkey> | null = null;
+  const stallMeter = createStallMeter();
+  const hookCare = createHookCare({
+    now: () => Date.now(),
+    restart: () => {
+      if (!hotkey) throw new Error('the key hook is not running');
+      hotkey.restart();
+    },
+    quiet: () => !hotkey?.tracker.active,
+    idleSeconds: () => powerMonitor.getSystemIdleTime(),
+    stall: () => stallMeter.lap(),
+    log,
+  });
   session = createSession({
     skipped,
     ...(uia
@@ -570,6 +585,7 @@ async function main(): Promise<void> {
     model: () => model,
     send: (displayId, message) => {
       trayStatus.feed(message);
+      if (message.kind === 'end' && hotkey) hookCare.answerEnded();
       if (options.logSteps && message.kind === 'step') log(`step ${JSON.stringify(message.step)}`);
       if (options.logSteps && message.kind === 'step-open') log(`step-open ${JSON.stringify(message.say)}`);
       if (options.logSteps && message.kind === 'action') log(`action ${JSON.stringify(message.action)}`);
@@ -682,7 +698,6 @@ async function main(): Promise<void> {
   navConsent?.onChange(() => tray.refresh());
   trayStatusTarget = tray;
 
-  let hotkey: ReturnType<typeof startHotkey> | null = null;
   if (!options.noHotkey) {
     try {
       hotkey = startHotkey({
@@ -704,7 +719,11 @@ async function main(): Promise<void> {
           frames?.start();
           session?.stop();
         },
-      }, chord, () => pressEscape());
+      }, chord, () => pressEscape(), (type) => { const kind = kindOfEvent(type); if (kind) hookCare.note(kind); });
+      const watchdog = setInterval(() => hookCare.check(), 10_000);
+      watchdog.unref();
+      powerMonitor.on('resume', () => hookCare.rearm('the computer woke'));
+      powerMonitor.on('unlock-screen', () => hookCare.rearm('the screen was unlocked'));
     } catch (error) {
       log(`the key hook could not start: ${error instanceof Error ? error.message : String(error)}`);
     }

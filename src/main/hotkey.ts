@@ -8,20 +8,35 @@ import type { ChordEvents, ChordKeys } from './chord.ts';
  * logged or buffered. The one other key it looks at is Escape, and only while the chord is held (a question being asked is cancelled; Windows makes Ctrl+Shift+Esc
  * of it, which no program can take, so it is watched, not taken). Mouse events are not read here; guide mode reads them only while a step waits (watchGuideInput).
  */
-export function startHotkey(events: ChordEvents, keys?: ChordKeys, escapeWhileHeld?: () => void) {
+export function startHotkey(events: ChordEvents, keys?: ChordKeys, escapeWhileHeld?: () => void, onInput?: (type: number) => void) {
   const tracker = createChordTracker(events, keys);
+  let running = false;
   uIOhook.on('keydown', (event) => {
     tracker.keyDown(event.keycode);
     if (event.keycode === UiohookKey.Escape && tracker.held) escapeWhileHeld?.();
   });
   uIOhook.on('keyup', (event) => tracker.keyUp(event.keycode));
+  // Only the kind of each event goes out (see hook-health.ts), never the key or the place.
+  if (onInput) uIOhook.on('input', (event) => onInput(event.type));
   uIOhook.start();
+  running = true;
   return {
     /** What the hook feeds with the person's keys; development checks feed it too (see pressChord), so they send nothing to the system. */
     tracker,
+    /** Stops the native hook and starts it again; every listener (the chord's, the guide's) stays attached. Throws when the hook could not start. */
+    restart(): void {
+      tracker.reset();
+      if (running) {
+        running = false;
+        uIOhook.stop();
+      }
+      uIOhook.start();
+      running = true;
+    },
     stop(): void {
       tracker.reset();
       uIOhook.removeAllListeners();
+      running = false;
       uIOhook.stop();
     },
   };
