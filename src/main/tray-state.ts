@@ -46,6 +46,9 @@ export function createTrayStatus(onChange: (state: TrayState) => void, options: 
           endNeeds();
         } else if (m.status === 'idle' || m.status === 'waiting') base = 'ready';
         // 'hush' (the keys went down) says nothing yet: listening follows when the microphone is open
+      } else if (m.kind === 'end') {
+        // The answer is whole: the app is not thinking any more. Most answers send no 'idle' after their end, so without this the tray said "Thinking" for good.
+        base = 'ready';
       } else if (m.kind === 'notice' && (m.level === 'error' || m.level === 'warning')) {
         endNeeds();
         needs = setTimer(() => {
