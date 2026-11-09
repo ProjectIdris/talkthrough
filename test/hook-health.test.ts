@@ -90,13 +90,43 @@ test('a hook that stays silent after a restart is retried less and less often, a
   assert.ok(made >= 2 && made <= 8, `restarts thin out, got ${made} in 20 minutes`);
 });
 
-test('a restart that fails is logged and tried again at the next check', () => {
+test('a restart that fails is logged and tried again after a wait', () => {
   const r = rig({ failRestarts: 1 });
   r.care.answerEnded();
   assert.match(r.lines.find((l) => /restart failed/.test(l))!, /could not start/);
   r.advance(10_000);
   r.care.check();
+  assert.equal(r.restarts(), 0, 'not at the very next check');
+  r.advance(25_000);
+  r.care.check();
   assert.equal(r.restarts(), 1);
+});
+
+test('a chord key left down by a hook that died does not block the restart for ever', () => {
+  // The hook died between a chord key going down and coming up: the tracker still says it is down, and nothing more will be heard.
+  const r = rig({ quiet: () => false });
+  r.input('key');
+  r.kill();
+  for (let i = 0; i < 3; i++) { r.advance(10_000); r.care.check(); }
+  assert.equal(r.restarts(), 0, 'for the first seconds a key may really be held');
+  r.care.answerEnded();
+  for (let i = 0; i < 6; i++) { r.advance(10_000); r.care.check(); }
+  assert.equal(r.restarts(), 1, 'a key down with no event for half a minute counts as released, and the hook is restarted');
+  assert.match(r.lines.find((l) => /restarted/.test(l))!, /counted as released/);
+});
+
+test('a chord key really held (events keep coming) is never restarted under the person', () => {
+  const r = rig({ quiet: () => false });
+  for (let i = 0; i < 40; i++) { r.advance(10_000); r.input('key'); r.care.check(); }
+  assert.equal(r.restarts(), 0);
+});
+
+test('a restart that keeps failing is tried and logged less and less often', () => {
+  const r = rig({ failRestarts: 1000 });
+  r.care.answerEnded();
+  for (let i = 0; i < 360; i++) { r.advance(10_000); r.input('move'); r.care.check(); }
+  const failures = r.lines.filter((l) => /restart failed/.test(l)).length;
+  assert.ok(failures >= 3 && failures <= 14, `in an hour of checks the failures thin out, got ${failures} lines`);
 });
 
 test('the chord tracker says when any key of the chord is down', () => {
@@ -118,6 +148,17 @@ test('events are sorted into kinds only', () => {
   assert.equal(kindOfEvent(11), 'mouse');
   assert.equal(kindOfEvent(9), 'move');
   assert.equal(kindOfEvent(99), null);
+});
+
+test('a hook that was stopped is not started again by a restart', { skip: process.platform !== 'win32' }, () => {
+  const downs: number[] = [];
+  const hook = startHotkey({ start: () => undefined, stop: () => undefined });
+  hook.stop();
+  hook.restart();
+  uIOhook.on('keydown', (e) => downs.push(e.keycode));
+  // A hook started again here would be running with nobody to hear it; stopping it now is harmless either way, so the check is that stop() has nothing left to stop.
+  assert.equal(hook.running(), false);
+  uIOhook.removeAllListeners();
 });
 
 test('the real hook restarts with every listener kept (nothing is sent to the system)', { skip: process.platform !== 'win32' }, () => {

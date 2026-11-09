@@ -7,10 +7,12 @@ import type { ChordEvents, ChordKeys } from './chord.ts';
  * chord tracker, which looks at the scan code, keeps two booleans and drops the rest; nothing is
  * logged or buffered. The one other key it looks at is Escape, and only while the chord is held (a question being asked is cancelled; Windows makes Ctrl+Shift+Esc
  * of it, which no program can take, so it is watched, not taken). Mouse events are not read here; guide mode reads them only while a step waits (watchGuideInput).
+ * The one thing taken from every event is its type, handed to `onInput` so the hook can be counted (hook-health.ts): never the key, never the place.
  */
 export function startHotkey(events: ChordEvents, keys?: ChordKeys, escapeWhileHeld?: () => void, onInput?: (type: number) => void) {
   const tracker = createChordTracker(events, keys);
   let running = false;
+  let stopped = false;
   uIOhook.on('keydown', (event) => {
     tracker.keyDown(event.keycode);
     if (event.keycode === UiohookKey.Escape && tracker.held) escapeWhileHeld?.();
@@ -25,6 +27,7 @@ export function startHotkey(events: ChordEvents, keys?: ChordKeys, escapeWhileHe
     tracker,
     /** Stops the native hook and starts it again; every listener (the chord's, the guide's) stays attached. Throws when the hook could not start. */
     restart(): void {
+      if (stopped) return;
       tracker.reset();
       if (running) {
         running = false;
@@ -33,7 +36,10 @@ export function startHotkey(events: ChordEvents, keys?: ChordKeys, escapeWhileHe
       uIOhook.start();
       running = true;
     },
+    /** Whether the native hook is started (false after stop(), which a later restart() does not undo). */
+    running: () => running,
     stop(): void {
+      stopped = true;
       tracker.reset();
       uIOhook.removeAllListeners();
       running = false;

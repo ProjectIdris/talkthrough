@@ -49,6 +49,8 @@ export type HookCareOptions = {
   /** The least time between two restarts the watchdog starts (ms); doubles while a restart brings no event, up to maxGapMs. */
   minGapMs?: number;
   maxGapMs?: number;
+  /** How long a chord key may stay down with no event from the hook at all before it counts as released (ms): auto-repeat and the pointer keep a held key's hook busy, so only a dead hook is this quiet. */
+  staleMs?: number;
 };
 
 export type HookCare = {
@@ -67,6 +69,7 @@ export function createHookCare(o: HookCareOptions): HookCare {
   const slackMs = o.slackMs ?? 5000;
   const minGapMs = o.minGapMs ?? 30_000;
   const maxGapMs = o.maxGapMs ?? 600_000;
+  const staleMs = o.staleMs ?? 30_000;
   const total: Counts = { keys: 0, mouse: 0, moves: 0 };
   let lap: Counts = { keys: 0, mouse: 0, moves: 0 };
   let lastEventAt = o.now();
@@ -74,6 +77,8 @@ export function createHookCare(o: HookCareOptions): HookCare {
   let gapMs = minGapMs;
   let lastWatchdogAt = -Infinity;
   let heardSince = true;
+  let failGapMs = minGapMs;
+  let retryAt = 0;
 
   const note: HookCare['note'] = (kind) => {
     const field = kind === 'key' ? 'keys' : kind === 'mouse' ? 'mouse' : 'moves';
@@ -89,21 +94,27 @@ export function createHookCare(o: HookCareOptions): HookCare {
   const say = (c: Counts): string => `keys ${c.keys}, mouse ${c.mouse}, moves ${c.moves}`;
 
   const rearm: HookCare['rearm'] = (reason) => {
-    if (!o.quiet()) {
+    const began = o.now();
+    // A key of the chord down with the hook silent for this long is a key whose release was never heard (the hook died in between): the restart clears it, rather than wait for it for ever.
+    const stale = !o.quiet() && began - lastEventAt > staleMs;
+    if (!stale && !o.quiet()) {
       waiting = reason;
       return false;
     }
-    const began = o.now();
     try {
       o.restart();
     } catch (error) {
       waiting = reason;
+      retryAt = began + failGapMs;
+      failGapMs = Math.min(failGapMs * 2, maxGapMs);
       o.log(`key hook: restart failed (${reason}): ${error instanceof Error ? error.message : String(error)}`);
       return false;
     }
     waiting = null;
+    failGapMs = minGapMs;
+    retryAt = 0;
     lastEventAt = o.now();
-    o.log(`key hook: restarted (${reason}) in ${o.now() - began} ms`);
+    o.log(`key hook: restarted (${reason}${stale ? '; a chord key down with no event for a long while was counted as released' : ''}) in ${o.now() - began} ms`);
     return true;
   };
 
@@ -120,7 +131,7 @@ export function createHookCare(o: HookCareOptions): HookCare {
     },
     check() {
       if (waiting) {
-        rearm(waiting);
+        if (o.now() >= retryAt) rearm(waiting);
         return;
       }
       const now = o.now();
