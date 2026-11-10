@@ -142,5 +142,6 @@ try {
     "VERDICT $name`: $sent sent, the page counted $n presses, $d dismissed$more`: $v"
   }
   "=== end after $([int]((Get-Date) - $began).TotalSeconds) s. A 'window mouse' line counts presses and moves that reached the page since the previous line, so read the line order, not the phase heading; look for 'pen: N stroke(s)' in phase 3."
-  Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+  # the app's processes let go of the folder a moment after they are stopped
+  foreach ($try in 1..10) { Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue; if (-not (Test-Path $work)) { break }; Start-Sleep -Milliseconds 500 }
 }
