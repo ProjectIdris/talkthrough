@@ -1013,7 +1013,8 @@ export class PanelScene {
         }
         if (!geo.boundingSphere) geo.computeBoundingSphere();
         if (!geo.boundingBox) geo.computeBoundingBox();
-        if (!geo.boundingSphere || !geo.boundingBox) continue;
+        // (a part of a living body that owns none of its skin has an empty geometry: it is nowhere, and must not count)
+        if (!geo.boundingSphere || !geo.boundingBox || geo.boundingBox.isEmpty()) continue;
         spheres.push({ sphere: geo.boundingSphere.clone().applyMatrix4(mesh.matrixWorld), corners: boxCorners(geo.boundingBox, mesh.matrixWorld) });
       }
     }

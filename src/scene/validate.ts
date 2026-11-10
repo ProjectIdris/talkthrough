@@ -352,7 +352,16 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       if (v.length > f.max) note(notes, 'trimmed', path, `points cut to ${f.max}`);
       const out: unknown[] = [];
       for (let i = 0; i < src.length; i++) {
-        const p = parseVec3(src[i], f.lo, f.hi, `${path}[${i}]`, notes);
+        let point: unknown = src[i];
+        // A point written with two numbers (the depth left off, most often on a path's last point) lies at the depth of the point beside it: a vessel
+        // or a vein is not lost for it.
+        if (Array.isArray(point) && point.length === 2 && point.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+          const depthOf = (q: unknown): number | undefined => (Array.isArray(q) && q.length === 3 && typeof q[2] === 'number' && Number.isFinite(q[2]) ? q[2] : undefined);
+          const beside = depthOf(out[out.length - 1]) ?? src.slice(i + 1).map(depthOf).find((z) => z !== undefined) ?? 0;
+          point = [point[0], point[1], beside];
+          note(notes, 'trimmed', `${path}[${i}]`, 'repaired: a point with two numbers takes the depth of the point beside it');
+        }
+        const p = parseVec3(point, f.lo, f.hi, `${path}[${i}]`, notes);
         if (!p.ok) return bad(`point ${i}: ${p.why}`);
         out.push(p.value);
       }

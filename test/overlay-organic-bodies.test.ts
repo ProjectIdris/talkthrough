@@ -31,6 +31,23 @@ test('a skin never passes its vertex ceiling, however fine it is asked for', () 
   assert.ok(far < 1e-3, `every vertex is on the ball (${far})`);
 });
 
+test('the grid of a skin never has more points than its ceiling, whatever cell or ceiling is asked for', async () => {
+  const { SKIN_NODE_CEILING } = await import('../src/overlay/organic-mesh.ts');
+  // Two small balls far apart: little skin (the vertex ceiling is nowhere near) in a large box, which is what a grid is made for.
+  const ballAt = (c: number): FieldPart => ({ ...part(lump([0.2, 0.2, 0.2])), toLocal: new Float64Array([1, 0, 0, -c, 0, 1, 0, -c, 0, 0, 1, -c]), lo: [c - 0.2, c - 0.2, c - 0.2], hi: [c + 0.2, c + 0.2, c + 0.2], inside: [c, c, c] });
+  const far = (): BodyField => new BodyField([ballAt(-3), ballAt(3)]);
+  // The grid round them (three cells of margin each side), at the cell the skin says it was cut at.
+  const points = (cell: number): number => (Math.ceil(6.4 / cell) + 7) ** 3;
+  // A fine cell, and no ceiling of the caller's to speak of: the grid asked for is some 35 million points.
+  const wide = cutSkin(far(), { cell: 0.02, maxNodes: 1e12 });
+  assert.ok(points(wide.cell) <= SKIN_NODE_CEILING, `${points(wide.cell)} grid points at cell ${wide.cell}`);
+  assert.ok(wide.position.length / 3 > 300, 'and both balls are still there');
+  // A caller's own, smaller ceiling is kept too.
+  const small = cutSkin(far(), { cell: 0.02, maxNodes: 200_000 });
+  assert.ok(points(small.cell) <= 200_000, `${points(small.cell)} grid points against the 200,000 asked`);
+  assert.ok(small.position.length / 3 > 30, 'still two balls');
+});
+
 test('a field with no finite size or cell has no skin, and says so at once', () => {
   const ball = part(lump([1, 1, 1]));
   for (const cell of [Number.NaN, 0, -1, Infinity]) assert.equal(cutSkin(new BodyField([ball]), { cell }).position.length, 0, `cell ${cell}`);
@@ -219,6 +236,29 @@ test('the cut faces of two parts side by side on one plane are the whole face be
   }
   // A box the plane does not pass through has no face.
   assert.equal(cut({ lo: [-1, -1, 0.5], hi: [1, 1, 1] }).index.length, 0);
+});
+
+test('a part that lies wholly inside the others of its body is not grown into them: it keeps a skin of its own, and the camera a place to stand', () => {
+  // A kidney as a model wrote it: a cortex, a medulla inside it, and two pyramids that poke out of the cortex and reach the medulla.
+  const kidney: Scene = { steps: [{ say: 'x', actions: [
+    { op: 'panel', x: 100, y: 100, w: 400, h: 400 },
+    { op: 'add', shape: 'blob', id: 'cortex', pts: [[0, 0.8, 0], [0, -0.8, 0], [0, 0, 0]], sizes: [[3, 2.2, 1.8], [3, 2.2, 1.8], [3.2, 2.6, 1.8]], soft: 0.6, material: 'organ' },
+    { op: 'add', shape: 'blob', id: 'medulla', pos: [0.2, 0, 0.2], pts: [[0, 0.6, 0], [0, -0.6, 0]], sizes: [[1.8, 1.2, 1.2], [1.8, 1.2, 1.2]], material: 'muscle' },
+    { op: 'add', shape: 'cone', id: 'pyr1', pos: [-0.7, 0.5, 0.9], size: [0.6, 0.8, 0.6], rot: [0, 0, 60], material: 'muscle' },
+    { op: 'add', shape: 'cone', id: 'pyr2', pos: [-0.7, -0.5, 0.9], size: [0.6, 0.8, 0.6], rot: [0, 0, 120], material: 'muscle' },
+  ] as Scene['steps'][0]['actions'] }] };
+  const frame = frameAt(kidney.steps, 0, 99);
+  const panel = new PanelScene({ tier: 'mid' });
+  for (let i = 0; i < 2; i++) panel.sync(frame, 1, VIEW);
+  const vertices = (id: string): number => {
+    let n = 0;
+    panel.nodeOf(frame.objects.find((o) => o.id === id)!.key)!.traverse((o) => { n = Math.max(n, (o as Mesh).geometry?.getAttribute('position')?.count ?? 0); });
+    return n;
+  };
+  assert.ok(panel.camera.position.toArray().every(Number.isFinite), 'the camera is somewhere');
+  assert.ok(vertices('medulla') > 500, `the medulla has its own skin (${vertices('medulla')} vertices)`);
+  assert.ok(vertices('cortex') > 500 && vertices('pyr1') > 20, 'and so have the cortex and what grows out of it');
+  panel.destroy();
 });
 
 test('a scene laid out anew (as a seek does for every frame) is the same bodies: no skin is cut twice', () => {

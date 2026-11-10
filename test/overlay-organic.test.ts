@@ -149,7 +149,7 @@ test('ten blobs in one scene stay inside the scene budget of triangles: each is 
     const total = per.reduce((a, b) => a + b, 0);
     assert.equal(per.length, 10, `${tier}: every blob is built`);
     assert.ok(per.every((t) => t > 300), `${tier}: none is empty or a scrap`);
-    assert.ok(total <= SCENE_BODY_TRIANGLES[tier] * 1.3, `${tier}: ${total} triangles in all`);
+    assert.ok(total <= SCENE_BODY_TRIANGLES[tier], `${tier}: ${total} triangles in all`);
     // Alone, the same blob has a body's whole allowance, and uses more of it.
     const alone = new PanelScene({ tier });
     alone.sync(frameAt(sceneOf(1).steps, 0, 99), 1, VIEW);
@@ -158,6 +158,30 @@ test('ten blobs in one scene stay inside the scene budget of triangles: each is 
     assert.ok(one > Math.max(...per) * 1.3, `${tier}: alone it is finer (${one}) than any of the ten (${Math.max(...per)})`);
     panel.destroy(); alone.destroy();
   }
+  // Very many separate bodies: each one's floor gives way, and the scene's ceiling still holds.
+  for (const tier of ['low', 'mid'] as const) {
+    const many = new PanelScene({ tier });
+    many.sync(frameAt(sceneOf(100).steps, 0, 99), 1, VIEW);
+    const per = triangles(many);
+    const total = per.reduce((a, b) => a + b, 0);
+    assert.equal(per.length, 100, `${tier}: every one of a hundred blobs is built`);
+    assert.ok(per.every((t) => t > 40), `${tier}: none is empty`);
+    assert.ok(total <= SCENE_BODY_TRIANGLES[tier], `${tier}: a hundred blobs are ${total} triangles in all, against ${SCENE_BODY_TRIANGLES[tier]}`);
+    many.destroy();
+  }
+  // More bodies than the ceiling can give a skin to at all: none has one, and each is still drawn, as the shapes it was written as.
+  const crowd = new PanelScene({ tier: 'low' });
+  const frame = frameAt(sceneOf(1500).steps, 0, 99);
+  crowd.sync(frame, 1, VIEW);
+  assert.ok(triangles(crowd).reduce((a, b) => a + b, 0) <= SCENE_BODY_TRIANGLES.low, 'fifteen hundred blobs stay under the ceiling');
+  let drawn = 0;
+  for (const o of frame.objects) {
+    let vertices = 0;
+    crowd.nodeOf(o.key)?.traverse((m) => { vertices = Math.max(vertices, (m as { geometry?: { getAttribute(name: string): { count: number } | undefined } }).geometry?.getAttribute('position')?.count ?? 0); });
+    if (o.shape === 'blob' && vertices > 0) drawn++;
+  }
+  assert.equal(drawn, 1500, 'and every one of them is drawn');
+  crowd.destroy();
 });
 
 test('lumps that overlap by a third, as the guide asks, melt into one mass: no crease deeper than a few percent at the usual softness', () => {

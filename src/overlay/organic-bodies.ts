@@ -33,9 +33,19 @@ export type OrganicNode = {
   path?: { geo: BufferGeometry } | undefined;
 };
 
-/** The triangles one body's skin is cut into, by tier, and those all the bodies of a scene may have together. */
+/**
+ * The triangles one body's skin is aimed at, by tier (a body with thin parts is cut finer, never to more than twice this), and the most that the skins of
+ * all the bodies of a scene have together: a ceiling, held whatever the scene (in a crowded one every body gets less).
+ */
 export const BODY_TRIANGLES = { low: 9_000, mid: 26_000, high: 60_000 } as const;
 export const SCENE_BODY_TRIANGLES = { low: 40_000, mid: 110_000, high: 220_000 } as const;
+/** A small body is aimed at no fewer triangles than this, while the scene has room for it. */
+const BODY_FLOOR = 1_500;
+/**
+ * A skin may come out this many times what it was reckoned at (the reckoning is by a box round each part) while the scene has room; when all the
+ * bodies' reckonings times this would pass the scene's ceiling, the room each has is what the ceiling leaves.
+ */
+const SKIN_ROOM = 2.5;
 /** Skins are kept a little while after their last use; never more of them than this many times the scene's triangles (the oldest go first). */
 export const KEPT_SKINS = 3;
 /** A tube of living material at least this thick shows what runs in it through its wall; a thinner one carries its flow as beads, as a pipe does. */
@@ -68,6 +78,14 @@ const idOf = (def: object): string => {
   }
   return word;
 };
+
+/** The ways out from a part's middle along which its skin is tried, to tell whether it lies inside another: the six axes and the eight diagonals. */
+const ENCLOSED_WAYS: readonly Vec3[] = (() => {
+  const ways: Vec3[] = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+  const r = Math.sqrt(1 / 3);
+  for (const x of [-r, r]) for (const y of [-r, r]) for (const z of [-r, r]) ways.push([x, y, z]);
+  return ways;
+})();
 
 const kinds = new WeakMap<object, Kind | null>();
 
@@ -247,6 +265,8 @@ type Built = {
   rel: Matrix4[];
   sizes: number[];
   hollow: boolean[];
+  /** It has no skin (the scene could not afford one fine enough for it): its parts are drawn as their own shapes. */
+  plain: boolean;
   /** The skin as it was cut (a posed body's vertices are moved from these), and the vertices of each patch that another member has a hold on. */
   restPosition: Float32Array[];
   restNormal: Float32Array[];
@@ -268,7 +288,11 @@ type Built = {
   used: number;
 };
 
-type Plan = { key: string; rel: Matrix4[]; budget: number; area: number };
+type Plan = {
+  key: string; rel: Matrix4[]; area: number;
+  /** The body's thinnest part and the cell its skin is cut at, in the body's units; the triangles that is reckoned to make, and the most it may make. */
+  thin: number; cell: number; reckoned: number; ceiling: number;
+};
 /** A skin being cut a little each frame, and the frame it was last asked for. */
 type Job = { steps: Generator<void, Built, void>; wanted: number };
 
@@ -289,6 +313,8 @@ export class OrganicBodies {
   private clock = 0;
   private insideLiving = new Set<number>();
   private jobs = new Map<string, Job>();
+  /** Whether a part lies inside the others of its body, by what they say and where they stand (see `enclosed`). */
+  private enclosedKnown = new Map<string, boolean>();
   private slice: number | undefined;
   private now: () => number;
   /** This frame is one of a live run (the host gave a clock and a slice): cutting stops at `deadline` and goes on in the next frame. */
@@ -425,6 +451,15 @@ export class OrganicBodies {
     }
     const bodies = new Map<number, Member[]>();
     members.forEach((m, i) => { const g = find(i); const list = bodies.get(g); if (list) list.push(m); else bodies.set(g, [m]); });
+    // A part that lies wholly inside the others (a medulla in a kidney's cortex, a yolk in an egg) has no skin of its own in their body: it is not grown
+    // into them, it sits in them. It stays its own body, and the one round it finds it inside (below) and shows it where it is cut.
+    for (const [g, list] of [...bodies]) {
+      if (list.length < 2) continue;
+      const inner = list.filter((m) => this.enclosed(m, list));
+      if (inner.length === 0 || inner.length === list.length) continue;
+      bodies.set(g, list.filter((m) => !inner.includes(m)));
+      for (const m of inner) bodies.set(-1 - m.o.key, [m]);
+    }
 
     // How fine: each body has its share of the scene's triangles by its size.
     let area = 0;
@@ -440,10 +475,26 @@ export class OrganicBodies {
       area += a;
     }
     this.insideLiving.clear();
+    // How fine each body is to be cut: its share of the scene's triangles by its size, a body's own figure at most and a small one's floor at least.
+    const plans = new Map<number, Plan>();
+    let reckoned = 0;
     for (const [g, list] of bodies) {
       const a = areas.get(g) as number;
-      const budget = Math.max(1_500, Math.min(BODY_TRIANGLES[this.tier], SCENE_BODY_TRIANGLES[this.tier] * (a / Math.max(area, 1e-9))));
-      const plan = this.plan(list, a, budget);
+      const plan = this.plan(list, a, Math.max(BODY_FLOOR, Math.min(BODY_TRIANGLES[this.tier], SCENE_BODY_TRIANGLES[this.tier] * (a / Math.max(area, 1e-9)))));
+      plans.set(g, plan);
+      reckoned += plan.reckoned;
+    }
+    // And the most triangles each skin may have, so that all of them together never pass the scene's ceiling: some room over what it is reckoned at, and
+    // in a crowded scene (many bodies, each with its floor) what the ceiling leaves, by steps of a tenth so a body coming or going does not have every
+    // skin cut again each time. A skin over its ceiling is cut coarser (see `make`).
+    const room = SCENE_BODY_TRIANGLES[this.tier] / Math.max(reckoned, 1);
+    const tight = room >= SKIN_ROOM ? 0 : Math.ceil(Math.log(SKIN_ROOM / room) / Math.log(1.1) - 1e-9);
+    for (const plan of plans.values()) {
+      plan.ceiling = Math.min(2 * BODY_TRIANGLES[this.tier], plan.reckoned * (SKIN_ROOM / 1.1 ** tight));
+      plan.key = `${tight}|${plan.key}`;
+    }
+    for (const [g, list] of bodies) {
+      const plan = plans.get(g) as Plan;
       let made = this.built.get(plan.key);
       if (!made) {
         let job = this.jobs.get(plan.key);
@@ -495,6 +546,35 @@ export class OrganicBodies {
     }
   }
 
+  /** Whether a part lies wholly inside the other parts of its body: every point of its own skin that is tried is in the flesh of another. */
+  private enclosed(m: Member, list: Member[]): boolean {
+    const word = `${m.o.key}:${idOf(m.o.def)}:${m.held.local}|` + list.map((q) => (q === m ? '' : `${q.o.key}:${idOf(q.o.def)}:${q.held.local}`)).join('|');
+    const known = this.enclosedKnown.get(word);
+    if (known !== undefined) return known;
+    const prim = m.kind.prim;
+    const b = primBounds(prim);
+    const reach = Math.hypot(b.hi[0] - b.lo[0], b.hi[1] - b.lo[1], b.hi[2] - b.lo[2]);
+    const c = primInside(prim);
+    const others = list.filter((q) => q !== m).map((q) => ({ prim: q.kind.prim, toLocal: new Matrix4().copy(q.held.rest).invert() }));
+    const p = new Vector3(), l = new Vector3();
+    let inside = primDistance(prim, c[0], c[1], c[2]) < 0;
+    for (let i = 0; inside && i < ENCLOSED_WAYS.length; i++) {
+      const d = ENCLOSED_WAYS[i] as Vec3;
+      // Out from the part's middle to its own skin along this way.
+      let lo = 0, hi = reach;
+      if (!(primDistance(prim, c[0] + d[0] * hi, c[1] + d[1] * hi, c[2] + d[2] * hi) > 0)) continue;
+      for (let k = 0; k < 22; k++) {
+        const mid = (lo + hi) / 2;
+        if (primDistance(prim, c[0] + d[0] * mid, c[1] + d[1] * mid, c[2] + d[2] * mid) < 0) lo = mid; else hi = mid;
+      }
+      p.set(c[0] + d[0] * hi, c[1] + d[1] * hi, c[2] + d[2] * hi).applyMatrix4(m.held.rest);
+      inside = others.some((q) => { l.copy(p).applyMatrix4(q.toLocal); return primDistance(q.prim, l.x, l.y, l.z) < 0; });
+    }
+    if (this.enclosedKnown.size > 400) this.enclosedKnown.clear();
+    this.enclosedKnown.set(word, inside);
+    return inside;
+  }
+
   private discard(key: string, b: Built): void {
     for (const g of b.geometries) g.dispose();
     for (const g of b.lining?.geometries ?? []) g?.dispose();
@@ -510,12 +590,22 @@ export class OrganicBodies {
     // The fineness in steps of a quarter, so a budget that wavers (a body that comes and goes beside it) does not ask for a new skin each time.
     const key = `${this.tier}|${Math.round(Math.log(budget) / Math.log(1.25))}|` + list.map((m, i) => `${m.o.key}:${idOf(m.o.def)}:${m.hollow ? 'h' : ''}:${i === 0 ? '' : q(rel[i] as Matrix4)}`).join('|');
     const worldScale = Math.cbrt(Math.abs(first.held.rest.determinant())) || 1;
-    return { key, rel, budget, area: area / (worldScale * worldScale) };
+    const inBody = area / (worldScale * worldScale);
+    let thin = Infinity;
+    list.forEach((m, i) => {
+      const r = (rel[i] as Matrix4).elements;
+      thin = Math.min(thin, m.kind.thin * Math.min(Math.hypot(r[0]!, r[1]!, r[2]!), Math.hypot(r[4]!, r[5]!, r[6]!), Math.hypot(r[8]!, r[9]!, r[10]!)));
+    });
+    // Fine enough for the budget, and finer (to a point) where the thinnest part would otherwise be lost.
+    const byBudget = Math.sqrt((2 * inBody) / budget);
+    const cell = Math.min(byBudget, Math.max(thin / 3.2, byBudget / 2.4));
+    return { key, rel, area: inBody, thin, cell, reckoned: (2 * inBody) / (cell * cell), ceiling: Infinity };
   }
 
   /** Cuts the skin of one body, in steps (organic-mesh.ts): the last step returns it, each member's patch a geometry in the member's own space. */
   private *make(list: Member[], plan: Plan): Generator<void, Built, void> {
-    const { key, rel, budget } = plan;
+    const { key, rel, ceiling } = plan;
+    const most = Math.min(BODY_TRIANGLES[this.tier], Math.max(64, Math.floor(ceiling / 2)));
     const parts: Array<FieldPart & { tag: number }> = [];
     const sizes: number[] = [];
     let thin = Infinity;
@@ -544,10 +634,24 @@ export class OrganicBodies {
       });
     });
     const field = new BodyField(parts);
-    // Fine enough for the budget, and finer (to a point) where the thinnest part would otherwise be lost.
-    const byBudget = Math.sqrt((2 * plan.area) / budget);
-    const cell = Math.min(byBudget, Math.max(thin / 3.2, byBudget / 2.4));
-    const skin = yield* cutSkinSteps(field, { cell, maxVertices: BODY_TRIANGLES[this.tier] });
+    // At the cell the plan reckoned, and never past the skin's ceiling: a closed skin has two triangles a vertex, and one that still comes out over (a
+    // body with holes through it has a few more) is cut again coarser.
+    let cell = plan.cell;
+    let skin = yield* cutSkinSteps(field, { cell, maxVertices: most });
+    for (let again = 0; again < 12 && skin.index.length / 3 > ceiling; again++) {
+      cell = Math.max(cell, skin.cell) * 1.15;
+      skin = yield* cutSkinSteps(field, { cell, maxVertices: most });
+    }
+    // A body whose skin the scene cannot afford (its cells would be wider than its thinnest part, which they would then miss) has none: its parts stay
+    // the shapes they were drawn as, which is what `wear` gives them back.
+    const plain = skin.position.length === 0 || skin.index.length / 3 > ceiling || skin.cell > thin;
+    if (plain) {
+      return {
+        key, field, cell: skin.cell || cell, geometries: [], patches: [], memberOf: [], partOf: [], rel, sizes, hollow: list.map(() => false), plain: true,
+        restPosition: [], restNormal: [], held: [], posed: false, wearers: [], lining: undefined, liningSteps: undefined,
+        inner: [], innerKey: '', innerKeys: [], tints: '', linear: [], triangles: 0, used: this.clock,
+      };
+    }
     const memberOf = field.parts.map((p) => (p as FieldPart & { tag: number }).tag);
     const partOf = list.map(() => 0);
     memberOf.forEach((member, part) => { partOf[member] = part; });
@@ -575,7 +679,7 @@ export class OrganicBodies {
       triangles += patch.index.length / 3;
     }
     return {
-      key, field, cell: skin.cell || cell, geometries, patches: ordered, memberOf, partOf, rel, sizes, hollow: list.map((m) => m.hollow),
+      key, field, cell: skin.cell || cell, geometries, patches: ordered, memberOf, partOf, rel, sizes, hollow: list.map((m) => m.hollow), plain: false,
       restPosition, restNormal, held: heldBy, posed: false, wearers: [], lining: undefined, liningSteps: undefined,
       inner: [], innerKey: '', innerKeys: [], tints: '', linear: [], triangles, used: this.clock,
     };
@@ -614,6 +718,10 @@ export class OrganicBodies {
   /** Puts each member's patch of a body's skin in its node, in the members' colours. */
   private wear(list: Member[], body: Built): Built {
     body.used = this.clock;
+    if (body.plain) {
+      for (const m of list) this.restore(m.held);
+      return body;
+    }
     body.wearers = list.map((m) => m.held.mesh);
     // Colours: each vertex its own part's, running into the next part's across a join, darker in a crease.
     const tints = list.map((m) => fitTint(m.held.node.pieces[0]?.surface?.userData.name, m.o.color as Rgb));

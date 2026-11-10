@@ -46,6 +46,17 @@ test('every sample scene passes unchanged', () => {
   }
 });
 
+test('a point of a path written with two numbers takes the depth of the point beside it, and the path is kept', () => {
+  const tube = (pts: unknown[]) => ({ op: 'add', shape: 'tube', id: 't', pts, radius: 0.2 });
+  const last = validateScene(scene(tube([[0, 1.2, 0.4], [-0.8, 0.7, 0.4], [-1.4, 0]])));
+  assert.deepEqual((actionsOf(last).find((a) => a.op === 'add') as { pts?: unknown } | undefined)?.pts, [[0, 1.2, 0.4], [-0.8, 0.7, 0.4], [-1.4, 0, 0.4]]);
+  assert.ok(last.issues.some((i) => i.kind === 'trimmed' && /two numbers/.test(i.message)), 'and it is noted');
+  const first = validateScene(scene(tube([[0, 1], [1, 1, 0.3], [2, 1, 0.3]])));
+  assert.deepEqual((actionsOf(first).find((a) => a.op === 'add') as { pts?: unknown } | undefined)?.pts, [[0, 1, 0.3], [1, 1, 0.3], [2, 1, 0.3]], 'the first point looks ahead');
+  // Anything else that is not three numbers still loses the path: one number, four, or a word.
+  for (const bad of [[1], [1, 2, 3, 4], ['a', 2]]) assert.equal(actionsOf(validateScene(scene(tube([[0, 0, 0], bad, [1, 1, 1]])))).length, 0, JSON.stringify(bad));
+});
+
 test('a follow-up reaches ids from the earlier turn through the same state', () => {
   const state = createSceneState();
   assert.deepEqual(validateScene(load('earth-layers.json'), state).issues, []);

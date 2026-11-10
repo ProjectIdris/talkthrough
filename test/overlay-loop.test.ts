@@ -123,6 +123,11 @@ test('a pulse written as how much it swells (a lung breathing by 0.06) is read a
   const squeeze = validate(box('b'), { op: 'loop', id: 'b', kind: 'pulse', amount: 0.7 });
   assert.deepEqual(squeeze.kept.filter((a) => a.op === 'loop').map((a) => a.amount), [0.7]);
   assert.deepEqual(squeeze.issues, []);
+  // The edges: just under 0.3 is a swell, 0.3 itself is the deepest squeeze there is and is kept, and nothing at all is not a swell of nothing.
+  const amountOf = (amount: number): number => validate(box('b'), { op: 'loop', id: 'b', kind: 'pulse', amount }).kept.filter((a) => a.op === 'loop').map((a) => a.amount as number)[0]!;
+  near(amountOf(0.29), 1.29);
+  near(amountOf(0.3), 0.3);
+  near(amountOf(0), 0.1); // held to the least there is, as it always was: not a swell of nothing
 });
 
 test('a loop locked to a part is bound at the same point as crank and cam: an unknown driver binds to the one crankshaft, the part itself is never its driver', () => {
