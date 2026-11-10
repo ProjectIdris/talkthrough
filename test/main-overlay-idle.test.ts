@@ -164,7 +164,8 @@ test('after a click on the background dismissed the answer, the next pen takes t
   const ignores = (from: number, to: number): boolean[] => log.slice(from, to).filter(([w]) => w === 'window100.ignore').map(([, v]) => v as boolean);
   assert.equal(ignores(0, dismissed).at(-1), true, 'once dismissed the window lets clicks through');
   const pen = between('the answer is dismissed', 'the pen is on');
-  assert.deepEqual(pen.filter(([w]) => w === 'window100.ignore').map(([, v]) => v), [false], 'the pen takes the mouse');
+  const penIgnores = pen.filter(([w]) => w === 'window100.ignore').map(([, v]) => v);
+  assert.ok(penIgnores.length >= 1 && penIgnores.every((v) => v === false), 'the pen takes the mouse (and the window being shown, and the pen going on, each set it again)');
   const drawn = between('the pen is on', 'a stroke right after the pen went off');
   assert.deepEqual(drawn.filter(([w]) => w === 'stroke').map(([, , id]) => id), [1, 2], 'a stroke while the pen is on, and one in the grace after, reach the program');
   assert.equal(drawn.filter(([w]) => w === 'refused').length, 0);
@@ -173,4 +174,25 @@ test('after a click on the background dismissed the answer, the next pen takes t
   assert.equal(late.filter(([w]) => w === 'refused').length, 1, 'and said so once, however many came');
   const again = between('strokes long after the pen went off', 'the end');
   assert.equal(again.filter(([w]) => w === 'refused').length, 1, 'the next time the pen was on and off, a refusal is said again');
+});
+
+test('the window\'s mouse state is never left to what was remembered: set again after a show, a new size, the pen going on, and each second; and said in the record', () => {
+  // The stand-in window lets its real state be changed behind the manager's back, as a show, a new size or the system itself may on a real display.
+  const log = run('drift');
+  const realBefore = (label: string): boolean => {
+    const at = log.findIndex(([w, n]) => w === '--' && n === label);
+    assert.ok(at > 0, label);
+    const entry = log.slice(0, at).reverse().find(([w]) => w === 'real');
+    return entry![1] as boolean;
+  };
+  assert.equal(realBefore('the pen is on'), false, 'the pen takes the mouse');
+  assert.equal(realBefore('it was undone, and a second later'), false, 'a state changed behind its back is set right again within a second');
+  assert.equal(realBefore('the display changed'), false, 'and at once when the display changed (the window was given its size again)');
+  assert.equal(realBefore('the pen is on again'), false, 'the pen taking the mouse after the window was down and shown again');
+  const said = log.filter(([w]) => w === 'mouse').map(([, line]) => String(line));
+  assert.ok(said.some((l) => /takes clicks \(the pen went on: the pen is on\)/.test(l)), 'the record says the pen took the mouse, and why');
+  assert.ok(said.some((l) => /\(the window was shown: /.test(l)) && said.some((l) => /\(the display changed: /.test(l)), 'and a show, and a display change');
+  assert.ok(said.some((l) => /1 presses and 2 moves reached its page/.test(l)), 'with the presses and moves that reached the page since the line before');
+  assert.ok(said.every((l) => /window (up|down), on top (true|false), \d+x\d+ at -?\d+,-?\d+/.test(l)), 'and what the window is');
+  assert.ok(said.length < 20, `a run of a few events is not a flood (${said.length} lines)`);
 });

@@ -247,6 +247,7 @@ async function main(): Promise<void> {
       }
     },
     onPenRefused: (displayId: number, why: string) => log(`pen: a stroke from display ${displayId} was refused: ${why}`),
+    onMouseState: log,
     onDismiss: () => {
       session?.dismiss();
       overlays.dismissAll();

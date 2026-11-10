@@ -6,6 +6,7 @@ import { mock } from 'node:test';
 type Call = [string, ...unknown[]];
 const log: Call[] = [];
 const handlers = new Map<string, Array<(event: { sender: unknown }, ...args: unknown[]) => void>>();
+const screenHandlers = new Map<string, () => void>();
 
 class FakeWebContents {
   static next = 100;
@@ -20,7 +21,8 @@ class FakeWebContents {
   }
   setAudioMuted(): void {}
   setWindowOpenHandler(): void {}
-  on(): void {}
+  readonly listeners = new Map<string, Array<(...args: unknown[]) => void>>();
+  on(event: string, fn: (...args: unknown[]) => void): void { this.listeners.set(event, [...(this.listeners.get(event) ?? []), fn]); }
   isDestroyed(): boolean { return false; }
 }
 
@@ -36,14 +38,16 @@ class FakeWindow {
   }
   get tag(): string { return `window${this.webContents.id}`; }
   setAlwaysOnTop(): void {}
-  setIgnoreMouseEvents(ignore: boolean): void { if (process.argv[2] === 'pen') log.push([`${this.tag}.ignore`, ignore]); }
+  /** What the window really does with the mouse, which the manager cannot read back: the stand-in lets a test change it behind the manager's back. */
+  realIgnore = true;
+  setIgnoreMouseEvents(ignore: boolean): void { this.realIgnore = ignore; if (process.argv[2] === 'pen' || process.argv[2] === 'drift') log.push([`${this.tag}.ignore`, ignore]); }
   setContentProtection(on: boolean): void { log.push([`${this.tag}.protect`, on]); }
   on(): void {}
   once(event: string, fn: () => void): void { this.once$.set(event, fn); }
   loadFile(): Promise<void> { return Promise.resolve(); }
-  showInactive(): void { this.visible = true; log.push([`${this.tag}.show`]); }
+  showInactive(): void { this.visible = true; if (process.argv[2] === 'drift') this.realIgnore = true; log.push([`${this.tag}.show`]); }
   hide(): void { this.visible = false; log.push([`${this.tag}.hide`]); }
-  setBounds(b: { x: number; y: number; width: number; height: number }): void { this.bounds = b; log.push([`${this.tag}.bounds`, b.width, b.height]); }
+  setBounds(b: { x: number; y: number; width: number; height: number }): void { this.bounds = b; if (process.argv[2] === 'drift') this.realIgnore = true; log.push([`${this.tag}.bounds`, b.width, b.height]); }
   getBounds(): { x: number; y: number; width: number; height: number } { return this.bounds; }
   isDestroyed(): boolean { return false; }
   isVisible(): boolean { return this.visible; }
@@ -62,7 +66,7 @@ mock.module('electron', {
     BrowserWindow: FakeWindow,
     globalShortcut: { register: () => true, unregister: () => undefined },
     ipcMain: { on: (channel: string, fn: (event: { sender: unknown }, ...args: unknown[]) => void) => { handlers.set(channel, [...(handlers.get(channel) ?? []), fn]); } },
-    screen: { getAllDisplays: () => displays, getCursorScreenPoint: () => ({ x: 0, y: 0 }), on: () => undefined, off: () => undefined },
+    screen: { getAllDisplays: () => displays, getCursorScreenPoint: () => ({ x: 0, y: 0 }), on: (event: string, fn: () => void) => { screenHandlers.set(event, fn); }, off: () => undefined },
   },
 });
 
@@ -82,6 +86,7 @@ const manager = createOverlayManager({
   answerBusy: () => busy,
   onStroke: (displayId, stroke) => { log.push(['stroke', displayId, stroke.id]); },
   onPenRefused: (displayId, why) => { log.push(['refused', displayId, why]); },
+  onMouseState: (line) => { log.push(['mouse', line]); },
   onFollowup: (_displayId, command) => { if (command === 'dismiss') manager.dismissAll(); },
 });
 manager.start();
@@ -185,6 +190,27 @@ const steps: Record<string, () => void> = {
     wait(2000);
     emit(CHANNEL.stroke, one, { id: 5, points: [[10, 10]], done: true });
     mark('the end');
+  },
+  drift() {
+    // The window's real mouse state is changed behind the manager's back (a show, a new size, the system's own doing): the manager never leaves it so.
+    manager.send(1, { kind: 'play', scene: { v: 1, steps: [] }, turn: 1 } as never);
+    manager.setPen(1);
+    log.push(['real', one.realIgnore]);
+    mark('the pen is on');
+    one.realIgnore = true;
+    wait(1250);
+    log.push(['real', one.realIgnore]);
+    mark('it was undone, and a second later');
+    screenHandlers.get('display-metrics-changed')?.();
+    log.push(['real', one.realIgnore]);
+    mark('the display changed');
+    for (const l of one.webContents.listeners.get('before-mouse-event') ?? []) { l({}, { type: 'mouseDown' }); l({}, { type: 'mouseMove' }); l({}, { type: 'mouseMove' }); }
+    manager.setPen(null);
+    wait(5000);
+    mark('the pen is off and the window down');
+    manager.setPen(1);
+    log.push(['real', one.realIgnore]);
+    mark('the pen is on again');
   },
   hidden() {
     manager.send(1, { kind: 'status', status: 'listening' });

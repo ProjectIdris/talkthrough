@@ -60,6 +60,11 @@ export type OverlayOptions = {
   onFollowup?: (displayId: number, command: 'start' | 'send' | 'cancel' | 'dismiss') => void;
   onDismiss?: (displayId: number) => void;
   onShowing?: (displayId: number, on: boolean) => void;
+  /**
+   * One line each time the window's mouse state is set (it takes clicks, or passes them on to what is beneath) and why, with what the window was
+   * seen to be and how many presses and moves reached the page since the last line: the record then says whether a window that should take the mouse did.
+   */
+  onMouseState?: (line: string) => void;
   /** Called once each time the pen is turned off and the page then sends a piece of a stroke anyway (it is dropped). */
   onPenRefused?: (displayId: number, why: string) => void;
   /** Called when the person presses a button the page put on a notice or on a words-only answer (open the settings, copy the words, pin the answer). */
@@ -75,7 +80,12 @@ export type OverlayOptions = {
   onDetail?: (displayId: number) => void;
 };
 
-type Overlay = { vis: ReturnType<typeof createOverlayVisibility>; catchers: ButtonCatchers; buttons: ButtonRect[]; visible: ReturnType<typeof createVisibleRegionReceiver>; guide: ReturnType<typeof createGuideArmGate>; modelHit?: { x: number; y: number; revision: number; askedAt: number; hit?: boolean }; window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; showing: boolean; pointerHeld: boolean; mouseIgnored: boolean; pen: boolean; penOffAt: number; /** The pen-off moment a refused stroke was last reported for. */ refusedFor: number; /** The person pressed on the model (E is then ours until they leave it). */ engaged: boolean; /** The model's region on the screen (what the page last said the pointer is over) and the gate that checks the real cursor against it. */ region?: Region; gate: ReturnType<typeof createKeyGate>; guard: ReturnType<typeof createClickGuard> };
+type Overlay = { vis: ReturnType<typeof createOverlayVisibility>; catchers: ButtonCatchers; buttons: ButtonRect[]; visible: ReturnType<typeof createVisibleRegionReceiver>; guide: ReturnType<typeof createGuideArmGate>; modelHit?: { x: number; y: number; revision: number; askedAt: number; hit?: boolean }; window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; showing: boolean; pointerHeld: boolean; mouseIgnored: boolean; /** When the window's mouse state was last set, the presses and moves that reached its page since the last line about it, and the lines written. */ mouseSetAt: number; presses: number; moves: number; mouseLines: number; pen: boolean; penOffAt: number; /** The pen-off moment a refused stroke was last reported for. */ refusedFor: number; /** The person pressed on the model (E is then ours until they leave it). */ engaged: boolean; /** The model's region on the screen (what the page last said the pointer is over) and the gate that checks the real cursor against it. */ region?: Region; gate: ReturnType<typeof createKeyGate>; guard: ReturnType<typeof createClickGuard> };
+
+/** A window that is up has its mouse state set again at least this often (it is never read back from the system). */
+const MOUSE_REASSERT_MS = 1000;
+/** The most lines about one window's mouse state that a pointer sliding over and off things may write (see `setMouse`). */
+const MOUSE_LINES_MAX = 400;
 
 /**
  * One overlay window per display: transparent, frameless, always on top, off the taskbar, never
@@ -208,6 +218,17 @@ export function createOverlayManager(options: OverlayOptions) {
     window.once('ready-to-show', () => {
       if (alwaysUp) overlay.vis.wake();
     });
+    // What reaches the page, counted (kinds only, never where): the record then says whether a window that took the mouse was pressed on.
+    try {
+      window.webContents.on('before-mouse-event', (_event, mouse) => {
+        const o = overlays.get(display.id);
+        if (!o) return;
+        if (mouse.type === 'mouseDown') o.presses++;
+        else if (mouse.type === 'mouseMove') o.moves++;
+      });
+    } catch {
+      // an Electron without the event: the counts stay at zero
+    }
     void window.loadFile(options.page);
     const overlay: Overlay = {
       vis: createOverlayVisibility({
@@ -216,6 +237,10 @@ export function createOverlayManager(options: OverlayOptions) {
           window.showInactive();
           // Windows places a window by the DPI of the display it started on; set the bounds again once shown.
           window.setBounds(overlay.display.bounds);
+          // Whatever the window's mouse state was when it went down, and whatever showing it did to it, it is set again now, never skipped for what was remembered.
+          if (!window.isAlwaysOnTop()) window.setAlwaysOnTop(true, 'screen-saver');
+          overlay.mouseLines = 0; // each show has its own lines (see MOUSE_LINES_MAX)
+          applyMouse(overlay, 'the window was shown', true);
         },
         hide: () => {
           if (!window.isDestroyed()) window.hide();
@@ -228,7 +253,7 @@ export function createOverlayManager(options: OverlayOptions) {
         },
       }),
       buttons: [], visible: createVisibleRegionReceiver(), guide: createGuideArmGate(),
-      window, display, ready: false, queue: [], pageWantsClicks: false, showing: false, pointerHeld: false, mouseIgnored: true, pen: false, penOffAt: 0, refusedFor: -1, engaged: false,
+      window, display, ready: false, queue: [], pageWantsClicks: false, showing: false, pointerHeld: false, mouseIgnored: true, mouseSetAt: 0, presses: 0, moves: 0, mouseLines: 0, pen: false, penOffAt: 0, refusedFor: -1, engaged: false,
       gate: createKeyGate({ cursor: () => screen.getCursorScreenPoint() }),
       // The page repeats "the pointer is over the model" while it is true; if it goes quiet, the window lets clicks through again.
       guard: createClickGuard({
@@ -236,7 +261,7 @@ export function createOverlayManager(options: OverlayOptions) {
           overlay.pageWantsClicks = false;
           overlay.engaged = false;
           refreshKey();
-          applyMouse(overlay);
+          applyMouse(overlay, 'the pointer lease on the model ran out');
         },
       }),
     };
@@ -303,7 +328,7 @@ export function createOverlayManager(options: OverlayOptions) {
       overlay.engaged = false;
     }
     refreshKey();
-    applyMouse(overlay);
+    applyMouse(overlay, `the page says the pointer is ${over ? 'over' : 'off'} the model`);
     settle(overlay);
   });
   // The user pressed on the model (or its button): E is ours until the pointer leaves it, the click lease runs out or the
@@ -321,7 +346,7 @@ export function createOverlayManager(options: OverlayOptions) {
     overlay.showing = on;
     escape.showing(overlay.display.id, on);
     options.onShowing?.(overlay.display.id, on);
-    applyMouse(overlay);
+    applyMouse(overlay, `the page says a drawing is ${on ? 'up' : 'gone'}`);
     settle(overlay);
   });
   ipcMain.on(CHANNEL.followup, (event, command: unknown) => {
@@ -331,18 +356,18 @@ export function createOverlayManager(options: OverlayOptions) {
   });
   ipcMain.on(CHANNEL.visibleRegions, (event, snapshot: unknown) => {
     const overlay = find(event);
-    if (overlay && overlay.visible.accept(snapshot)) { applyMouse(overlay); settle(overlay); }
+    if (overlay && overlay.visible.accept(snapshot)) { applyMouse(overlay, 'the page sent its regions'); settle(overlay); }
   });
   ipcMain.on(CHANNEL.guideReady, (event, token: unknown, revision: unknown) => {
     const overlay = find(event), snapshot = overlay?.visible.current;
     if (!overlay || !snapshot) return;
-    if (overlay.guide.ack(token, revision, snapshot.revision, snapshot.regions.some((r) => r.kind === 'guide-target' && r.alpha > 0))) applyMouse(overlay);
+    if (overlay.guide.ack(token, revision, snapshot.revision, snapshot.regions.some((r) => r.kind === 'guide-target' && r.alpha > 0))) applyMouse(overlay, 'the guide target was armed');
   });
   ipcMain.on(CHANNEL.pointerHeld, (event, on: unknown) => {
     const overlay = find(event);
     if (!overlay || typeof on !== 'boolean') return;
     overlay.pointerHeld = on;
-    applyMouse(overlay);
+    applyMouse(overlay, `the page says a press is ${on ? 'held' : 'let go'}`);
     settle(overlay);
   });
   ipcMain.on(CHANNEL.modelHit, (event, value: unknown) => {
@@ -351,7 +376,7 @@ export function createOverlayManager(options: OverlayOptions) {
     const r = value as { x?: unknown; y?: unknown; revision?: unknown; hit?: unknown };
     if (r.x !== pending.x || r.y !== pending.y || r.revision !== pending.revision || typeof r.hit !== 'boolean') return;
     pending.hit = r.hit;
-    applyMouse(overlay);
+    applyMouse(overlay, 'the page answered where the model is');
   });
   ipcMain.on(CHANNEL.stroke, (event, stroke: unknown) => {
     const overlay = find(event);
@@ -431,17 +456,17 @@ export function createOverlayManager(options: OverlayOptions) {
     overlay.catchers.update(buttonsForMode(overlay.buttons, overlay.pen), { x: overlay.display.bounds.x, y: overlay.display.bounds.y }, !options.hidden);
   }
 
-  function clearRouting(overlay: Overlay): void {
+  function clearRouting(overlay: Overlay, why: string): void {
     overlay.guide.disable();
     overlay.showing = false;
     overlay.pageWantsClicks = false;
     overlay.engaged = false;
     overlay.guard.release();
     refreshKey();
-    applyMouse(overlay);
+    applyMouse(overlay, why);
   }
 
-  function applyMouse(overlay: Overlay): void {
+  function applyMouse(overlay: Overlay, why: string, force = false): void {
     if (overlay.window.isDestroyed()) return;
     const snapshot = overlay.visible.current;
     const bounds = overlay.window.getBounds();
@@ -464,17 +489,45 @@ export function createOverlayManager(options: OverlayOptions) {
       }
     }
     const ignore = ignoreMouse(overlay.pageWantsClicks, overlay.pen, { active, guideTarget, control, held: overlay.pointerHeld, modelPossible, ...(modelHit !== undefined ? { modelHit } : {}) });
-    if (ignore === overlay.mouseIgnored) return;
+    const changed = ignore !== overlay.mouseIgnored;
+    // What the window really does is not read back from it, so what is remembered is not trusted for long: a window that is up has its state set again at least
+    // each MOUSE_REASSERT_MS, whatever happened to it meanwhile (shown, hidden, moved, a display changed, the system's own doing).
+    const stale = Date.now() - overlay.mouseSetAt >= MOUSE_REASSERT_MS && overlay.window.isVisible();
+    if (!changed && !force && !stale) return;
+    const reason = overlay.pen ? 'the pen is on' : overlay.pointerHeld ? 'a press is held on the page'
+      : active ? `an answer is up (guide target ${guideTarget}, control ${control}, model ${modelPossible ? String(modelHit) : 'not under the pointer'})`
+        : overlay.pageWantsClicks ? 'the pointer is over the model' : 'nothing wants clicks';
+    setMouse(overlay, ignore, changed || force ? `${why}: ${reason}` : undefined);
+  }
+
+  /** Sets the window's mouse state, whatever it was thought to be, and says so (a refresh of what stands is not said). */
+  function setMouse(overlay: Overlay, ignore: boolean, say: string | undefined): void {
+    const window = overlay.window;
+    try {
+      if (ignore) window.setIgnoreMouseEvents(true, { forward: true });
+      else window.setIgnoreMouseEvents(false);
+    } catch (error) {
+      options.onMouseState?.(`window mouse: display ${overlay.display.id}: setting the state failed: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
     overlay.mouseIgnored = ignore;
-    if (ignore) overlay.window.setIgnoreMouseEvents(true, { forward: true });
-    else overlay.window.setIgnoreMouseEvents(false);
+    overlay.mouseSetAt = Date.now();
+    if (say === undefined) return;
+    // A pointer sliding over and off things can change it often; a long run is cut to the lines that matter (the pen, a show, a display).
+    const important = /pen|shown|display/.test(say);
+    if (overlay.mouseLines >= MOUSE_LINES_MAX && !important) return;
+    overlay.mouseLines++;
+    const b = window.getBounds();
+    options.onMouseState?.(`window mouse: display ${overlay.display.id} ${ignore ? 'passes clicks on' : 'takes clicks'} (${say}); window ${window.isVisible() ? 'up' : 'down'}, on top ${window.isAlwaysOnTop()}, ${b.width}x${b.height} at ${b.x},${b.y}; since the last line ${overlay.presses} presses and ${overlay.moves} moves reached its page`);
+    overlay.presses = 0;
+    overlay.moves = 0;
   }
 
   // A protected guide target must return to the underlying page as the real pointer enters it.
-  const mouseTimer = setInterval(() => { for (const overlay of overlays.values()) if (overlay.showing) applyMouse(overlay); }, 25);
+  const mouseTimer = setInterval(() => { for (const overlay of overlays.values()) if (overlay.showing) applyMouse(overlay, 'timer'); }, 25);
   mouseTimer.unref();
   // Now and then, whatever else changed (a question ended, a fade finished): look again at whether the window is still needed.
-  const visibilityTimer = setInterval(() => { for (const overlay of overlays.values()) settle(overlay); }, 250);
+  const visibilityTimer = setInterval(() => { for (const overlay of overlays.values()) { settle(overlay); if (!overlay.window.isDestroyed() && overlay.window.isVisible()) applyMouse(overlay, 'timer'); } }, 250);
   visibilityTimer.unref();
 
   function sync(): void {
@@ -486,6 +539,7 @@ export function createOverlayManager(options: OverlayOptions) {
       else {
         existing.display = display;
         existing.window.setBounds(display.bounds);
+        if (existing.window.isVisible()) applyMouse(existing, 'the display changed', true);
         existing.window.webContents.send(CHANNEL.display, infoFor(display));
       }
     }
@@ -504,11 +558,11 @@ export function createOverlayManager(options: OverlayOptions) {
     send(displayId: number, message: SceneMessage): void {
       const deliver = (overlay: Overlay, m: SceneMessage) => {
         if (wakesOverlay(m)) overlay.vis.wake();
-        if (m.kind === 'clear' || m.kind === 'dismiss' || ((m.kind === 'begin' || m.kind === 'play') && m.turn <= 1 && !('detail' in m && m.detail))) clearRouting(overlay);
+        if (m.kind === 'clear' || m.kind === 'dismiss' || ((m.kind === 'begin' || m.kind === 'play') && m.turn <= 1 && !('detail' in m && m.detail))) clearRouting(overlay, `a ${m.kind} was sent`);
         let guideToken: number | undefined;
         if (m.kind === 'status') {
           if (m.status === 'waiting') guideToken = overlay.guide.begin(); else overlay.guide.disable();
-          applyMouse(overlay);
+          applyMouse(overlay, `status ${m.status}`);
         }
         if (overlay.ready) overlay.window.webContents.send(CHANNEL.scene, m);
         else overlay.queue.push(m);
@@ -539,7 +593,8 @@ export function createOverlayManager(options: OverlayOptions) {
         try {
           if (!overlay.window.isDestroyed()) {
             if (on) overlay.engaged = false; // the pen draws on the screen; E is not ours then
-            applyMouse(overlay);
+            // Never skipped for what was remembered: the pen going on or off sets the window's state again.
+            applyMouse(overlay, on ? 'the pen went on' : 'the pen went off', on || was);
             syncCatchers(overlay);
           }
         } catch (error) {
@@ -550,7 +605,7 @@ export function createOverlayManager(options: OverlayOptions) {
     },
     clearAll(): void {
       for (const overlay of overlays.values()) {
-        clearRouting(overlay);
+        clearRouting(overlay, 'everything was cleared');
         if (overlay.ready) overlay.window.webContents.send(CHANNEL.scene, { kind: 'clear' } satisfies SceneMessage);
         overlay.queue.length = 0;
       }
@@ -605,7 +660,7 @@ export function createOverlayManager(options: OverlayOptions) {
     /** Escape was pressed: every page stops its voice and lets its drawing fade quickly away. */
     dismissAll(): void {
       for (const overlay of overlays.values()) {
-        clearRouting(overlay);
+        clearRouting(overlay, 'the answer was dismissed');
         overlay.queue.length = 0;
         if (overlay.ready && !overlay.window.isDestroyed()) overlay.window.webContents.send(CHANNEL.scene, { kind: 'dismiss' } satisfies SceneMessage);
       }
