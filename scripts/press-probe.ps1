@@ -37,7 +37,7 @@ $work = Join-Path $env:TEMP ('tt-press-probe-' + [guid]::NewGuid().ToString('N')
 # The tape: the bundled sample's steps, answered the same way to each of three questions.
 $tape = Join-Path $work 'tape.json'
 & node -e "const s=require(process.argv[1]);const call={outputs:s.steps.map((step,k)=>({at:150*(k+1),output:{type:'step',step}}))};require('fs').writeFileSync(process.argv[2],JSON.stringify({calls:[call,call,call]}))" (Join-Path $Repo 'samples\scenes\anchor-assembly.json') $tape
-$cli = @('.', "--user-data-dir=$work\ud", '--self-chord', '--self-chord-gap', '17000', '--chord-hold', '3000', '--exit-after-chord', '3', '--replay-answer', $tape,
+$cli = @('.', "--user-data-dir=$work\ud", '--self-chord', '--self-chord-gap', '14000', '--chord-hold', '6000', '--exit-after-chord', '3', '--replay-answer', $tape,
   '--question', 'what is this||and this||and this', '--fake-mic', '--silent-voice', '--max-seconds', '58', $(if ($Gpu) { '--gpu' } else { '--software' }))
 $app = Start-Process -FilePath (Join-Path $Repo 'node_modules\electron\dist\electron.exe') -ArgumentList $cli -WorkingDirectory $Repo -RedirectStandardOutput "$work\out.txt" -RedirectStandardError "$work\err.txt" -WindowStyle Hidden -PassThru
 $began = Get-Date
@@ -111,7 +111,7 @@ try {
   $act = @()
   if (Wait-For 'chord pressed' 2 30) { if (Answer-Up 2) { foreach ($p in $points) { $act += (Click-At $p[0] $p[1]); Start-Sleep -Milliseconds 1200 } } else { $act += 'answer 2 never came up; nothing sent' } } else { $act += 'second chord did not come in 30 s; nothing sent' }
   Phase 'Phase 2: answer 2, the same three clicks' $act
-  # Phase 3: the pen, in answer 2 (the third chord is held 3 s)
+  # Phase 3: the pen, in answer 2 (the third chord is held 6 s: the drag starts about 1.5 s after the pen goes on, because the guard asks the system twice first)
   $act = @()
   if (Wait-For 'chord pressed' 3 30) { if (Wait-For 'pen: on' 3 5) { Start-Sleep -Milliseconds 500; $act += (Drag-From 1000 600) } else { $act += 'the pen did not go on; nothing sent' } } else { $act += 'third chord did not come in 30 s; nothing sent' }
   [void](Wait-For 'pen: [1-9][0-9]* stroke' 1 6); Start-Sleep -Seconds 1 # the stroke is on record once the question is heard and its screenshot composed
