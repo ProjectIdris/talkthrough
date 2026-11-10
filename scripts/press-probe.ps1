@@ -114,7 +114,7 @@ try {
   # Phase 3: the pen, in answer 2 (the third chord is held 3 s)
   $act = @()
   if (Wait-For 'chord pressed' 3 30) { if (Wait-For 'pen: on' 3 5) { Start-Sleep -Milliseconds 500; $act += (Drag-From 1000 600) } else { $act += 'the pen did not go on; nothing sent' } } else { $act += 'third chord did not come in 30 s; nothing sent' }
-  Start-Sleep -Seconds 5
+  [void](Wait-For 'pen: [1-9][0-9]* stroke' 1 6); Start-Sleep -Seconds 1 # the stroke is on record once the question is heard and its screenshot composed
   Phase 'Phase 3: chord held in answer 2, one pen drag before release' $act
 } finally {
   if ($script:down) { [P]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero); $script:down = $false }
@@ -134,8 +134,12 @@ try {
     $d = @($stretch[$k] | Where-Object { $_ -match 'answer dismissed' }).Count
     $name = @('answer 1 (control)', 'answer 2', 'chord 3 with the pen')[$k]
     $sent = if ($k -lt $script:sentIn.Count) { $script:sentIn[$k] } else { 0 }
-    $v = if ($sent -eq 0) { 'NO VERDICT (nothing was sent)' } elseif ($n -ge 1) { 'PASS (presses reached the page)' } else { 'FAIL (sent, none reached the page)' }
-    "VERDICT $name`: $sent sent, the page counted $n presses, $d dismissed: $v"
+    $strokes = @($stretch[$k] | Where-Object { $_ -match 'pen: [1-9][0-9]* stroke' }).Count
+    # Chord 3 is the pen: a counted press is not enough, the stroke must be on record ("pen: N stroke(s)").
+    $ok = if ($k -eq 2) { $n -ge 1 -and $strokes -ge 1 } else { $n -ge 1 }
+    $v = if ($sent -eq 0) { 'NO VERDICT (nothing was sent)' } elseif ($ok) { 'PASS' } elseif ($k -eq 2 -and $n -ge 1) { 'FAIL (presses reached the page, but no pen: N stroke(s) line)' } else { 'FAIL (sent, none reached the page)' }
+    $more = if ($k -eq 2) { ", $strokes stroke line(s)" } else { '' }
+    "VERDICT $name`: $sent sent, the page counted $n presses, $d dismissed$more`: $v"
   }
   "=== end after $([int]((Get-Date) - $began).TotalSeconds) s. A 'window mouse' line counts presses and moves that reached the page since the previous line, so read the line order, not the phase heading; look for 'pen: N stroke(s)' in phase 3."
   Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue

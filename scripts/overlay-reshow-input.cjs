@@ -1,6 +1,6 @@
 // Check, in a hidden off-screen window (nothing on a display, software drawn, no input sent) made with the overlay's window options, that the window's input child (the Chromium window that takes the mouse for the page)
 // is shown, and is what the system hands a press at the window's centre, after the window is hidden and shown again. Hiding then showing the old way (showInactive and the same bounds) leaves it hidden: the control
-// below must show that, or this check cannot tell right from wrong. Windows only. Run:  electron scripts/overlay-reshow-input.cjs   (exit 0 when the control shows the fault and the shown-again overlay window does not have it).
+// below must show that, or this check cannot tell right from wrong. Windows only. Run:  node scripts/overlay-reshow-input.cjs   (it starts Electron itself, once for the control and once for the overlay show; exit 0 when the control shows the fault and the shown-again overlay window does not have it).
 // Capped at 90 s.
 const path = require('path');
 const os = require('os');
