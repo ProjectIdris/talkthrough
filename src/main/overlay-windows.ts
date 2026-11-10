@@ -80,7 +80,7 @@ export type OverlayOptions = {
   onDetail?: (displayId: number) => void;
 };
 
-type Overlay = { vis: ReturnType<typeof createOverlayVisibility>; catchers: ButtonCatchers; buttons: ButtonRect[]; visible: ReturnType<typeof createVisibleRegionReceiver>; guide: ReturnType<typeof createGuideArmGate>; modelHit?: { x: number; y: number; revision: number; askedAt: number; hit?: boolean }; window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; showing: boolean; pointerHeld: boolean; mouseIgnored: boolean; /** When the window's mouse state was last set, the presses and moves that reached its page since the last line about it, and the lines written. */ mouseSetAt: number; presses: number; moves: number; mouseLines: number; pen: boolean; penOffAt: number; /** The pen-off moment a refused stroke was last reported for. */ refusedFor: number; /** The person pressed on the model (E is then ours until they leave it). */ engaged: boolean; /** The model's region on the screen (what the page last said the pointer is over) and the gate that checks the real cursor against it. */ region?: Region; gate: ReturnType<typeof createKeyGate>; guard: ReturnType<typeof createClickGuard> };
+type Overlay = { vis: ReturnType<typeof createOverlayVisibility>; catchers: ButtonCatchers; buttons: ButtonRect[]; visible: ReturnType<typeof createVisibleRegionReceiver>; guide: ReturnType<typeof createGuideArmGate>; modelHit?: { x: number; y: number; revision: number; askedAt: number; hit?: boolean }; window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; showing: boolean; pointerHeld: boolean; mouseIgnored: boolean; /** When the window's mouse state was last set, the presses and moves that reached its page since the last line about it, and the lines written. */ mouseSetAt: number; presses: number; moves: number; mouseLines: number; /** A failure to set the state was already written since the window was last shown. */ mouseFailed: boolean; pen: boolean; penOffAt: number; /** The pen-off moment a refused stroke was last reported for. */ refusedFor: number; /** The person pressed on the model (E is then ours until they leave it). */ engaged: boolean; /** The model's region on the screen (what the page last said the pointer is over) and the gate that checks the real cursor against it. */ region?: Region; gate: ReturnType<typeof createKeyGate>; guard: ReturnType<typeof createClickGuard> };
 
 /** A window that is up has its mouse state set again at least this often (it is never read back from the system). */
 const MOUSE_REASSERT_MS = 1000;
@@ -240,6 +240,7 @@ export function createOverlayManager(options: OverlayOptions) {
           // Whatever the window's mouse state was when it went down, and whatever showing it did to it, it is set again now, never skipped for what was remembered.
           if (!window.isAlwaysOnTop()) window.setAlwaysOnTop(true, 'screen-saver');
           overlay.mouseLines = 0; // each show has its own lines (see MOUSE_LINES_MAX)
+          overlay.mouseFailed = false; // and may say once that setting the state failed
           applyMouse(overlay, 'the window was shown', true);
         },
         hide: () => {
@@ -253,7 +254,7 @@ export function createOverlayManager(options: OverlayOptions) {
         },
       }),
       buttons: [], visible: createVisibleRegionReceiver(), guide: createGuideArmGate(),
-      window, display, ready: false, queue: [], pageWantsClicks: false, showing: false, pointerHeld: false, mouseIgnored: true, mouseSetAt: 0, presses: 0, moves: 0, mouseLines: 0, pen: false, penOffAt: 0, refusedFor: -1, engaged: false,
+      window, display, ready: false, queue: [], pageWantsClicks: false, showing: false, pointerHeld: false, mouseIgnored: true, mouseSetAt: 0, presses: 0, moves: 0, mouseLines: 0, mouseFailed: false, pen: false, penOffAt: 0, refusedFor: -1, engaged: false,
       gate: createKeyGate({ cursor: () => screen.getCursorScreenPoint() }),
       // The page repeats "the pointer is over the model" while it is true; if it goes quiet, the window lets clicks through again.
       guard: createClickGuard({
@@ -507,7 +508,11 @@ export function createOverlayManager(options: OverlayOptions) {
       if (ignore) window.setIgnoreMouseEvents(true, { forward: true });
       else window.setIgnoreMouseEvents(false);
     } catch (error) {
-      options.onMouseState?.(`window mouse: display ${overlay.display.id}: setting the state failed: ${error instanceof Error ? error.message : String(error)}`);
+      // It is tried again at the next look (25 ms while a drawing is up), so it is said once for each time the window is shown, not at each try.
+      if (!overlay.mouseFailed) {
+        overlay.mouseFailed = true;
+        options.onMouseState?.(`window mouse: display ${overlay.display.id}: setting the state failed (said once for each show): ${error instanceof Error ? error.message : String(error)}`);
+      }
       return;
     }
     overlay.mouseIgnored = ignore;

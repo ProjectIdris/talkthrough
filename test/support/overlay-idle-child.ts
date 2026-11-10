@@ -7,6 +7,8 @@ type Call = [string, ...unknown[]];
 const log: Call[] = [];
 const handlers = new Map<string, Array<(event: { sender: unknown }, ...args: unknown[]) => void>>();
 const screenHandlers = new Map<string, () => void>();
+/** The 'throws' mode: setting a window's mouse state fails while this is true. */
+let throwing = false;
 
 class FakeWebContents {
   static next = 100;
@@ -40,7 +42,7 @@ class FakeWindow {
   setAlwaysOnTop(): void {}
   /** What the window really does with the mouse, which the manager cannot read back: the stand-in lets a test change it behind the manager's back. */
   realIgnore = true;
-  setIgnoreMouseEvents(ignore: boolean): void { this.realIgnore = ignore; if (process.argv[2] === 'pen' || process.argv[2] === 'drift') log.push([`${this.tag}.ignore`, ignore]); }
+  setIgnoreMouseEvents(ignore: boolean): void { if (process.argv[2] === 'throws' && throwing) throw new Error('the system refused'); this.realIgnore = ignore; if (process.argv[2] === 'pen' || process.argv[2] === 'drift') log.push([`${this.tag}.ignore`, ignore]); }
   setContentProtection(on: boolean): void { log.push([`${this.tag}.protect`, on]); }
   on(): void {}
   once(event: string, fn: () => void): void { this.once$.set(event, fn); }
@@ -190,6 +192,28 @@ const steps: Record<string, () => void> = {
     wait(2000);
     emit(CHANNEL.stroke, one, { id: 5, points: [[10, 10]], done: true });
     mark('the end');
+  },
+  throws() {
+    // Setting the state keeps failing, with a drawing up and the pointer moving: the record says so once for each show of the window, not at each try (every 25 ms).
+    manager.send(1, { kind: 'play', scene: { v: 1, steps: [] }, turn: 1 } as never);
+    emit(CHANNEL.visibleRegions, one, snapshot([{ id: 'model-geometry', kind: 'content', alpha: 1 }]));
+    emit(CHANNEL.showing, one, true);
+    throwing = true;
+    manager.setPen(1);
+    wait(5000);
+    mark('five seconds of failing');
+    emit(CHANNEL.showing, one, false);
+    emit(CHANNEL.visibleRegions, one, snapshot([]));
+    manager.setPen(null);
+    wait(5000);
+    mark('the pen is off and the window down');
+    manager.setPen(1);
+    wait(5000);
+    mark('shown again, failing again');
+    throwing = false;
+    wait(1500);
+    log.push(['real', one.realIgnore]);
+    mark('it works again');
   },
   drift() {
     // The window's real mouse state is changed behind the manager's back (a show, a new size, the system's own doing): the manager never leaves it so.

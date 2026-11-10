@@ -196,3 +196,14 @@ test('the window\'s mouse state is never left to what was remembered: set again 
   assert.ok(said.every((l) => /window (up|down), on top (true|false), \d+x\d+ at -?\d+,-?\d+/.test(l)), 'and what the window is');
   assert.ok(said.length < 20, `a run of a few events is not a flood (${said.length} lines)`);
 });
+
+test('a window whose mouse state cannot be set says so once for each time it is shown, not at each try', () => {
+  const log = run('throws');
+  const at = (label: string): number => log.findIndex(([w, n]) => w === '--' && n === label);
+  const failures = (from: number, to: number): number => log.slice(from, to).filter(([w, line]) => w === 'mouse' && /failed/.test(String(line))).length;
+  assert.equal(failures(0, at('five seconds of failing')), 1, 'five seconds of tries every 25 ms: one line');
+  assert.equal(failures(at('five seconds of failing'), at('the pen is off and the window down')), 0, 'and none while it is down');
+  assert.equal(failures(at('the pen is off and the window down'), at('shown again, failing again')), 1, 'shown again, it is said again, once');
+  const recovered = log.slice(0, at('it works again')).reverse().find(([w]) => w === 'real');
+  assert.equal(recovered?.[1], false, 'and once the system lets it, the pen has the mouse (the failing is tried again)');
+});
