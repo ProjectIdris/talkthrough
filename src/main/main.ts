@@ -241,10 +241,12 @@ async function main(): Promise<void> {
       else if (command === 'send') session?.sendFollowup();
       else if (command === 'cancel') session?.cancelFollowup();
       else {
+        log('answer dismissed: a click on the background');
         session?.dismiss();
         overlays.dismissAll();
       }
     },
+    onPenRefused: (displayId: number, why: string) => log(`pen: a stroke from display ${displayId} was refused: ${why}`),
     onDismiss: () => {
       session?.dismiss();
       overlays.dismissAll();
@@ -267,7 +269,10 @@ async function main(): Promise<void> {
   /** Escape: the question being asked is cancelled, or the answer stopped and its drawing faded away. */
   function pressEscape(): void {
     const what = session?.escape() ?? 'nothing';
-    if (what !== 'cancelled') overlays.dismissAll();
+    if (what !== 'cancelled') {
+      log(`answer dismissed: Escape (${what})`);
+      overlays.dismissAll();
+    }
     overlays.refreshEscape();
   }
   overlays.start();

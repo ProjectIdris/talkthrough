@@ -227,6 +227,13 @@ export function createSession(deps: SessionDeps) {
   let releasedAt = 0;
   /** The press whose pen strokes still count: the one held now, and for a moment after release. */
   let penFor: Attempt | null = null;
+  /** The last reason a piece of a stroke was turned away, so a hand that keeps drawing logs it once. */
+  let refusedPen = '';
+  const refusePen = (why: string): void => {
+    if (why === refusedPen) return;
+    refusedPen = why;
+    deps.log(`pen: a stroke was refused: ${why}`);
+  };
   /**
    * After a right click cancelled the question: the pen's window keeps the mouse until the button comes up (or this long has passed), so
    * the release never reaches the window underneath, where it could open a menu.
@@ -354,6 +361,12 @@ export function createSession(deps: SessionDeps) {
   /** A true outside dismiss cancels any unsent attempt and clears the explanation's retained thread. */
   function dismiss(): void {
     const a = attempt;
+    // While the keys are held the pen has the mouse, so a click on the background is not a dismissal: it is a press left over from before, and it must not
+    // end the question being asked.
+    if (a?.chord) {
+      deps.log('dismissal ignored: the keys are held');
+      return;
+    }
     if (a) {
       dropAttempt('the explanation was dismissed');
       if (a.chord) {
@@ -444,12 +457,14 @@ export function createSession(deps: SessionDeps) {
       }
     }
     penFor = a;
+    refusedPen = '';
     try {
       deps.setPen(a.displayId);
       send(a.displayId, { kind: 'pen', on: true, ...(deps.penFlush ? { attemptId: a.id } : {}) });
+      deps.log(`pen: on for display ${a.displayId} (press ${a.id})`);
     } catch (error) {
       penOff(a.displayId);
-      deps.log(`pen: ${error instanceof Error ? error.message : String(error)}`);
+      deps.log(`pen: refused: ${error instanceof Error ? error.message : String(error)}`);
     }
     if (supersedes) send(a.displayId, { kind: 'status', status: 'idle' });
     send(a.displayId, { kind: 'status', status: 'hush' });
@@ -1077,7 +1092,11 @@ export function createSession(deps: SessionDeps) {
     /** A piece of a pen stroke from the page on `displayId`; only the press being held (or just released) takes it. */
     stroke(displayId: number, piece: Stroke): void {
       const a = penFor;
-      if (!a || a.displayId !== displayId || !Number.isFinite(piece.id) || (deps.penFlush && piece.attemptId !== a.id) || a.drain?.done) return;
+      if (!a) return refusePen('no press is holding the pen');
+      if (a.displayId !== displayId) return refusePen(`it came from display ${displayId}, the press is on display ${a.displayId}`);
+      if (!Number.isFinite(piece.id)) return;
+      if (deps.penFlush && piece.attemptId !== a.id) return refusePen(`it belongs to press ${String(piece.attemptId)}, not press ${a.id}`);
+      if (a.drain?.done) return refusePen('the press had ended');
       // A circle taken back (undo): it is not part of the question any more, so not of the picture, the crop or the numbering.
       if (piece.removed === true) {
         a.strokes.delete(piece.id);

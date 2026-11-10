@@ -40,7 +40,7 @@ import { Finishing } from './post.ts';
 import type { Tier } from './materials.ts';
 import { PenLayer, drawPen, routePenPointer, undoPlace } from './pen.ts';
 import { clearVisibleRegions, containsVisiblePoint, publishVisibleRegions, readVisibleRegions, regionsForMark } from './visible-regions.ts';
-import { createDismissCapture, createPointerOwner, routePointer } from './pointer-owner.ts';
+import { createDismissCapture, createPointerOwner, DISMISS_STALL_MS, routePointer } from './pointer-owner.ts';
 import { hitVisibleModel } from './model-hit.ts';
 import type { VisibleRegion, VisibleRegionSnapshot } from './visible-regions.ts';
 import { Player, VOICE_PATIENCE_MARGIN_MS, createSilentVoice } from './player.ts';
@@ -1193,11 +1193,36 @@ const dragOwner = createPointerOwner((on) => {
   }
   request();
 });
-const dismissOwner = createDismissCapture(() => interactionBridge.followup?.('dismiss'), { onTimeout: () => {
+/** Lets go of a background press without dismissing anything: the capture, the paused fade and the program's hold on the pointer. */
+function giveUpDismissHold(): void {
+  const id = dismissPointer;
   dismissPointer = undefined;
   resumeDismissFade();
+  if (id !== undefined && document.documentElement.hasPointerCapture(id)) document.documentElement.releasePointerCapture(id);
   window.talkthrough.pointerHeld(false);
-} });
+}
+const dismissOwner = createDismissCapture(() => interactionBridge.followup?.('dismiss'), {
+  onTimeout: () => {
+    dismissPointer = undefined;
+    resumeDismissFade();
+    window.talkthrough.pointerHeld(false);
+  },
+  // The release never came: nothing was clicked, so nothing is dismissed, and the pointer is handed back.
+  onStall: () => {
+    console.log('talkthrough: a background press was held with no release for ' + DISMISS_STALL_MS + ' ms; given up, nothing dismissed');
+    giveUpDismissHold();
+  },
+});
+
+/** The pen goes on: a press still held from before (a background press whose release never came, a model drag) is given up, so its button-up is never taken for the pen's. */
+function dropHeldPresses(): void {
+  if (dismissOwner.held) {
+    dismissOwner.abort();
+    giveUpDismissHold();
+    console.log('talkthrough: the pen went on with a background press still held; the press was given up');
+  }
+  dragOwner.cancel();
+}
 
 function cancelOwnedPointer(): void {
   dragOwner.cancel();
@@ -1611,6 +1636,7 @@ function applyScene(message: SceneMessage): void {
         penAttemptId = message.attemptId;
         penEnding = false;
         cancelling = false;
+        dropHeldPresses();
         pen.turnOn();
       } else {
         if (message.attemptId !== undefined && message.attemptId !== penAttemptId) break;

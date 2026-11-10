@@ -36,7 +36,7 @@ class FakeWindow {
   }
   get tag(): string { return `window${this.webContents.id}`; }
   setAlwaysOnTop(): void {}
-  setIgnoreMouseEvents(): void {}
+  setIgnoreMouseEvents(ignore: boolean): void { if (process.argv[2] === 'pen') log.push([`${this.tag}.ignore`, ignore]); }
   setContentProtection(on: boolean): void { log.push([`${this.tag}.protect`, on]); }
   on(): void {}
   once(event: string, fn: () => void): void { this.once$.set(event, fn); }
@@ -80,6 +80,9 @@ const manager = createOverlayManager({
   ...(mode === 'hidden' ? { hidden: true } : {}),
   ...(mode === 'backdrop' ? { backdrop: 'page.png' } : {}),
   answerBusy: () => busy,
+  onStroke: (displayId, stroke) => { log.push(['stroke', displayId, stroke.id]); },
+  onPenRefused: (displayId, why) => { log.push(['refused', displayId, why]); },
+  onFollowup: (_displayId, command) => { if (command === 'dismiss') manager.dismissAll(); },
 });
 manager.start();
 
@@ -149,6 +152,39 @@ const steps: Record<string, () => void> = {
     manager.send(1, { kind: 'play', scene: { v: 1, steps: [] }, turn: 1 } as never);
     mark('a fresh play on display 1 clears display 2 and leaves it down');
     wait(0);
+  },
+  pen() {
+    // An answer is up and the page owns the background; a click on it dismisses; the next chord takes the pen and the window takes the mouse; strokes
+    // reach the program while it is on and, once, a refusal is reported if the page keeps sending them after it is off.
+    manager.send(1, { kind: 'play', scene: { v: 1, steps: [] }, turn: 1 } as never);
+    emit(CHANNEL.visibleRegions, one, snapshot([{ id: 'model-geometry', kind: 'content', alpha: 1 }]));
+    emit(CHANNEL.showing, one, true);
+    wait(1000);
+    mark('the background is pressed');
+    emit(CHANNEL.pointerHeld, one, true);
+    emit(CHANNEL.followup, one, 'dismiss');
+    emit(CHANNEL.pointerHeld, one, false);
+    emit(CHANNEL.visibleRegions, one, snapshot([]));
+    emit(CHANNEL.showing, one, false);
+    wait(3000);
+    mark('the answer is dismissed');
+    manager.setPen(1);
+    mark('the pen is on');
+    emit(CHANNEL.stroke, one, { id: 1, points: [[10, 10], [20, 20]], done: true });
+    wait(500);
+    manager.setPen(null);
+    emit(CHANNEL.stroke, one, { id: 2, points: [[10, 10]], done: true });
+    mark('a stroke right after the pen went off');
+    wait(2000);
+    emit(CHANNEL.stroke, one, { id: 3, points: [[10, 10]], done: true });
+    emit(CHANNEL.stroke, one, { id: 4, points: [[10, 10]], done: true });
+    mark('strokes long after the pen went off');
+    manager.setPen(1);
+    wait(500);
+    manager.setPen(null);
+    wait(2000);
+    emit(CHANNEL.stroke, one, { id: 5, points: [[10, 10]], done: true });
+    mark('the end');
   },
   hidden() {
     manager.send(1, { kind: 'status', status: 'listening' });

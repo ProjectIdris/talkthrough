@@ -65,3 +65,25 @@ test('background hold survives blur or capture loss until release, with a bounde
   timers.fire?.(); assert.equal(owner.held, false); assert.equal(dismissed, 3); assert.equal(expired, 1);
   owner.begin(4); owner.lost(4); owner.suppress(); timers.fire?.(); assert.equal(dismissed, 3, 'superseded press cannot dismiss new content');
 });
+
+test('a background press whose release never came is given up without a dismissal, so it cannot take the button-up of the pen for its own', () => {
+  const timers = new Map<number, () => void>(); let next = 0, dismissed = 0, stalled = 0;
+  const owner = createDismissCapture(() => dismissed++, {
+    setTimer: (fn: () => void) => { timers.set(++next, fn); return next; },
+    clearTimer: (h: unknown) => { timers.delete(h as number); },
+    onStall: () => stalled++,
+  });
+  assert.equal(owner.begin(1), true);
+  assert.equal(owner.held, true);
+  // No release, no capture loss: only time passes.
+  for (const fn of [...timers.values()]) fn();
+  assert.equal(stalled, 1);
+  assert.equal(owner.held, false, 'the hold is let go');
+  assert.equal(dismissed, 0, 'nothing was clicked, so nothing is dismissed');
+  owner.release(1);
+  assert.equal(dismissed, 0, 'a later button-up of the same pointer (the pen) is not a release');
+  assert.equal(owner.begin(1), true, 'the next press can begin');
+  owner.release(1);
+  assert.equal(dismissed, 1);
+  assert.equal(timers.size, 0, 'a finished press leaves no timer');
+});

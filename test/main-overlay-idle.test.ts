@@ -152,3 +152,25 @@ test('the overlay windows are in every capture except our own: not protected whe
   assert.ok(order.indexOf('window100.protect:false') < at('mark:after the capture'));
   assert.equal(order.slice(0, at('mark:before the capture')).filter((x) => x.includes('.protect')).length, 0, 'nothing protected before the capture');
 });
+
+test('after a click on the background dismissed the answer, the next pen takes the mouse and its strokes arrive; a stroke sent after the pen is off is reported once', () => {
+  const log = run('pen');
+  const between = (from: string, to: string): Call[] => {
+    const a = log.findIndex(([w, n]) => w === '--' && n === from), b = log.findIndex(([w, n]) => w === '--' && n === to);
+    assert.ok(a >= 0 && b > a, `marks ${from} / ${to}`);
+    return log.slice(a, b);
+  };
+  const dismissed = log.findIndex(([w, n]) => w === '--' && n === 'the answer is dismissed');
+  const ignores = (from: number, to: number): boolean[] => log.slice(from, to).filter(([w]) => w === 'window100.ignore').map(([, v]) => v as boolean);
+  assert.equal(ignores(0, dismissed).at(-1), true, 'once dismissed the window lets clicks through');
+  const pen = between('the answer is dismissed', 'the pen is on');
+  assert.deepEqual(pen.filter(([w]) => w === 'window100.ignore').map(([, v]) => v), [false], 'the pen takes the mouse');
+  const drawn = between('the pen is on', 'a stroke right after the pen went off');
+  assert.deepEqual(drawn.filter(([w]) => w === 'stroke').map(([, , id]) => id), [1, 2], 'a stroke while the pen is on, and one in the grace after, reach the program');
+  assert.equal(drawn.filter(([w]) => w === 'refused').length, 0);
+  const late = between('a stroke right after the pen went off', 'strokes long after the pen went off');
+  assert.equal(late.filter(([w]) => w === 'stroke').length, 0, 'long after the pen went off a stroke is dropped');
+  assert.equal(late.filter(([w]) => w === 'refused').length, 1, 'and said so once, however many came');
+  const again = between('strokes long after the pen went off', 'the end');
+  assert.equal(again.filter(([w]) => w === 'refused').length, 1, 'the next time the pen was on and off, a refusal is said again');
+});

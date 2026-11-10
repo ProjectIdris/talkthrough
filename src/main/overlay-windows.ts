@@ -60,6 +60,8 @@ export type OverlayOptions = {
   onFollowup?: (displayId: number, command: 'start' | 'send' | 'cancel' | 'dismiss') => void;
   onDismiss?: (displayId: number) => void;
   onShowing?: (displayId: number, on: boolean) => void;
+  /** Called once each time the pen is turned off and the page then sends a piece of a stroke anyway (it is dropped). */
+  onPenRefused?: (displayId: number, why: string) => void;
   /** Called when the person presses a button the page put on a notice or on a words-only answer (open the settings, copy the words, pin the answer). */
   onAction?: (displayId: number, action: PageAction) => void;
   /**
@@ -73,7 +75,7 @@ export type OverlayOptions = {
   onDetail?: (displayId: number) => void;
 };
 
-type Overlay = { vis: ReturnType<typeof createOverlayVisibility>; catchers: ButtonCatchers; buttons: ButtonRect[]; visible: ReturnType<typeof createVisibleRegionReceiver>; guide: ReturnType<typeof createGuideArmGate>; modelHit?: { x: number; y: number; revision: number; askedAt: number; hit?: boolean }; window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; showing: boolean; pointerHeld: boolean; mouseIgnored: boolean; pen: boolean; penOffAt: number; /** The person pressed on the model (E is then ours until they leave it). */ engaged: boolean; /** The model's region on the screen (what the page last said the pointer is over) and the gate that checks the real cursor against it. */ region?: Region; gate: ReturnType<typeof createKeyGate>; guard: ReturnType<typeof createClickGuard> };
+type Overlay = { vis: ReturnType<typeof createOverlayVisibility>; catchers: ButtonCatchers; buttons: ButtonRect[]; visible: ReturnType<typeof createVisibleRegionReceiver>; guide: ReturnType<typeof createGuideArmGate>; modelHit?: { x: number; y: number; revision: number; askedAt: number; hit?: boolean }; window: BrowserWindow; display: Display; ready: boolean; queue: SceneMessage[]; pageWantsClicks: boolean; showing: boolean; pointerHeld: boolean; mouseIgnored: boolean; pen: boolean; penOffAt: number; /** The pen-off moment a refused stroke was last reported for. */ refusedFor: number; /** The person pressed on the model (E is then ours until they leave it). */ engaged: boolean; /** The model's region on the screen (what the page last said the pointer is over) and the gate that checks the real cursor against it. */ region?: Region; gate: ReturnType<typeof createKeyGate>; guard: ReturnType<typeof createClickGuard> };
 
 /**
  * One overlay window per display: transparent, frameless, always on top, off the taskbar, never
@@ -226,7 +228,7 @@ export function createOverlayManager(options: OverlayOptions) {
         },
       }),
       buttons: [], visible: createVisibleRegionReceiver(), guide: createGuideArmGate(),
-      window, display, ready: false, queue: [], pageWantsClicks: false, showing: false, pointerHeld: false, mouseIgnored: true, pen: false, penOffAt: 0, engaged: false,
+      window, display, ready: false, queue: [], pageWantsClicks: false, showing: false, pointerHeld: false, mouseIgnored: true, pen: false, penOffAt: 0, refusedFor: -1, engaged: false,
       gate: createKeyGate({ cursor: () => screen.getCursorScreenPoint() }),
       // The page repeats "the pointer is over the model" while it is true; if it goes quiet, the window lets clicks through again.
       guard: createClickGuard({
@@ -354,7 +356,14 @@ export function createOverlayManager(options: OverlayOptions) {
   ipcMain.on(CHANNEL.stroke, (event, stroke: unknown) => {
     const overlay = find(event);
     const t = stroke as Partial<Stroke> | null;
-    if (!overlay || !(overlay.pen || Date.now() - overlay.penOffAt < PEN_GRACE_MS) || !t || typeof t.id !== 'number' || !Array.isArray(t.points)) return;
+    if (!overlay || !t || typeof t.id !== 'number' || !Array.isArray(t.points)) return;
+    if (!(overlay.pen || Date.now() - overlay.penOffAt < PEN_GRACE_MS)) {
+      if (overlay.refusedFor !== overlay.penOffAt) {
+        overlay.refusedFor = overlay.penOffAt;
+        options.onPenRefused?.(overlay.display.id, 'the pen is off for this display');
+      }
+      return;
+    }
     const points: Array<[number, number]> = [];
     for (const p of t.points.slice(0, 2000)) {
       if (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) points.push([Math.min(1000, Math.max(0, Number(p[0]))), Math.min(1000, Math.max(0, Number(p[1])))]);
