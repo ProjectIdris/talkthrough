@@ -31,6 +31,8 @@ export type Options = {
   software: boolean;
   /** Press and release the chord once through the key hook itself (checks the whole path without a keyboard). */
   selfChord: boolean;
+  /** Milliseconds between one self-made chord and the next press (checks that need a long answer in between). */
+  selfChordGapMs: number;
   /** Quit after this many chord presses have been fully processed (checks). */
   exitAfterChord: number;
   /** Settings file to read instead of the one in the app's data folder. */
@@ -87,7 +89,7 @@ export type Options = {
 
 export function parseArgs(argv: readonly string[]): Options {
   const options: Options = {
-    playSample: false, noHotkey: false, firstRun: false, fakeMic: false, visibleToCapture: false, gpu: false, software: false, exitAfterChord: 0, selfChord: false,
+    playSample: false, noHotkey: false, firstRun: false, fakeMic: false, visibleToCapture: false, gpu: false, software: false, exitAfterChord: 0, selfChord: false, selfChordGapMs: 6000,
     hidden: false, silentVoice: false, chordHoldMs: 2000, logSteps: false, frameEveryMs: 700, settleSeconds: 9, recordFps: 30, driveAfter: 12,
   };
   const value = (i: number, name: string): string => {
@@ -159,6 +161,7 @@ export function parseArgs(argv: readonly string[]): Options {
       case '--settle-seconds': options.settleSeconds = Number(value(i, a)); i++; break;
       case '--frame-every': options.frameEveryMs = Number(value(i, a)); i++; break;
       case '--self-chord': options.selfChord = true; break;
+      case '--self-chord-gap': options.selfChordGapMs = Number(value(i, a)); i++; break;
       case '--exit-after-chord': options.exitAfterChord = Number(value(i, a)); i++; break;
       default: break; // Electron and the OS pass their own arguments
     }

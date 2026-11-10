@@ -748,7 +748,7 @@ async function main(): Promise<void> {
     };
     // One press per question asked for (two by default); a further press would stop an answer still arriving.
     const presses = options.detailAfter !== undefined ? 1 : options.exitAfterChord || 2;
-    for (let i = 0; i < presses; i++) setTimeout(() => press(options.chordHoldMs), 2500 + i * (options.chordHoldMs + 6000));
+    for (let i = 0; i < presses; i++) setTimeout(() => press(options.chordHoldMs), 2500 + i * (options.chordHoldMs + options.selfChordGapMs));
   }
   if (options.maxSeconds) setTimeout(quit, options.maxSeconds * 1000);
 }
