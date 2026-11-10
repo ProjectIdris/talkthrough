@@ -93,7 +93,9 @@ function Drag-From($x, $y) {
 $show = 'window mouse|dismissed|chord pressed|chord released|pen:|stroke|question heard|screenshot|key hook|tape'
 $report = New-Object System.Collections.Generic.List[string]
 $script:from = 0
+$script:sentIn = @()
 function Phase($title, $actions) {
+  $script:sentIn += @($actions | Where-Object { $_ -match '-> sent' }).Count
   $report.Add("=== $title"); foreach ($a in $actions) { $report.Add("  [" + [int]((Get-Date) - $began).TotalSeconds + " s] " + $a) }
   $all = @(Lines); $report.Add("  app log:"); foreach ($l in ($all | Select-Object -Skip $script:from | Where-Object { $_ -match $show })) { $report.Add('    ' + ($l -replace '^\[talkthrough ', '[')) }
   $script:from = $all.Count
@@ -119,6 +121,22 @@ try {
   [void][P]::SetCursorPos($saved.X, $saved.Y)
   if (-not $app.HasExited) { & taskkill /T /F /PID $app.Id | Out-Null }
   $report
+  # The verdict, read from the app's own lines: in each stretch (after a chord is released until the next chord, and the third chord's own hold) how many presses the page counted and whether a click dismissed the answer.
+  $stretch = @((New-Object System.Collections.Generic.List[string]), (New-Object System.Collections.Generic.List[string]), (New-Object System.Collections.Generic.List[string])); $rel = 0; $prs = 0
+  foreach ($l in (Lines)) {
+    if ($l -match 'chord pressed') { $prs++ }
+    if ($prs -ge 3) { $i = 2 } elseif ($rel -ge 1 -and $prs -eq $rel) { $i = $rel - 1 } else { $i = -1 }
+    if ($i -ge 0) { $stretch[$i].Add($l) }
+    if ($l -match 'chord released') { $rel++ }
+  }
+  foreach ($k in 0..2) {
+    $n = 0; foreach ($l in $stretch[$k]) { if ($l -match 'since the last line (\d+) presses') { $n += [int]$Matches[1] } }
+    $d = @($stretch[$k] | Where-Object { $_ -match 'answer dismissed' }).Count
+    $name = @('answer 1 (control)', 'answer 2', 'chord 3 with the pen')[$k]
+    $sent = if ($k -lt $script:sentIn.Count) { $script:sentIn[$k] } else { 0 }
+    $v = if ($sent -eq 0) { 'NO VERDICT (nothing was sent)' } elseif ($n -ge 1) { 'PASS (presses reached the page)' } else { 'FAIL (sent, none reached the page)' }
+    "VERDICT $name`: $sent sent, the page counted $n presses, $d dismissed: $v"
+  }
   "=== end after $([int]((Get-Date) - $began).TotalSeconds) s. A 'window mouse' line counts presses and moves that reached the page since the previous line, so read the line order, not the phase heading; look for 'pen: N stroke(s)' in phase 3."
   Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
 }
