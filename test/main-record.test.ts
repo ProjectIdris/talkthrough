@@ -56,6 +56,34 @@ test('a question gets its own dated folder holding what was sent, heard, called,
   }
 });
 
+test("the lines from the chord down to the question's start (the window shown, the pen, the capture) are in the first question's log, once, and not in the next one's", () => {
+  const dir = scratch();
+  try {
+    let n = 0;
+    const rec = createQuestionRecord({ dir, now: () => stamp(n++) });
+    const press = 'window mouse: display 1 takes clicks (the pen went on: the pen is on); since the last line 0 presses and 0 moves reached its page';
+    rec.line('settings file: x');
+    rec.line('chord pressed');
+    rec.line(press);
+    rec.line('pen: on for display 1 (press 1)');
+    rec.line('chord released');
+    assert.deepEqual(readdirSync(dir), [], 'nothing is written before a question begins');
+    rec.begin('question');
+    const first = rec.folder()!;
+    rec.line('key hook: during this answer keys 0, mouse 2, moves 0');
+    const lines = (folder: string): string[] => read(folder, 'log.txt').trim().split('\n').map((l) => l.slice(13));
+    assert.deepEqual(lines(first), ['chord pressed', press, 'pen: on for display 1 (press 1)', 'chord released', 'key hook: during this answer keys 0, mouse 2, moves 0'], 'from the chord on, nothing before it');
+    rec.line('chord pressed');
+    rec.line('pen: on for display 1 (press 2)');
+    rec.begin('question');
+    assert.deepEqual(lines(rec.folder()!), ['chord pressed', 'pen: on for display 1 (press 2)'], "only its own lines, not the first question's");
+    rec.begin('detail');
+    assert.equal(existsSync(join(rec.folder()!, 'log.txt')), false, 'a detail pass after no chord gets no old lines');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('nothing is written before a question begins, and two questions in one second get two folders', () => {
   const dir = scratch();
   try {

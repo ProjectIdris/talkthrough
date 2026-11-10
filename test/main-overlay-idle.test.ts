@@ -53,6 +53,18 @@ test('the overlay window is up for a question and its answer, and down between t
   assert.equal(log.filter(([w]) => w === 'window101.show').length, 0);
 });
 
+test('each time the window is shown its size is changed and set again, which brings the page its mouse back after a hide (the input child stays hidden otherwise)', () => {
+  const log = run('normal');
+  const shows = log.map((c, i) => (c[0] === 'window100.show' ? i : -1)).filter((i) => i >= 0);
+  assert.ok(shows.length >= 2, 'the run shows the window more than once (a re-show after a hide is the case)');
+  for (const i of shows) {
+    const next = log.slice(i + 1).filter((c) => c[0] === 'window100.bounds').slice(0, 2);
+    assert.equal(next.length, 2, 'two sizes are set after each show');
+    assert.equal(next[0]?.[1], next[1]?.[1], 'the same width');
+    assert.equal(Number(next[0]?.[2]), Number(next[1]?.[2]) + 1, "one pixel taller, then the display's own height");
+  }
+});
+
 test('the window is up before the page is told, so the first frame is not waiting for it', () => {
   const log = run('normal');
   const names = log.map(([w, ...rest]) => (w === 'page100.send' ? `send:${rest[1]}` : w));
@@ -134,7 +146,11 @@ test('what the page shows, the pen, a click lease and a busy answer in a window 
 
 test('nothing but the visibility rule shows or hides an overlay window', () => {
   const source = readFileSync(new URL('../src/main/overlay-windows.ts', import.meta.url), 'utf8');
-  assert.equal((source.match(/\.showInactive\(\)/g) ?? []).length, 1, 'one place shows it');
+  const shower = readFileSync(new URL('../src/main/overlay-show.ts', import.meta.url), 'utf8');
+  assert.equal((source.match(/\.showInactive\(\)/g) ?? []).length, 0, 'the window is shown only through showOverlayWindow');
+  assert.equal((source.match(/showOverlayWindow\(window,/g) ?? []).length, 1, 'one place shows it');
+  assert.equal((shower.match(/\.showInactive\(\)/g) ?? []).length, 1, 'and it never takes the focus');
+  assert.equal((shower.match(/\.show\(\)/g) ?? []).length, 0, "show() would take the focus from the person's app");
   assert.equal((source.match(/window\.hide\(\)/g) ?? []).length, 1, 'one place hides it');
   assert.ok(/if \(wakesOverlay\(m\)\) overlay\.vis\.wake\(\);\s+if \(m\.kind === 'clear'/.test(source), 'the window is raised before the page is sent the message');
 });

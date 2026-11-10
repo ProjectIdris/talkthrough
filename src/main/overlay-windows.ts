@@ -9,6 +9,7 @@ import { electronCatcherWindow } from './button-window.ts';
 import type { CaptureShield } from './capture-shield.ts';
 import { createClickGuard, createGuideArmGate, createKeyGate, createKeyHold, ignoreMouse, keyWanted } from './interaction.ts';
 import { createEscape } from './escape.ts';
+import { showOverlayWindow } from './overlay-show.ts';
 import { createOverlayVisibility, overlayOccupied, wakesOverlay } from './overlay-visibility.ts';
 import type { Region } from './interaction.ts';
 import { containsWireContentExceptModel, containsWireId, containsWireRegion, createVisibleRegionReceiver } from './visible-region-wire.ts';
@@ -234,9 +235,7 @@ export function createOverlayManager(options: OverlayOptions) {
       vis: createOverlayVisibility({
         show: () => {
           if (options.hidden || window.isDestroyed()) return;
-          window.showInactive();
-          // Windows places a window by the DPI of the display it started on; set the bounds again once shown.
-          window.setBounds(overlay.display.bounds);
+          showOverlayWindow(window, overlay.display.bounds); // never window.show(): that takes the focus from the person's app
           // Whatever the window's mouse state was when it went down, and whatever showing it did to it, it is set again now, never skipped for what was remembered.
           if (!window.isAlwaysOnTop()) window.setAlwaysOnTop(true, 'screen-saver');
           overlay.mouseLines = 0; // each show has its own lines (see MOUSE_LINES_MAX)

@@ -68,6 +68,11 @@ type Options = {
 
 const pad = (n: number, width = 2): string => String(n).padStart(width, '0');
 
+/** The lines kept for the question that has not begun yet: the chord, the window, the pen and the capture all come before its folder opens. */
+const BEFORE_LINES_MAX = 120;
+/** The line that starts what a question's folder keeps from before it opened (main logs it when the chord goes down); a line starts with its 12-character time and a space. */
+const BEFORE_STARTS_AT = /^chord pressed/;
+
 /** `2026-11-05_16-31-07`: the local date and time. */
 export function folderName(at: Date): string {
   return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}_${pad(at.getHours())}-${pad(at.getMinutes())}-${pad(at.getSeconds())}`;
@@ -113,6 +118,8 @@ export function createQuestionRecord(options: Options): QuestionRecord {
   const keep = options.keep ?? RECORD_KEEP;
   const clock = options.now ?? (() => new Date());
   let warned = false;
+  /** Every line said, with its time, since the last folder was opened (the newest BEFORE_LINES_MAX). */
+  let recent: string[] = [];
   let current: { dir: string; startedAt: Date; recordOrder: number; kind: string; calls: number; steps: unknown[]; open?: { say: string; actions: unknown[] }; report: Record<string, unknown>; voice: string[]; errors: string[] } | undefined;
 
   /** Runs a write; whatever goes wrong is said once and never reaches the question. */
@@ -166,11 +173,19 @@ export function createQuestionRecord(options: Options): QuestionRecord {
         }
         current = { dir, startedAt: at, recordOrder, kind, calls: 0, steps: [], report: {}, voice: [], errors: [] };
         pruneFolders(options.dir, [...folders, { name, order: recordOrder }], keep);
+        // What was said from the chord down to now (the window shown, the pen, the capture) belongs to this question; without it its first lines are in no folder.
+        let from = -1;
+        recent.forEach((line, i) => { if (BEFORE_STARTS_AT.test(line.slice(13))) from = i; });
+        if (from >= 0) append('log.txt', `${recent.slice(from).join('\n')}\n`);
       });
+      recent = [];
     },
     line(text) {
+      const stamped = `${clock().toISOString().slice(11, 23)} ${text}`;
+      recent.push(stamped);
+      if (recent.length > BEFORE_LINES_MAX) recent.shift();
       if (!current) return;
-      append('log.txt', `${clock().toISOString().slice(11, 23)} ${text}\n`);
+      append('log.txt', `${stamped}\n`);
     },
     transcript(text, speech) {
       if (!current) return;
