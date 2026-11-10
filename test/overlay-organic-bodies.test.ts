@@ -261,6 +261,26 @@ test('a part that lies wholly inside the others of its body is not grown into th
   panel.destroy();
 });
 
+test('a part left with none of the skin (a twin lying exactly under another) is nowhere, and the camera still has a place', () => {
+  const twins: Scene = { steps: [{ say: 'x', actions: [
+    { op: 'panel', x: 100, y: 100, w: 400, h: 400 },
+    { op: 'add', shape: 'blob', id: 'one', pts: [[0, 0, 0]], sizes: [[2, 2, 2]], material: 'organ' },
+    { op: 'add', shape: 'blob', id: 'two', pts: [[0, 0, 0]], sizes: [[2, 2, 2]], material: 'organ' },
+    { op: 'add', shape: 'blob', id: 'third', pos: [1.2, 0, 0], pts: [[0, 0, 0]], sizes: [[1.6, 1.6, 1.6]], material: 'organ' },
+  ] as Scene['steps'][0]['actions'] }] };
+  const frame = frameAt(twins.steps, 0, 99);
+  const panel = new PanelScene({ tier: 'mid' });
+  for (let i = 0; i < 2; i++) panel.sync(frame, 1, VIEW);
+  const vertices = (id: string): number => {
+    let n = 0;
+    panel.nodeOf(frame.objects.find((o) => o.id === id)!.key)!.traverse((o) => { n = Math.max(n, (o as Mesh).geometry?.getAttribute('position')?.count ?? 0); });
+    return n;
+  };
+  assert.ok(Math.min(vertices('one'), vertices('two')) === 0 && Math.max(vertices('one'), vertices('two')) > 200, `one twin has the skin and the other none (${vertices('one')}, ${vertices('two')})`);
+  assert.ok(panel.camera.position.toArray().every(Number.isFinite), 'the camera is somewhere');
+  panel.destroy();
+});
+
 test('a scene laid out anew (as a seek does for every frame) is the same bodies: no skin is cut twice', () => {
   const panel = new PanelScene({ tier: 'mid' });
   panel.sync(frameAt(HAND.steps, 0, 99), 1, VIEW);

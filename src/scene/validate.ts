@@ -354,8 +354,8 @@ function parseField(f: Field, v: unknown, path: string, state: SceneState, notes
       for (let i = 0; i < src.length; i++) {
         let point: unknown = src[i];
         // A point written with two numbers (the depth left off, most often on a path's last point) lies at the depth of the point beside it: a vessel
-        // or a vein is not lost for it.
-        if (Array.isArray(point) && point.length === 2 && point.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+        // or a vein is not lost for it. Places only (a list that may go below zero): a size of two numbers has no depth to borrow.
+        if (f.lo < 0 && Array.isArray(point) && point.length === 2 && point.every((n) => typeof n === 'number' && Number.isFinite(n))) {
           const depthOf = (q: unknown): number | undefined => (Array.isArray(q) && q.length === 3 && typeof q[2] === 'number' && Number.isFinite(q[2]) ? q[2] : undefined);
           const beside = depthOf(out[out.length - 1]) ?? src.slice(i + 1).map(depthOf).find((z) => z !== undefined) ?? 0;
           point = [point[0], point[1], beside];

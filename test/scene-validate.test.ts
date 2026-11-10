@@ -53,6 +53,12 @@ test('a point of a path written with two numbers takes the depth of the point be
   assert.ok(last.issues.some((i) => i.kind === 'trimmed' && /two numbers/.test(i.message)), 'and it is noted');
   const first = validateScene(scene(tube([[0, 1], [1, 1, 0.3], [2, 1, 0.3]])));
   assert.deepEqual((actionsOf(first).find((a) => a.op === 'add') as { pts?: unknown } | undefined)?.pts, [[0, 1, 0.3], [1, 1, 0.3], [2, 1, 0.3]], 'the first point looks ahead');
+  // A size is not a place: a lump's box written with two numbers has no depth to borrow, and the blob is dropped as before.
+  const lump = (sizes: unknown[]) => ({ op: 'add', shape: 'blob', id: 'b', pts: [[0, 0, 0], [1, 0, 0]], sizes });
+  assert.equal(actionsOf(validateScene(scene(lump([[1, 2], [1, 2]])))).length, 0, 'a size of two numbers');
+  assert.equal(actionsOf(validateScene(scene(lump([[1, 2, 1], [1, 2]])))).length, 0, 'even beside a whole one');
+  const placed = validateScene(scene({ op: 'add', shape: 'blob', id: 'b', pts: [[0, 0, 0.5], [1, 0]], sizes: [[1, 1, 1]] }));
+  assert.deepEqual((actionsOf(placed).find((a) => a.op === 'add') as { pts?: unknown } | undefined)?.pts, [[0, 0, 0.5], [1, 0, 0.5]], 'the place of a lump is repaired as a point of a path is');
   // Anything else that is not three numbers still loses the path: one number, four, or a word.
   for (const bad of [[1], [1, 2, 3, 4], ['a', 2]]) assert.equal(actionsOf(validateScene(scene(tube([[0, 0, 0], bad, [1, 1, 1]])))).length, 0, JSON.stringify(bad));
 });

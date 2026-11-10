@@ -14,7 +14,7 @@ const request = (question: string): ModelRequest => ({
 });
 
 test('a question that names a living thing (whole words, singular or plural, any case) is told how to write its parts', () => {
-  for (const q of ['How does the hand grip?', 'what are the parts of a fish', 'How do LUNGS work?', 'Why are leaves green?', 'what is inside a peach', 'explain the plant cell', 'how do kidneys filter blood', 'How does the eye focus?', 'what do cherries grow from']) {
+  for (const q of ['How does the hand grip?', 'what are the parts of a fish', 'How do LUNGS work?', 'Why are leaves green?', 'what is inside a peach', 'explain the plant cell', 'how do kidneys filter blood', 'How does the eye focus?', 'what do cherries grow from', 'how does a tree grow', 'what is inside a leaf', 'show me the bones of the hand']) {
     const hint = livingHint(q) ?? '';
     assert.match(hint, /^If you build a living thing from shapes/, q);
     assert.match(hint, /a living material \(skin, muscle, organ/, q);
@@ -27,6 +27,12 @@ test('a question that names none is told nothing: no substring matches, and word
   for (const q of ['how do gears work', 'what is a planet', 'where is the door handle', 'open the catalogue', 'what is a leaflet', 'my mouse is not working', 'how do I change the body text', 'what is a root directory', 'how does a nut and bolt hold', 'is this a virus', '']) {
     assert.equal(namesLiving(q), false, q);
     assert.equal(livingHint(q), undefined, q);
+  }
+});
+
+test('a living word used of something else (a tree of decisions, a leaf node, the other hand), or beside a word of software, draws no hint', () => {
+  for (const q of ['how does a decision tree split', 'what is a leaf node in a binary tree', 'show the file tree', 'what is a kubernetes pod', 'on the other hand, why is this slow', 'what does the cat command do', 'skin this app theme', 'what is the hand tool in photoshop', 'how does a spider crawler index pages', 'what is a random seed', 'how does a power plant make electricity', 'what is this heart icon for', 'how does a pipe organ work', 'what is hip hop', 'what does the ant build tool do', 'explain the family tree']) {
+    assert.equal(namesLiving(q), false, q);
   }
 });
 

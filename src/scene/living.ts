@@ -6,28 +6,36 @@ import { norm } from './names.ts';
 
 /**
  * Words that say a question is about a living thing: the body and its organs, animals and their parts, plants, what grows to be eaten. Whole words; a plural
- * is found by its singular. Words that mean something else as often (a mouse, a bulb, a branch, a root, a wing, a virus, the body of a letter, a cell of a table) are left out: the
- * question that means the living one nearly always names another of these too.
+ * is found by its singular. Words that mean something else as often (a mouse, a bulb, a branch, a root, a wing, a virus, a seed, a pod, a cat, an ant, a
+ * spider, the body of a letter, a cell of a table, the organ in a church) are left out: the question that means the living one nearly always names another
+ * of these too.
  */
 const LIVING: ReadonlySet<string> = new Set(`
-anatomy organ tissue muscle tendon ligament bone skeleton skull spine vertebra rib cartilage skin nerve neuron vein artery gland membrane blood
+anatomy tissue muscle tendon ligament bone skeleton skull spine vertebra cartilage skin nerve neuron vein artery gland membrane blood
 heart brain lung kidney liver stomach intestine bowel colon bladder pancreas spleen gallbladder uterus womb ovary placenta thyroid tonsil appendix esophagus oesophagus
 trachea windpipe diaphragm larynx eye eyeball retina cornea iris ear eardrum cochlea nose nostril mouth tongue tooth teeth jaw lip throat
-hand finger thumb palm wrist knuckle fist forearm elbow shoulder leg knee ankle toe heel hip thigh limb paw claw hoof beak feather antler
-tentacle gill snout animal fish bird insect mammal reptile amphibian dog cat horse cow pig sheep goat rabbit whale dolphin shark octopus squid jellyfish starfish crab
-lobster snail worm earthworm spider ant bee wasp butterfly caterpillar moth beetle mosquito frog toad snake lizard turtle tortoise crocodile dinosaur chicken duck
+hand finger thumb palm wrist knuckle fist forearm elbow shoulder leg knee ankle toe heel thigh limb paw claw hoof beak feather antler
+tentacle gill snout animal fish bird insect mammal reptile amphibian dog horse cow pig sheep goat rabbit whale dolphin shark octopus squid jellyfish starfish crab
+lobster snail earthworm wasp butterfly caterpillar moth beetle mosquito frog toad snake lizard turtle tortoise crocodile dinosaur chicken duck
 eagle owl penguin lion tiger elephant giraffe monkey ape deer wolf fox squirrel hedgehog kangaroo camel salmon trout
-plant tree leaf leaves flower petal seed seedling fruit berry vegetable grass moss fern cactus mushroom fungus fungi algae pollen stamen pistil sepal bud
-tuber twig thorn vine pod chloroplast photosynthesis peach pear plum cherry lemon grape banana strawberry tomato potato carrot onion avocado mango melon
+plant tree leaf leaves flower petal seedling fruit berry vegetable grass moss fern cactus mushroom fungus fungi algae pollen stamen pistil sepal bud
+tuber twig thorn vine chloroplast photosynthesis peach pear plum cherry lemon grape banana strawberry tomato potato carrot onion avocado mango melon
 watermelon pumpkin coconut pea bean corn wheat egg yolk bacteria bacterium amoeba mitochondria mitochondrion organelle embryo fetus foetus
 `.split(/\s+/).filter(Boolean));
+
+/** Living words used of something else: these pairs of words are taken out of the question before it is read. */
+const FIGURES = /\b(?:(?:decision|binary|file|search|syntax|parse|family|directory) trees?|leaf nodes?|(?:other|one) hand|(?:by|at|on) hand|hands? on|second hand|hand tools?|power plants?)\b/g;
+/** Words that say the question is about software or a drawing of it, where a tree, a leaf or a heart is a figure or an icon: no hint beside these. */
+const SOFTWARE: ReadonlySet<string> = new Set('app code git command icon logo theme file folder'.split(' '));
 
 /** A word of the question as the list has it: itself, or its singular. */
 const singular = (word: string): string[] => [word, word.replace(/ies$/, 'y'), word.replace(/es$/, ''), word.replace(/s$/, '')];
 
 /** Whether a question names a living thing (whole words of the list above, in any case, singular or plural). */
 export function namesLiving(question: string): boolean {
-  return norm(question).replace(/[^a-z0-9 ]+/g, ' ').split(' ').some((word) => word.length > 2 && singular(word).some((w) => LIVING.has(w)));
+  const words = norm(question).replace(/[^a-z0-9 ]+/g, ' ').replace(FIGURES, ' ').split(' ');
+  if (words.some((word) => singular(word).some((w) => SOFTWARE.has(w)))) return false;
+  return words.some((word) => word.length > 2 && singular(word).some((w) => LIVING.has(w)));
 }
 
 /**
