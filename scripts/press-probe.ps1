@@ -30,6 +30,9 @@ public static class P {
 '@
 [void][P]::SetProcessDPIAware()
 Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+# The app runs from dist: refuse to start on a build that lacks what the probe needs (the gap flag and the mouse-state lines), so a stale build is never taken for a result.
+$built = Join-Path (Join-Path (Join-Path $Repo 'dist') 'main') 'main.cjs'
+foreach ($need in @('self-chord-gap', 'window mouse')) { if (-not (Test-Path $built) -or -not (Select-String -Path $built -Pattern $need -SimpleMatch -Quiet)) { "dist/main/main.cjs does not contain '$need': run 'npm run build' first. Nothing was started."; exit 2 } }
 $work = Join-Path $env:TEMP ('tt-press-probe-' + [guid]::NewGuid().ToString('N').Substring(0, 8)); New-Item -ItemType Directory $work | Out-Null
 # The tape: the bundled sample's steps, answered the same way to each of three questions.
 $tape = Join-Path $work 'tape.json'
