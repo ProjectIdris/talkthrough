@@ -249,7 +249,7 @@ function* cutAt(field: BodyField, lining: boolean, cell: number, maxNodes: numbe
       // (measured against the field's own slope here: a squashed solid's field rises more slowly than a true distance)
       const a1 = field.value(x + nx_ * r1, y + ny_ * r1, z + nz_ * r1) / (r1 * l);
       const a2 = field.value(x + nx_ * r2, y + ny_ * r2, z + nz_ * r2) / (r2 * l);
-      open[v] = Math.max(0, Math.min(1, 0.5 * Math.min(1, a1) + 0.5 * Math.min(1, a2)));
+      open[v] = Math.max(0, Math.min(1, 0.5 * Math.min(1, a1) + 0.5 * Math.min(1, a2))) * field.shade(first, x, y, z);
     } else open[v] = 1;
   }
   // The lining is seen from inside the cavity: its triangles wind the other way.
@@ -345,9 +345,7 @@ export function cutFace(
   const own = new Uint16Array(all), next = new Uint16Array(all), share = new Float32Array(all);
   const dist = field.d;
   // A sample clear of every part's box by more than a join can swell the skin is outside the body, and so are the samples next to it: it is not asked.
-  let widest = 0;
-  for (const p of parts) widest = Math.max(widest, p.soft);
-  const clear = (1.5 * h + widest + 2 * Math.abs(field.relief)) ** 2;
+  const clear = (1.5 * h + field.widest + 2 * Math.abs(field.relief)) ** 2;
   for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
     const key = i + j * nx;
     const a = oa + i * h, b = ob + j * h;

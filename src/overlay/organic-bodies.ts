@@ -12,7 +12,7 @@ import { BufferAttribute, BufferGeometry, Color, DoubleSide, Matrix4, Mesh, Mesh
 import type { Material, Object3D, Plane } from 'three';
 import type { AddAction, Vec2, Vec3 } from '../scene/types.ts';
 import { fitTint, materialRow } from '../scene/material-library.ts';
-import { BodyField, lumpReach, primBounds, primDistance, primInside } from './organic-field.ts';
+import { BodyField, lumpReach, outlineDistance, primBounds, primDistance, primInside, tubeOf } from './organic-field.ts';
 import type { FieldPart, Prim } from './organic-field.ts';
 import { cutFace, cutSkinSteps, patches } from './organic-mesh.ts';
 import type { Face, Patch, Skin } from './organic-mesh.ts';
@@ -86,6 +86,181 @@ const ENCLOSED_WAYS: readonly Vec3[] = (() => {
   for (const x of [-r, r]) for (const y of [-r, r]) for (const z of [-r, r]) ways.push([x, y, z]);
   return ways;
 })();
+
+/** Points well inside a solid from which its skin is tried: its middle, and for a long or lumpy one the middles along it (at most eight). */
+function middlesOf(prim: Prim): Vec3[] {
+  if (prim.kind === 'tube') {
+    const n = prim.pts.length, step = Math.max(1, Math.ceil(n / 8));
+    const out: Vec3[] = [];
+    for (let i = 0; i < n; i += step) out.push(prim.pts[i] as Vec3);
+    if ((n - 1) % step !== 0) out.push(prim.pts[n - 1] as Vec3);
+    return out;
+  }
+  if (prim.kind === 'lumps' && prim.lumps.length > 1) return prim.lumps.slice(0, 8).map((lump) => lump.c);
+  return [primInside(prim)];
+}
+
+/** Flat parts lie in one plane when their faces are this nearly parallel (the cosine of the angle between them). */
+const PLANE_PARALLEL = 0.985;
+/** A flat part joins another in their plane over this share of its narrower side. */
+const FLAT_JOIN = 0.45;
+
+/**
+ * The flat parts of a body (pads and slabs) that lie in one plane with another are told so (`FieldPart.flat`): the field joins those as outlines in
+ * the plane. Returns the planes' normals.
+ */
+function flatPlanes(parts: FieldPart[]): Vec3[] {
+  type Flat = { part: FieldPart; n: Vec3; centre: Vec3; half: number; rim: number; reach: number };
+  const flats: Flat[] = [];
+  for (const part of parts) {
+    const prim = part.prim;
+    if (prim.kind !== 'pad' && prim.kind !== 'slab') continue;
+    // The thin axis in the body's space: a row of the body-to-part matrix, and where the part's own origin (the middle of its thickness) stands.
+    const m = part.toLocal, row = prim.kind === 'pad' ? prim.thin : 2;
+    const nx = m[row * 4] as number, ny = m[row * 4 + 1] as number, nz = m[row * 4 + 2] as number;
+    const l = Math.hypot(nx, ny, nz);
+    if (!(l > 1e-9)) continue;
+    // (the part's origin in body space: the point the matrix takes to zero; solved from the three rows, which are at right angles to one another)
+    const centre: Vec3 = [0, 0, 0];
+    for (let r = 0; r < 3; r++) {
+      const ax = m[r * 4] as number, ay = m[r * 4 + 1] as number, az = m[r * 4 + 2] as number, t = m[r * 4 + 3] as number;
+      const a2 = ax * ax + ay * ay + az * az;
+      centre[0] -= (ax * t) / a2; centre[1] -= (ay * t) / a2; centre[2] -= (az * t) / a2;
+    }
+    let narrow: number, half: number;
+    if (prim.kind === 'pad') {
+      half = prim.half[prim.thin];
+      narrow = 2 * Math.min(...prim.half.filter((_, a) => a !== prim.thin));
+    } else {
+      half = prim.half;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const q of prim.outline) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); }
+      narrow = Math.min(x1 - x0, y1 - y0);
+    }
+    flats.push({ part, n: [nx / l, ny / l, nz / l], centre, half: half * part.scale, rim: prim.rim * part.scale, reach: FLAT_JOIN * narrow * part.scale });
+  }
+  const planes: Vec3[] = [];
+  const plane = flats.map(() => -1);
+  for (let i = 0; i < flats.length; i++) {
+    const a = flats[i] as Flat;
+    for (let j = i + 1; j < flats.length; j++) {
+      const b = flats[j] as Flat;
+      const dot = a.n[0] * b.n[0] + a.n[1] * b.n[1] + a.n[2] * b.n[2];
+      if (Math.abs(dot) < PLANE_PARALLEL) continue;
+      // In one plane: the middle of one lies within the other's thickness, and their boxes come within a join of each other.
+      const apart = Math.abs((b.centre[0] - a.centre[0]) * a.n[0] + (b.centre[1] - a.centre[1]) * a.n[1] + (b.centre[2] - a.centre[2]) * a.n[2]);
+      if (apart > 0.6 * Math.max(a.half, b.half)) continue;
+      const k = Math.min(a.reach, b.reach);
+      let near = true;
+      for (let c = 0; c < 3; c++) if (a.part.lo[c]! - k > b.part.hi[c]! || b.part.lo[c]! - k > a.part.hi[c]!) near = false;
+      if (!near) continue;
+      if (plane[i] === -1 && plane[j] === -1) { plane[i] = plane[j] = planes.length; planes.push(a.n); }
+      else if (plane[i] === -1) plane[i] = plane[j] as number;
+      else if (plane[j] === -1) plane[j] = plane[i] as number;
+      else if (plane[i] !== plane[j]) { const gone = plane[j] as number, kept = plane[i] as number; for (let q = 0; q < plane.length; q++) if (plane[q] === gone) plane[q] = kept; }
+    }
+  }
+  flats.forEach((f, i) => {
+    const g = plane[i] as number;
+    if (g < 0) return;
+    const n = planes[g] as Vec3;
+    f.part.flat = { plane: g, mid: f.centre[0] * n[0] + f.centre[1] * n[1] + f.centre[2] * n[2], half: f.half, rim: f.rim, reach: f.reach };
+    // (a join in the plane can carry the skin a little way out of the part's own box)
+    for (let c = 0; c < 3; c++) { f.part.lo[c] = (f.part.lo[c] as number) - f.reach / 4; f.part.hi[c] = (f.part.hi[c] as number) + f.reach / 4; }
+  });
+  return planes;
+}
+
+/** A limb is pressed by a flat part when it lies this nearly in the part's plane (the sine of the angle it may make with it). */
+const PRESS_IN_PLANE = 0.35;
+
+/**
+ * A limb (a tube) that grows out of a flat part of its body, in the part's plane, and is thicker than the part is told so (`FieldPart.pressed`): a round
+ * wrist written under a flat palm is no thicker than the palm where the two lie together. A flat part is a pad, a slab, or lumps whose box is at most
+ * half as thick as it is wide either way.
+ */
+function pressLimbs(parts: FieldPart[]): void {
+  type Flat = { part: FieldPart; n: Vec3; mid: number; half: number };
+  const flats: Flat[] = [];
+  for (const part of parts) {
+    const prim = part.prim;
+    let axis = -1, half = 0, off = 0;
+    if (prim.kind === 'pad') { axis = prim.thin; half = prim.half[prim.thin]; }
+    else if (prim.kind === 'slab') { axis = 2; half = prim.half; }
+    else if (prim.kind === 'lumps') {
+      const b = primBounds(prim);
+      const size = [b.hi[0] - b.lo[0], b.hi[1] - b.lo[1], b.hi[2] - b.lo[2]];
+      axis = size[0]! <= size[1]! && size[0]! <= size[2]! ? 0 : size[1]! <= size[2]! ? 1 : 2;
+      if (size[axis]! > 0.5 * Math.min(...size.filter((_, a) => a !== axis))) continue;
+      half = size[axis]! / 2; off = (b.lo[axis]! + b.hi[axis]!) / 2;
+    } else continue;
+    // The thin axis in the body's space is a row of the body-to-part matrix; along it, the part's own coordinate is the row applied to the point.
+    const m = part.toLocal;
+    const nx = m[axis * 4] as number, ny = m[axis * 4 + 1] as number, nz = m[axis * 4 + 2] as number, t = m[axis * 4 + 3] as number;
+    const l = Math.hypot(nx, ny, nz);
+    if (!(l > 1e-9)) continue;
+    // own coordinate = (n . x) * l + t, and the middle is where that is `off`
+    flats.push({ part, n: [nx / l, ny / l, nz / l], mid: (off - t) / l, half: half / l });
+  }
+  if (flats.length === 0) return;
+  for (const part of parts) {
+    const prim = part.prim;
+    if (prim.kind !== 'tube' || prim.pts.length < 2) continue;
+    // The tube's ends in the body's space (the inverse of the body-to-part matrix, whose rows are at right angles).
+    const m = part.toLocal;
+    const out = (q: Vec3): Vec3 => {
+      const p: Vec3 = [0, 0, 0];
+      for (let r = 0; r < 3; r++) {
+        const ax = m[r * 4] as number, ay = m[r * 4 + 1] as number, az = m[r * 4 + 2] as number, t = m[r * 4 + 3] as number;
+        const a2 = ax * ax + ay * ay + az * az, v = (q[r] as number) - t;
+        p[0] += (ax * v) / a2; p[1] += (ay * v) / a2; p[2] += (az * v) / a2;
+      }
+      return p;
+    };
+    const first = out(prim.pts[0] as Vec3), last = out(prim.pts[prim.pts.length - 1] as Vec3);
+    const dx = last[0] - first[0], dy = last[1] - first[1], dz = last[2] - first[2];
+    const length = Math.hypot(dx, dy, dz);
+    if (!(length > 1e-9)) continue;
+    const radius = Math.max(prim.radii[0] as number, prim.radii[prim.radii.length - 1] as number) * part.scale;
+    let best: Flat | undefined;
+    for (const flat of flats) {
+      if (flat.part === part || radius <= 1.05 * flat.half) continue;
+      if (Math.abs((dx * flat.n[0] + dy * flat.n[1] + dz * flat.n[2]) / length) > PRESS_IN_PLANE) continue;
+      // one of its ends is in the flat part
+      const fm = flat.part.toLocal;
+      const within = (p: Vec3): boolean => primDistance(flat.part.prim, fm[0]! * p[0] + fm[1]! * p[1] + fm[2]! * p[2] + fm[3]!, fm[4]! * p[0] + fm[5]! * p[1] + fm[6]! * p[2] + fm[7]!, fm[8]! * p[0] + fm[9]! * p[1] + fm[10]! * p[2] + fm[11]!) < 0;
+      const end = within(first) ? first : within(last) ? last : undefined;
+      if (!end) continue;
+      // How thick the flat part is where the limb leaves it (lumps are thinner than their box): from the middle of its thickness out to its face.
+      const h = (end[0] * flat.n[0] + end[1] * flat.n[1] + end[2] * flat.n[2]) - flat.mid;
+      const foot: Vec3 = [end[0] - h * flat.n[0], end[1] - h * flat.n[1], end[2] - h * flat.n[2]];
+      let half = flat.half;
+      if (flat.part.prim.kind === 'lumps' && within(foot)) {
+        let lo = 0, hi = flat.half * 1.01;
+        for (let step = 0; step < 14; step++) {
+          const t = (lo + hi) / 2;
+          if (within([foot[0] + t * flat.n[0], foot[1] + t * flat.n[1], foot[2] + t * flat.n[2]])) lo = t; else hi = t;
+        }
+        half = (lo + hi) / 2;
+      }
+      if (radius <= 1.05 * half) continue;
+      if (!best || half < best.half) best = { ...flat, half };
+    }
+    if (best) part.pressed = { of: best.part, n: best.n, mid: best.mid, half: best.half };
+  }
+}
+
+/** A pad's rim is rounded over this share of its thickness (half would be all the way), and its corners by this share of its narrower side. */
+const PAD_RIM = 0.44;
+const PAD_CORNER = 0.24;
+/** A flat outline of flesh at least this thick, as a share of its narrower side, is a slab of a body; thinner, it is a sheet. */
+const SLAB_THICK = 0.18;
+
+/** Made of soft tissue (see `FLESH`). */
+const isFlesh = (def: AddAction): boolean => {
+  const material = 'material' in def ? def.material : undefined;
+  return material !== undefined && FLESH.has(material);
+};
 
 const kinds = new WeakMap<object, Kind | null>();
 
@@ -175,7 +350,36 @@ function primOf(def: AddAction): Prim | null {
     case 'box': {
       const s = def.size;
       const least = Math.min(s[0], s[1], s[2]);
-      prim = { kind: 'box', half: [s[0] / 2, s[1] / 2, s[2] / 2], round: Math.max(0, Math.min(def.bevel ?? softBevel(s), least * 0.4999)) };
+      const bevel = Math.max(0, Math.min(def.bevel ?? softBevel(s), least * 0.4999));
+      if (isFlesh(def) && least > 0) {
+        // A box of flesh is a pad (a palm, a sole, the heel of a hand): nothing alive has a machined edge. Its rim is rounded nearly all the way over, and
+        // its corners, in its own plane, by a quarter of its narrower side.
+        const thin = s[0] <= s[1] && s[0] <= s[2] ? 0 : s[1] <= s[2] ? 1 : 2;
+        const narrow = Math.min(...s.filter((_, a) => a !== thin));
+        const rim = Math.max(bevel, PAD_RIM * least);
+        prim = { kind: 'pad', half: [s[0] / 2, s[1] / 2, s[2] / 2], thin, rim, corner: Math.min(narrow * 0.4999, Math.max(rim, bevel, PAD_CORNER * narrow)) };
+        break;
+      }
+      prim = { kind: 'box', half: [s[0] / 2, s[1] / 2, s[2] / 2], round: bevel };
+      break;
+    }
+    case 'extrude': {
+      // A flat outline of flesh thick enough to be a part of a body (a palm, a sole, a slice) is a slab of it; a thin one is a sheet (organic-sheet.ts).
+      if (!isFlesh(def) || def.holes?.length || def.taper != null || def.shift != null || !(def.depth > 0) || def.outline.length < 3) return null;
+      const outline = easeOutline(def.outline, 4);
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const q of outline) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); }
+      const narrow = Math.min(x1 - x0, y1 - y0);
+      if (!(narrow > 0) || def.depth < SLAB_THICK * narrow) return null;
+      // the deepest point of the outline, on a coarse grid: where the slab is surely inside itself, and how far its rim can be rounded
+      let deep = 0, inside: Vec2 = [(x0 + x1) / 2, (y0 + y1) / 2];
+      for (let j = 1; j < 12; j++) for (let i = 1; i < 12; i++) {
+        const x = x0 + ((x1 - x0) * i) / 12, y = y0 + ((y1 - y0) * j) / 12;
+        const d = -outlineDistance(x, y, outline);
+        if (d > deep) { deep = d; inside = [x, y]; }
+      }
+      if (!(deep > 0)) return null;
+      prim = { kind: 'slab', outline, half: def.depth / 2, rim: Math.min(PAD_RIM * def.depth, 0.8 * deep), inside };
       break;
     }
     case 'torus': {
@@ -196,14 +400,105 @@ function primOf(def: AddAction): Prim | null {
     }
     case 'tube': {
       if (def.closed || (def.flat ?? 1) < 0.9 || def.pts.length < 2) return null;
-      const pts = samplePath(def.pts, true, 6);
-      const radii = pts.map((_, i) => def.radius * (def.swell ? swellAt(def.swell, pts.length > 1 ? i / (pts.length - 1) : 0) : 1));
-      prim = { kind: 'tube', pts, radii };
+      prim = limbOf(def);
       break;
     }
     default: return null;
   }
   return prim;
+}
+
+/**
+ * A limb's joints. A tube of skin through a few points is a finger, a leg or a feeler, and its inner points are where it bends: a point the path turns
+ * sharply at is a joint that is bent (an elbow, a knee, the leg of an insect), kept as a corner with a ball to it, and a point on a stretch that runs
+ * straight is a joint held straight (a knuckle), a slight swelling with a fold across it. Between the two a point only steers a curve, as every point of
+ * a vessel, a stem or a long tail does.
+ */
+const BEND_DEGREES = 55;
+const STRAIGHT_DEGREES = 22;
+const JOINT_POINTS = 6;
+/** A joint's shape takes at most this share of the way to the next joint, or to the limb's end. */
+const JOINT_ROOM = 0.42;
+/** A limb is slender: at least this many of its own radii long (a forearm or a stump written through three points has no knuckle in its middle). */
+const LIMB_SLENDER = 6;
+/** A joint's shape along the limb, in the limb's own radii from the joint: where the path is cut, and how much wider (or, in a fold, narrower) it is there. */
+const KNUCKLE: ReadonlyArray<readonly [number, number]> = [[-1.35, 1.008], [-0.85, 1.035], [-0.45, 1.07], [-0.17, 1.05], [0, 0.99], [0.17, 1.05], [0.45, 1.07], [0.85, 1.035], [1.35, 1.008]];
+const ELBOW: ReadonlyArray<readonly [number, number]> = [[-1.3, 1.01], [-0.65, 1.07], [0, 1.15], [0.65, 1.07], [1.3, 1.01]];
+
+/** A tube as the field has it: balls along its path. A limb of skin has its joints (see above). */
+function limbOf(def: Extract<AddAction, { shape: 'tube' }>): Prim {
+  const ctrl = def.pts;
+  const n = ctrl.length;
+  const joints: Array<'bend' | 'knuckle' | undefined> = ctrl.map(() => undefined);
+  let reach = 0;
+  for (let k = 1; k < n; k++) reach += Math.hypot(ctrl[k]![0] - ctrl[k - 1]![0], ctrl[k]![1] - ctrl[k - 1]![1], ctrl[k]![2] - ctrl[k - 1]![2]);
+  if (n >= 3 && n <= JOINT_POINTS && reach >= LIMB_SLENDER * def.radius && materialRow(def.material)?.name === 'skin') {
+    for (let k = 1; k < n - 1; k++) {
+      const a = ctrl[k - 1] as Vec3, b = ctrl[k] as Vec3, c = ctrl[k + 1] as Vec3;
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - b[0], vy = c[1] - b[1], vz = c[2] - b[2];
+      const lu = Math.hypot(ux, uy, uz), lv = Math.hypot(vx, vy, vz);
+      if (!(lu > 1e-9) || !(lv > 1e-9)) continue;
+      const turn = Math.acos(Math.max(-1, Math.min(1, (ux * vx + uy * vy + uz * vz) / (lu * lv)))) * (180 / Math.PI);
+      joints[k] = turn > BEND_DEGREES ? 'bend' : turn < STRAIGHT_DEGREES ? 'knuckle' : undefined;
+    }
+  }
+  // The path: a curve through the points, broken where the limb is bent. Six samples a stretch either way, so a point's place along the path is the same.
+  const per = 6;
+  let pts: Vec3[] = [];
+  let from = 0;
+  for (let k = 1; k < n; k++) {
+    if (k < n - 1 && joints[k] !== 'bend') continue;
+    const run = samplePath(ctrl.slice(from, k + 1), true, per);
+    pts = pts.concat(from === 0 ? run : run.slice(1));
+    from = k;
+  }
+  const last = pts.length - 1;
+  const radii = pts.map((_, i) => def.radius * (def.swell ? swellAt(def.swell, last > 0 ? i / last : 0) : 1));
+  if (!joints.some(Boolean) || pts.length !== (n - 1) * per + 1) return tubeOf(pts, radii);
+  // With joints the path is cut again by length: as it was away from them, and closely across each.
+  const run: number[] = [0];
+  for (let i = 1; i < pts.length; i++) run.push((run[i - 1] as number) + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1], pts[i]![2] - pts[i - 1]![2]));
+  const length = run[last] as number;
+  const at = (s: number): { p: Vec3; r: number } => {
+    let i = 1;
+    while (i < last && (run[i] as number) < s) i++;
+    const a = run[i - 1] as number, b = run[i] as number;
+    const t = b > a ? Math.max(0, Math.min(1, (s - a) / (b - a))) : 0;
+    const p = pts[i - 1] as Vec3, q = pts[i] as Vec3;
+    return { p: [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t], r: (radii[i - 1] as number) + ((radii[i] as number) - (radii[i - 1] as number)) * t };
+  };
+  const found = joints.map((kind, k) => (kind ? { kind, s: run[k * per] as number, r: radii[k * per] as number, fit: 1 } : undefined)).filter((j) => j !== undefined);
+  // Joints that lie close together (the three of a finger written through five points) are each narrower and slighter, so that the stretch between two
+  // of them is a stretch of the limb and not a third swelling.
+  for (const j of found) {
+    let room = Math.min(j.s, length - j.s);
+    for (const other of found) if (other !== j) room = Math.min(room, Math.abs(other.s - j.s));
+    const profile = j.kind === 'bend' ? ELBOW : KNUCKLE;
+    j.fit = Math.min(1, (JOINT_ROOM * room) / ((profile[profile.length - 1] as readonly [number, number])[0] * j.r));
+  }
+  const stations: Array<{ s: number; wide: number }> = [];
+  for (let i = 0; i <= last; i++) {
+    const s = run[i] as number;
+    if (i === 0 || i === last || found.every((j) => Math.abs(s - j.s) > 1.5 * j.r * j.fit)) stations.push({ s, wide: 1 });
+  }
+  for (const j of found) for (const [u, wide] of j.kind === 'bend' ? ELBOW : KNUCKLE) {
+    const s = j.s + u * j.r * j.fit;
+    if (s > length * 0.01 && s < length * 0.99) stations.push({ s, wide: 1 + (wide - 1) * j.fit });
+  }
+  stations.sort((a, b) => a.s - b.s);
+  const outPts: Vec3[] = [], outRadii: number[] = [];
+  let before = -Infinity;
+  for (const st of stations) {
+    if (st.s - before < length * 1e-4) continue;
+    before = st.s;
+    const here = at(st.s);
+    outPts.push(here.p);
+    outRadii.push(here.r * st.wide);
+  }
+  if (outPts.length < 2) return tubeOf(pts, radii);
+  // (the folds are told by how far along the cut path they lie, which is the same length: the stations lie on the old path)
+  const creases = found.filter((j) => j.kind === 'knuckle').map((j) => ({ at: j.s, width: 0.24 * j.r }));
+  return tubeOf(outPts, outRadii, creases);
 }
 
 /**
@@ -554,21 +849,25 @@ export class OrganicBodies {
     const prim = m.kind.prim;
     const b = primBounds(prim);
     const reach = Math.hypot(b.hi[0] - b.lo[0], b.hi[1] - b.lo[1], b.hi[2] - b.lo[2]);
-    const c = primInside(prim);
     const others = list.filter((q) => q !== m).map((q) => ({ prim: q.kind.prim, toLocal: new Matrix4().copy(q.held.rest).invert() }));
     const p = new Vector3(), l = new Vector3();
-    let inside = primDistance(prim, c[0], c[1], c[2]) < 0;
-    for (let i = 0; inside && i < ENCLOSED_WAYS.length; i++) {
-      const d = ENCLOSED_WAYS[i] as Vec3;
-      // Out from the part's middle to its own skin along this way.
-      let lo = 0, hi = reach;
-      if (!(primDistance(prim, c[0] + d[0] * hi, c[1] + d[1] * hi, c[2] + d[2] * hi) > 0)) continue;
-      for (let k = 0; k < 22; k++) {
-        const mid = (lo + hi) / 2;
-        if (primDistance(prim, c[0] + d[0] * mid, c[1] + d[1] * mid, c[2] + d[2] * mid) < 0) lo = mid; else hi = mid;
+    let inside = true;
+    // Tried from each of the part's middles (a long part has several: one end of a limb can lie in the body while the other stands out of it).
+    for (const c of middlesOf(prim)) {
+      inside = inside && primDistance(prim, c[0], c[1], c[2]) < 0;
+      for (let i = 0; inside && i < ENCLOSED_WAYS.length; i++) {
+        const d = ENCLOSED_WAYS[i] as Vec3;
+        // Out from the middle to the part's own skin along this way.
+        let lo = 0, hi = reach;
+        if (!(primDistance(prim, c[0] + d[0] * hi, c[1] + d[1] * hi, c[2] + d[2] * hi) > 0)) continue;
+        for (let k = 0; k < 22; k++) {
+          const mid = (lo + hi) / 2;
+          if (primDistance(prim, c[0] + d[0] * mid, c[1] + d[1] * mid, c[2] + d[2] * mid) < 0) lo = mid; else hi = mid;
+        }
+        p.set(c[0] + d[0] * hi, c[1] + d[1] * hi, c[2] + d[2] * hi).applyMatrix4(m.held.rest);
+        inside = others.some((q) => { l.copy(p).applyMatrix4(q.toLocal); return primDistance(q.prim, l.x, l.y, l.z) < 0; });
       }
-      p.set(c[0] + d[0] * hi, c[1] + d[1] * hi, c[2] + d[2] * hi).applyMatrix4(m.held.rest);
-      inside = others.some((q) => { l.copy(p).applyMatrix4(q.toLocal); return primDistance(q.prim, l.x, l.y, l.z) < 0; });
+      if (!inside) break;
     }
     if (this.enclosedKnown.size > 400) this.enclosedKnown.clear();
     this.enclosedKnown.set(word, inside);
@@ -633,7 +932,8 @@ export class OrganicBodies {
         lo, hi, inside: [inside.x, inside.y, inside.z], size,
       });
     });
-    const field = new BodyField(parts);
+    pressLimbs(parts);
+    const field = new BodyField(parts, flatPlanes(parts));
     // At the cell the plan reckoned, and never past the skin's ceiling: a closed skin has two triangles a vertex, and one that still comes out over (a
     // body with holes through it has a few more) is cut again coarser.
     let cell = plan.cell;

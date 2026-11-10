@@ -20,6 +20,11 @@ test('a question that names a living thing (whole words, singular or plural, any
     assert.match(hint, /a living material \(skin, muscle, organ/, q);
     assert.match(hint, /overlap what it grows from/, q);
     assert.match(hint, /never a ball/, q);
+    assert.match(hint, /get its outline right first/, q);
+    assert.match(hint, /never costs the outside a part/, q);
+    assert.match(hint, /a point at each joint/, q);
+    assert.match(hint, /A human palm or sole is a box with a bevel/, q);
+    assert.match(hint, /fur, feathers and the shell of an insect are skin/, q);
   }
 });
 

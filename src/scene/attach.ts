@@ -22,6 +22,8 @@ export type Body = {
   n?: number;
   /** A cone (its size is the box it is fitted to; the point is at +y), which is not asked about as a surface but is a round body for couplings. */
   cone?: boolean;
+  /** It is of living material (flesh, a plant, food): what grows out of it starts inside it. */
+  living?: boolean;
   /** When it appears (the `at` of its add), and whether a face of its parent holds it (its `pos` is then an offset, not a place). */
   at?: number;
   step?: number;
@@ -197,6 +199,9 @@ export type Landing = {
   local: Vec3;
   /** How far the point was from the surface. */
   gap: number;
+  /** The point was inside the part, and where it was in the part's own space. */
+  inside: boolean;
+  own: Vec3;
 };
 
 /**
@@ -210,9 +215,10 @@ export function landOn(bodies: ReadonlyMap<string, Body>, holder: string | undef
   for (const [id, b] of bodies) {
     if ((only !== undefined && id !== only) || b.shape === 'group') continue;
     const m = worldOf(bodies, id);
-    const hit = hitOf(b, applyInverse(m, world));
+    const own = applyInverse(m, world);
+    const hit = hitOf(b, own);
     if (!hit || Math.abs(hit.dist) > tolerance || (best && Math.abs(hit.dist) >= best.gap)) continue;
-    best = { part: id, snapped: applyInverse(frame, apply(m, hit.closest)), local: hit.closest, gap: Math.abs(hit.dist) };
+    best = { part: id, snapped: applyInverse(frame, apply(m, hit.closest)), local: hit.closest, gap: Math.abs(hit.dist), inside: hit.dist < 0, own };
   }
   return best;
 }

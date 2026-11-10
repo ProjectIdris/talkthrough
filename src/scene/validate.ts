@@ -12,7 +12,7 @@ import { LOFT_STRIPS, prepareLoft } from './loft.ts';
 import { prepareShell, SHELL_DETAIL } from './shell.ts';
 import type { ShellTier } from './shell.ts';
 import { nearestPaletteColor } from './colors.ts';
-import { MATERIAL_FAMILIES, resolveMaterial } from './material-library.ts';
+import { MATERIAL_FAMILIES, materialRow, resolveMaterial } from './material-library.ts';
 import { apply, applyInverse, attachTolerance, FACE_NORMALS, landOn, middleHeld, mountPosition, turnToFace, worldOf } from './attach.ts';
 import { AXIS_TOLERANCE_DEG, barOf, bevelFit, lineAngle, meshes, meshFit, rackFit, rimPoint, ropeTangent, roundOf, sameShaft, seatTangent, strandCutsWheel } from './coupling.ts';
 import type { Fit, Round } from './coupling.ts';
@@ -499,7 +499,7 @@ function holdBody(state: SceneState, name: string, out: Record<string, unknown>,
   const id = out.id as string;
   state.bodies.delete(id);
   state.loose.delete(id);
-  const place = { pos: mountedPos ?? (out.pos as Vec3 | undefined) ?? ZERO, rot: (out.rot as Vec3 | undefined) ?? ZERO, parent: out.parent as string | undefined };
+  const place = { pos: mountedPos ?? (out.pos as Vec3 | undefined) ?? ZERO, rot: (out.rot as Vec3 | undefined) ?? ZERO, parent: out.parent as string | undefined, ...(isLiving(out) ? { living: true } : {}) };
   const shape = out.shape as string;
   if (name === 'addSolid') {
     const size = out.size as Vec3;
@@ -587,7 +587,9 @@ function hideCheck(state: SceneState, id: string, name: string, out: Record<stri
     if (!held && wall.parent !== part.parent) return false;
     const middle = held ? ZERO : wall.pos;
     if (part.size && part.size.some((n) => !(n > 0))) return false; // a flat sheet is not a part
-    const reach = wall.hides.whole && part.size ? Math.max(...part.size) / 2 : 0;
+    // (a blob reaches as far as its furthest lump: flesh written round a bone and held by it is not inside the bone)
+    const lumps = part.shape === 'blob' && part.pts && part.sizes ? Math.max(...part.pts.map((c, i) => Math.hypot(c[0], c[1], c[2]) + Math.max(...(part.sizes![Math.min(i, part.sizes!.length - 1)] ?? [0])) / 2)) : 0;
+    const reach = wall.hides.whole ? (part.size ? Math.max(...part.size) / 2 : lumps) : 0;
     return Math.hypot(part.pos[0] - middle[0], part.pos[1] - middle[1], part.pos[2] - middle[2]) + reach <= wall.hides.reach * 0.95; // a part as big as the solid is no part inside it
   };
   const mend = (wallId: string, wall: Body, partId: string): void => {
@@ -604,7 +606,26 @@ function hideCheck(state: SceneState, id: string, name: string, out: Record<stri
 
 const ends = (pts: readonly Vec3[]): [number, number] => [0, pts.length - 1];
 
-/** A tube or line with an end on a part (within a small tolerance of its surface, either side) is meant to touch it: the end is moved onto the surface and kept there. */
+const LIVING_FAMILIES: ReadonlySet<string> = new Set(['body', 'plant', 'food']);
+/** Of living material (flesh, a plant, food), which grows together where it overlaps. */
+const isLiving = (out: Record<string, unknown>): boolean => LIVING_FAMILIES.has(materialRow(typeof out.material === 'string' ? out.material : undefined)?.family ?? '');
+
+/**
+ * A living tube's end is held where it is written when it lies inside a living part (a finger in a palm, a vessel in a chamber: it grows out of it), or
+ * beside one, where moving it onto the part would draw it back along its own length (a toe that runs on over the pad under it).
+ */
+function grows(state: SceneState, tube: Record<string, unknown>, pts: readonly Vec3[], at: number, hit: { part: string; inside: boolean; snapped: Vec3 }): boolean {
+  if (!isLiving(tube) || state.bodies.get(hit.part)?.living !== true) return false;
+  if (hit.inside) return true;
+  const end = pts[at], before = pts[at === 0 ? 1 : at - 1];
+  if (!end || !before) return false;
+  return (hit.snapped[0] - end[0]) * (end[0] - before[0]) + (hit.snapped[1] - end[1]) * (end[1] - before[1]) + (hit.snapped[2] - end[2]) * (end[2] - before[2]) < 0;
+}
+
+/**
+ * A tube or line with an end on a part (within a small tolerance of its surface, either side) is meant to touch it: the end is moved onto the surface and kept there.
+ * A living tube that grows out of a living part, or ends beside one, keeps its end where it is written (`grows`), and goes with the part all the same.
+ */
 function holdEnds(state: SceneState, id: string, out: Record<string, unknown>, path: string, notes: Notes): void {
   const pts = (out.pts as Vec3[]).map((p): Vec3 => [p[0], p[1], p[2]]);
   const tol = attachTolerance(out.radius as number | undefined);
@@ -612,9 +633,10 @@ function holdEnds(state: SceneState, id: string, out: Record<string, unknown>, p
   ends(pts).forEach((at, slot) => {
     const hit = landOn(state.bodies, out.parent as string | undefined, pts[at] as Vec3, tol);
     if (!hit) return;
-    pts[at] = hit.snapped;
-    slots[slot] = { to: hit.part, at: hit.local };
-    note(notes, 'trimmed', `${path}.pts[${at}]`, `repaired: the ${slot === 0 ? 'start' : 'end'} of "${id}" lies on "${hit.part}"; it is joined to it and goes with it`);
+    const grown = grows(state, out, pts, at, hit);
+    if (!grown) pts[at] = hit.snapped;
+    slots[slot] = { to: hit.part, at: grown ? hit.own : hit.local };
+    note(notes, 'trimmed', `${path}.pts[${at}]`, `repaired: the ${slot === 0 ? 'start' : 'end'} of "${id}" lies ${hit.inside && grown ? 'in' : grown ? 'by' : 'on'} "${hit.part}"; it is joined to it and goes with it`);
   });
   if (slots[0] || slots[1]) {
     out.pts = pts;
@@ -636,8 +658,9 @@ function landLate(state: SceneState, part: string, at: number, path: string, not
       if (slots[slot]) return;
       const hit = landOn(state.bodies, a.parent as string | undefined, pts[point] as Vec3, tol, part);
       if (!hit) return;
-      pts[point] = hit.snapped;
-      slots[slot] = { to: hit.part, at: hit.local };
+      const grown = grows(state, a, pts, point, hit);
+      if (!grown) pts[point] = hit.snapped;
+      slots[slot] = { to: hit.part, at: grown ? hit.own : hit.local };
       changed = true;
       note(notes, 'trimmed', path, `repaired: the ${slot === 0 ? 'start' : 'end'} of "${id}" lies on "${part}", which came after it; the tube is made over to end on it`);
     });

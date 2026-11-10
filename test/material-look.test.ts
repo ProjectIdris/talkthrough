@@ -33,6 +33,9 @@ test('the look is a tier choice: low keeps the stock shader, mid and high add th
 
 test('each layer patches the stage it needs in three\'s own physical shader', () => {
   const sss = compile(makeSurface('organ', TIERS.mid)).fragmentShader;
+  // (a colour carried by the vertices can be read a little past its triangle where the triangle is seen edge on, below nothing: it is held to 0..1
+  // before the subsurface code takes a power of it, or that pixel is no number at all)
+  assert.match(sss, /#include <color_fragment>\s+diffuseColor\.rgb = clamp\(diffuseColor\.rgb, 0\.0, 1\.0\);/);
   assert.match(sss, /outgoingLight \+= deep \* lookSss/);
   assert.match(sss, /#define LOOK_SSS/);
   const water = compile(makeSurface('water', TIERS.mid)).fragmentShader;

@@ -98,7 +98,12 @@ export function applyLook(material: MeshPhysicalMaterial, o: Look): void {
   const defines = [sss > 0 ? '#define LOOK_SSS' : '', liquid > 0 ? '#define LOOK_LIQUID' : '', o.glow ? '#define LOOK_GLOW' : '', o.glow === 'crust' ? '#define LOOK_CRUST' : '', env !== undefined ? '#define LOOK_ENV' : ''].filter(Boolean).join('\n');
   const own = { lookSss: { value: sss }, lookLiquid: { value: liquid }, lookGlow: { value: o.glow ? GLOW_ID[o.glow] : 0 }, lookEnv: { value: env ?? 1 } };
   // The code of each stage, only for the layers this material has.
-  const colour = `${o.glow === 'lens' || o.glow === 'tube' ? BODY_DARK : ''}${o.glow === 'crust' ? CRUST_COLOUR : ''}`;
+  // A colour carried by the vertices (a living body's skin) can be read a little past its triangle where the triangle is seen edge on, below nothing
+  // or above all: it is held to what a colour can be before anything is worked out from it (a power of a number below nothing is no number, and
+  // that pixel would be black).
+  const held = sss > 0 ? `
+  diffuseColor.rgb = clamp(diffuseColor.rgb, 0.0, 1.0);` : '';
+  const colour = `${held}${o.glow === 'lens' || o.glow === 'tube' ? BODY_DARK : ''}${o.glow === 'crust' ? CRUST_COLOUR : ''}`;
   const bump = liquid > 0 ? RIPPLE : '';
   const reflect = env !== undefined ? ENV : '';
   const emit = o.glow ? glowCode(o.glow) : '';
@@ -136,5 +141,5 @@ export function applyLook(material: MeshPhysicalMaterial, o: Look): void {
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>${emit}`)
       .replace('#include <opaque_fragment>', `${scatter}${depth}\n#include <opaque_fragment>`);
   };
-  material.customProgramCacheKey = () => `${previousKey}|look-v4|${defines.replace(/\s+/g, '')}`;
+  material.customProgramCacheKey = () => `${previousKey}|look-v5|${defines.replace(/\s+/g, '')}`;
 }
