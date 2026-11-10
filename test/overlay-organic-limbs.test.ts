@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Mesh } from 'three';
-import { primDistance, tubeOf } from '../src/overlay/organic-field.ts';
-import type { Prim } from '../src/overlay/organic-field.ts';
+import { BodyField, primDistance, tubeOf } from '../src/overlay/organic-field.ts';
+import type { FieldPart, Prim } from '../src/overlay/organic-field.ts';
 import { organicKind } from '../src/overlay/organic-bodies.ts';
 import { PanelScene } from '../src/overlay/scene3d.ts';
 import { frameAt } from '../src/overlay/timeline.ts';
@@ -133,6 +133,31 @@ test('a palm and a wrist written as boxes in one plane are one flat thing: no fu
   assert.ok(seen > 20 && low > 0.43, `the back of the hand runs on into the wrist (lowest ${low} over ${seen} vertices)`);
 });
 
+test('a flat part is asked as far off as its join in the plane reaches: the skin round a palm and a wrist is the same with no part passed over', () => {
+  // The same two pads twice: in their own boxes (a part out of reach of the point asked is passed over), and in boxes so roomy that none ever is.
+  const pad = (half: [number, number, number], y: number, roomy: boolean): FieldPart => {
+    const reach = 0.45 * 2 * Math.min(half[0], half[1]), room = roomy ? 1000 : reach / 4;
+    return {
+      prim: { kind: 'pad', half, thin: 2, corner: 0.4, rim: 0.2 }, toLocal: new Float64Array([1, 0, 0, 0, 0, 1, 0, -y, 0, 0, 1, 0]), scale: 1, soft: 0.2, wall: 0,
+      lo: [-half[0] - room, y - half[1] - room, -half[2] - room], hi: [half[0] + room, y + half[1] + room, half[2] + room], inside: [0, y, 0], size: 2 * half[2],
+      flat: { plane: 0, mid: 0, half: half[2], rim: 0.2, reach },
+    };
+  };
+  const hand = (roomy: boolean): BodyField => new BodyField([pad([2, 2.1, 0.5], 0, roomy), pad([1.6, 1, 0.45], -2.9, roomy)], [[0, 0, 1]]);
+  const quick = hand(false), whole = hand(true);
+  let worst = 0, near = 0, seed = 11;
+  const rnd = (): number => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (let k = 0; k < 30000; k++) {
+    const x = -2.8 + 5.6 * rnd(), y = -4.6 + 7.4 * rnd(), z = -0.8 + 1.6 * rnd();
+    const f = whole.value(x, y, z);
+    if (Math.abs(f) > 0.3) continue;
+    near++;
+    worst = Math.max(worst, Math.abs(quick.value(x, y, z) - f));
+  }
+  assert.ok(near > 3000, `points near the skin (${near})`);
+  assert.ok(worst < 1e-9, `the skin moves by ${worst} when a part out of its box is passed over`);
+});
+
 test('a round wrist under a flat palm is no thicker than the palm where the two lie together, and round again beyond it', () => {
   const hand: Scene = { steps: [{ say: 'x', actions: [
     PANEL,
@@ -190,6 +215,17 @@ test('what grows out of living flesh starts inside it: a finger written from wit
   assert.notDeepEqual(ptsOf(scene, 'wire')[0], [8, 1.4, 0], 'the wire is moved onto the case');
   const finger = scene.steps.flatMap((s) => s.actions).find((a) => a.op === 'add' && a.id === 'finger') as unknown as { attach?: Array<{ to: string } | null> };
   assert.equal(finger.attach?.[0]?.to, 'palm', 'and the finger goes with the palm');
+});
+
+test('only living into living grows: a tube of skin in a steel block, and a steel pin in flesh, are both still brought to the face', () => {
+  const { scene } = issuesOf([
+    { op: 'add', shape: 'box', id: 'block', size: [4, 4, 0.9], material: 'steel' },
+    { op: 'add', shape: 'tube', id: 'stub', pts: [[0, 1.4, 0], [0, 3, 0], [0, 4.5, 0]], radius: 0.4, material: 'skin' },
+    { op: 'add', shape: 'box', id: 'flesh', pos: [8, 0, 0], size: [4, 4, 0.9], material: 'skin' },
+    { op: 'add', shape: 'tube', id: 'pin', pts: [[8, 1.4, 0], [8, 3, 0], [8, 4.5, 0]], radius: 0.4, material: 'steel' },
+  ]);
+  assert.notDeepEqual(ptsOf(scene, 'stub')[0], [0, 1.4, 0], 'the skin tube is moved onto the block');
+  assert.notDeepEqual(ptsOf(scene, 'pin')[0], [8, 1.4, 0], 'the pin is moved onto the flesh');
 });
 
 test('a living tube that ends beside a living part is not drawn back to it; one that stops short of it is still brought to it', () => {
