@@ -114,6 +114,17 @@ test('the validator takes a loop on a plain shape, needs an amount unless it is 
   assert.ok(wide.issues.some((i) => i.kind === 'clamped'));
 });
 
+test('a pulse written as how much it swells (a lung breathing by 0.06) is read as that swell, not as shrinking to a speck; a real squeeze is kept', () => {
+  const breath = validate(box('b'), { op: 'loop', id: 'b', kind: 'pulse', amount: 0.06, period: 4 });
+  const amounts = breath.kept.filter((a) => a.op === 'loop').map((a) => a.amount as number);
+  assert.equal(amounts.length, 1);
+  near(amounts[0], 1.06);
+  assert.ok(breath.issues.some((i) => i.kind === 'clamped' && /read as a swell/.test(i.message)), 'and it is noted');
+  const squeeze = validate(box('b'), { op: 'loop', id: 'b', kind: 'pulse', amount: 0.7 });
+  assert.deepEqual(squeeze.kept.filter((a) => a.op === 'loop').map((a) => a.amount), [0.7]);
+  assert.deepEqual(squeeze.issues, []);
+});
+
 test('a loop locked to a part is bound at the same point as crank and cam: an unknown driver binds to the one crankshaft, the part itself is never its driver', () => {
   const eng = [part('cs', 'crankshaft'), box('p')];
   const bound = validate(...eng, { op: 'loop', id: 'p', kind: 'slide', amount: 2, by: 'the crank' });

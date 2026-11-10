@@ -14,7 +14,7 @@ import {
   MeshStandardMaterial, NotEqualStencilFunc, AlwaysStencilFunc, PlaneGeometry, Plane, ReplaceStencilOp, Vector3,
 } from 'three';
 import type { Material, Object3D, StencilOp } from 'three';
-import { hatched, sectionTone } from './materials.ts';
+import { hatched, plainSection, sectionTone } from './materials.ts';
 import type { Frame } from './timeline.ts';
 
 /** What the cutting needs to know of a drawn object: its three.js root, its meshes, and how it looks just now. */
@@ -24,16 +24,21 @@ export type CutPiece = {
   lines: { material: Material | Material[] } | undefined;
   /** A closed part, which can have a cap: the stencil count only means something for a closed surface. */
   closed: boolean;
+  /** A patch of a living body's skin: its cut face is made from the body itself (organic-bodies.ts), not by the stencil. */
+  organic?: boolean;
 };
 export type CutNode = {
   obj: Object3D;
   pieces: CutPiece[];
   alpha: number;
   color: [number, number, number];
+  /** It is living or soft, or sits inside something living (a stone in a fruit): its cut face is its own colour, plain, not a drawing's hatched section. */
+  plain?: boolean;
 };
 
 type PieceState = {
   side: number;
+  plain: boolean;
   helpers: Array<{ back: Mesh; front: Mesh; cap: Mesh; plane: Plane }>;
 };
 
@@ -123,20 +128,25 @@ export class Cutaway {
         continue;
       }
       if (!state) {
-        state = { side: material.side, helpers: [] };
+        state = { side: material.side, plain: node.plain === true, helpers: [] };
         this.states.set(mesh, state);
+      }
+      if (state.plain !== (node.plain === true)) {
+        for (const h of state.helpers) this.retire(h);
+        state.helpers.length = 0;
+        state.plain = node.plain === true;
       }
       material.clippingPlanes = planes;
       material.clipShadows = true;
       material.side = DoubleSide;
       if (p.lines) (p.lines.material as Material).clippingPlanes = planes;
-      const capped = p.closed && (material as { userData?: { base?: number } }).userData?.base === 1 && node.alpha >= 0.98 && node.obj.visible;
+      const capped = p.closed && !p.organic && (material as { userData?: { base?: number } }).userData?.base === 1 && node.alpha >= 0.98 && node.obj.visible;
       // One helper set for each plane that cuts this part; spare ones are put away.
       while (state.helpers.length > planes.length) this.retire(state.helpers.pop()!);
       for (let i = 0; i < planes.length; i++) {
         let helper = state.helpers[i];
         if (!helper) {
-          helper = this.helper(mesh, host);
+          helper = this.helper(mesh, host, state.plain);
           state.helpers.push(helper);
         }
         helper.plane = planes[i]!;
@@ -148,7 +158,8 @@ export class Cutaway {
         helper.back.renderOrder = this.order++;
         helper.front.renderOrder = this.order++;
         helper.cap.renderOrder = this.order++;
-        sectionTone(node.color, (helper.cap.material as MeshStandardMaterial).color);
+        if (state.plain) plainSection(node.color, (helper.cap.material as MeshStandardMaterial).color);
+        else sectionTone(node.color, (helper.cap.material as MeshStandardMaterial).color);
         // The cap lies on the plane, large enough to cover the part, facing along it.
         const cap = helper.cap;
         const plane = helper.plane;
@@ -162,7 +173,7 @@ export class Cutaway {
     }
   }
 
-  private helper(mesh: Mesh, host: Object3D): PieceState['helpers'][number] {
+  private helper(mesh: Mesh, host: Object3D, plain: boolean): PieceState['helpers'][number] {
     const stencil = (side: number, op: StencilOp): MeshBasicMaterial => new MeshBasicMaterial({
       side: side as typeof FrontSide, colorWrite: false, depthWrite: false, depthTest: false, stencilWrite: true, stencilFunc: AlwaysStencilFunc,
       stencilFail: op, stencilZFail: op, stencilZPass: op,
@@ -173,7 +184,7 @@ export class Cutaway {
       side: DoubleSide, roughness: 0.82, metalness: 0.02, stencilWrite: true, stencilRef: 0, stencilFunc: NotEqualStencilFunc,
       stencilFail: ReplaceStencilOp, stencilZFail: ReplaceStencilOp, stencilZPass: ReplaceStencilOp,
     });
-    hatched(capMaterial);
+    if (!plain) hatched(capMaterial);
     const cap = new Mesh(this.slab, capMaterial);
     for (const m of [back, front, cap]) {
       m.castShadow = false;

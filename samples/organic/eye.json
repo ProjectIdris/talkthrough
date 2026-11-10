@@ -1,0 +1,60 @@
+{
+  "escalate": null,
+  "steps": [
+    {
+      "say": "Light is focused onto the retina.",
+      "actions": [
+        {"op": "box", "id": "pic", "x": 552, "y": 135, "w": 156, "h": 170, "color": "blue"}
+      ]
+    },
+    {
+      "say": "Light enters at the front. The clear cornea bends it first, and the dark chamber behind it keeps stray light out.",
+      "actions": [
+        {"op": "panel", "x": 570, "y": 340, "w": 410, "h": 560},
+        {"op": "add", "shape": "shell", "id": "sclera", "size": [4, 4, 4], "inner": 0.92, "material": "bone", "opacity": 0.3},
+        {"op": "add", "shape": "shell", "id": "cornea", "pos": [-0.9, 0, 0], "rot": [0, 0, 90], "size": [2.4, 2.4, 2.4], "inner": 0.93, "latitude": [50, 90], "material": "crystal", "opacity": 0.4, "at": 0.6},
+        {"op": "pin", "id": "pcornea", "on": "cornea", "point": [0, 1.2, 0], "text": "Cornea", "off": [-30, -110], "at": 1.5}
+      ]
+    },
+    {
+      "say": "Now the lens. It sits behind the pupil, the opening in the coloured iris, and changes shape to fine-tune the bend, so near and far things both come out sharp.",
+      "actions": [
+        {"op": "add", "shape": "torus", "id": "iris", "pos": [-1.2, 0, 0], "rot": [0, 0, 90], "size": [2.5, 0.6, 2.5], "material": "organ", "color": "teal"},
+        {"op": "add", "shape": "sphere", "id": "lens", "pos": [-0.55, 0, 0], "size": [0.9, 1.8, 1.8], "material": "crystal", "color": "blue", "opacity": 0.65, "at": 0.6},
+        {"op": "pin", "id": "piris", "on": "iris", "point": [-1.0, 0, 0], "text": "Iris and pupil", "off": [-20, 110], "at": 1.4},
+        {"op": "pin", "id": "plens", "on": "lens", "text": "Lens", "off": [10, -140], "at": 1.8},
+        {"op": "highlight", "id": "lens", "color": "yellow", "at": 2.2}
+      ]
+    },
+    {
+      "say": "Behind it, the retina. It is the thin light-sensitive layer lining the back of the eye, packed with cells that sense light.",
+      "actions": [
+        {"op": "add", "shape": "shell", "id": "retina", "rot": [0, 0, -90], "size": [3.64, 3.64, 3.64], "inner": 0.95, "latitude": [30, 90], "material": "organ", "color": "red"},
+        {"op": "add", "shape": "tube", "id": "nerve", "pts": [[1.8, -0.5, 0], [2.8, -0.7, 0], [3.8, -0.7, 0]], "radius": 0.18, "material": "tendon", "at": 0.8},
+        {"op": "pin", "id": "pretina", "on": "retina", "point": [0, 1.82, 0], "text": "Retina", "off": [40, -120], "at": 1.2},
+        {"op": "highlight", "id": "retina", "color": "yellow", "at": 1.8}
+      ]
+    },
+    {
+      "say": "Rays meet on the retina. The cornea and lens bend light from each point of a scene back to a single spot there, so the picture lands sharp.",
+      "actions": [
+        {"op": "add", "shape": "line", "id": "rayt", "pts": [[-4.2, 1.0, 0], [-2.0, 1.0, 0], [-0.7, 0.72, 0], [1.78, 0, 0]], "color": "yellow", "draw": 0},
+        {"op": "add", "shape": "line", "id": "raym", "pts": [[-4.2, 0, 0], [1.78, 0, 0]], "color": "yellow", "draw": 0, "at": 0.3},
+        {"op": "add", "shape": "line", "id": "rayb", "pts": [[-4.2, -1.0, 0], [-2.0, -1.0, 0], [-0.7, -0.72, 0], [1.78, 0, 0]], "color": "yellow", "draw": 0, "at": 0.6},
+        {"op": "reveal", "id": "rayt", "to": 1, "dur": 1.2},
+        {"op": "reveal", "id": "raym", "to": 1, "dur": 1.2, "at": 0.3},
+        {"op": "reveal", "id": "rayb", "to": 1, "dur": 1.2, "at": 0.6},
+        {"op": "add", "shape": "stream", "id": "st1", "along": "rayt", "count": 4, "color": "yellow", "period": 2.5, "at": 2},
+        {"op": "add", "shape": "stream", "id": "st2", "along": "raym", "count": 4, "color": "yellow", "period": 2.5, "at": 2},
+        {"op": "add", "shape": "stream", "id": "st3", "along": "rayb", "count": 4, "color": "yellow", "period": 2.5, "at": 2}
+      ]
+    },
+    {
+      "say": "Cells turn light into signals. Each cell fires a nerve signal when light hits it, and the optic nerve carries them to the brain, which turns the upside-down picture the right way up.",
+      "actions": [
+        {"op": "add", "shape": "stream", "id": "sig", "along": "nerve", "count": 4, "color": "green", "period": 1.5},
+        {"op": "pin", "id": "pnerve", "on": "nerve", "text": "Optic nerve to brain", "off": [0, 100], "at": 0.6}
+      ]
+    }
+  ]
+}

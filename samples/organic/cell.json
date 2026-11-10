@@ -1,0 +1,51 @@
+{
+  "escalate": null,
+  "steps": [
+    {
+      "say": "A plant cell is a walled box full of tiny working parts.",
+      "actions": [
+        {"op": "box", "id": "pic", "x": 555, "y": 135, "w": 150, "h": 170, "color": "green"}
+      ]
+    },
+    {
+      "say": "A rigid wall wraps it. Just inside, a thin membrane controls what passes in and out of the cell.",
+      "actions": [
+        {"op": "clear", "target": "marks"},
+        {"op": "panel", "x": 580, "y": 330, "w": 400, "h": 640},
+        {"op": "add", "shape": "group", "id": "cell"},
+        {"op": "add", "shape": "box", "id": "wall", "parent": "cell", "size": [6, 4, 3.6], "bevel": 0.3, "material": "leaf", "opacity": 0.28, "edges": true},
+        {"op": "add", "shape": "box", "id": "membrane", "parent": "cell", "size": [5.6, 3.7, 3.3], "bevel": 0.25, "color": "orange", "opacity": 0.2, "at": 0.6},
+        {"op": "pin", "id": "wallpin", "on": "wall", "text": "Cell wall", "at": 1.2},
+        {"op": "pin", "id": "mempin", "on": "membrane", "text": "Cell membrane", "at": 2.2}
+      ]
+    },
+    {
+      "say": "A big vacuole stores water. It keeps the cell firm. Beside it, the nucleus holds the DNA and directs the cell.",
+      "actions": [
+        {"op": "add", "shape": "sphere", "id": "vacuole", "parent": "cell", "pos": [-0.6, -0.2, 0], "size": [3, 2.2, 2.2], "material": "water", "opacity": 0.65},
+        {"op": "add", "shape": "sphere", "id": "nucleus", "parent": "cell", "pos": [1.6, -0.3, 0], "size": [1.3, 1.3, 1.3], "material": "organ", "color": "purple", "at": 2.2},
+        {"op": "add", "shape": "sphere", "id": "nucleolus", "parent": "nucleus", "size": [0.45, 0.45, 0.45], "material": "organ", "color": "pink", "at": 2.8},
+        {"op": "pin", "id": "vacpin", "on": "vacuole", "text": "Vacuole", "at": 0.8},
+        {"op": "pin", "id": "nucpin", "on": "nucleus", "text": "Nucleus", "at": 3}
+      ]
+    },
+    {
+      "say": "Green chloroplasts catch sunlight. They turn light, water and carbon dioxide into sugar.",
+      "actions": [
+        {"op": "add", "shape": "sphere", "id": "chl1", "parent": "cell", "pos": [-2, 1, 1.2], "size": [0.95, 0.55, 0.55], "material": "leaf", "color": "green"},
+        {"op": "add", "shape": "array", "id": "chlrow", "of": "chl1", "count": 3, "step": [1.4, -0.1, 0], "at": 0.6},
+        {"op": "pin", "id": "chlpin", "on": "chl1", "text": "Chloroplast", "at": 1.2}
+      ]
+    },
+    {
+      "say": "Mitochondria release energy. They burn sugar to power the cell. The folded ER builds proteins.",
+      "actions": [
+        {"op": "add", "shape": "sphere", "id": "mito", "parent": "cell", "pos": [0.9, -1.4, 0.9], "size": [0.9, 0.45, 0.45], "material": "organ", "color": "orange"},
+        {"op": "add", "shape": "tube", "id": "er", "parent": "cell", "pts": [[2.3, 0.8, 0.3], [2.5, 0.2, 0.6], [2.3, -0.4, 0.3], [2.5, -1, 0.6]], "radius": 0.07, "material": "organ", "color": "yellow", "at": 1.8},
+        {"op": "pin", "id": "mitopin", "on": "mito", "text": "Mitochondrion", "at": 0.8},
+        {"op": "pin", "id": "erpin", "on": "er", "text": "Endoplasmic reticulum", "at": 2.6},
+        {"op": "orbit", "az": 25, "el": 10, "at": 3, "dur": 3}
+      ]
+    }
+  ]
+}

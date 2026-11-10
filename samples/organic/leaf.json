@@ -1,0 +1,71 @@
+{
+  "escalate": null,
+  "steps": [
+    {
+      "say": "A leaf is a flat solar factory.",
+      "actions": [
+        {"op": "box", "id": "leafbox", "x": 560, "y": 140, "w": 140, "h": 160, "color": "green"}
+      ]
+    },
+    {
+      "say": "Let me enlarge it. Then the veins are easy to see.",
+      "actions": [
+        {"op": "image", "id": "bigleaf", "sx": 560, "sy": 140, "sw": 140, "sh": 160, "dx": 720, "dy": 60, "dw": 260, "caption": "The leaf, enlarged", "color": "green"}
+      ]
+    },
+    {
+      "say": "The central vein is the midrib. Thinner side veins branch from it, and finer ones fill the gaps between.",
+      "actions": [
+        {"op": "point", "id": "ptmid", "x": 850, "y": 209, "color": "red"},
+        {"op": "label", "id": "lbmid", "x": 862, "y": 200, "text": "Midrib", "color": "red", "size": 20, "at": 0.3},
+        {"op": "point", "id": "ptside", "x": 813, "y": 171, "color": "blue", "at": 1.5},
+        {"op": "label", "id": "lbside", "x": 825, "y": 162, "text": "Side vein", "color": "blue", "size": 20, "at": 1.8}
+      ]
+    },
+    {
+      "say": "Here is how it works. A broad, thin blade catches light, and the veins run through it like pipework.",
+      "actions": [
+        {"op": "panel", "x": 580, "y": 380, "w": 380, "h": 600},
+        {"op": "add", "shape": "group", "id": "lf"},
+        {"op": "add", "shape": "extrude", "id": "blade", "parent": "lf", "outline": [[0, 0], [1.2, 1], [1.9, 2.4], [1.6, 4], [0.8, 5.2], [0, 6.2], [-0.8, 5.2], [-1.6, 4], [-1.9, 2.4], [-1.2, 1]], "depth": 0.15, "material": "leaf", "at": 0.2},
+        {"op": "add", "shape": "tube", "id": "midrib", "parent": "lf", "pts": [[0, -1.6, 0.12], [0, 0, 0.12], [0, 2.5, 0.12], [0, 5.8, 0.12]], "radius": 0.08, "swell": [[0, 1.6], [0.3, 1.3], [1, 0.4]], "material": "leaf", "color": "yellow", "at": 0.8}
+      ]
+    },
+    {
+      "say": "Side veins branch out. They spread to every corner of the blade, so no cell is far from a pipe.",
+      "actions": [
+        {"op": "add", "shape": "tube", "id": "v1r", "parent": "lf", "pts": [[0, 1.4, 0.1], [0.8, 1.7, 0.1], [1.4, 2.3, 0.1]], "radius": 0.04, "material": "leaf", "color": "yellow", "at": 0.2},
+        {"op": "add", "shape": "tube", "id": "v1l", "parent": "lf", "pts": [[0, 1.4, 0.1], [-0.8, 1.7, 0.1], [-1.4, 2.3, 0.1]], "radius": 0.04, "material": "leaf", "color": "yellow", "at": 0.4},
+        {"op": "add", "shape": "tube", "id": "v2r", "parent": "lf", "pts": [[0, 2.7, 0.1], [0.9, 3.1, 0.1], [1.5, 3.8, 0.1]], "radius": 0.04, "material": "leaf", "color": "yellow", "at": 0.8},
+        {"op": "add", "shape": "tube", "id": "v2l", "parent": "lf", "pts": [[0, 2.7, 0.1], [-0.9, 3.1, 0.1], [-1.5, 3.8, 0.1]], "radius": 0.04, "material": "leaf", "color": "yellow", "at": 1.0},
+        {"op": "add", "shape": "tube", "id": "v3r", "parent": "lf", "pts": [[0, 3.9, 0.1], [0.55, 4.3, 0.1], [0.8, 4.95, 0.1]], "radius": 0.035, "material": "leaf", "color": "yellow", "at": 1.4},
+        {"op": "add", "shape": "tube", "id": "v3l", "parent": "lf", "pts": [[0, 3.9, 0.1], [-0.55, 4.3, 0.1], [-0.8, 4.95, 0.1]], "radius": 0.035, "material": "leaf", "color": "yellow", "at": 1.6}
+      ]
+    },
+    {
+      "say": "Two kinds of pipe run inside. Xylem carries water up from the stem into the blade, and phloem carries finished sugar back out.",
+      "actions": [
+        {"op": "add", "shape": "stream", "id": "flowup", "along": "midrib", "count": 6, "color": "blue", "period": 4},
+        {"op": "add", "shape": "stream", "id": "s1r", "along": "v1r", "count": 3, "color": "blue", "period": 3, "at": 0.3},
+        {"op": "add", "shape": "stream", "id": "s1l", "along": "v1l", "count": 3, "color": "blue", "period": 3, "at": 0.3},
+        {"op": "add", "shape": "stream", "id": "s2r", "along": "v2r", "count": 3, "color": "blue", "period": 3, "at": 0.5},
+        {"op": "add", "shape": "stream", "id": "s2l", "along": "v2l", "count": 3, "color": "blue", "period": 3, "at": 0.5},
+        {"op": "add", "shape": "stream", "id": "s3r", "along": "v3r", "count": 3, "color": "blue", "period": 3, "at": 0.7},
+        {"op": "add", "shape": "stream", "id": "s3l", "along": "v3l", "count": 3, "color": "blue", "period": 3, "at": 0.7},
+        {"op": "pin", "id": "tagxy", "on": "midrib", "text": "Water up (xylem)", "color": "blue", "at": 1.5},
+        {"op": "add", "shape": "tube", "id": "phloem", "parent": "lf", "pts": [[0.17, 5.0, 0.14], [0.17, 2.5, 0.14], [0.17, 0, 0.14], [0.17, -1.6, 0.14]], "radius": 0.035, "color": "orange", "at": 3.5},
+        {"op": "add", "shape": "stream", "id": "flowdown", "along": "phloem", "count": 5, "color": "orange", "period": 4, "at": 4.0},
+        {"op": "pin", "id": "tagph", "on": "phloem", "text": "Sugar out (phloem)", "color": "orange", "off": [110, 40], "at": 4.2}
+      ]
+    },
+    {
+      "say": "Sunlight drives it all. Green cells in the blade turn light, water and carbon dioxide into sugar, which the veins then carry away.",
+      "actions": [
+        {"op": "add", "shape": "arrow", "id": "sun", "pts": [[2.8, 6.4, 3], [0.9, 3.6, 0.4]], "color": "orange"},
+        {"op": "pin", "id": "tagsun", "on": "sun", "text": "Sunlight", "color": "orange", "at": 0.6},
+        {"op": "highlight", "id": "blade", "color": "green", "at": 1.5, "dur": 1.5},
+        {"op": "orbit", "az": 20, "el": 8, "at": 0.5, "dur": 3}
+      ]
+    }
+  ]
+}

@@ -135,6 +135,9 @@ export function startAnswer(state: SceneState): void {
 
 type Notes = Issue[];
 
+/** A pulse amount under this is read as the swell it was meant to be (see the loop's check). */
+const PULSE_SWELL_BELOW = 0.3;
+
 function note(notes: Notes, kind: IssueKind, path: string, message: string): void {
   if (notes.length < MAX_ISSUES) { notes.push({ kind, path, message }); return; }
   if (kind === 'dropped') {
@@ -957,9 +960,12 @@ function validateAction(rawIn: unknown, state: SceneState, path: string, notes: 
       return null;
     }
     const [low, high] = loopRow(kind)?.amount ?? DEFAULT_AMOUNT;
-    const held = Math.min(high, Math.max(low, amount));
+    // A pulse's amount is a size factor (1.1 a tenth bigger). One far below 1 would shrink the part to a speck: it was meant as how much it swells (a lung
+    // breathing by 0.06), and is read so. A pump's squeeze is never under 0.3, so nothing that is meant to shrink is lost.
+    const swell = kind === 'pulse' && amount > 0 && amount < PULSE_SWELL_BELOW;
+    const held = swell ? 1 + amount : Math.min(high, Math.max(low, amount));
     if (held !== amount) {
-      note(notes, 'clamped', `${path}.amount`, `${kind} amount ${amount} held to ${held}`);
+      note(notes, 'clamped', `${path}.amount`, swell ? `pulse amount ${amount} read as a swell to ${held} (amount is a size factor)` : `${kind} amount ${amount} held to ${held}`);
       out.amount = held;
     }
   }

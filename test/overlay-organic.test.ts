@@ -127,29 +127,37 @@ test('the model is told about the organic forms: blob, swell and tissue', async 
   assert.ok(sceneGuide.includes('are never boxes and cylinders'), 'the instruction is a rule, not a description');
 });
 
-test('ten blobs in one scene stay inside the scene budget of triangles: later ones are cut coarser, none is dropped', async () => {
-  const { SCENE_BLOB_TRIANGLES, BLOB_MIN_TRIANGLES } = await import('../src/overlay/blob.ts');
+test('ten blobs in one scene stay inside the scene budget of triangles: each is cut coarser than it would be alone, none is dropped', async () => {
+  // A blob is drawn as a living body (organic-bodies.ts): the scene's bodies share its budget of triangles by their size.
+  const { BODY_TRIANGLES, SCENE_BODY_TRIANGLES } = await import('../src/overlay/organic-bodies.ts');
   const lumps = (i: number) => ({
-    op: 'add', shape: 'blob', id: `b${i}`, pts: [[i * 0.5, 0, 0], [i * 0.5 + 1, 0.4, 0.2], [i * 0.5 + 0.5, 1, -0.2]], sizes: [[2, 2, 2], [1.6, 1.6, 1.6], [1.8, 1.8, 1.8]],
+    op: 'add', shape: 'blob', id: `b${i}`, pts: [[i * 6, 0, 0], [i * 6 + 1, 0.4, 0.2], [i * 6 + 0.5, 1, -0.2]], sizes: [[2, 2, 2], [1.6, 1.6, 1.6], [1.8, 1.8, 1.8]],
   });
-  const scene: Scene = { steps: [{ say: 'x', actions: [{ op: 'panel', x: 100, y: 100, w: 400, h: 400 }, ...Array.from({ length: 10 }, (_, i) => lumps(i))] as Scene['steps'][0]['actions'] }] };
-  for (const tier of ['low', 'mid'] as const) {
-    const panel = new PanelScene({ tier });
-    panel.sync(frameAt(scene.steps, 0, 99), 1, VIEW);
+  const sceneOf = (count: number): Scene => ({ steps: [{ say: 'x', actions: [{ op: 'panel', x: 100, y: 100, w: 400, h: 400 }, ...Array.from({ length: count }, (_, i) => lumps(i))] as Scene['steps'][0]['actions'] }] });
+  const triangles = (panel: PanelScene): number[] => {
     const per: number[] = [];
     panel.scene.traverse((o) => {
       const tri = (o as { geometry?: { userData: { triangles?: number } } }).geometry?.userData.triangles;
       if (tri !== undefined) per.push(tri);
     });
+    return per;
+  };
+  for (const tier of ['low', 'mid'] as const) {
+    const panel = new PanelScene({ tier });
+    panel.sync(frameAt(sceneOf(10).steps, 0, 99), 1, VIEW);
+    const per = triangles(panel);
     const total = per.reduce((a, b) => a + b, 0);
     assert.equal(per.length, 10, `${tier}: every blob is built`);
-    assert.ok(per.every((t) => t > 0), `${tier}: none is empty`);
-    assert.ok(total <= SCENE_BLOB_TRIANGLES[tier] + 10 * BLOB_MIN_TRIANGLES * 1.5, `${tier}: ${total} triangles in all`);
-    assert.ok(per[0]! > per[9]!, `${tier}: the first keeps more detail than the last (${per[0]} against ${per[9]})`);
+    assert.ok(per.every((t) => t > 300), `${tier}: none is empty or a scrap`);
+    assert.ok(total <= SCENE_BODY_TRIANGLES[tier] * 1.3, `${tier}: ${total} triangles in all`);
+    // Alone, the same blob has a body's whole allowance, and uses more of it.
+    const alone = new PanelScene({ tier });
+    alone.sync(frameAt(sceneOf(1).steps, 0, 99), 1, VIEW);
+    const one = triangles(alone)[0]!;
+    assert.ok(one <= BODY_TRIANGLES[tier] * 2, `${tier}: one blob alone is ${one} triangles`);
+    assert.ok(one > Math.max(...per) * 1.3, `${tier}: alone it is finer (${one}) than any of the ten (${Math.max(...per)})`);
+    panel.destroy(); alone.destroy();
   }
-  // Without the budget the same ten blobs on the low tier would be far over it.
-  const free = blobGeometry([[0, 0, 0], [1, 0.4, 0.2], [0.5, 1, -0.2]], [[2, 2, 2], [1.6, 1.6, 1.6], [1.8, 1.8, 1.8]], 0.5, BLOB_CELLS.low);
-  assert.ok(free.attributes.position!.count / 3 * 10 > SCENE_BLOB_TRIANGLES.low, 'ten uncapped blobs would exceed the low budget');
 });
 
 test('lumps that overlap by a third, as the guide asks, melt into one mass: no crease deeper than a few percent at the usual softness', () => {

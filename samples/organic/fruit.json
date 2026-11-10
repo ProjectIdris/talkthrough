@@ -1,0 +1,42 @@
+{
+  "escalate": null,
+  "steps": [
+    {
+      "say": "Juicy flesh around a hard stone. Let me cut one open for you.",
+      "actions": [
+        {"op": "box", "id": "pic", "x": 560, "y": 140, "w": 140, "h": 160, "color": "orange"}
+      ]
+    },
+    {
+      "say": "Here is a whole peach. Its thin, fuzzy skin covers the flesh underneath.",
+      "actions": [
+        {"op": "panel", "x": 715, "y": 335, "w": 270, "h": 620},
+        {"op": "add", "shape": "group", "id": "peach"},
+        {"op": "add", "shape": "shell", "id": "skin", "parent": "peach", "size": [5, 4.8, 5], "inner": 0.97, "material": "skin", "color": "orange", "roughness": 0.9, "at": 0.3},
+        {"op": "add", "shape": "lathe", "id": "flesh", "parent": "peach", "profile": [[0, -2.25], [0.61, -2.17], [1.175, -1.95], [1.66, -1.59], [2.035, -1.125], [2.27, -0.58], [2.35, 0], [2.27, 0.58], [2.035, 1.125], [1.66, 1.59], [1.175, 1.95], [0.61, 2.17], [0, 2.25]], "material": "cheese", "color": "yellow", "at": 0.3}
+      ]
+    },
+    {
+      "say": "Now slice it in half. The cut runs straight through the middle, past the stone.",
+      "actions": [
+        {"op": "add", "shape": "shell", "id": "stone", "parent": "peach", "size": [1.3, 1.8, 1.1], "inner": 0.7, "material": "walnut"},
+        {"op": "add", "shape": "sphere", "id": "kernel", "parent": "peach", "size": [0.7, 1.1, 0.5], "material": "pine"},
+        {"op": "cut", "id": "peach", "axis": "z", "to": 0, "at": 0.8, "dur": 1.5}
+      ]
+    },
+    {
+      "say": "Cut open, the flesh shows. It is yellow, soft and juicy, and the skin is only a thin layer around it.",
+      "actions": [
+        {"op": "pin", "id": "fleshtag", "on": "flesh", "point": [1.7, 0.8, 0], "text": "Flesh", "at": 0.5},
+        {"op": "pin", "id": "skintag", "on": "skin", "point": [2.45, -0.4, 0], "text": "Skin", "at": 1.5}
+      ]
+    },
+    {
+      "say": "At the heart sits the stone. It is hard and woody, and inside it is the seed, called the kernel.",
+      "actions": [
+        {"op": "pin", "id": "stonetag", "on": "stone", "point": [0.6, 0.3, 0], "text": "Stone", "at": 0.5},
+        {"op": "pin", "id": "seedtag", "on": "kernel", "text": "Seed", "at": 1.8}
+      ]
+    }
+  ]
+}

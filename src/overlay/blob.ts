@@ -6,6 +6,7 @@
 
 import { BufferAttribute, BufferGeometry } from 'three';
 import type { Vec3 } from '../scene/types.ts';
+import { lumpReach } from './organic-field.ts';
 
 /** How much surface a blob is cut into (grid cells over its bounds): a cheaper tier gets a coarser, still smooth, skin. */
 export const BLOB_CELLS = { low: 14_000, mid: 40_000, high: 90_000 } as const;
@@ -20,14 +21,10 @@ const MIN_THICKNESS = 0.2;
 
 type Lump = { c: Vec3; r: Vec3 };
 
-/** Influence reaches this many (normalised) radii out; 1 is a hard union, more blends over a wider neck. */
-function reach(soft: number): number {
-  const s = Math.max(0.05, Math.min(1, soft));
-  // Up to 0.3 as it always was (a firm blend leaves lumps apart). Above that the blend widens faster, so the usual 0.5 melts lumps that overlap by a third
-  // into one mass instead of leaving a crease between them (equal lumps in a square read as a cloverleaf).
-  const eff = s <= 0.3 ? s : 0.3 + (s - 0.3) * 1.9;
-  return 1 + 2 * eff;
-}
+// Influence reaches this many (normalised) radii out; 1 is a hard union, more blends over a wider neck. Up to 0.3 as it always was (a firm blend leaves
+// lumps apart). Above that the blend widens faster, so the usual 0.5 melts lumps that overlap by a third into one mass instead of leaving a crease between
+// them (equal lumps in a square read as a cloverleaf). One function for this mesher and the living bodies' field (organic-field.ts).
+const reach = lumpReach;
 
 /** The field of the lumps and its gradient at p; the surface is where the field equals `level`. */
 class Field {
@@ -83,6 +80,40 @@ const CORNERS: ReadonlyArray<readonly [number, number, number]> = [
  * `soft` (0.05 almost hard, 1 very soft; about 0.5 is a usual organic neck). Centred where the centres are; returns the
  * mesh without an index (each triangle has its own vertices and the field's own normals).
  */
+/**
+ * A blob as its lumps alone, each a plain ball of a few triangles: what a blob of living material is drawn as for the frames its skin takes to cut when
+ * the scene is drawn live (organic-bodies.ts). No field is asked.
+ */
+export function lumpsGeometry(centres: readonly Vec3[], sizes: readonly Vec3[]): BufferGeometry {
+  const around = 14, down = 9;
+  const position: number[] = [], normal: number[] = [], index: number[] = [];
+  centres.forEach((c, n) => {
+    const s = sizes[Math.min(n, sizes.length - 1)] ?? [1, 1, 1];
+    const r = [Math.max(1e-3, s[0] / 2), Math.max(1e-3, s[1] / 2), Math.max(1e-3, s[2] / 2)] as const;
+    const base = position.length / 3;
+    for (let j = 0; j <= down; j++) {
+      const lat = (j / down) * Math.PI;
+      for (let i = 0; i <= around; i++) {
+        const lon = (i / around) * 2 * Math.PI;
+        const x = Math.sin(lat) * Math.cos(lon), y = Math.cos(lat), z = Math.sin(lat) * Math.sin(lon);
+        position.push(c[0] + x * r[0], c[1] + y * r[1], c[2] + z * r[2]);
+        const nx = x / r[0], ny = y / r[1], nz = z / r[2];
+        const l = Math.hypot(nx, ny, nz) || 1;
+        normal.push(nx / l, ny / l, nz / l);
+      }
+    }
+    for (let j = 0; j < down; j++) for (let i = 0; i < around; i++) {
+      const a = base + j * (around + 1) + i, b = a + around + 1;
+      index.push(a, a + 1, b, a + 1, b + 1, b);
+    }
+  });
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new BufferAttribute(new Float32Array(position), 3));
+  geo.setAttribute('normal', new BufferAttribute(new Float32Array(normal), 3));
+  geo.setIndex(index);
+  return geo;
+}
+
 export function blobGeometry(centres: readonly Vec3[], sizes: readonly Vec3[], soft: number, cells: number, maxTriangles: number = BLOB_MAX_TRIANGLES): BufferGeometry {
   // Triangles grow with the cell count to about the two thirds power; a skin over its allowance is made again with fewer cells.
   let geo = cut(centres, sizes, soft, cells);

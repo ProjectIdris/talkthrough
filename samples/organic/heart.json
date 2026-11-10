@@ -1,0 +1,59 @@
+{
+  "escalate": null,
+  "steps": [
+    {
+      "say": "The heart is two pumps working side by side.",
+      "actions": [
+        {"op": "box", "id": "pic", "x": 555, "y": 135, "w": 150, "h": 170, "color": "blue"}
+      ]
+    },
+    {
+      "say": "Start with the right side. Used blood arrives in the right atrium, and the right ventricle below it pumps it toward the lungs.",
+      "actions": [
+        {"op": "panel", "x": 560, "y": 330, "w": 430, "h": 650},
+        {"op": "add", "shape": "blob", "id": "ra", "pos": [-1.8, 1.2, 0], "pts": [[0, 0, 0]], "sizes": [[2, 2.2, 1.8]], "material": "organ", "color": "blue", "opacity": 0.6, "at": 0.2},
+        {"op": "add", "shape": "blob", "id": "rv", "pos": [-0.8, -1.2, 0.3], "pts": [[0, 0.3, 0], [0.2, -0.8, 0]], "sizes": [[2.6, 2.2, 2.2], [1.8, 2.4, 1.8]], "material": "organ", "color": "blue", "opacity": 0.6, "at": 0.6},
+        {"op": "add", "shape": "box", "id": "tricusp", "pos": [-1.6, 0.1, 0.3], "size": [1.0, 0.08, 0.5], "material": "tendon", "at": 1.0},
+        {"op": "add", "shape": "box", "id": "pulmv", "pos": [-0.5, 0.1, 0.9], "size": [0.6, 0.08, 0.4], "material": "tendon", "at": 1.2},
+        {"op": "pump", "id": "rv", "inlet": "tricusp", "outlet": "pulmv", "squeeze": 0.75, "open": 50, "period": 1.2, "at": 1.6},
+        {"op": "pin", "id": "pra", "on": "ra", "text": "Right atrium", "at": 2.2},
+        {"op": "pin", "id": "prv", "on": "rv", "text": "Right ventricle", "at": 2.8}
+      ]
+    },
+    {
+      "say": "Here is its route. Blood comes in by the vena cava, passes a one-way valve, and leaves by the pulmonary artery to the lungs.",
+      "actions": [
+        {"op": "add", "shape": "tube", "id": "vc", "pts": [[-2.4, 4.0, 0], [-2.3, 2.6, 0], [-1.9, 1.9, 0]], "radius": 0.3, "material": "organ", "color": "blue", "at": 0.2},
+        {"op": "add", "shape": "tube", "id": "pa", "pts": [[-0.5, 0.2, 0.9], [-0.3, 2.2, 0.9], [-0.9, 3.6, 0.5]], "radius": 0.32, "material": "organ", "color": "blue", "at": 0.8},
+        {"op": "add", "shape": "stream", "id": "svc", "along": "vc", "count": 6, "size": 0.2, "color": "white", "period": 2.4, "surge": 0.7, "beat": 1.2, "at": 1.4},
+        {"op": "add", "shape": "stream", "id": "spa", "along": "pa", "count": 6, "size": 0.2, "color": "white", "period": 2.4, "surge": 0.7, "beat": 1.2, "at": 1.6},
+        {"op": "pin", "id": "pvc", "on": "vc", "text": "Vena cava", "at": 2.0},
+        {"op": "pin", "id": "ppa", "on": "pa", "text": "Pulmonary artery", "at": 2.6}
+      ]
+    },
+    {
+      "say": "The left side mirrors it. Blood back from the lungs fills the left atrium, and the strong left ventricle drives it out to the whole body.",
+      "actions": [
+        {"op": "add", "shape": "blob", "id": "la", "pos": [2.2, 1.4, -0.5], "pts": [[0, 0, 0]], "sizes": [[2, 2.2, 1.8]], "material": "organ", "color": "red", "opacity": 0.6, "at": 0.2},
+        {"op": "add", "shape": "blob", "id": "lv", "pos": [1.3, -1.2, 0], "pts": [[0, 0.3, 0], [0, -0.8, 0]], "sizes": [[2.6, 2.4, 2.4], [1.8, 2.4, 1.8]], "material": "organ", "color": "red", "opacity": 0.6, "at": 0.6},
+        {"op": "add", "shape": "box", "id": "mitral", "pos": [2.0, 0.45, -0.1], "size": [1.0, 0.08, 0.5], "material": "tendon", "at": 1.0},
+        {"op": "add", "shape": "box", "id": "aortv", "pos": [0.8, 0.5, -0.1], "size": [0.7, 0.08, 0.4], "material": "tendon", "at": 1.2},
+        {"op": "pump", "id": "lv", "inlet": "mitral", "outlet": "aortv", "squeeze": 0.7, "open": 50, "period": 1.2, "at": 1.6},
+        {"op": "pin", "id": "pla", "on": "la", "text": "Left atrium", "at": 2.2},
+        {"op": "pin", "id": "plv", "on": "lv", "text": "Left ventricle", "at": 2.8}
+      ]
+    },
+    {
+      "say": "Two vessels finish the loop. Pulmonary veins bring red blood from the lungs, and the aorta carries it out to the body. Both ventricles squeeze together with every beat.",
+      "actions": [
+        {"op": "add", "shape": "tube", "id": "pv", "pts": [[4.2, 1.9, -0.5], [3.4, 1.6, -0.5], [3.0, 1.4, -0.5]], "radius": 0.28, "material": "organ", "color": "red", "at": 0.2},
+        {"op": "add", "shape": "tube", "id": "ao", "pts": [[0.8, 0.45, -0.1], [0.8, 2.8, -0.3], [1.6, 4.0, -0.3], [2.8, 3.4, -0.3]], "radius": 0.38, "material": "organ", "color": "red", "at": 0.8},
+        {"op": "add", "shape": "stream", "id": "spv", "along": "pv", "count": 5, "size": 0.2, "color": "white", "period": 2.4, "surge": 0.7, "beat": 1.2, "at": 1.4},
+        {"op": "add", "shape": "stream", "id": "sao", "along": "ao", "count": 6, "size": 0.2, "color": "white", "period": 2.4, "surge": 0.7, "beat": 1.2, "at": 1.6},
+        {"op": "pin", "id": "ppv", "on": "pv", "text": "Pulmonary veins", "at": 2.0},
+        {"op": "pin", "id": "pao", "on": "ao", "text": "Aorta", "at": 2.6},
+        {"op": "orbit", "az": 20, "el": 8, "at": 3.2, "dur": 4}
+      ]
+    }
+  ]
+}

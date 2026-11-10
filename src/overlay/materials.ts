@@ -2,7 +2,7 @@
 // renderer runs at. A surface is physically based (roughness, metalness, a little clear coat) and
 // is lit by the environment, so it reads as a real object, not a flat colour.
 
-import { Color, DoubleSide, MeshPhysicalMaterial } from 'three';
+import { Color, DoubleSide, MeshPhysicalMaterial, Vector2, Vector4 } from 'three';
 import type { Material } from 'three';
 import type { SurfaceFinish } from '../scene/types.ts';
 import { applyMicroSurface } from './surface-micro.ts';
@@ -90,7 +90,7 @@ const RECIPES: Record<SurfaceName, Recipe> = {
   bone: { roughness: 0.58, metalness: 0, clearcoat: 0.12, clearcoatRoughness: 0.55, micro: { rough: 0.07, grain: 12, bump: 0.15 } },
   muscle: { roughness: 0.55, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.45, sheen: 0.5, subsurface: 0.5, micro: { rough: 0.07, grain: 12, bump: 0.15 }, pattern: { kind: 'fibre', scale: 2.5, amount: 0.22 } },
   tendon: { roughness: 0.38, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.3, sheen: 0.4 },
-  skin: { roughness: 0.6, metalness: 0, clearcoat: 0.18, clearcoatRoughness: 0.6, sheen: 0.7, subsurface: 0.6, micro: { rough: 0.07, grain: 12, bump: 0.15 } },
+  skin: { roughness: 0.6, metalness: 0, clearcoat: 0.18, clearcoatRoughness: 0.6, sheen: 0.7, subsurface: 0.6, micro: { rough: 0.07, grain: 12, bump: 0.15 }, pattern: { kind: 'skin', scale: 1.5, amount: 0.16 } },
   // Metals and their kin: the plain metal's recipe, tuned.
   steel: { roughness: 0.3, metalness: 1, micro: { rough: 0.1, grain: 70, bump: 0.3 } },
   iron: { roughness: 0.5, metalness: 0.92, micro: { rough: 0.16, grain: 36, bump: 0.8 } },
@@ -171,16 +171,16 @@ const RECIPES: Record<SurfaceName, Recipe> = {
   // The body: matte to wet, each with the sheen of living tissue.
   cartilage: { roughness: 0.45, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.4, sheen: 0.3, subsurface: 0.4, micro: { rough: 0.05, grain: 12, bump: 0.1 } },
   fat: { roughness: 0.5, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.5, sheen: 0.5, subsurface: 0.9, micro: { rough: 0.06, grain: 14, bump: 0.12 }, pattern: { kind: 'mottle', scale: 5, amount: 0.2 } },
-  organ: { roughness: 0.4, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.3, sheen: 0.55, subsurface: 0.9, micro: { rough: 0.12, grain: 14, bump: 0.2 }, pattern: { kind: 'mottle', scale: 6, amount: 0.4 } },
+  organ: { roughness: 0.36, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.25, sheen: 0.55, subsurface: 0.9, micro: { rough: 0.12, grain: 14, bump: 0.2 }, pattern: { kind: 'organ', scale: 1.2, amount: 0.34 } },
   nerve: { roughness: 0.4, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.35, sheen: 0.3, subsurface: 0.5, micro: { rough: 0.06, grain: 16, bump: 0.1 }, pattern: { kind: 'fibre', scale: 2.5, amount: 0.26 } },
   vessel: { roughness: 0.36, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.3, sheen: 0.3, subsurface: 0.8, micro: { rough: 0.08, grain: 16, bump: 0.12 }, pattern: { kind: 'mottle', scale: 6, amount: 0.26 } },
   tooth: { roughness: 0.12, metalness: 0, clearcoat: 0.9, clearcoatRoughness: 0.08 },
   mucosa: { roughness: 0.2, metalness: 0, clearcoat: 0.9, clearcoatRoughness: 0.15, sheen: 0.4, subsurface: 0.6 },
   // Plants.
-  leaf: { roughness: 0.55, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.5, sheen: 0.3, subsurface: 0.5, doubleSided: true },
+  leaf: { roughness: 0.5, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.45, sheen: 0.3, subsurface: 0.5, doubleSided: true, pattern: { kind: 'venation', scale: 1, amount: 0.3 } },
   bark: { roughness: 1, metalness: 0, micro: { rough: 0.25, grain: 12, bump: 2 }, pattern: { kind: 'grain', scale: 6, amount: 0.3 } },
   petal: { roughness: 0.6, metalness: 0, sheen: 0.7, subsurface: 0.6, doubleSided: true, micro: { rough: 0.06, grain: 30, bump: 0.1 }, pattern: { kind: 'mottle', scale: 5, amount: 0.22 } },
-  fruit: { roughness: 0.3, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.2, sheen: 0.2, subsurface: 0.5, micro: { rough: 0.08, grain: 20, bump: 0.25 }, pattern: { kind: 'pores', scale: 5, amount: 0.24 } },
+  fruit: { roughness: 0.3, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.2, sheen: 0.2, subsurface: 0.5, micro: { rough: 0.08, grain: 20, bump: 0.25 }, pattern: { kind: 'rind', scale: 1, amount: 0.26 } },
   grass: { roughness: 0.85, metalness: 0, sheen: 0.3, doubleSided: true, micro: { rough: 0.2, grain: 40, bump: 1 } },
   // Foods.
   bread: { roughness: 0.96, metalness: 0, micro: { rough: 0.25, grain: 18, bump: 1.8 }, pattern: { kind: 'speckle', scale: 8, amount: 0.3 } },
@@ -226,6 +226,11 @@ export function makeSurface(name: string | undefined, tier: TierSettings, finish
   m.userData = { base: r.opacity ?? 1, glow: r.emissive ?? 0, name };
   m.opacity = m.userData.base;
   m.depthWrite = !m.transparent;
+  // Every surface reads a colour for each vertex, and a geometry that has none is given white for all of them. A part that gains its own colours (a
+  // softened edge, a patch of a living body's skin: organic-bodies.ts) is then drawn by the program the surface already has, built before any answer
+  // (the page's warm-up), instead of by a second one that would be built, with a pause, the first time such a part is drawn.
+  m.vertexColors = true;
+  (m as { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = { color: [1, 1, 1] };
   if (name === 'section') hatched(m);
   else if ((tier.micro > 0 && (r.micro || r.pattern)) || (tier.board > 0 && r.board)) {
     if ((r.opacity ?? 1) >= 1 && !r.emissive) applyMicroSurface(m, { rough: tier.micro > 0 && r.micro ? r.micro.rough : 0, grain: r.micro?.grain ?? 30, bump: tier.micro > 1 && r.micro ? r.micro.bump : 0, board: r.board ? tier.board : 0, ...(tier.micro > 0 && r.pattern ? { pattern: r.pattern } : {}) });
@@ -234,7 +239,112 @@ export function makeSurface(name: string | undefined, tier: TierSettings, finish
   return m;
 }
 
+/**
+ * What a living or soft material is under its surface: read for the face of a cut through it and for the wall of a hollow part (organic-bodies.ts). A row
+ * of numbers for each material, as its surface is; depths are shares of the part's own thickness.
+ */
+export type Inside = {
+  /** The skin (a rind, a crust, a bone's hard shell): how deep it goes, and its shade against the part's colour (1 the same, less is darker). */
+  rim: number; rimShade: number;
+  /** The flesh under it: its own colour, and how much of the part's colour is kept in it (1 all the part's, 0 all its own). No colour: the part's. */
+  flesh?: Rgb; keep: number;
+  /** What the flesh goes over to deeper in, reached at `coreAt` of the thickness (a fruit paler to its middle, fat over muscle, a tooth's pulp). */
+  core?: Rgb; coreAt?: number;
+  /** A hollow part's wall, and the shade of the cavity's lining against the part's colour. */
+  wall: number; lining: number;
+  /** A grain on the cut face: its pattern, cycles to a unit and strength. */
+  grain?: { kind: PatternKind; scale: number; amount: number };
+};
+
+const PLAIN_INSIDE: Inside = { rim: 0, rimShade: 1, keep: 1, wall: 0.12, lining: 0.7 };
+
+const INSIDES: Partial<Record<SurfaceName, Inside>> = {
+  // The body: a thin darker skin over flesh of the part's own hue; fat lies under skin and muscle under that; bone is a hard pale shell round red marrow.
+  tissue: { rim: 0.03, rimShade: 0.8, flesh: [222, 128, 124], keep: 0.6, wall: 0.12, lining: 0.72 },
+  muscle: { rim: 0.02, rimShade: 0.75, flesh: [158, 44, 50], keep: 0.5, wall: 0.16, lining: 0.7, grain: { kind: 'fibre', scale: 3, amount: 0.2 } },
+  skin: { rim: 0.03, rimShade: 0.8, flesh: [240, 208, 150], keep: 0.15, core: [172, 58, 60], coreAt: 0.2, wall: 0.1, lining: 0.75 },
+  fat: { rim: 0.02, rimShade: 0.9, flesh: [246, 226, 164], keep: 0.5, wall: 0.12, lining: 0.8, grain: { kind: 'mottle', scale: 6, amount: 0.14 } },
+  organ: { rim: 0.03, rimShade: 0.7, flesh: [170, 56, 60], keep: 0.7, core: [206, 108, 100], coreAt: 0.5, wall: 0.13, lining: 0.62, grain: { kind: 'mottle', scale: 5, amount: 0.14 } },
+  vessel: { rim: 0.05, rimShade: 0.82, flesh: [226, 150, 140], keep: 0.5, wall: 0.15, lining: 0.6 },
+  mucosa: { rim: 0.03, rimShade: 0.85, flesh: [234, 146, 154], keep: 0.6, wall: 0.12, lining: 0.75 },
+  nerve: { rim: 0.04, rimShade: 0.85, flesh: [242, 232, 196], keep: 0.5, wall: 0.12, lining: 0.8, grain: { kind: 'fibre', scale: 4, amount: 0.12 } },
+  bone: { rim: 0.09, rimShade: 1.04, flesh: [188, 128, 104], keep: 0.3, wall: 0.14, lining: 0.6, grain: { kind: 'pores', scale: 9, amount: 0.4 } },
+  tooth: { rim: 0.12, rimShade: 1.05, flesh: [236, 218, 176], keep: 0.4, core: [204, 96, 96], coreAt: 0.5, wall: 0.2, lining: 0.7 },
+  cartilage: { rim: 0.02, rimShade: 0.92, keep: 1, wall: 0.14, lining: 0.8 },
+  tendon: { rim: 0.02, rimShade: 0.9, keep: 1, wall: 0.16, lining: 0.75, grain: { kind: 'fibre', scale: 4, amount: 0.16 } },
+  // Plants: a leaf is paler inside, bark is a dark shell round pale wood, a fruit a thin peel over flesh that pales to its middle.
+  leaf: { rim: 0.08, rimShade: 0.8, flesh: [176, 206, 120], keep: 0.5, wall: 0.14, lining: 0.8 },
+  bark: { rim: 0.08, rimShade: 0.7, flesh: [212, 176, 128], keep: 0.1, wall: 0.14, lining: 0.7, grain: { kind: 'grain', scale: 7, amount: 0.22 } },
+  petal: { rim: 0.04, rimShade: 0.9, flesh: [250, 226, 232], keep: 0.6, wall: 0.12, lining: 0.85 },
+  fruit: { rim: 0.022, rimShade: 0.78, flesh: [252, 230, 160], keep: 0.4, core: [255, 244, 206], coreAt: 0.5, wall: 0.1, lining: 0.8, grain: { kind: 'mottle', scale: 7, amount: 0.08 } },
+  grass: { rim: 0.06, rimShade: 0.85, flesh: [190, 214, 130], keep: 0.5, wall: 0.14, lining: 0.8 },
+  // Foods: a crust over crumb, a rind over paste.
+  bread: { rim: 0.05, rimShade: 0.62, flesh: [244, 226, 186], keep: 0.12, wall: 0.1, lining: 0.8, grain: { kind: 'pores', scale: 7, amount: 0.3 } },
+  cheese: { rim: 0.02, rimShade: 0.86, flesh: [250, 222, 130], keep: 0.75, core: [252, 232, 160], coreAt: 0.5, wall: 0.1, lining: 0.85, grain: { kind: 'mottle', scale: 6, amount: 0.07 } },
+  chocolate: { rim: 0, rimShade: 1, keep: 1, wall: 0.1, lining: 0.8 },
+  butter: { rim: 0, rimShade: 1, keep: 1, wall: 0.1, lining: 0.9 },
+};
+
+/** A material's inside: its own row, or a plain one (the part's colour right through). */
+export function insideOf(name: string | undefined): Inside {
+  return INSIDES[name as SurfaceName] ?? PLAIN_INSIDE;
+}
+
+export type SectionSurface = MeshPhysicalMaterial & { userData: { inside: Inside; rim: Vector2; flesh: Vector4; core: Vector4; lining: Vector2 } };
+
+/**
+ * The face of a cut through living or soft material: not a drawing's hatch but what a knife shows, in layers. The mesh gives each point its colour (the
+ * part's own, running into its neighbour's) and two depths (`inside`: how far under the skin, how far from the cavity); the material's row says what lies
+ * at each depth, so a skin a hundredth of the part thick is a clean line however coarse the face's mesh. `fitSection` sets the depths for a part's size.
+ */
+export function makeSectionSurface(name: string | undefined, tier: TierSettings): SectionSurface {
+  const row = insideOf(name);
+  const m = new MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.66, metalness: 0, clearcoat: tier.clearcoat ? 0.22 : 0, clearcoatRoughness: 0.5, vertexColors: true, side: DoubleSide }) as SectionSurface;
+  if (tier.micro > 0 && row.grain) applyMicroSurface(m, { rough: 0, grain: 30, bump: 0, board: 0, pattern: row.grain });
+  const linear = (rgb: Rgb | undefined, w: number): Vector4 => {
+    const c = new Color();
+    if (rgb) c.setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 'srgb');
+    return new Vector4(c.r, c.g, c.b, w);
+  };
+  const rim = new Vector2(0, row.rimShade), flesh = linear(row.flesh, row.flesh ? row.keep : 1), core = linear(row.core, 0), lining = new Vector2(0, row.lining);
+  m.userData = { inside: row, rim, flesh, core, lining };
+  const own = { capRim: { value: rim }, capFlesh: { value: flesh }, capCore: { value: core }, capLining: { value: lining } };
+  const previous = m.onBeforeCompile;
+  const previousKey = m.customProgramCacheKey();
+  m.onBeforeCompile = function (shader, renderer) {
+    previous.call(this, shader, renderer);
+    Object.assign(shader.uniforms, own);
+    shader.vertexShader = shader.vertexShader
+      .replace('void main() {', 'attribute vec2 inside;\nvarying vec2 vInside;\nvoid main() {')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vInside = inside;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', 'uniform vec2 capRim;\nuniform vec4 capFlesh;\nuniform vec4 capCore;\nuniform vec2 capLining;\nvarying vec2 vInside;\nvoid main() {')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+  {
+    vec3 base = diffuseColor.rgb;
+    float depth = vInside.x;
+    float aa = max(fwidth(depth), 1e-6);
+    vec3 flesh = mix(capFlesh.rgb, base, capFlesh.a);
+    if (capCore.a > 0.0) flesh = mix(flesh, mix(capCore.rgb, base, capFlesh.a * 0.5), smoothstep(capRim.x, capCore.a, depth));
+    vec3 c = mix(base * capRim.y, flesh, smoothstep(capRim.x - aa, capRim.x + aa, depth));
+    c = mix(base * capLining.y, c, smoothstep(capLining.x - aa, capLining.x + aa, vInside.y));
+    diffuseColor.rgb = c;
+  }`);
+  };
+  m.customProgramCacheKey = () => `${previousKey}|section-layers-v1`;
+  return m;
+}
+
+/** Sets a cut face's depths for a part `size` thick (in the units of the face's `inside` attribute). */
+export function fitSection(m: SectionSurface, size: number): void {
+  const row = m.userData.inside;
+  m.userData.rim.x = row.rim * size;
+  m.userData.core.w = row.core ? (row.coreAt ?? 0.5) * size : 0;
+  m.userData.lining.x = 0.03 * size;
+}
+
 const scratch = new Color();
+const WHITE: Rgb = [255, 255, 255];
 
 /** Fully solid surfaces must write depth before glass is blended over them. Sorting
  * both by whole-object priority/depth can erase glass covering a solid's rear portion.
@@ -253,9 +363,10 @@ export function setSurfaceOpacity(m: Surface, opacity: number): void {
 
 /** Sets a surface's tint, strength and glow for the moment. `alpha` is the object's own opacity.
  * Endpoint-held paths defer classification until their flow update supplies the final opacity. */
-export function applySurface(m: Surface, rgb: Rgb, alpha: number, pulse: number, pulseRgb: Rgb | undefined, deferOpacity = false): void {
+export function applySurface(m: Surface, rgb: Rgb, alpha: number, pulse: number, pulseRgb: Rgb | undefined, deferOpacity = false, ownColour = false): void {
   // A tint gives the material a hue but stays within the material's own range of lightness (bone does not go white), so it reads on a light page and a dark one.
-  const tint = fitTint(m.userData.name, rgb);
+  // A living body's skin carries its colour in its vertices (it runs from one part into the next), so the surface itself is white.
+  const tint = ownColour ? WHITE : fitTint(m.userData.name, rgb);
   m.color.setRGB(tint[0] / 255, tint[1] / 255, tint[2] / 255, 'srgb');
   if (deferOpacity) m.opacity = alpha * m.userData.base;
   else setSurfaceOpacity(m, alpha * m.userData.base);
@@ -276,6 +387,12 @@ export function applySurface(m: Surface, rgb: Rgb, alpha: number, pulse: number,
 export const SECTION: Rgb = [236, 190, 122];
 export function sectionTone(rgb: readonly number[], out: Color): void {
   const mix = (i: number): number => Math.min(1, (SECTION[i]! * 0.8 + rgb[i]! * 0.2) / 255);
+  out.setRGB(mix(0), mix(1), mix(2), 'srgb');
+}
+
+/** The cut face of a part that is living or soft, or sits inside something living (a stone in a fruit): its own colour, a little paler, with no hatching. */
+export function plainSection(rgb: readonly number[], out: Color): void {
+  const mix = (i: number): number => Math.min(1, (rgb[i]! * 0.78 + 255 * 0.22) / 255);
   out.setRGB(mix(0), mix(1), mix(2), 'srgb');
 }
 

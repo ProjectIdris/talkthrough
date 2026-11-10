@@ -1,7 +1,8 @@
 // Bounded hollow ellipsoid sections. Pure data preparation shared by admission and rendering.
 import type { Vec2, Vec3 } from './types.ts';
 
-export const SHELL_DETAIL = { low: [16, 8], mid: [24, 12], high: [40, 20] } as const;
+// `fine` and `finest` are for shells of living material (an eye's coat, a rind), whose outline must be a curve and not a polygon.
+export const SHELL_DETAIL = { low: [16, 8], mid: [24, 12], high: [40, 20], fine: [56, 28], finest: [88, 44] } as const;
 export type ShellTier = keyof typeof SHELL_DETAIL;
 export type ShellMesh = { positions: Float32Array; normals: Float32Array; indices: number[]; edges: Float32Array };
 const RAD = Math.PI / 180;

@@ -10,6 +10,7 @@ import type { AddConnector, AddForce, AddParticles, AddPath, AddStream, AddTube,
 import { arcPoint, beltPoints, endPoint, ropePoints, roundOf } from './connector.ts';
 import { drawFraction, swellAt, tubeGeometry } from './geometry.ts';
 import { applySurface, setSurfaceOpacity } from './materials.ts';
+import { carriesFlow } from './organic-bodies.ts';
 import type { Surface } from './materials.ts';
 import { WAVE_ROW, fresh, num } from '../scene/movement-rows.ts';
 import { markerPlaces, markerSize, streamColour } from './stream.ts';
@@ -19,7 +20,7 @@ import type { Frame, ObjectFrame } from './timeline.ts';
 /** What this file needs of a node of the stage (the stage's own Node has these and more). */
 export type FlowNode = {
   obj: Object3D;
-  pieces: Array<{ object: Object3D; surface: Surface | undefined; tint: boolean; color: Rgb | undefined }>;
+  pieces: Array<{ object: Object3D; surface: Surface | undefined; tint: boolean; color: Rgb | undefined; fused?: boolean }>;
   geometries: BufferGeometry[];
   anchors?: Record<string, Vec3>;
   alpha: number;
@@ -211,6 +212,8 @@ export function updateAttached(nodes: ReadonlyMap<number, FlowNode>, frame: Fram
       continue;
     }
     for (const p of node.pieces) if (p.surface) setSurfaceOpacity(p.surface, p.surface.opacity * held);
+    // Grown into the part it is held to (organic-bodies.ts): its skin follows that part, and it is not drawn anew here.
+    if (node.pieces[0]?.fused) continue;
     if (!node.attached) {
       const base = node.path.sampled.map((p): Vec3 => [p[0], p[1], p[2]]);
       const along = [0];
@@ -277,6 +280,10 @@ export function buildStream(node: FlowNode, o: ObjectFrame, addMesh: AddMesh): v
   node.stream = { markers, kind };
 }
 
+/** What runs in a vessel of the body: how wide its markers are against the vessel's radius, and how see-through the vessel's wall is drawn meanwhile. */
+const FLOW_FILL = 1.15;
+const FLOW_WALL = 0.42;
+
 /** The least size of the markers of a stream, and their size when the scene does not say: a bead clearly wider than the pipe they run in. */
 function defaultSize(path: ObjectFrame, effectiveRadius?: number): number {
   const radius = effectiveRadius ?? (path.def as { radius?: number }).radius;
@@ -304,8 +311,11 @@ export function updateStreams(nodes: ReadonlyMap<number, FlowNode>, frame: Frame
       continue;
     }
     const def = o.def as AddStream;
-    // Never narrower than a bead that stands out of its pipe: a marker inside an opaque pipe is not there.
-    const size = Math.max(def.size ?? 0, defaultSize(holder, path?.radius));
+    // Never narrower than a bead that stands out of its pipe: a marker inside an opaque pipe is not there. A vessel of the body is not a pipe: what
+    // runs in it is seen inside it, through its wall, which is drawn thin for as long as something runs there.
+    const within = carriesFlow(holder.def);
+    const size = within ? (holder.def as AddTube).radius * FLOW_FILL : Math.max(def.size ?? 0, defaultSize(holder, path?.radius));
+    if (within) for (const p of nodes.get(holder.key)?.pieces ?? []) if (p.surface && p.surface.opacity > FLOW_WALL) setSurfaceOpacity(p.surface, FLOW_WALL);
     const to = def.toColor !== undefined ? parseColor(def.toColor) : undefined;
     const places = markerPlaces(o.phase ?? 0, stream.markers.length);
     const closed = holder.shape === 'tube' && (holder.def as AddTube).closed === true;

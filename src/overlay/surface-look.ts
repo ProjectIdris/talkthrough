@@ -109,6 +109,8 @@ export function applyLook(material: MeshPhysicalMaterial, o: Look): void {
     vec3 c = diffuseColor.rgb;
     vec3 deep = pow(c, vec3(1.5)) / max(max(c.r, max(c.g, c.b)), 0.25);
     outgoingLight += deep * lookSss * (0.3 + 0.7 * pow(edge, 1.6)) * 0.45;
+    // seen through, living tissue is a wall: thin where it faces the eye, thick where it turns away (in a solid surface the alpha is not used)
+    diffuseColor.a *= min(mix(0.6, 2.4, pow(edge, 1.7)), 1.0 / max(diffuseColor.a, 0.001));
   }` : '';
   const depth = liquid > 0 ? `
   {
@@ -134,5 +136,5 @@ export function applyLook(material: MeshPhysicalMaterial, o: Look): void {
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>${emit}`)
       .replace('#include <opaque_fragment>', `${scatter}${depth}\n#include <opaque_fragment>`);
   };
-  material.customProgramCacheKey = () => `${previousKey}|look-v3|${defines.replace(/\s+/g, '')}`;
+  material.customProgramCacheKey = () => `${previousKey}|look-v4|${defines.replace(/\s+/g, '')}`;
 }

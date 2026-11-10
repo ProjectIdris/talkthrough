@@ -1,0 +1,88 @@
+{
+  "escalate": null,
+  "steps": [
+    {
+      "say": "Lungs put oxygen into your blood.",
+      "actions": [
+        {"op": "box", "id": "pic", "x": 555, "y": 135, "w": 150, "h": 170, "color": "blue"}
+      ]
+    },
+    {
+      "say": "Air runs down the windpipe. It splits into two bronchi, one tube for each lung.",
+      "actions": [
+        {"op": "panel", "x": 720, "y": 340, "w": 270, "h": 620},
+        {"op": "add", "shape": "group", "id": "lungs"},
+        {"op": "add", "shape": "tube", "id": "trachea", "parent": "lungs", "pts": [[0, 4.6, 0], [0, 3.6, 0], [0, 2.6, 0]], "radius": 0.32, "material": "tendon"},
+        {"op": "add", "shape": "tube", "id": "rbr", "parent": "lungs", "pts": [[0, 2.6, 0], [-0.6, 2.2, 0], [-1.4, 1.6, 0], [-1.9, 0.9, 0]], "radius": 0.22, "material": "tendon", "at": 0.5},
+        {"op": "add", "shape": "tube", "id": "lbr", "parent": "lungs", "pts": [[0, 2.6, 0], [0.6, 2.2, 0], [1.3, 1.6, 0], [1.8, 0.9, 0]], "radius": 0.22, "material": "tendon", "at": 0.5},
+        {"op": "add", "shape": "stream", "id": "airt", "along": "trachea", "count": 4, "color": "blue", "period": 1.5, "at": 1.0},
+        {"op": "add", "shape": "stream", "id": "airr", "along": "rbr", "count": 3, "color": "blue", "period": 2.2, "at": 1.0},
+        {"op": "add", "shape": "stream", "id": "airl", "along": "lbr", "count": 3, "color": "blue", "period": 2.2, "at": 1.0},
+        {"op": "pin", "id": "ptrach", "on": "trachea", "text": "Windpipe", "at": 1.5},
+        {"op": "pin", "id": "pbron", "on": "lbr", "text": "Bronchus", "at": 2.0}
+      ]
+    },
+    {
+      "say": "Two spongy lungs fill the chest. The right has three lobes and the left only two, leaving room for the heart.",
+      "actions": [
+        {"op": "add", "shape": "blob", "id": "rlung", "parent": "lungs", "pos": [-2.1, -0.2, 0], "pts": [[0, 1.0, 0], [0, -0.2, 0.1], [0.1, -1.3, 0]], "sizes": [[2.2, 2.0, 1.8], [2.6, 2.0, 2.0], [2.8, 1.8, 2.0]], "material": "organ", "color": "pink", "opacity": 0.45},
+        {"op": "add", "shape": "blob", "id": "llung", "parent": "lungs", "pos": [2.0, -0.2, 0], "pts": [[0.1, 0.7, 0], [0, -0.8, 0.1]], "sizes": [[2.2, 2.4, 1.8], [2.5, 2.4, 2.0]], "material": "organ", "color": "pink", "opacity": 0.45, "at": 0.6},
+        {"op": "pin", "id": "prl", "on": "rlung", "text": "Right lung, three lobes", "at": 1.2},
+        {"op": "pin", "id": "pll", "on": "llung", "text": "Left lung, two lobes", "at": 1.8}
+      ]
+    },
+    {
+      "say": "A muscle does the pumping. The diaphragm under the lungs flattens and drops, the chest widens, and air is drawn in. When it relaxes, the lungs spring back and push the air out.",
+      "actions": [
+        {"op": "add", "shape": "shell", "id": "diaph", "parent": "lungs", "pos": [0, -3.3, 0], "size": [7.4, 2, 3], "latitude": [0, 90], "inner": 0.9, "material": "muscle"},
+        {"op": "joint", "id": "diaph", "kind": "slide", "axis": "y", "at": 0.6},
+        {"op": "loop", "id": "diaph", "kind": "slide", "amount": 0.5, "period": 4, "axis": "y", "at": 0.8},
+        {"op": "loop", "id": "rlung", "kind": "pulse", "amount": 0.06, "period": 4, "at": 0.8},
+        {"op": "loop", "id": "llung", "kind": "pulse", "amount": 0.06, "period": 4, "at": 0.8},
+        {"op": "pin", "id": "pdia", "on": "diaph", "text": "Diaphragm", "at": 1.2}
+      ]
+    },
+    {
+      "say": "Inside, tubes keep branching. Each bronchus divides again and again into fine bronchioles, like an upside-down tree.",
+      "actions": [
+        {"op": "add", "shape": "tube", "id": "rb1", "parent": "lungs", "pts": [[-1.9, 0.9, 0], [-2.4, 0.3, 0.1], [-2.8, -0.4, 0.1]], "radius": 0.12, "swell": [[0, 1], [1, 0.6]], "material": "tendon"},
+        {"op": "add", "shape": "tube", "id": "rb2", "parent": "lungs", "pts": [[-1.9, 0.9, 0], [-1.8, 0.1, 0.1], [-1.9, -0.8, 0.1]], "radius": 0.12, "swell": [[0, 1], [1, 0.6]], "material": "tendon", "at": 0.3},
+        {"op": "add", "shape": "tube", "id": "rb3", "parent": "lungs", "pts": [[-1.9, 0.9, 0], [-1.5, 0.4, 0.1], [-1.25, -0.4, 0.1]], "radius": 0.12, "swell": [[0, 1], [1, 0.6]], "material": "tendon", "at": 0.6},
+        {"op": "add", "shape": "tube", "id": "lb1", "parent": "lungs", "pts": [[1.8, 0.9, 0], [2.3, 0.3, 0.1], [2.6, -0.5, 0.1]], "radius": 0.12, "swell": [[0, 1], [1, 0.6]], "material": "tendon", "at": 0.9},
+        {"op": "add", "shape": "tube", "id": "lb2", "parent": "lungs", "pts": [[1.8, 0.9, 0], [1.7, 0.1, 0.1], [1.8, -0.9, 0.1]], "radius": 0.12, "swell": [[0, 1], [1, 0.6]], "material": "tendon", "at": 1.2},
+        {"op": "add", "shape": "tube", "id": "lb3", "parent": "lungs", "pts": [[1.8, 0.9, 0], [1.5, 0.4, 0.1], [1.2, -0.4, 0.1]], "radius": 0.12, "swell": [[0, 1], [1, 0.6]], "material": "tendon", "at": 1.5},
+        {"op": "pin", "id": "pbl", "on": "rb2", "text": "Bronchioles", "at": 2.0}
+      ]
+    },
+    {
+      "say": "Twigs end in tiny air sacs. These alveoli number hundreds of millions, and their walls are thin enough for gas to pass through.",
+      "actions": [
+        {"op": "add", "shape": "sphere", "id": "r1a", "parent": "lungs", "pos": [-3.05, -0.65, 0.15], "size": [0.5, 0.5, 0.5], "material": "frosted-glass"},
+        {"op": "add", "shape": "sphere", "id": "r1b", "parent": "lungs", "pos": [-2.55, -0.65, 0.15], "size": [0.5, 0.5, 0.5], "material": "frosted-glass", "at": 0.1},
+        {"op": "add", "shape": "sphere", "id": "r2a", "parent": "lungs", "pos": [-2.15, -1.05, 0.15], "size": [0.5, 0.5, 0.5], "material": "frosted-glass", "at": 0.2},
+        {"op": "add", "shape": "sphere", "id": "r2b", "parent": "lungs", "pos": [-1.65, -1.05, 0.15], "size": [0.5, 0.5, 0.5], "material": "frosted-glass", "at": 0.3},
+        {"op": "add", "shape": "sphere", "id": "r3a", "parent": "lungs", "pos": [-1.4, -0.7, 0.15], "size": [0.5, 0.5, 0.5], "material": "frosted-glass", "at": 0.4},
+        {"op": "add", "shape": "sphere", "id": "r3b", "parent": "lungs", "pos": [-1.05, -0.65, 0.15], "size": [0.5, 0.5, 0.5], "material": "frosted-glass", "at": 0.5},
+        {"op": "add", "shape": "sphere", "id": "l1a", "parent": "lungs", "pos": [2.35, -0.75, 0.15], "size": [0.5, 0.5, 0.5], "material": "frosted-glass", "at": 0.6},
+        {"op": "add", "shape": "sphere", "id": "l1b", "parent": "lungs", "pos": [2.85, -0.75, 0.15], "size": [0.5, 0.5, 0.5], "material": "frosted-glass", "at": 0.7},
+        {"op": "add", "shape": "sphere", "id": "l2a", "parent": "lungs", "pos": [1.55, -1.15, 0.15], "size": [0.5, 0.5, 0.5], "material": "frosted-glass", "at": 0.8},
+        {"op": "add", "shape": "sphere", "id": "l2b", "parent": "lungs", "pos": [2.05, -1.15, 0.15], "size": [0.5, 0.5, 0.5], "material": "frosted-glass", "at": 0.9},
+        {"op": "add", "shape": "sphere", "id": "l3a", "parent": "lungs", "pos": [1.05, -0.7, 0.15], "size": [0.5, 0.5, 0.5], "material": "frosted-glass", "at": 1.0},
+        {"op": "add", "shape": "sphere", "id": "l3b", "parent": "lungs", "pos": [1.4, -0.65, 0.15], "size": [0.5, 0.5, 0.5], "material": "frosted-glass", "at": 1.1},
+        {"op": "pin", "id": "psac", "on": "r2a", "text": "Air sacs (alveoli)", "at": 1.5}
+      ]
+    },
+    {
+      "say": "Blood wraps every sac. Oxygen slips through the thin wall into the blood, and carbon dioxide slips out the other way. The blood leaves rich in oxygen, and you breathe the carbon dioxide out.",
+      "actions": [
+        {"op": "add", "shape": "tube", "id": "cap1", "parent": "lungs", "pts": [[-3.05, -0.2, 0.15], [-3.05, -0.332, 0.468], [-3.05, -0.65, 0.6], [-3.05, -0.968, 0.468], [-3.05, -1.1, 0.15], [-3.05, -0.968, -0.168], [-3.05, -0.65, -0.3], [-3.05, -0.332, -0.168]], "closed": true, "radius": 0.05, "color": "red", "at": 0.3},
+        {"op": "add", "shape": "stream", "id": "capflow", "along": "cap1", "count": 6, "color": "blue", "toColor": "red", "shiftAt": 0.5, "period": 3, "at": 0.8},
+        {"op": "add", "shape": "arrow", "id": "o2a", "parent": "lungs", "pts": [[-3.05, -0.65, 0.15], [-3.05, -0.25, 0.15]], "color": "blue", "at": 1.2},
+        {"op": "add", "shape": "arrow", "id": "co2a", "parent": "lungs", "pts": [[-3.05, -0.65, 0.58], [-3.05, -0.65, 0.25]], "color": "gray", "at": 1.8},
+        {"op": "pin", "id": "pcap", "on": "cap1", "text": "Capillary with blood", "at": 1.5},
+        {"op": "focus", "id": "r1a", "at": 0.2, "dur": 1.5},
+        {"op": "zoom", "to": 1.5, "at": 0.2, "dur": 1.5}
+      ]
+    }
+  ]
+}

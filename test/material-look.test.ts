@@ -49,11 +49,16 @@ test('each layer patches the stage it needs in three\'s own physical shader', ()
   assert.equal(mirror.uniforms.lookEnv!.value, 1.3);
   // The look sits on top of the fine surface, not instead of it: an organ has both its pattern and its glow.
   const organ = compile(makeSurface('organ', TIERS.mid)).fragmentShader;
-  assert.ok(organ.includes('patMottle(q') && organ.includes('#define MICRO_PATTERN') && organ.includes('lookSss'));
+  assert.ok(organ.includes('patOrgan(vec3 q') && organ.includes('#define MICRO_LIVING') && organ.includes('lookSss'));
+  // (a living pattern is compiled alone: the program that wears it holds none of the others, so it is no slower to build)
+  assert.ok(!organ.includes('patVenation(') && !organ.includes('patRind('), 'the program of an organ holds its own living pattern only');
+  assert.doesNotMatch(organ, /#define MICRO_PATTERN/, 'and none of the common patterns is compiled into it');
 });
 
 test('the look is cheap: no more than one extra program shape per set of layers, and a program is shared by every material that asks for the same', () => {
-  assert.equal(key('organ', 'mid'), key('vessel', 'mid'), 'organ and vessel have the same layers (only numbers differ)');
+  assert.equal(key('muscle', 'mid'), key('vessel', 'mid'), 'muscle and vessel have the same layers (only numbers differ)');
+  // A material with a living pattern of its own (an organ, skin, a fruit, a leaf) has a program of its own, which holds that pattern alone.
+  assert.notEqual(key('organ', 'mid'), key('vessel', 'mid'));
   assert.equal(key('led', 'mid'), key('neon', 'mid'), 'a lens and a tube differ only in a uniform');
   const lens = makeSurface('led', TIERS.mid), tube = makeSurface('neon', TIERS.mid);
   assert.notEqual(compile(lens).uniforms.lookGlow!.value, compile(tube).uniforms.lookGlow!.value);
@@ -81,8 +86,8 @@ test('water is a liquid with depth, and the soft and organic materials have the 
   for (const name of ['organ', 'vessel', 'nerve', 'petal', 'fruit', 'butter', 'wax', 'fat', 'skin', 'muscle']) {
     assert.match(key(name, 'mid'), /LOOK_SSS/, `${name} scatters light`);
   }
-  for (const name of ['organ', 'vessel', 'nerve', 'petal', 'fruit', 'butter', 'sugar', 'wax', 'fat']) assert.match(key(name, 'mid'), /MICRO_PATTERN/, `${name} has a surface pattern`);
-  assert.doesNotMatch(key('organ', 'low'), /MICRO_PATTERN/, 'low has no patterns');
+  for (const name of ['organ', 'vessel', 'nerve', 'petal', 'fruit', 'butter', 'sugar', 'wax', 'fat']) assert.match(key(name, 'mid'), /MICRO_PATTERN|MICRO_LIVING/, `${name} has a surface pattern`);
+  assert.doesNotMatch(key('organ', 'low'), /MICRO_PATTERN|MICRO_LIVING/, 'low has no patterns');
 });
 
 test('a recipe sets how strongly it shows the room only through `env`: three ignores a material\'s own envMapIntensity when the room is the scene\'s environment', () => {

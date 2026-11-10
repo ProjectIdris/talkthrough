@@ -19,15 +19,15 @@ import type { AddAction, SurfaceFinish, Vec3 } from '../scene/types.ts';
 import { materialRow } from '../scene/material-library.ts';
 import { sweepGeometry, sweepEdges } from './sweep.ts';
 import { shellGeometry, shellEdges } from './shell.ts';
-import { BLOB_MIN_TRIANGLES, blobGeometry } from './blob.ts';
+import { BLOB_MIN_TRIANGLES, blobGeometry, lumpsGeometry } from './blob.ts';
 import { buildHullGeometry } from './hull.ts';
 import { applyEdgeSoften, softenEdges } from './edge-soften.ts';
-import { fitBoardPattern } from './surface-micro.ts';
+import { fitBoardPattern, fitLeafPattern } from './surface-micro.ts';
 import { loftEdges, loftGeometry } from './loft.ts';
 import { DETAIL, boxGeometry, defaultBevel, softBevel, drawFraction, extrudeGeometry, latheGeometry, pointAlong, roundedCylinderGeometry, samplePath, shadeByHeight, tubeGeometry } from './geometry.ts';
 import type { Detail } from './geometry.ts';
 import { closedTubeGeometry } from './closed-tube.ts';
-import { SURFACE_NAMES, TIERS, applySurface, makeSurface } from './materials.ts';
+import { SURFACE_NAMES, TIERS, applySurface, makeSectionSurface, makeSurface } from './materials.ts';
 import { modelSurface } from './model-surface.ts';
 import type { Surface, Tier } from './materials.ts';
 import { buildPart } from './parts.ts';
@@ -43,6 +43,8 @@ import type { Part } from './explode.ts';
 import { PATCH_SEGMENTS } from '../scene/patch.ts';
 import { patchGeometry, patchEdges } from './patch.ts';
 import { Cutaway } from './cutaway.ts';
+import { OrganicBodies, organicKind } from './organic-bodies.ts';
+import { sheetGeometry } from './organic-sheet.ts';
 import { anchorsOf } from '../scene/anchors.ts';
 import type { ModelStore } from './model-assets.ts';
 import { latheSectorEdges, latheSectorGeometry } from './lathe-sector.ts';
@@ -82,7 +84,8 @@ type PartHull = { sphere: Sphere; corners: Vector3[] };
 const DEG = Math.PI / 180;
 
 type CanvasLike = HTMLCanvasElement | OffscreenCanvas;
-export type PanelDeps = { makeCanvas?: (width: number, height: number) => CanvasLike; tier?: Tier; models?: ModelStore };
+/** `skinSlice`: the milliseconds of a live frame (one drawn with `now`) that cutting the skins of living bodies may take (organic-bodies.ts); none: each is cut whole at once. */
+export type PanelDeps = { makeCanvas?: (width: number, height: number) => CanvasLike; tier?: Tier; models?: ModelStore; skinSlice?: number };
 
 /** The stage in window pixels, and the size of the window it sits in. */
 /** `now` (milliseconds on any steady clock) lets the camera glide to a new framing when parts are added; without it the framing jumps. */
@@ -99,9 +102,15 @@ type NodePiece = {
   lines: LineSegments | undefined;
   /** A closed surface: a cut through it can be capped. */
   closed: boolean;
+  /** Its geometry is a patch of a living body's skin (organic-bodies.ts), whose vertices carry the colour. */
+  organic?: boolean;
+  /** That patch is one with its neighbours' (the body has more parts than this). */
+  fused?: boolean;
 };
 
 type Node = {
+  /** It is living or soft material, or sits inside something that is, so its cut face is plain (cutaway.ts). */
+  plain?: boolean;
   obj: Object3D;
   pieces: NodePiece[];
   geometries: BufferGeometry[];
@@ -138,6 +147,26 @@ type AddMesh = (geo: BufferGeometry, surface: string | undefined, edges: boolean
 function creaseGeometry(geo: BufferGeometry): BufferGeometry {
   return geo.type === 'RoundedBoxGeometry' ? new BufferGeometry().setFromPoints([]) : new EdgesGeometry(geo, 28);
 }
+
+/** Where a leaf's veins run on a part: from the first point of a grown sheet's outline (where it is held) to the point furthest from it. Anything else wears none. */
+function fitLeaf(surface: Surface, def: AddAction): void {
+  if (!surface.userData.leaf) return;
+  if (!softSheet(def)) { fitLeafPattern(surface); return; }
+  const outline = (def as { outline: Array<[number, number]> }).outline;
+  const base = outline[0]!;
+  let tip = base, far = 0;
+  for (const p of outline) { const d = Math.hypot(p[0] - base[0], p[1] - base[1]); if (d > far) { far = d; tip = p; } }
+  let half = 0;
+  for (const p of outline) half = Math.max(half, Math.abs((p[0] - base[0]) * (tip[1] - base[1]) - (p[1] - base[1]) * (tip[0] - base[0])) / Math.max(far, 1e-9));
+  fitLeafPattern(surface, [base[0], base[1], 0], [tip[0], tip[1], 0], [0, 0, 1], half);
+}
+
+/** A flat outline of living material with nothing cut out of it: drawn as a grown sheet (organic-sheet.ts), not as a plate. */
+function softSheet(def: AddAction): boolean {
+  return def.shape === 'extrude' && softSolid(def) && !def.holes?.length && def.taper == null && def.shift == null;
+}
+/** Cells across a grown sheet's longer side, by tier. */
+const SHEET_CELLS = { low: 36, mid: 72, high: 120 } as const;
 
 /** True when `a` is `b` or sits above it: adding `a` under `b` would make a loop, which hangs every walk of the scene. */
 function isAncestor(a: Object3D, b: Object3D): boolean {
@@ -181,6 +210,8 @@ export class PanelScene {
   private textRects: ScreenRect[] = [];
   private settling = false;
   private cutaway = new Cutaway();
+  /** The soft solids of the scene, read as living bodies (organic-bodies.ts). */
+  private organics: OrganicBodies;
   private sharedEdges = new Map<string, { geometry: BufferGeometry; refs: number }>();
   private edgeKeys = new WeakMap<BufferGeometry, string>();
   /** Only immutable primitive buffers are shared; materials, transforms and mutable paths stay per node. */
@@ -192,6 +223,8 @@ export class PanelScene {
     this.deps = deps;
     this.tier = deps.tier ?? 'mid';
     this.detail = DETAIL[this.tier];
+    this.organics = new OrganicBodies(this.tier, { slice: deps.skinSlice });
+    this.organics.onSwap = (node) => this.cutaway.release(node as Node);
     const settings = TIERS[this.tier];
     this.scene.add(this.content);
     this.scene.add(new HemisphereLight(0xffffff, 0x8a93a6, 0.3));
@@ -234,7 +267,7 @@ export class PanelScene {
     this.scene.add(this.camera);
   }
 
-  private warmSurfaces: Surface[] = [];
+  private warmSurfaces: Material[] = [];
 
   /**
    * One small solid in every surface this tier has, to be drawn once before any answer so the graphics card has built the programs the first model will
@@ -244,7 +277,8 @@ export class PanelScene {
   prewarmGroup(): Group {
     const settings = TIERS[this.tier];
     const group = new Group();
-    if (this.warmSurfaces.length === 0) this.warmSurfaces = SURFACE_NAMES.map((name) => makeSurface(name, settings));
+    // (and the two faces a cut through living material is drawn with, one with a grain and one without: organic-bodies.ts)
+    if (this.warmSurfaces.length === 0) this.warmSurfaces = [...SURFACE_NAMES.map((name) => makeSurface(name, settings)), makeSectionSurface('organ', settings), makeSectionSurface('tissue', settings)];
     const geometry = new SphereGeometry(0.5, 8, 6);
     for (const surface of this.warmSurfaces) {
       const mesh = new Mesh(geometry, surface);
@@ -288,6 +322,7 @@ export class PanelScene {
       if (geo.getAttribute('color')) surface.vertexColors = true;
       if (geo.getAttribute('edgeBary')) applyEdgeSoften(surface);
       fitBoardPattern(surface, geo);
+      fitLeaf(surface, def);
       const mesh = new Mesh(geo, surface);
       mesh.castShadow = settings.shadows;
       mesh.receiveShadow = settings.shadows;
@@ -352,11 +387,11 @@ export class PanelScene {
         break;
       }
       case 'shell': {
-        const geometry = shellGeometry(def, this.tier);
+        const geometry = shellGeometry(def, this.tier, softSolid(def));
         if (!geometry) break;
         const mesh = addMesh(geometry, material, false);
         node.obj = mesh;
-        if (def.edges !== false && settings.edges && material !== 'glass' && material !== 'glow' && (geometry.userData.shellEdges as Float32Array).length) {
+        if (def.edges !== false && settings.edges && material !== 'glass' && material !== 'glow' && !softSolid(def) && (geometry.userData.shellEdges as Float32Array).length) {
           const mat = new LineBasicMaterial({ color: 0x10131a, transparent: true, opacity: 0.5 });
           const lines = new LineSegments(shellEdges(geometry), mat);
           mesh.add(lines); node.geometries.push(lines.geometry); node.materials.push(mat);
@@ -372,11 +407,11 @@ export class PanelScene {
       case 'force': buildForce(node, o, addMesh); break;
       default: {
         const geo = this.solidGeometry(def);
-        if (def.shape === 'blob') shadeByHeight(geo);
+        if (def.shape === 'blob' && geo.getAttribute('normal')) shadeByHeight(geo);
         // These primitives have continuous surfaces, not authored creases. Facet-angle
         // extraction invents dark seams on thin ellipsoids, rounded rims and stretched
         // rings; position buckets can add more on compact meshes enlarged by a parent.
-        const continuous = def.shape === 'blob' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'torus';
+        const continuous = def.shape === 'blob' || def.shape === 'sphere' || def.shape === 'cylinder' || def.shape === 'torus' || softSheet(def);
         node.obj = addMesh(geo, material, !continuous && ('edges' in def ? def.edges !== false : true));
       }
     }
@@ -465,6 +500,7 @@ export class PanelScene {
       case 'patch': return patchGeometry(def.pts, PATCH_SEGMENTS[this.tier]);
       case 'extrude': {
         const e = def as { outline: Array<[number, number]>; depth: number; bevel?: number; holes?: Array<Array<[number, number]>>; taper?: number; shift?: [number, number] };
+        if (softSheet(def)) return sheetGeometry(e.outline, e.depth, SHEET_CELLS[this.tier]);
         if (e.taper != null || e.shift != null) {
           const tapered = taperedExtrudeGeometry(e.outline, e.depth, e.taper ?? 1, e.shift ?? [0, 0]);
           return softenEdges(tapered) ?? tapered;
@@ -473,6 +509,9 @@ export class PanelScene {
       }
       case 'blob': {
         const b = def as { pts: Vec3[]; sizes: Vec3[]; soft?: number };
+        // A blob is drawn as a living body (organic-bodies.ts gives it its skin once it is in the scene); nothing is cut for it here. Its lumps as plain
+        // balls stand in for the frames a live scene takes to cut that skin.
+        if (organicKind(def)) return lumpsGeometry(b.pts, b.sizes);
         // Past the scene's budget of blob triangles a later blob is cut coarser (never dropped, never below a floor).
         let used = 0;
         for (const n of this.nodes.values()) for (const g of n.geometries) used += (g.userData.triangles as number | undefined) ?? 0;
@@ -604,7 +643,7 @@ export class PanelScene {
         return { key: o.key, parentKey: o.parentKey, pos: o.pos, ...(explode ? { explode } : {}), ...(o.shape === 'text' ? { fixed: true } : {}) };
       }), frame.userExplode ?? 0)
       : undefined;
-    const layout = (with_: Map<number, Vec3> | undefined, rest = false): void => {
+    const layout = (with_: Map<number, Vec3> | undefined, rest: boolean | 'bare' = false): void => {
       for (const o of frame.objects) {
         live.add(o.key);
         let node = this.nodes.get(o.key);
@@ -646,13 +685,20 @@ export class PanelScene {
     } else layout(undefined);
     for (const [key, node] of this.nodes) {
       if (!live.has(key)) {
+        this.organics.release(key);
         this.dispose(node);
         this.nodes.delete(key);
       }
     }
+    // The soft solids take their skins before anything is measured (the camera's fit, the shadow and the tags read the geometry that is drawn), and
+    // they take them as the parts stand at rest: a living body is cut once and then follows its parts where a machine moves them.
+    const moving = frame.objects.some((o) => o.pose || o.pulse !== 0);
+    if (moving) layout(offsets, 'bare');
+    this.scene.updateMatrixWorld(true);
+    this.organics.update(frame, this.nodes, view?.now);
     // The camera fits the model at rest: a machine's pose and a part's pulse move parts about, and a camera that followed them would breathe.
     // So the parts' spheres are taken once with poses and pulses left out, then the frame is laid out as it really stands.
-    if (frame.objects.some((o) => o.pose || o.pulse !== 0)) {
+    if (moving) {
       layout(offsets, true);
       this.scene.updateMatrixWorld(true);
       this.restSpheres = this.partSpheres();
@@ -678,10 +724,17 @@ export class PanelScene {
     updateParticles(this.nodes, frame);
     updateForces(this.nodes, frame);
     this.scene.updateMatrixWorld(true);
+    this.organics.pose();
     this.aim(frame, aspect, view, standBack);
     if (view) this.tidyTexts(view);
+    // What is alive or soft, and what sits inside something that is, shows its own colour where it is cut; a drawing's hatching is for made things.
+    for (const o of frame.objects) {
+      const node = this.nodes.get(o.key);
+      if (node) node.plain = softSolid(o.def) || this.organics.within(o.key);
+    }
     // The person's Cut goes through the middle of the model from the side the camera looks from.
     this.cutaway.update(frame, this.nodes, this.scene, this.camera.getWorldDirection(new Vector3()).negate());
+    this.organics.section();
     this.placeShadow(frame);
     this.fitDepth(frame);
   }
@@ -778,13 +831,14 @@ export class PanelScene {
     node.obj.scale.set(node.baseScale.x * o.scale[0] * loop[0] * grow, node.baseScale.y * o.scale[1] * loop[1] * grow, node.baseScale.z * o.scale[2] * loop[2] * grow);
   }
 
-  private apply(node: Node, o: ObjectFrame, parentSpread: number, offset?: Vec3, rest = false): void {
+  private apply(node: Node, o: ObjectFrame, parentSpread: number, offset?: Vec3, rest: boolean | 'bare' = false): void {
     const pulse = rest ? 0 : o.pulse;
     const pose = rest ? undefined : o.pose;
     const grow = 1 + 0.07 * pulse;
     // Spread by the model's own explode, then by the person's control; a machine's pose stands in for the rest values.
     const rot = pose?.rot ?? o.rot;
-    this.place(node, o, parentSpread, offset, pose, o.pose?.scale, grow); // a pulse loop swells it on top of its own scale
+    // a pulse loop swells it on top of its own scale ('bare' is the part with nothing of any machine on it, as a living body is cut)
+    this.place(node, o, parentSpread, offset, pose, rest === 'bare' ? undefined : o.pose?.scale, grow);
     if (!node.anchorsFrom || node.anchorsFrom.def !== o.def || node.anchorsFrom.points !== o.points) {
       node.anchors = anchorsOf(o.points ? { ...o.def, points: o.points } : o.def);
       node.anchorsFrom = { def: o.def, points: o.points };
@@ -801,7 +855,7 @@ export class PanelScene {
     const dark: Rgb = [o.color[0] * 0.22, o.color[1] * 0.22, o.color[2] * 0.22];
     for (const p of node.pieces) {
       const rgb = p.tint ? o.color : p.color ?? o.color;
-      if (p.surface) applySurface(p.surface, rgb, alpha, pulse, o.pulseColor, heldOpacity);
+      if (p.surface) applySurface(p.surface, rgb, alpha, pulse, o.pulseColor, heldOpacity, p.organic === true);
       else if (p.object instanceof Sprite) (p.object.material as SpriteMaterial).opacity = alpha;
       if (p.lines) {
         const m = p.lines.material as LineBasicMaterial;
@@ -908,9 +962,9 @@ export class PanelScene {
     }
   }
 
-  /** True while the framing is still gliding to the model's size: the page should keep drawing frames. */
+  /** True while the framing is still gliding to the model's size, or a living body's skin is still being cut: the page should keep drawing frames. */
   get fitting(): boolean {
-    return this.settling;
+    return this.settling || this.organics.busy();
   }
 
   /**
@@ -1382,11 +1436,17 @@ export class PanelScene {
     return hulls;
   }
 
+  /** The triangles of the living bodies now drawn, and of all their skins kept, worn or not (organic-bodies.ts). */
+  organicTriangles(): { worn: number; kept: number } {
+    return { worn: this.organics.triangles(), kept: this.organics.keptTriangles() };
+  }
+
   count(): number {
     return this.nodes.size;
   }
 
   destroy(): void {
+    this.organics.dispose();
     for (const node of this.nodes.values()) this.dispose(node);
     this.nodes.clear();
   }

@@ -1,0 +1,57 @@
+{
+  "escalate": null,
+  "steps": [
+    {
+      "say": "A fish is a streamlined body with fins and a tail.",
+      "actions": [
+        {"op": "box", "id": "fishbox", "x": 555, "y": 135, "w": 150, "h": 170, "color": "blue"}
+      ]
+    },
+    {
+      "say": "Here are its main parts. The eye is at the front, the dorsal fin rises on the back, the pectoral fin sits low on the side, and the tail fin does the pushing.",
+      "actions": [
+        {"op": "image", "id": "fishzoom", "sx": 560, "sy": 140, "sw": 140, "sh": 160, "dx": 725, "dy": 330, "dw": 260, "color": "blue"},
+        {"op": "point", "id": "eyep", "x": 758, "y": 475, "color": "red", "at": 2.0},
+        {"op": "label", "id": "eyel", "x": 766, "y": 463, "text": "Eye", "color": "red", "size": 20, "at": 2.1},
+        {"op": "point", "id": "dorp", "x": 855, "y": 414, "color": "red", "at": 3.8},
+        {"op": "label", "id": "dorl", "x": 863, "y": 402, "text": "Dorsal fin", "color": "red", "size": 20, "at": 3.9},
+        {"op": "point", "id": "pecp", "x": 818, "y": 516, "color": "red", "at": 5.6},
+        {"op": "label", "id": "pecl", "x": 826, "y": 504, "text": "Pectoral fin", "color": "red", "size": 20, "at": 5.7},
+        {"op": "point", "id": "tailp", "x": 948, "y": 488, "color": "red", "at": 7.4},
+        {"op": "label", "id": "taill", "x": 956, "y": 476, "text": "Tail", "color": "red", "size": 20, "at": 7.5}
+      ]
+    },
+    {
+      "say": "Now watch it swim. The body bends in waves, and the tail sweeps from side to side.",
+      "actions": [
+        {"op": "clear", "target": "marks"},
+        {"op": "panel", "x": 540, "y": 330, "w": 440, "h": 500},
+        {"op": "add", "shape": "blob", "id": "body", "pts": [[-1.5, 0, 0], [-0.5, 0, 0], [0.8, 0, 0], [1.8, 0, 0]], "sizes": [[1.8, 1.6, 1.0], [2.2, 1.8, 1.2], [1.8, 1.2, 0.9], [1.0, 0.6, 0.5]], "material": "skin", "color": "orange", "at": 0.3},
+        {"op": "add", "shape": "extrude", "id": "tail", "parent": "body", "parentAnchor": "right", "selfAnchor": "origin", "pos": [-0.2, 0, 0], "outline": [[0, 0.2], [1.3, 1.1], [0.95, 0], [1.3, -1.1], [0, -0.2]], "depth": 0.12, "material": "skin", "color": "orange", "at": 1.0},
+        {"op": "loop", "id": "tail", "kind": "swing", "axis": "z", "amount": 25, "period": 1.2, "at": 1.6},
+        {"op": "pin", "id": "bodytag", "on": "body", "text": "Body", "at": 2.4},
+        {"op": "pin", "id": "tailtag", "on": "tail", "text": "Tail fin", "at": 3.4}
+      ]
+    },
+    {
+      "say": "Fins steer and balance it. The dorsal fin keeps it upright, the pectoral fin turns and brakes, and the eye faces forward.",
+      "actions": [
+        {"op": "add", "shape": "extrude", "id": "dorsal", "parent": "body", "parentAnchor": "top", "selfAnchor": "origin", "pos": [0.2, -0.15, 0], "outline": [[-0.9, 0], [-0.3, 0.9], [0.6, 0.6], [0.9, 0]], "depth": 0.08, "material": "skin", "color": "orange", "at": 0.3},
+        {"op": "add", "shape": "extrude", "id": "pectoral", "parent": "body", "parentAnchor": "front", "selfAnchor": "origin", "pos": [-0.7, -0.5, -0.1], "outline": [[0, 0.1], [0.9, -0.6], [0.7, 0.1]], "depth": 0.06, "material": "skin", "color": "orange", "at": 1.6},
+        {"op": "add", "shape": "sphere", "id": "eye", "parent": "body", "parentAnchor": "front", "selfAnchor": "origin", "pos": [-1.3, 0.25, -0.1], "size": [0.3, 0.3, 0.3], "color": "black", "at": 3.0},
+        {"op": "pin", "id": "dortag", "on": "dorsal", "text": "Dorsal fin", "at": 0.9},
+        {"op": "pin", "id": "pectag", "on": "pectoral", "text": "Pectoral fin", "at": 2.2},
+        {"op": "pin", "id": "eyetag", "on": "eye", "text": "Eye", "at": 3.6}
+      ]
+    },
+    {
+      "say": "Each sweep shoves water back. The water pushes the fish forward.",
+      "actions": [
+        {"op": "add", "shape": "arrow", "id": "push", "pts": [[3.3, -0.2, 0.3], [4.8, -0.2, 0.3]], "color": "blue", "at": 0.3},
+        {"op": "pin", "id": "pushtag", "on": "push", "text": "Water pushed back", "at": 0.8},
+        {"op": "add", "shape": "force", "id": "thrust", "on": "body", "dir": [-1, 0, 0], "strength": 2, "color": "green", "at": 2.0},
+        {"op": "pin", "id": "thrusttag", "on": "thrust", "text": "Fish pushed forward", "at": 2.5}
+      ]
+    }
+  ]
+}

@@ -49,6 +49,7 @@ import { followupKeepOut, followupSpot } from './followup-placement.ts';
 import type { CaptionDriver, CaptionState, Rect } from './captions.ts';
 import { readingSeconds } from '../shared/captions.ts';
 import { PanelScene } from './scene3d.ts';
+import { SKIN_SLICE_MS } from './organic-bodies.ts';
 import { HEAVY_MODEL_TRIANGLES, cornerFor, createModelStore, creditLine, failedNote, modelTriangles, modelsIn, takeApartable, withoutFailedModels } from './model-assets.ts';
 import type { ScreenRect } from './scene3d.ts';
 import type { Frame } from './timeline.ts';
@@ -144,6 +145,7 @@ let modelsLeftOut: string[] = [];
 const panelScene = new PanelScene({
   tier,
   models: modelStore,
+  skinSlice: SKIN_SLICE_MS[tier],
   makeCanvas: (width, height) => {
     const c = document.createElement('canvas');
     c.width = width;

@@ -125,7 +125,8 @@ test('the prewarm group has a solid in every surface, the same surfaces every ti
   for (const tier of ['low', 'mid', 'high'] as const) {
     const panel = new PanelScene({ tier });
     const first = panel.prewarmGroup();
-    assert.equal(first.children.length, SURFACE_NAMES.length);
+    // every surface, and the two faces a cut through living material is drawn with (one with a grain, one without)
+    assert.equal(first.children.length, SURFACE_NAMES.length + 2);
     const second = panel.prewarmGroup();
     const surfaces = (g: typeof first) => g.children.map((m) => (m as unknown as { material: unknown }).material);
     assert.deepEqual(surfaces(second), surfaces(first), 'one set of surfaces for good');

@@ -1,0 +1,42 @@
+{
+  "escalate": null,
+  "steps": [
+    {
+      "say": "Here is a human hand, so let me build one and name its parts.",
+      "actions": [
+        {"op": "box", "id": "pic", "x": 555, "y": 135, "w": 150, "h": 170, "color": "blue"}
+      ]
+    },
+    {
+      "say": "Start with the palm. It is the broad centre of the hand, joined to the forearm at the wrist.",
+      "actions": [
+        {"op": "panel", "x": 710, "y": 330, "w": 280, "h": 660},
+        {"op": "add", "shape": "group", "id": "hand"},
+        {"op": "add", "shape": "blob", "id": "palm", "parent": "hand", "pts": [[0, 0, 0]], "sizes": [[4, 3.6, 1.2]], "material": "skin", "at": 0.3},
+        {"op": "add", "shape": "blob", "id": "wrist", "parent": "hand", "pts": [[0, -2.8, 0]], "sizes": [[2.6, 2.4, 1.5]], "material": "skin", "at": 0.6},
+        {"op": "pin", "id": "palmtag", "on": "palm", "text": "Palm", "at": 1.0},
+        {"op": "pin", "id": "wristtag", "on": "wrist", "text": "Wrist", "at": 1.6}
+      ]
+    },
+    {
+      "say": "Now the thumb. It stands apart from the rest, so it can press against the other fingers to grip. Next to it is the index finger.",
+      "actions": [
+        {"op": "add", "shape": "tube", "id": "thumb", "parent": "hand", "pts": [[-1.7, -0.6, 0.1], [-3.0, 0.6, 0.2], [-3.8, 1.9, 0.2]], "radius": 0.52, "swell": [[0, 1], [1, 0.85]], "material": "skin", "at": 0.3},
+        {"op": "add", "shape": "tube", "id": "index", "parent": "hand", "pts": [[-1.35, 1.2, 0], [-1.45, 3, 0], [-1.55, 4.6, 0]], "radius": 0.42, "swell": [[0, 1], [1, 0.8]], "material": "skin", "at": 0.7},
+        {"op": "pin", "id": "thumbtag", "on": "thumb", "text": "Thumb", "at": 1.2},
+        {"op": "pin", "id": "indextag", "on": "index", "text": "Index finger", "at": 1.9}
+      ]
+    },
+    {
+      "say": "Three more fingers. The middle finger is the longest, then the ring finger, and the little finger is the smallest.",
+      "actions": [
+        {"op": "add", "shape": "tube", "id": "middle", "parent": "hand", "pts": [[-0.45, 1.2, 0], [-0.45, 3.2, 0], [-0.45, 5.0, 0]], "radius": 0.43, "swell": [[0, 1], [1, 0.8]], "material": "skin", "at": 0.3},
+        {"op": "add", "shape": "tube", "id": "ring", "parent": "hand", "pts": [[0.45, 1.2, 0], [0.55, 3, 0], [0.65, 4.5, 0]], "radius": 0.41, "swell": [[0, 1], [1, 0.8]], "material": "skin", "at": 0.9},
+        {"op": "add", "shape": "tube", "id": "little", "parent": "hand", "pts": [[1.35, 1.0, 0], [1.6, 2.5, 0], [1.85, 3.7, 0]], "radius": 0.38, "swell": [[0, 1], [1, 0.8]], "material": "skin", "at": 1.5},
+        {"op": "pin", "id": "middletag", "on": "middle", "text": "Middle finger", "at": 0.8},
+        {"op": "pin", "id": "ringtag", "on": "ring", "text": "Ring finger", "at": 1.4},
+        {"op": "pin", "id": "littletag", "on": "little", "text": "Little finger", "at": 2.0}
+      ]
+    }
+  ]
+}
