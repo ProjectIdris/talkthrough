@@ -178,9 +178,18 @@ describe('checking', () => {
     assert.equal((await b.updater.check()).kind, 'idle');
     assert.equal(b.f.hits.length, 0, 'busy: no request');
     busy = false;
-    await new Promise((ok) => setTimeout(ok, 150));
-    assert.equal(b.updater.status().kind, 'available', 'the check is retried when the answer is over');
-    b.updater.stop();
+    try {
+      // The retry starts after busyRetryMs, but a loaded test runner may not
+      // finish the loopback request inside an arbitrary short sleep.
+      const deadline = Date.now() + 5_000;
+      while (b.updater.status().kind !== 'available' && Date.now() < deadline) {
+        await new Promise((ok) => setTimeout(ok, 10));
+      }
+      assert.equal(b.updater.status().kind, 'available', 'the check is retried when the answer is over');
+      assert.equal(b.f.hits.length, 1, 'one retry request after the answer is over');
+    } finally {
+      b.updater.stop();
+    }
   });
   it('refuses a plain http address outside tests', async () => {
     const { updater, f } = await rig({ allowInsecure: false });
