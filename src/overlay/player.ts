@@ -425,6 +425,11 @@ export class Player {
     return this.idleAt === undefined ? rest : withIdleTurn(rest, (now - this.idleAt) / 1000);
   }
 
+  /** A live turn that has said and drawn every step it was given and is still open: the next step has not arrived. */
+  get awaitingNext(): boolean {
+    return this.live && !this.quiet && this.phase === 'idle' && this.index > 0 && this.index >= this.steps.length && this.openIndex === null;
+  }
+
   private stop(): void {
     this.stopIdle();
     this.openIndex = null;
