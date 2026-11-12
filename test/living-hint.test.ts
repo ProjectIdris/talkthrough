@@ -23,7 +23,7 @@ test('a question that names a living thing (whole words, singular or plural, any
     assert.match(hint, /get its outline right first/, q);
     assert.match(hint, /never costs the outside a part/, q);
     assert.match(hint, /a point at each joint/, q);
-    assert.match(hint, /A human palm or sole is a box with a bevel/, q);
+    assert.match(hint, /A human palm or sole is an extrude of its true outline/, q);
     assert.match(hint, /fur, feathers and the shell of an insect are skin/, q);
   }
 });
@@ -36,7 +36,23 @@ test('the hint tells how a thumb differs from a finger: two stretches, shorter a
   assert.match(hint, /about two thirds as long as the fingers and a quarter thicker/);
   assert.match(hint, /starts inside the lower side of the palm, near the wrist/);
   assert.match(hint, /out and toward the viewer \(give its points a z\), never up beside the fingers/);
-  assert.match(hint, /fleshy ball at its root as its own blob of skin that overlaps both the palm and the thumb/);
+  assert.match(hint, /fleshy ball is its own broad, low blob that overlaps both the palm and the thumb/);
+});
+
+test('the hint tells how a palm and its fingers differ from a block and rods: an outline that narrows to the wrist, at most a low mound, a row of knuckle rises, tapered and swollen fingers that fan and differ in length', () => {
+  const hint = livingHint('How does my hand bend its fingers? Show me a 3D hand.') ?? '';
+  assert.match(hint, /about a third as thick as it is wide, a little thicker at the heel and at the root of the thumb/);
+  assert.match(hint, /the forearm is rounder, about half as thick as it is wide/);
+  assert.match(hint, /broad across the knuckles and narrows to the wrist/);
+  assert.match(hint, /the wrist and forearm run on from it as outlines of their own in the same plane/);
+  assert.match(hint, /the palm is a smooth pad, and any other mound \(the heel of the little finger\) is at most a broad, low blob sunk into it/);
+  assert.match(hint, /or left out, never a round bump/);
+  assert.match(hint, /a gentle row of four low rounded rises, never a band across the hand/);
+  assert.match(hint, /thinner toward its tip with a slight swelling at each joint \(swell\)/);
+  assert.match(hint, /fingers and toes fan a little toward their tips; legs and tails do not/);
+  assert.match(hint, /middle finger longest, about as long as the palm/);
+  assert.match(hint, /little finger shortest and thinnest/);
+  assert.doesNotMatch(hint, /ridge/);
 });
 
 test('a question that names none is told nothing: no substring matches, and words that mostly mean something else are not in the list', () => {
