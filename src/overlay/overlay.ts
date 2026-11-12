@@ -342,6 +342,7 @@ const clampRect = (r: ScreenRect, pad: number): ScreenRect => {
 };
 
 /** The system's "reduce motion" setting: marks then appear in one step instead of being drawn along like a pen stroke. */
+const MORE_LABEL = 'More coming';
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 reduceMotion.addEventListener('change', () => request());
 
@@ -724,9 +725,14 @@ function showHud(frame: Frame): void {
     text: '3D is unavailable in this window. Text, voice and 2D drawings can still be used.',
     level: 'warning', alpha: 1,
   };
-  statusEl.className = v.status === 'idle' ? '' : v.status;
-  statusEl.style.display = v.status === 'idle' ? 'none' : 'flex';
-  if (v.status !== 'idle' && statusLabel.textContent !== STATUS_LABELS[v.status]) statusLabel.textContent = STATUS_LABELS[v.status];
+  // The quiet wait pill: "Thinking" is the working status; "More coming" is a turn that has said every step it has and is still open.
+  hud.setAwaitingNext(player.awaitingNext, now);
+  const more = hud.waitPill(now) === 'more';
+  const shownStatus = more ? 'more' : v.status;
+  statusEl.className = shownStatus === 'idle' ? '' : shownStatus;
+  statusEl.style.display = shownStatus === 'idle' ? 'none' : 'flex';
+  const label = more ? MORE_LABEL : v.status === 'idle' ? '' : STATUS_LABELS[v.status];
+  if (label && statusLabel.textContent !== label) statusLabel.textContent = label;
   if (v.offer === null) {
     offerEl.style.display = 'none';
   } else {
@@ -750,7 +756,7 @@ function showHud(frame: Frame): void {
 function showFollowupControls(frame: Frame, k: number): void {
   const hasExplanation = k > 0 && (frame.panel !== null || frame.marks.length > 0 || frame.diagrams.length > 0 || frame.objects.length > 0 || textBoxUp());
   const status = statusEl.className;
-  const waiting = ['listening', 'working', 'backend', 'detail', 'waiting', 'checking'].includes(status);
+  const waiting = ['listening', 'working', 'more', 'backend', 'detail', 'waiting', 'checking'].includes(status);
   askMoreEl.style.display = hasExplanation && !waiting && !pen.active && !guiding ? 'flex' : 'none';
   captureControlsEl.style.display = status === 'listening' ? 'flex' : 'none';
 }
@@ -766,6 +772,30 @@ function placeFollowupControls(content: readonly VisibleRegion[]): void {
   el.style.left = `${at.x}px`;
   el.style.top = `${at.y}px`;
   el.style.bottom = 'auto';
+}
+
+/** Where the wait pill last sat, so it stays put while that spot is clear. */
+let waitAt: { x: number; y: number } | undefined;
+/**
+ * "Thinking" and "More coming" rest at the bottom centre, where the dock puts every status, and step aside for what is drawn: the model, the
+ * guide target, the answer, the other pills. They are placed after the drawing, like the follow-up controls, and never cover a thing.
+ */
+function placeWaitPill(content: readonly VisibleRegion[]): void {
+  const cls = statusEl.className;
+  if (statusEl.style.display !== 'flex' || (cls !== 'working' && cls !== 'more')) {
+    waitAt = undefined;
+    statusEl.style.position = statusEl.style.left = statusEl.style.top = statusEl.style.bottom = '';
+    return;
+  }
+  const ui: VisibleRegion[] = overlayUiRegions().filter(r => r.id !== 'status').map(r => ({ id: r.id, kind: r.kind, alpha: r.alpha, shape: { type: 'rect', ...r.rect } }));
+  const size = { w: statusEl.offsetWidth, h: statusEl.offsetHeight };
+  const home = { x: (view.width - size.w) / 2, y: view.height - 28 - size.h };
+  const at = followupSpot(view, size, followupKeepOut([...content, ...ui]), waitAt, home);
+  waitAt = at;
+  statusEl.style.position = 'fixed';
+  statusEl.style.left = `${at.x}px`;
+  statusEl.style.top = `${at.y}px`;
+  statusEl.style.bottom = 'auto';
 }
 
 function elementRect(el: HTMLElement): { x: number; y: number; w: number; h: number } | undefined {
@@ -1139,6 +1169,7 @@ function loop(): void {
   showCaption(frame);
   const content = renderedContentRegions(frame);
   placeFollowupControls(content);
+  placeWaitPill(content);
   if (pen.active) sendPen();
   publishRenderedRegions(content);
   reportButtons();

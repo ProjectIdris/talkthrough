@@ -18,13 +18,15 @@ export function followupKeepOut(regions: readonly VisibleRegion[]): Rect[] {
 
 /** Keep the complete control group near its usual corner, with air around the current drawing.
  * A clear previous spot is retained; crowded scenes choose the least overlap, never hide controls.
+ * `resting` replaces the usual corner as the place it returns to and keeps nearest to.
  */
-export function followupSpot(view: { width: number; height: number }, size: { w: number; h: number }, keepOut: readonly Rect[], prefer?: { x: number; y: number }): { x: number; y: number } {
+export function followupSpot(view: { width: number; height: number }, size: { w: number; h: number }, keepOut: readonly Rect[], prefer?: { x: number; y: number }, resting?: { x: number; y: number }): { x: number; y: number } {
   const gap = 8;
   const maxX = Math.max(0, Math.floor(view.width - size.w)), maxY = Math.max(0, Math.floor(view.height - size.h));
   const left = Math.min(22, Math.floor(maxX / 2)), right = maxX - left;
   const top = Math.min(28, Math.floor(maxY / 2)), bottom = maxY - top;
-  const home = { x: left, y: bottom };
+  // Where it would rather sit: the usual corner, or the place the caller names (clamped to the view), such as the bottom centre.
+  const home = resting ? { x: Math.max(0, Math.min(maxX, Math.round(resting.x))), y: Math.max(0, Math.min(maxY, Math.round(resting.y))) } : { x: left, y: bottom };
   const fits = (p: { x: number; y: number }) => p.x >= 0 && p.y >= 0 && p.x <= maxX && p.y <= maxY;
   const score = (p: { x: number; y: number }) => keepOut.reduce((sum, r) => sum +
     Math.max(0, Math.min(p.x + size.w + gap, r.x + r.w) - Math.max(p.x - gap, r.x)) *
