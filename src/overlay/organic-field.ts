@@ -16,7 +16,7 @@ export type Prim =
     near?: Float64Array;
   }
   | { kind: 'cylinder'; r: number; half: number; round: number; depth: number }
-  | { kind: 'cone'; r: number; half: number; depth: number }
+  | { kind: 'cone'; r: number; half: number; depth: number; rounded?: boolean }
   | { kind: 'box'; half: Vec3; round: number }
   /** A pad: a box of flesh. Its corners are rounded in its own plane (`corner`) and its rim all the way round (`rim`); `thin` is the axis it is thinnest on. */
   | { kind: 'pad'; half: Vec3; thin: 0 | 1 | 2; corner: number; rim: number }
@@ -297,6 +297,11 @@ export function primDistance(p: Prim, x: number, y: number, z: number): number {
       // A cone standing on y: its base radius r at -half, its point at +half.
       const k = p.depth;
       const q = Math.hypot(x, z / k);
+      if (p.rounded) {
+        // A tapered bridge between rounded ends reaches the original top and bottom without a machined edge or a needle tip.
+        const base = Math.min(p.r, p.half * 0.95), tip = base * 0.2;
+        return roundCone(x, y, z / k, [0, -p.half + base, 0], [0, p.half - tip, 0], base, tip) * Math.min(1, k);
+      }
       // distance in the (q, y) half plane to the triangle (0,-half) (r,-half) (0,half), whose third side is the axis
       return polygonDistance(q, y, [[0, -p.half], [p.r, -p.half], [0, p.half]], false) * Math.min(1, k);
     }

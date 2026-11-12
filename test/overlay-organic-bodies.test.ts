@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Mesh } from 'three';
-import { BodyField, primBounds, primInside } from '../src/overlay/organic-field.ts';
+import { BodyField, primBounds, primInside, primDistance } from '../src/overlay/organic-field.ts';
+import { organicKind, solidOf } from '../src/overlay/organic-bodies.ts';
 import type { FieldPart, Prim } from '../src/overlay/organic-field.ts';
 import { cutFace, cutSkin } from '../src/overlay/organic-mesh.ts';
 import { sheetGeometry } from '../src/overlay/organic-sheet.ts';
@@ -17,6 +18,37 @@ const part = (prim: Prim, soft = 0): FieldPart => {
   return { prim, toLocal: new Float64Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]), scale: 1, soft, wall: 0, lo: b.lo, hi: b.hi, inside: primInside(prim), size: Math.min(b.hi[0] - b.lo[0], b.hi[1] - b.lo[1], b.hi[2] - b.lo[2]) };
 };
 const lump = (r: [number, number, number]): Prim => ({ kind: 'lumps', lumps: [{ c: [0, 0, 0], r }], reach: 1 });
+
+test('a living tapered solid has a rounded tip and foot while a hard cone retains its point', () => {
+  const soft = { op: 'add', shape: 'cone', id: 'soft', size: [0.6, 0.8, 0.6], material: 'muscle' } as const;
+  const hard = { op: 'add', shape: 'cone', id: 'hard', size: [0.6, 0.8, 0.6], material: 'metal' } as const;
+  const living = organicKind(soft as unknown as Scene['steps'][0]['actions'][number] & { op: 'add' });
+  const rigid = solidOf(hard as unknown as Scene['steps'][0]['actions'][number] & { op: 'add' });
+  assert.ok(living && rigid);
+  assert.ok(primDistance(living.prim, 0.02, 0.39, 0) < 0, 'living tip has a rounded cap');
+  assert.ok(primDistance(living.prim, 0.29, -0.39, 0) > 0, 'living foot is rounded away from the sharp corner');
+  assert.ok(primDistance(living.prim, 0, 0, 0) < 0, 'the body retains its interior');
+  assert.ok(primDistance(rigid, 0.02, 0.39, 0) > 0, 'rigid cone retains its point');
+  const cutSolid = solidOf(soft as unknown as Parameters<typeof solidOf>[0]);
+  assert.ok(cutSolid);
+  for (const [x, y, z] of [[0, 0.39, 0], [0.29, -0.39, 0], [0, 0, 0]]) {
+    assert.ok(Math.abs(primDistance(cutSolid, x!, y!, z!) - primDistance(living.prim, x!, y!, z!)) < 1e-10, 'cut and living skin use the same solid');
+  }
+  for (const size of [[0.05, 5, 0.05], [5, 0.05, 2], [0.6, 0.8, 0.12]] as [number, number, number][]) {
+    const kind = organicKind({ op: 'add', shape: 'cone', id: 'vary', size, material: 'muscle' });
+    assert.ok(kind && Number.isFinite(primDistance(kind.prim, 0, 0, 0)));
+    assert.ok(primDistance(kind.prim, 0, 0, 0) < 0, 'thin or stretched cones keep a finite interior');
+  }
+  const skin = cutSkin(new BodyField([part(living.prim)]), { cell: 0.025 });
+  let softened = 0, top = -Infinity;
+  for (let i = 0; i < skin.position.length; i += 3) {
+    const x = skin.position[i]!, y = skin.position[i + 1]!, z = skin.position[i + 2]!;
+    top = Math.max(top, y);
+    if (y > 0.3 && Math.abs(primDistance(living.prim, x, y, z)) < 0.005 && primDistance(rigid, x, y, z) > 0.004) softened++;
+  }
+  assert.ok(softened > 0, `the actual skin has rounded-tip vertices (${softened})`);
+  assert.ok(top > 0.38 && top <= 0.40001, `rounding preserves the tapered length (top ${top})`);
+});
 
 test('a skin never passes its vertex ceiling, however fine it is asked for', () => {
   // A wide thin body at a cell a thousandth of its size: by the grid alone it would have some 800,000 vertices.

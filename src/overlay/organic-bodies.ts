@@ -344,7 +344,10 @@ function primOf(def: AddAction): Prim | null {
     }
     case 'cone': {
       const [sx, sy, sz] = def.size;
-      prim = { kind: 'cone', r: Math.max(1e-4, sx / 2), half: Math.max(1e-4, sy / 2), depth: Math.max(0.05, sz / Math.max(sx, 1e-6)) };
+      const r = Math.max(1e-4, sx / 2), half = Math.max(1e-4, sy / 2);
+      const family = materialRow('material' in def ? def.material : undefined)?.family;
+      const rounded = family !== undefined && SOFT_FAMILIES.has(family);
+      prim = { kind: 'cone', r, half, depth: Math.max(0.05, sz / Math.max(sx, 1e-6)), rounded };
       break;
     }
     case 'box': {
