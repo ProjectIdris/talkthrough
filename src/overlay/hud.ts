@@ -36,6 +36,17 @@ export type HudView = {
 
 type Notice = { text: string; level: NoticeLevel; at: number; action?: NoticeAction };
 
+/**
+ * What the status pill shows this frame: the HUD's status, with "Thinking" held back while an error notice is in view (it takes over) and "More coming"
+ * added for a turn waiting between steps. The page uses this and nothing else to decide the pill.
+ */
+export function shownStatus(hud: HudState, now: number): Status | 'more' {
+  const pill = hud.waitPill(now);
+  if (pill === 'more') return 'more';
+  const status = hud.view(now).status;
+  return status === 'working' && pill !== 'thinking' ? 'idle' : status;
+}
+
 export class HudState {
   private status: Status = 'idle';
   private offerReason: string | null = null;

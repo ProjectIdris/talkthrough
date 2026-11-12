@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { HudState, MORE_DELAY_MS, NOTICE_FADE_MS, NOTICE_MS } from '../src/overlay/hud.ts';
+import { HudState, MORE_DELAY_MS, NOTICE_FADE_MS, NOTICE_MS, shownStatus } from '../src/overlay/hud.ts';
 import { Player } from '../src/overlay/player.ts';
 import type { Clock } from '../src/overlay/player.ts';
 import { followupSpot } from '../src/overlay/followup-placement.ts';
@@ -346,4 +346,16 @@ test('a new question and a clear each forget a pause that was running', () => {
     assert.equal(hud.waitPill(MORE_DELAY_MS * 3), null, `${name}: the old pause does not show More coming`);
     assert.equal(hud.untilChange(0), undefined, `${name}: and nothing is scheduled for it`);
   }
+});
+
+test('Thinking does not show beside an error that is already up: a replan after a fault leaves the notice alone, and Thinking comes back when it has gone', () => {
+  const p = page();
+  p.begin();
+  p.notice('error');
+  p.status('working'); // the guide replans after the fault
+  assert.equal(p.hud.waitPill(p.now()), null, 'the error notice is in view: no Thinking beside it');
+  assert.equal(shownStatus(p.hud, p.now()), 'idle', 'and the page shows no status pill for it');
+  p.wait(NOTICE_MS.error + NOTICE_FADE_MS + 100);
+  assert.equal(p.hud.waitPill(p.now()), 'thinking', 'the work goes on, so Thinking returns once the notice has gone');
+  assert.equal(shownStatus(p.hud, p.now()), 'working');
 });

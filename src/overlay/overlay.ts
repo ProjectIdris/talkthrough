@@ -13,7 +13,7 @@ import { createSpeechSynthesisVoice } from '../adapters/speech-synthesis-voice.t
 import { createServerVoice } from './server-voice.ts';
 import { timedVoice } from '../adapters/timed-voice.ts';
 import { AutoFade, fadeFrame } from './fade.ts';
-import { ACTION_LABELS, HudState, STATUS_LABELS } from './hud.ts';
+import { ACTION_LABELS, HudState, STATUS_LABELS, shownStatus } from './hud.ts';
 import type { NoticeAction } from './hud.ts';
 import { answerBox } from './answer-box.ts';
 import { LabelBoard, Occupancy, busyFromGray } from './labels.ts';
@@ -725,13 +725,12 @@ function showHud(frame: Frame): void {
     text: '3D is unavailable in this window. Text, voice and 2D drawings can still be used.',
     level: 'warning', alpha: 1,
   };
-  // The quiet wait pill: "Thinking" is the working status; "More coming" is a turn that has said every step it has and is still open.
+  // The quiet wait pill: "Thinking" is the working status (held back while an error notice is up); "More coming" is a turn that has said every step it has and is still open.
   hud.setAwaitingNext(player.awaitingNext, now);
-  const more = hud.waitPill(now) === 'more';
-  const shownStatus = more ? 'more' : v.status;
-  statusEl.className = shownStatus === 'idle' ? '' : shownStatus;
-  statusEl.style.display = shownStatus === 'idle' ? 'none' : 'flex';
-  const label = more ? MORE_LABEL : v.status === 'idle' ? '' : STATUS_LABELS[v.status];
+  const shown = shownStatus(hud, now);
+  statusEl.className = shown === 'idle' ? '' : shown;
+  statusEl.style.display = shown === 'idle' ? 'none' : 'flex';
+  const label = shown === 'more' ? MORE_LABEL : shown === 'idle' ? '' : STATUS_LABELS[shown];
   if (label && statusLabel.textContent !== label) statusLabel.textContent = label;
   if (v.offer === null) {
     offerEl.style.display = 'none';
