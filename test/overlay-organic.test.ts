@@ -102,7 +102,7 @@ const organic: Scene = { steps: [{ say: 'x', actions: [
   { op: 'add', shape: 'blob', id: 'body', pts: [[0, 0, 0]], sizes: [[2, 2, 2]], color: 'red', material: 'tissue' },
 ] }] };
 
-test('a stem or vessel thick for its length is part of the model for framing; a thin cable is not', () => {
+test('thick and slender tubes both count when framing the visible model', () => {
   const withTube = (radius: number, length: number): number => {
     const scene: Scene = { steps: [{ say: 'x', actions: [
       ...organic.steps[0]!.actions,
@@ -118,7 +118,7 @@ test('a stem or vessel thick for its length is part of the model for framing; a 
     return panel.camera.position.length();
   })();
   assert.ok(withTube(0.4, 6) > alone * 1.4, 'a thick stem draws the camera back to take it in');
-  assert.ok(withTube(0.04, 6) < alone * 1.05, 'a cable leaves the framing as it was');
+  assert.ok(withTube(0.04, 6) > alone * 1.4, 'a slender tube also stays in the stage');
 });
 
 test('the model is told about the organic forms: blob, swell and tissue', async () => {

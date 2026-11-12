@@ -56,6 +56,25 @@ test('a stage placed past the window edge is brought fully on screen', () => {
   assert.ok(stage && stage.x>=0 && stage.y>=0 && stage.x+stage.w<=view.width && stage.y+stage.h<=view.height, `visible stage ${JSON.stringify(stage)}`);
 });
 
+test('a slender tube that is part of a model stays inside the stage', () => {
+  const view = {width:1280,height:720};
+  const stage = {x:700,y:100,w:350,h:450};
+  const frame = settled(
+    {op:'add',shape:'sphere',id:'body',size:[2,2,2]},
+    {op:'add',shape:'tube',id:'stem',pts:[[0,-8,0],[0,8,0]],radius:0.03},
+    {op:'orbit',az:0,el:0,dur:0},
+  );
+  const scene = new PanelScene();
+  scene.sync(frame,stage.w/stage.h,{rect:stage,...view});
+  const obj=scene.nodeOf(frame.objects.find(o=>o.id==='stem')!.key)!;
+  for(const y of [-8,8]) {
+    const p=obj.localToWorld(new Vector3(0,y,0)).project(scene.camera);
+    const x=(p.x+1)*view.width/2, py=(1-p.y)*view.height/2;
+    assert.ok(x>=stage.x-1 && x<=stage.x+stage.w+1 && py>=stage.y-1 && py<=stage.y+stage.h+1, `tube endpoint ${x},${py} outside ${JSON.stringify(stage)}`);
+  }
+  scene.destroy();
+});
+
 test('a long model fills a wide stage, and a tall one a tall stage, instead of the all-round sphere leaving them small', () => {
   const wide = { x: 100, y: 100, w: 800, h: 300 };
   const long = settled({ op: 'add', shape: 'box', id: 'a', size: [40, 2, 2] }, { op: 'orbit', az: 0, el: 0, dur: 0 });

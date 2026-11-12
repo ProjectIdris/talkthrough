@@ -1013,7 +1013,7 @@ export class PanelScene {
   private partSpheres(): PartHull[] {
     const spheres: PartHull[] = [];
     for (const node of this.nodes.values()) {
-      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || (node.path && !node.path.body) || node.stream || node.particles || node.force) continue;
+      if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || node.stream || node.particles || node.force) continue;
       for (const p of node.pieces) {
         const mesh = p.object as Mesh;
         const geo = mesh.geometry;
