@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { Worker } from 'node:worker_threads';
@@ -7,7 +7,6 @@ import { createFrontWindowReader } from '../src/main/front-window.ts';
 import { createSkipCheck, SKIP_DEADLINE_MS } from '../src/main/skip-list.ts';
 
 const file = (name: string): string => resolve('test/support', name);
-const settles = (p: Promise<unknown>, ms: number): Promise<'settled' | 'pending'> => Promise.race([p.then(() => 'settled' as const, () => 'settled' as const), new Promise<'pending'>((r) => setTimeout(() => r('pending'), ms))]);
 
 test('the reader asks a worker thread for the window in front and gets its name, program file and title', async () => {
   const reader = createFrontWindowReader({ file: file('worker-fixed.mjs') });
@@ -31,27 +30,43 @@ test('the real reader (the one the app ships) loads in its thread and reads a wi
 });
 
 test('a read that hangs leaves the app free: the skip check gives up at its deadline and forbids the press, and the thread is the only thing stuck', async () => {
-  assert.equal(SKIP_DEADLINE_MS, 300, 'the front-window protection deadline is a 300 ms product contract');
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const productDeadlineMs = 300;
   const reader = createFrontWindowReader({ file: file('worker-hung.mjs') });
+  let readSettled = false;
+  let checkSettled = false;
+  let pending: ReturnType<ReturnType<typeof createSkipCheck>> | undefined;
   try {
-    const check = createSkipCheck(() => ['bank'], { read: () => reader.read() });
-    const pending = check();
+    assert.equal(SKIP_DEADLINE_MS, productDeadlineMs, 'the front-window protection deadline is a 300 ms product contract');
+    const check = createSkipCheck(() => ['bank'], { read: () => {
+      const read = reader.read();
+      void read.then(() => { readSettled = true; }, () => { readSettled = true; });
+      return read;
+    } });
+    pending = check();
+    void pending.then(() => { checkSettled = true; });
     const firstTurn = await Promise.race([
       pending.then(() => 'deadline' as const),
       new Promise<'event-loop-turn'>((resolve) => setImmediate(() => resolve('event-loop-turn'))),
     ]);
     assert.equal(firstTurn, 'event-loop-turn', 'the event loop gets a turn before the front-window deadline');
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    const verdict = await Promise.race([
-      pending,
-      new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error('the front-window deadline did not finish')), SKIP_DEADLINE_MS + 5000);
-      }),
-    ]).finally(() => { if (timeout) clearTimeout(timeout); });
+    assert.equal(checkSettled, false, 'a pending window read does not resolve before the deadline');
+    mock.timers.tick(productDeadlineMs - 1);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(checkSettled, false, 'the check is still waiting just before the product deadline');
+    mock.timers.tick(1);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(checkSettled, true, 'the product deadline resolves the hung read at 300 ms');
+    const verdict = await pending;
     assert.equal(verdict?.kind, 'blind');
-    assert.equal(await settles(reader.read(), 40), 'pending', 'and the read itself stays pending, which is for the deadline to cut off');
+    assert.equal(readSettled, false, 'the worker read remains stuck while the check refuses the press');
   } finally {
+    if (pending && !checkSettled) {
+      mock.timers.tick(10_000);
+      await pending;
+    }
     reader.dispose();
+    mock.timers.reset();
   }
 });
 
