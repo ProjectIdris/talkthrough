@@ -4,41 +4,44 @@
     {
       "say": "Here is a human hand, so let me build one and name its parts.",
       "actions": [
-        {"op": "box", "id": "pic", "x": 555, "y": 135, "w": 150, "h": 170, "color": "blue"}
+        {"op":"box","id":"pic","x":555,"y":135,"w":150,"h":170,"color":"blue"}
       ]
     },
     {
       "say": "Start with the palm. It is the broad centre of the hand, wider across the knuckles than at the wrist, and the forearm runs on from it.",
       "actions": [
-        {"op": "panel", "x": 710, "y": 330, "w": 280, "h": 660},
-        {"op": "add", "shape": "group", "id": "hand"},
-        {"op": "add", "shape": "extrude", "id": "palm", "parent": "hand", "outline": [[2.25,2],[1,2.3],[-1,2.3],[-2.25,2],[-2.2,0.3],[-1.75,-1.3],[-1.4,-2.4],[-1.45,-3.2],[1.45,-3.2],[1.4,-2.4],[1.75,-1.3],[2.2,0.3]], "depth": 1, "material": "skin", "at": 0.3},
-        {"op": "add", "shape": "extrude", "id": "forearm", "parent": "hand", "outline": [[1.45,-2.6],[-1.45,-2.6],[-1.7,-4.5],[-1.9,-6.2],[1.9,-6.2],[1.7,-4.5]], "depth": 1, "material": "skin", "at": 0.6},
-        {"op": "pin", "id": "palmtag", "on": "palm", "text": "Palm", "at": 1},
-        {"op": "pin", "id": "wristtag", "on": "forearm", "text": "Wrist", "at": 1.6, "point": [0,-2.7,0.5]}
+        {"op":"panel","x":710,"y":330,"w":280,"h":660},
+        {"op":"add","shape":"group","id":"hand"},
+        {"op":"add","shape":"extrude","id":"palm","parent":"hand","outline":[[2.2,0.4],[1.95,-0.9],[1.65,-2.2],[1.55,-3.2],[-1.55,-3.2],[-1.65,-2.2],[-1.95,-0.9],[-2.2,0.4],[-2.2,1.6],[-1.8,2.15],[-0.9,2.3],[0.9,2.3],[1.8,2.15],[2.2,1.6]],"depth":1,"material":"skin","at":0.3},
+        {"op":"add","shape":"extrude","id":"forearm","parent":"hand","outline":[[1.55,-2.6],[1.6,-4.4],[1.7,-6.2],[-1.7,-6.2],[-1.6,-4.4],[-1.55,-2.6],[-1.4,-1],[1.4,-1]],"depth":1,"material":"skin","at":0.6},
+        {"op":"pin","id":"palmtag","on":"palm","text":"Palm","at":1},
+        {"op":"pin","id":"wristtag","on":"forearm","text":"Wrist","at":1.6,"point":[0,-2.7,0.5]}
       ]
     },
     {
       "say": "Now the thumb. It stands apart from the rest, so it can press against the other fingers to grip. Next to it is the index finger.",
       "actions": [
-        {"op": "add", "shape": "blob", "id": "thenar", "parent": "hand", "pts": [[-1.35,-0.9,0.4]], "sizes": [[1.6,2.1,1.1]], "material": "skin", "at": 0.3},
-        {"op": "add", "shape": "tube", "id": "thumb", "parent": "hand", "pts": [[-1.3,-1.4,0.15],[-2.45,-0.65,0.6],[-3.3,0.5,0.9]], "radius": 0.58, "swell": [[0,1.25],[0.45,1],[1,0.75]], "material": "skin", "at": 0.3},
-        {"op": "add", "shape": "tube", "id": "index", "parent": "hand", "pts": [[-1.45,1.4,0],[-1.6,2.7,0.05],[-1.75,4,0.1],[-1.85,5,0.08]], "radius": 0.46, "swell": [[0,1.12],[0.3,1],[0.33,1.05],[0.36,0.96],[0.62,0.92],[0.65,0.97],[0.68,0.9],[1,0.7]], "material": "skin", "at": 0.7},
-        {"op": "pin", "id": "thumbtag", "on": "thumb", "text": "Thumb", "at": 1.2},
-        {"op": "pin", "id": "indextag", "on": "index", "text": "Index finger", "at": 1.9}
+        {"op":"add","shape":"blob","id":"thenar","parent":"hand","pts":[[-1.1,-1.2,-0.02]],"sizes":[[1.5,2.2,0.56]],"material":"skin","at":0.3},
+        {"op":"add","shape":"tube","id":"thumb","parent":"hand","pts":[[-1,-1.9,-0.2],[-2.35,-1,0.15],[-3.5,0.3,0.45]],"radius":0.66,"swell":[[0,1.1],[0.45,1],[1,0.75]],"material":"skin","at":0.3},
+        {"op":"add","shape":"tube","id":"index","parent":"hand","pts":[[-1.45,1.4,0],[-1.74,4.9959999999999996,0.04],[-1.88,6.731999999999999,0.08],[-1.95,7.6,0.12]],"radius":0.5,"swell":[[0,1.1],[0.3,1],[0.33,1.03],[0.36,0.97],[0.62,0.93],[0.65,0.97],[0.68,0.92],[1,0.72]],"material":"skin","at":0.7},
+        {"op":"pin","id":"thumbtag","on":"thumb","text":"Thumb","at":1.2},
+        {"op":"pin","id":"indextag","on":"index","text":"Index finger","at":1.9}
       ]
     },
     {
-      "say": "Three more fingers. The middle finger is the longest, then the ring finger, and the little finger is the smallest. A fleshy mound runs down the palm below it.",
+      "say": "Three more fingers. The middle finger is the longest, then the ring finger, and the little finger is the smallest. A low, soft swelling runs down the palm below it.",
       "actions": [
-        {"op": "add", "shape": "blob", "id": "hypothenar", "parent": "hand", "pts": [[1.7,-0.6,0.3]], "sizes": [[1.1,2.4,0.9]], "material": "skin"},
-        {"op": "add", "shape": "tube", "id": "ridge", "parent": "hand", "pts": [[1.9,1.85,0.1],[0.6,2.05,0.1],[-0.6,2.05,0.1],[-1.9,1.85,0.1]], "radius": 0.42, "material": "skin"},
-        {"op": "add", "shape": "tube", "id": "middle", "parent": "hand", "pts": [[-0.5,1.5,0],[-0.52,2.9,0.05],[-0.55,4.4,0.1],[-0.57,5.6,0.08]], "radius": 0.47, "swell": [[0,1.12],[0.3,1],[0.33,1.05],[0.36,0.96],[0.62,0.92],[0.65,0.97],[0.68,0.9],[1,0.7]], "material": "skin", "at": 0.3},
-        {"op": "add", "shape": "tube", "id": "ring", "parent": "hand", "pts": [[0.5,1.45,0],[0.62,2.8,0.05],[0.75,4.1,0.1],[0.85,5.1,0.08]], "radius": 0.44, "swell": [[0,1.12],[0.3,1],[0.33,1.05],[0.36,0.96],[0.62,0.92],[0.65,0.97],[0.68,0.9],[1,0.7]], "material": "skin", "at": 0.9},
-        {"op": "add", "shape": "tube", "id": "little", "parent": "hand", "pts": [[1.45,1.2,0],[1.7,2.3,0.05],[1.95,3.3,0.1],[2.1,4,0.08]], "radius": 0.38, "swell": [[0,1.12],[0.3,1],[0.33,1.05],[0.36,0.96],[0.62,0.92],[0.65,0.97],[0.68,0.9],[1,0.7]], "material": "skin", "at": 1.5},
-        {"op": "pin", "id": "middletag", "on": "middle", "text": "Middle finger", "at": 0.8},
-        {"op": "pin", "id": "ringtag", "on": "ring", "text": "Ring finger", "at": 1.4},
-        {"op": "pin", "id": "littletag", "on": "little", "text": "Little finger", "at": 2}
+        {"op":"add","shape":"blob","id":"hypothenar","parent":"hand","pts":[[1.05,-0.6,0.05]],"sizes":[[1.2,2.3,0.6]],"material":"skin"},
+        {"op":"add","shape":"blob","id":"knuckle0","pts":[[1.45,1.3499999999999999,0.12]],"sizes":[[0.62,0.5,0.42]],"material":"skin","parent":"hand"},
+        {"op":"add","shape":"blob","id":"knuckle1","pts":[[0.5,1.65,0.12]],"sizes":[[0.62,0.5,0.42]],"material":"skin","parent":"hand"},
+        {"op":"add","shape":"blob","id":"knuckle2","pts":[[-0.5,1.75,0.12]],"sizes":[[0.62,0.5,0.42]],"material":"skin","parent":"hand"},
+        {"op":"add","shape":"blob","id":"knuckle3","pts":[[-1.45,1.65,0.12]],"sizes":[[0.62,0.5,0.42]],"material":"skin","parent":"hand"},
+        {"op":"add","shape":"tube","id":"middle","parent":"hand","pts":[[-0.5,1.5,0],[-0.5579999999999999,5.385999999999999,0.04],[-0.586,7.2620000000000005,0.08],[-0.6,8.2,0.12]],"radius":0.51,"swell":[[0,1.1],[0.3,1],[0.33,1.03],[0.36,0.97],[0.62,0.93],[0.65,0.97],[0.68,0.92],[1,0.72]],"material":"skin","at":0.3},
+        {"op":"add","shape":"tube","id":"ring","parent":"hand","pts":[[0.5,1.45,0],[0.7609999999999999,4.9879999999999995,0.04],[0.887,6.696,0.08],[0.95,7.55,0.12]],"radius":0.48,"swell":[[0,1.1],[0.3,1],[0.33,1.03],[0.36,0.97],[0.62,0.93],[0.65,0.97],[0.68,0.92],[1,0.72]],"material":"skin","at":0.9},
+        {"op":"add","shape":"tube","id":"little","parent":"hand","pts":[[1.45,1.2,0],[1.914,3.984,0.04],[2.138,5.328,0.08],[2.25,6,0.12]],"radius":0.41,"swell":[[0,1.1],[0.3,1],[0.33,1.03],[0.36,0.97],[0.62,0.93],[0.65,0.97],[0.68,0.92],[1,0.72]],"material":"skin","at":1.5},
+        {"op":"pin","id":"middletag","on":"middle","text":"Middle finger","at":0.8},
+        {"op":"pin","id":"ringtag","on":"ring","text":"Ring finger","at":1.4},
+        {"op":"pin","id":"littletag","on":"little","text":"Little finger","at":2}
       ]
     }
   ]
