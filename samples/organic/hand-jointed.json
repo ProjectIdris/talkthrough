@@ -34,7 +34,8 @@
     {
       "say": "Last, the opposable thumb. It leaves the palm low and to the side, so it can swing across to meet the fingers.",
       "actions": [
-        {"op": "add", "shape": "tube", "id": "thumb", "pts": [[1.1,-1.3,0],[2.3,-0.8,0.1],[3.1,0.3,0.2],[3.6,1.4,0.2],[3.9,2.3,0.15]], "radius": 0.5, "swell": [[0,1.1],[1,0.75]], "material": "skin"},
+        {"op": "add", "shape": "blob", "id": "thenar", "pts": [[1.4,-0.9,0.45]], "sizes": [[2.4,2.8,1.5]], "material": "skin"},
+        {"op": "add", "shape": "tube", "id": "thumb", "pts": [[1.2,-1.5,0.1],[2.3,-0.7,0.8],[3.1,0.4,1.3]], "radius": 0.6, "swell": [[0,1.25],[0.45,1],[1,0.75]], "material": "skin"},
         {"op": "pin", "id": "thumbtag", "on": "thumb", "text": "Thumb", "at": 0.8},
         {"op": "pin", "id": "knucktag", "on": "palm", "point": [0,1.9,0.6], "text": "Knuckles", "at": 1.6}
       ]

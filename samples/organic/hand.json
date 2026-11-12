@@ -21,7 +21,8 @@
     {
       "say": "Now the thumb. It stands apart from the rest, so it can press against the other fingers to grip. Next to it is the index finger.",
       "actions": [
-        {"op": "add", "shape": "tube", "id": "thumb", "parent": "hand", "pts": [[-1.7, -0.6, 0.1], [-3.0, 0.6, 0.2], [-3.8, 1.9, 0.2]], "radius": 0.52, "swell": [[0, 1], [1, 0.85]], "material": "skin", "at": 0.3},
+        {"op": "add", "shape": "blob", "id": "thenar", "parent": "hand", "pts": [[-1.6, -0.9, 0.5]], "sizes": [[1.8, 2.2, 1.2]], "material": "skin", "at": 0.3},
+        {"op": "add", "shape": "tube", "id": "thumb", "parent": "hand", "pts": [[-1.5, -0.9, 0.2], [-2.6, -0.2, 0.7], [-3.3, 0.9, 1.1]], "radius": 0.58, "swell": [[0, 1.25], [0.45, 1], [1, 0.75]], "material": "skin", "at": 0.3},
         {"op": "add", "shape": "tube", "id": "index", "parent": "hand", "pts": [[-1.35, 1.2, 0], [-1.45, 3, 0], [-1.55, 4.6, 0]], "radius": 0.42, "swell": [[0, 1], [1, 0.8]], "material": "skin", "at": 0.7},
         {"op": "pin", "id": "thumbtag", "on": "thumb", "text": "Thumb", "at": 1.2},
         {"op": "pin", "id": "indextag", "on": "index", "text": "Index finger", "at": 1.9}

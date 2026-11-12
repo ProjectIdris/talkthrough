@@ -28,6 +28,17 @@ test('a question that names a living thing (whole words, singular or plural, any
   }
 });
 
+test('the hint tells how a thumb differs from a finger: two stretches, shorter and thicker, low by the wrist, out and forward, with its own fleshy root', () => {
+  const hint = livingHint('How does my hand bend its fingers? Show me a 3D hand.') ?? '';
+  assert.match(hint, /a short thick thumb/);
+  assert.match(hint, /a finger or toe is three stretches \(four points\)/);
+  assert.match(hint, /a thumb or big toe is two \(three points\)/);
+  assert.match(hint, /about two thirds as long as the fingers and a quarter thicker/);
+  assert.match(hint, /starts inside the lower side of the palm, near the wrist/);
+  assert.match(hint, /out and toward the viewer \(give its points a z\), never up beside the fingers/);
+  assert.match(hint, /fleshy ball at its root as its own blob of skin that overlaps both the palm and the thumb/);
+});
+
 test('a question that names none is told nothing: no substring matches, and words that mostly mean something else are not in the list', () => {
   for (const q of ['how do gears work', 'what is a planet', 'where is the door handle', 'open the catalogue', 'what is a leaflet', 'my mouse is not working', 'how do I change the body text', 'what is a root directory', 'how does a nut and bolt hold', 'is this a virus', '']) {
     assert.equal(namesLiving(q), false, q);
