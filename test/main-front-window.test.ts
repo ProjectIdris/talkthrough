@@ -31,6 +31,7 @@ test('the real reader (the one the app ships) loads in its thread and reads a wi
 });
 
 test('a read that hangs leaves the app free: the skip check gives up at its deadline and forbids the press, and the thread is the only thing stuck', async () => {
+  assert.equal(SKIP_DEADLINE_MS, 300, 'the front-window protection deadline is a 300 ms product contract');
   const reader = createFrontWindowReader({ file: file('worker-hung.mjs') });
   try {
     const check = createSkipCheck(() => ['bank'], { read: () => reader.read() });
