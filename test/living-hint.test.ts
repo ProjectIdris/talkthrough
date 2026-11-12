@@ -23,7 +23,7 @@ test('a question that names a living thing (whole words, singular or plural, any
     assert.match(hint, /get its outline right first/, q);
     assert.match(hint, /never costs the outside a part/, q);
     assert.match(hint, /a point at each joint/, q);
-    assert.match(hint, /A human palm or sole is a box with a bevel/, q);
+    assert.match(hint, /A human palm or sole is an extrude of its true outline/, q);
     assert.match(hint, /fur, feathers and the shell of an insect are skin/, q);
   }
 });
@@ -37,6 +37,19 @@ test('the hint tells how a thumb differs from a finger: two stretches, shorter a
   assert.match(hint, /starts inside the lower side of the palm, near the wrist/);
   assert.match(hint, /out and toward the viewer \(give its points a z\), never up beside the fingers/);
   assert.match(hint, /fleshy ball at its root as its own blob of skin that overlaps both the palm and the thumb/);
+});
+
+test('the hint tells how a palm and its fingers differ from a block and rods: an outline that narrows to the wrist, mounds and a knuckle ridge, tapered and swollen fingers that fan and differ in length', () => {
+  const hint = livingHint('How does my hand bend its fingers? Show me a 3D hand.') ?? '';
+  assert.match(hint, /broad across the knuckles and narrows to the wrist/);
+  assert.match(hint, /the wrist and forearm run on from it as outlines of their own in the same plane/);
+  assert.match(hint, /cupped by its mounds, each its own blob of skin overlapping it/);
+  assert.match(hint, /low ridge \(a tube\) across the knuckles/);
+  assert.match(hint, /thinner toward its tip with a slight swelling at each joint \(swell\)/);
+  assert.match(hint, /fanned a little toward its tip/);
+  assert.match(hint, /middle finger longest/);
+  assert.match(hint, /little finger shortest and thinnest/);
+  assert.doesNotMatch(hint, /bevelled box|box wrist/);
 });
 
 test('a question that names none is told nothing: no substring matches, and words that mostly mean something else are not in the list', () => {
