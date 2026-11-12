@@ -140,7 +140,7 @@ export function busyFromGray(gray: ArrayLike<number>, cols: number, rows: number
 }
 
 export type Env = { occ: Occupancy; busy?: Busy; /** Rectangles no tag may sit on (the app's own buttons), whether or not they are showing yet. */ keepOut?: readonly Rect[] };
-export type PinRequest = { anchor: Pt; w: number; h: number; /** The author's wish for where the tag goes from the anchor, in pixels; a hint only. */ hint?: Pt };
+export type PinRequest = { anchor: Pt; w: number; h: number; /** The author's wish for where the tag goes from the anchor, in pixels; a hint only. */ hint?: Pt; /** A pin on one member of a fused skin may overlap that skin to stay near its part. */ fusedTarget?: boolean };
 /** `alpha` is below 1 while a tag that would have to cross another fades out and in at its new place. */
 export type Placement = { rect: Rect; attach: Pt; alpha: number };
 
@@ -151,6 +151,8 @@ const FADE_IN_SECONDS = 0.2;
 
 /** What a tag over page text costs, in the pixels of distance from its point it would go to keep off it: text may be covered when that keeps the tag near its part and readable. */
 const BUSY_COST = 300;
+/** A tag on a fused part may overlap its skin rather than send its leader far from the part. */
+const FUSED_MODEL_OVERLAP_COST = 160;
 const MARGIN = 8;
 const GAP = 8;
 /** Frames a tag may sit with a leader across another leader or tag before it is placed again. */
@@ -496,6 +498,7 @@ export class LabelBoard {
     const s = this.height / 1080;
     const { anchor: a, w, h } = req;
     const hintAngle = req.hint && (req.hint.x !== 0 || req.hint.y !== 0) ? Math.atan2(req.hint.y, req.hint.x) : undefined;
+    const modelCost = req.fusedTarget ? FUSED_MODEL_OVERLAP_COST : 6000;
     let best: { rect: Rect; cost: number } | undefined;
     let bestClear: { rect: Rect; cost: number } | undefined;
     let fallback: { rect: Rect; cost: number } | undefined;
@@ -512,7 +515,7 @@ export class LabelBoard {
         if (avoid.some((k) => overlaps(rect, k, KEEP_OUT_PAD))) continue;
         const attach = attachPoint(rect, a);
         if (clearLeader && avoid.some((control) => leaderHitsControl(a, attach, control))) continue;
-        let cost = dist * 0.9 + env.occ.fraction({ x: rect.x - 6, y: rect.y - 6, w: w + 12, h: h + 12 }) * 6000;
+        let cost = dist * 0.9 + env.occ.fraction({ x: rect.x - 6, y: rect.y - 6, w: w + 12, h: h + 12 }) * modelCost;
         if (env.busy) cost += Math.min(1, env.busy.mean(rect) * 2.5) * BUSY_COST;
         cost += env.occ.along(a, attach, 26 * s) * 24;
         if (hintAngle !== undefined) {

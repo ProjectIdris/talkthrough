@@ -21,7 +21,7 @@ export type Annotator = {
   /** Refuse a panel whose measured, animated bounds would cover an earlier surface. */
   admitSurface?: (id: string, bounds: { x: number; y: number; w: number; h: number }) => boolean;
   /** Where a point of a 3D object is in the window. */
-  project: (key: number, point: Vec3 | undefined, anchor?: string) => { x: number; y: number; visible: boolean } | undefined;
+  project: (key: number, point: Vec3 | undefined, anchor?: string) => { x: number; y: number; visible: boolean; fused?: boolean } | undefined;
   /** The screenshot (or backdrop) image crops are taken from. */
   source?: { image: CanvasImageSource; width: number; height: number };
   /** Where the tag of a pin goes (stable between frames). Without it a tag sits where the author's offset says. */
@@ -176,7 +176,7 @@ export function drawPin(ctx: Ctx, m: MarkFrame, a: Annotator, order: number): vo
   const h = Math.ceil(textPx + padY * 2);
   const hint = mk.off ? { x: (mk.off[0] / 1000) * view.width, y: (mk.off[1] / 1000) * view.height } : undefined;
   let spot: Placement;
-  if (a.place) spot = a.place(m.key, { anchor, w, h, ...(hint ? { hint } : {}) });
+  if (a.place) spot = a.place(m.key, { anchor, w, h, ...(hint ? { hint } : {}), ...(where.fused ? { fusedTarget: true } : {}) });
   else {
     const off = hint ?? { x: 0, y: -90 / 1000 * view.height };
     const cx = Math.max(w / 2 + 6, Math.min(view.width - w / 2 - 6, anchor.x + off.x));

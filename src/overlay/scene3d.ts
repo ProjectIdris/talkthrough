@@ -1250,7 +1250,7 @@ export class PanelScene {
   }
 
   /** Where a visible point on the named object falls in the window, in CSS pixels. */
-  project(key: number, point: Vec3 | undefined, width: number, height: number, anchor?: string): { x: number; y: number; visible: boolean } | undefined {
+  project(key: number, point: Vec3 | undefined, width: number, height: number, anchor?: string): { x: number; y: number; visible: boolean; fused?: boolean } | undefined {
     const node = this.nodes.get(key);
     const hidden = () => {
       // A target that is not there (a model left out) or still waiting for its file is no fault of the pin: no warning for it.
@@ -1370,7 +1370,7 @@ export class PanelScene {
         if (beyond) continue;
       }
       this.pinWarnings.delete(key);
-      return { x: ((ndc.x + 1) / 2) * width, y: ((1 - ndc.y) / 2) * height, visible: true };
+      return { x: ((ndc.x + 1) / 2) * width, y: ((1 - ndc.y) / 2) * height, visible: true, ...(node.pieces.some((piece) => piece.fused) ? { fused: true } : {}) };
     }
     return hidden();
   }

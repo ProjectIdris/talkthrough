@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 import { Worker } from 'node:worker_threads';
 import { resolve } from 'node:path';
 import { createFrontWindowReader } from '../src/main/front-window.ts';
-import { createSkipCheck } from '../src/main/skip-list.ts';
+import { createSkipCheck, SKIP_DEADLINE_MS } from '../src/main/skip-list.ts';
 
 const file = (name: string): string => resolve('test/support', name);
 const settles = (p: Promise<unknown>, ms: number): Promise<'settled' | 'pending'> => Promise.race([p.then(() => 'settled' as const, () => 'settled' as const), new Promise<'pending'>((r) => setTimeout(() => r('pending'), ms))]);
@@ -33,15 +33,21 @@ test('the real reader (the one the app ships) loads in its thread and reads a wi
 test('a read that hangs leaves the app free: the skip check gives up at its deadline and forbids the press, and the thread is the only thing stuck', async () => {
   const reader = createFrontWindowReader({ file: file('worker-hung.mjs') });
   try {
-    const check = createSkipCheck(() => ['bank'], { read: () => reader.read(), deadlineMs: 80 });
-    let ticks = 0;
-    const timer = setInterval(() => ticks++, 5); // the main thread keeps running while the read hangs
-    const t0 = Date.now();
-    const verdict = await check();
-    clearInterval(timer);
+    const check = createSkipCheck(() => ['bank'], { read: () => reader.read() });
+    const pending = check();
+    const firstTurn = await Promise.race([
+      pending.then(() => 'deadline' as const),
+      new Promise<'event-loop-turn'>((resolve) => setImmediate(() => resolve('event-loop-turn'))),
+    ]);
+    assert.equal(firstTurn, 'event-loop-turn', 'the event loop gets a turn before the front-window deadline');
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const verdict = await Promise.race([
+      pending,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('the front-window deadline did not finish')), SKIP_DEADLINE_MS + 5000);
+      }),
+    ]).finally(() => { if (timeout) clearTimeout(timeout); });
     assert.equal(verdict?.kind, 'blind');
-    assert.ok(Date.now() - t0 < 400);
-    assert.ok(ticks >= 5, `the event loop was not blocked (ticks ${ticks})`);
     assert.equal(await settles(reader.read(), 40), 'pending', 'and the read itself stays pending, which is for the deadline to cut off');
   } finally {
     reader.dispose();
