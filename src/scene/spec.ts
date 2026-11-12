@@ -293,7 +293,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'panel', op: 'panel',
-    doc: 'The 3D stage: the rectangle on the screenshot a 3D model is fitted to. The model floats over the page; frame true draws a box behind it. The stage is kept on screen and the camera fits the whole model in it. Sent again, it moves or resizes. w and h are its size, 100 or more, never 0.',
+    doc: 'The 3D stage: the rectangle on the screenshot a 3D model is fitted to. The model floats over the page; frame true draws a box behind it. At zoom 1 the camera fits the resting model in the stage; a moving part or a zoom may go beyond it. Sent again, it moves or resizes. w and h are its size, 100 or more, never 0.',
     fields: {
       x: { k: 'num', ...SCREEN }, y: { k: 'num', ...SCREEN }, w: { k: 'num', ...SPAN }, h: { k: 'num', ...SPAN },
       frame: { k: 'bool', opt: true }, at: AT, dur: DUR,
@@ -722,7 +722,7 @@ export const VARIANTS: readonly Variant[] = [
   },
   {
     name: 'zoom', op: 'zoom',
-    doc: 'Requested camera distance factor: 1 is the default framing. Zooming in is limited when necessary to keep the whole model in the stage.',
+    doc: 'Camera distance factor: 1 is the default framing, 2 is twice as close.',
     fields: { to: { k: 'num', min: 0.2, max: 5 }, at: AT, dur: DUR },
   },
   {

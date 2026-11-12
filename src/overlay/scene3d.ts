@@ -900,26 +900,27 @@ export class PanelScene {
       room.x = Math.max(1, (0.96 * Math.min(cx, view.width - cx)) / (view.rect.w / 2));
       room.y = Math.max(1, (0.96 * Math.min(cy, view.height - cy)) / (view.rect.h / 2));
     }
-    const fit = this.eased(this.fitTarget(az, el, tan, aspect, room), view?.now);
+    const centered = this.fitTarget(az, el, tan, aspect, room);
+    this.fitCenter = centered?.center;
+    const focus = this.focusPoint(cam.focus, new Vector3());
+    // Refit around an authored focus before easing; a swept part retains the screen-sized room.
+    // Limit the focus shift so a tiny detail cannot make the body unnecessarily small.
+    let wanted = centered;
+    if (view && centered && focus.distanceToSquared(centered.center) > 1e-12) {
+      let focused = this.fitTarget(az, el, tan, aspect, room, focus);
+      if (focused && focused.radius > centered.radius * 1.2) {
+        const share = Math.max(0, Math.min(1, centered.radius * 0.2 / (focused.radius - centered.radius)));
+        focus.lerp(centered.center, 1 - share);
+        focused = this.fitTarget(az, el, tan, aspect, room, focus);
+      }
+      wanted = focused;
+    }
+    const fit = this.eased(wanted, view?.now);
     let base = (FRAMING_UNITS / 2 / (aspect >= 1 ? 1 : aspect)) / tan;
     if (fit) base = Math.max(MIN_FIT_DISTANCE, fit.radius);
     void standBack;
-    this.fitCenter = fit ? fit.center : undefined;
-    const target = this.focusPoint(cam.focus, new Vector3());
-    // Focus changes the point at the middle of the stage. Fit around that actual point, not the model's old centre, and cap a requested zoom-in at the
-    // distance that keeps the complete resting model in the stage. Zooming out still works.
-    let whole = view ? this.fitTarget(az, el, tan, aspect, { x: 1, y: 1 }, target) : undefined;
-    if (view && fit && whole && target.distanceToSquared(fit.center) > 1e-12) {
-      // A distant detail can otherwise force the whole model so far back that it becomes unreadable. Keep as much focus shift as fits within a small
-      // margin over the centred fit, then still calculate the required distance about the actual, limited target.
-      const centered = this.fitTarget(az, el, tan, aspect, { x: 1, y: 1 }, fit.center);
-      if (centered && whole.radius > centered.radius * 1.2) {
-        const share = Math.max(0, Math.min(1, (centered.radius * 0.2) / (whole.radius - centered.radius)));
-        target.lerp(fit.center, 1 - share);
-        whole = this.fitTarget(az, el, tan, aspect, { x: 1, y: 1 }, target);
-      }
-    }
-    const dist = Math.max(base / Math.max(0.05, cam.zoom), whole?.radius ?? 0);
+    const target = view && fit ? fit.center.clone().lerp(focus, Math.max(0, Math.min(1, (cam.zoom - 1) / 0.25))) : focus;
+    const dist = base / Math.max(0.05, cam.zoom);
     this.camera.aspect = aspect;
     this.camera.fov = fov;
     if (view) this.camera.setViewOffset(view.rect.w, view.rect.h, -view.rect.x, -view.rect.y, view.width, view.height);
@@ -1012,6 +1013,7 @@ export class PanelScene {
    */
   private partSpheres(): PartHull[] {
     const spheres: PartHull[] = [];
+    const thin: PartHull[] = [];
     for (const node of this.nodes.values()) {
       if (!node.obj.visible || node.obj instanceof Sprite || node.pieces.length === 0 || node.stream || node.particles || node.force) continue;
       for (const p of node.pieces) {
@@ -1028,10 +1030,13 @@ export class PanelScene {
         if (!geo.boundingBox) geo.computeBoundingBox();
         // (a part of a living body that owns none of its skin has an empty geometry: it is nowhere, and must not count)
         if (!geo.boundingSphere || !geo.boundingBox || geo.boundingBox.isEmpty()) continue;
-        spheres.push({ sphere: geo.boundingSphere.clone().applyMatrix4(mesh.matrixWorld), corners: boxCorners(geo.boundingBox, mesh.matrixWorld) });
+        const hull = { sphere: geo.boundingSphere.clone().applyMatrix4(mesh.matrixWorld), corners: boxCorners(geo.boundingBox, mesh.matrixWorld) };
+        (node.path && !node.path.body ? thin : spheres).push(hull);
       }
     }
-    return spheres;
+    // A long annotation line must not shrink the body; if paths are the entire model,
+    // however, they are the picture and must receive a fit of their own.
+    return spheres.length ? spheres : thin;
   }
 
   /**

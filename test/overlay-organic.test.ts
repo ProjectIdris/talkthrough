@@ -102,7 +102,7 @@ const organic: Scene = { steps: [{ say: 'x', actions: [
   { op: 'add', shape: 'blob', id: 'body', pts: [[0, 0, 0]], sizes: [[2, 2, 2]], color: 'red', material: 'tissue' },
 ] }] };
 
-test('thick and slender tubes both count when framing the visible model', () => {
+test('a thick stem counts but a distant thin mark does not shrink the body', () => {
   const withTube = (radius: number, length: number): number => {
     const scene: Scene = { steps: [{ say: 'x', actions: [
       ...organic.steps[0]!.actions,
@@ -118,7 +118,7 @@ test('thick and slender tubes both count when framing the visible model', () => 
     return panel.camera.position.length();
   })();
   assert.ok(withTube(0.4, 6) > alone * 1.4, 'a thick stem draws the camera back to take it in');
-  assert.ok(withTube(0.04, 6) > alone * 1.4, 'a slender tube also stays in the stage');
+  assert.ok(withTube(0.04, 6) < alone * 1.05, 'a slender mark does not shrink the body');
 });
 
 test('the model is told about the organic forms: blob, swell and tissue', async () => {

@@ -21,6 +21,25 @@ function board(): LabelBoard {
 const anchors: Pt[] = [{ x: 900, y: 380 }, { x: 1000, y: 420 }, { x: 1100, y: 500 }, { x: 1200, y: 600 }, { x: 860, y: 620 }];
 const SIZE = { w: 150, h: 36 };
 
+test('a newly compacted pin does not flash in another visible tag', () => {
+  let seed=12345; const rnd=()=> (seed=(seed*1664525+1013904223)>>>0)/4294967296;
+  for(let c=0;c<=12;c++) {
+    const w=150+rnd()*350,h=150+rnd()*350,x=100+rnd()*(1280-w-200),y=60+rnd()*(720-h-120),n=3+Math.floor(rnd()*8);
+    const pins=Array.from({length:n},()=>({anchor:{x:x+rnd()*w,y:y+rnd()*h},w:70+rnd()*110,h:28}));
+    if(c!==12) continue;
+    const occ=new Occupancy(1280,720), b=new LabelBoard();
+    occ.fillConvex([{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}]);
+    for(let f=0;f<30;f++) {
+      b.beginFrame({width:1280,height:720,model:{x,y,w,h},dragging:false,now:f*16});
+      const p=pins.map((pin,i)=>b.place(i+1,pin,()=>({occ})));
+      for(let i=0;i<p.length;i++)for(let j=i+1;j<p.length;j++) {
+        const a=p[i]!,z=p[j]!; if(a.alpha<0.05||z.alpha<0.05) continue;
+        assert.ok(a.rect.x+a.rect.w<=z.rect.x||z.rect.x+z.rect.w<=a.rect.x||a.rect.y+a.rect.h<=z.rect.y||z.rect.y+z.rect.h<=a.rect.y, `overlap ${i}/${j} frame ${f}`);
+      }
+    }
+  }
+});
+
 test('a dense small model can move an earlier tag to keep the last label nearby', () => {
   // Anchors are rounded from the saved lung frame after fitting; widths approximate its eight measured pills.
   const points: Pt[] = [{x:1168,y:369},{x:1188,y:412},{x:1119,y:460},{x:1213,y:459},{x:1164,y:510},{x:1122,y:452},{x:1116,y:477},{x:1095,y:458}];

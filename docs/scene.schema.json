@@ -1050,7 +1050,7 @@
         "dur"
       ],
       "additionalProperties": false,
-      "description": "The 3D stage: the rectangle on the screenshot a 3D model is fitted to. The model floats over the page; frame true draws a box behind it. The stage is kept on screen and the camera fits the whole model in it. Sent again, it moves or resizes. w and h are its size, 100 or more, never 0."
+      "description": "The 3D stage: the rectangle on the screenshot a 3D model is fitted to. The model floats over the page; frame true draws a box behind it. At zoom 1 the camera fits the resting model in the stage; a moving part or a zoom may go beyond it. Sent again, it moves or resizes. w and h are its size, 100 or more, never 0."
     },
     "addSolid": {
       "type": "object",
@@ -6166,7 +6166,7 @@
         "dur"
       ],
       "additionalProperties": false,
-      "description": "Requested camera distance factor: 1 is the default framing. Zooming in is limited when necessary to keep the whole model in the stage."
+      "description": "Camera distance factor: 1 is the default framing, 2 is twice as close."
     },
     "focus": {
       "type": "object",

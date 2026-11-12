@@ -277,7 +277,9 @@ export class LabelBoard {
         entry.request = request;
       } else {
         const compact = this.dragging ? undefined : this.compactNew(request, rect, currentEnv);
-        entry = { target: compact?.rect ?? rect, shown: rect, request, seen: this.tick };
+        const initial = compact?.rect ?? rect;
+        const occupied = [...this.entries.values()].some(e => overlaps(initial, e.shown, 0) && (!e.fade || e.fade.alpha >= 0.05));
+        entry = { target: initial, shown: initial, request, seen: this.tick, ...(occupied ? { fade: { phase: 'in' as const, alpha: 0 } } : {}) };
         if (compact) this.retarget(compact.other, compact.otherRect);
         else if (this.leaderLength(rect, request.anchor) >= Math.max(80, this.height * 0.18)) entry.compactPending = 120;
         this.entries.set(key, entry);

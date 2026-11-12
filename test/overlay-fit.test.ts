@@ -15,10 +15,34 @@ const step = (...actions: unknown[]): Step => ({ say: 'x', actions }) as Step;
 const settled = (...actions: unknown[]): Frame => frameAt([step({ op: 'panel', x: 100, y: 100, w: 600, h: 500 }, ...actions)], 0, 99);
 const WIN = { width: 1400, height: 900 };
 
-test('the saved lung remains inside its stage after its authored focus and zoom', () => {
+test('authored zoom can move closer than the whole-model fit', () => {
+  const stage={x:100,y:100,w:400,h:600};
+  const cameraAt=(zoom:number)=>{const frame=settled({op:'add',shape:'box',id:'body',size:[6,6,3]},{op:'zoom',to:zoom,dur:0}); const scene=new PanelScene();scene.sync(frame,stage.w/stage.h,{rect:stage,...WIN});const d=scene.camera.position.length();scene.destroy();return d;};
+  const normal=cameraAt(1), close=cameraAt(2);
+  assert.ok(close<normal*0.6, `zoom must move closer: ${normal} vs ${close}`);
+});
+
+test('the saved chart, earth and request-flow authored zooms move closer', () => {
+  const view={width:1280,height:720,dpr:1};
+  for(const name of ['bar-chart','earth-layers','request-flow']) {
+    const parsed=validateScene(JSON.parse(readFileSync(new URL(`../samples/scenes/${name}.json`,import.meta.url),'utf8')));
+    assert.ok(parsed.scene);
+    const frame=frameAt(parsed.scene.steps,parsed.scene.steps.length-1,60),stage=panelRect(frame.panel,view)!;
+    assert.ok(frame.camera.zoom>1,`${name} uses zoom in`);
+    const distances=[1,frame.camera.zoom].map(zoom=>{
+      const scene=new PanelScene(); scene.sync({...frame,camera:{...frame.camera,zoom}},stage.w/stage.h,{rect:stage,...view});
+      const fit=(scene as unknown as {shownFit:{center:Vector3}}).shownFit;
+      const distance=scene.camera.position.distanceTo(fit.center);scene.destroy();return distance;
+    });
+    assert.ok(distances[1]!<distances[0]!/1.05,`${name}: ${distances.join(' -> ')}`);
+  }
+});
+
+test('the saved lung remains inside its stage at zoom 1 after its authored focus', () => {
   const parsed = validateScene(JSON.parse(readFileSync(new URL('../samples/organic/lung.json', import.meta.url), 'utf8')));
   assert.ok(parsed.scene);
-  const frame = frameAt(parsed.scene.steps, 6, 3.4);
+  const raw = frameAt(parsed.scene.steps, 6, 3.4);
+  const frame = { ...raw, camera: { ...raw.camera, zoom: 1 } };
   const view = { width: 1280, height: 720, dpr: 1 };
   const stage = panelRect(frame.panel, view);
   assert.ok(stage);
@@ -31,14 +55,14 @@ test('the saved lung remains inside its stage after its authored focus and zoom'
   scene.destroy();
 });
 
-test('focus, strong zoom and near-edge stages still contain a whole model', () => {
+test('focus and near-edge stages contain a whole model at zoom 1', () => {
   const view = { width: 1280, height: 720 };
   for (const stage of [{x:20,y:40,w:280,h:500},{x:930,y:120,w:300,h:400}]) {
     for (const az of [-45, 0, 40]) {
       const frame = settled(
         {op:'add',shape:'box',id:'body',size:[8,4,3]},
         {op:'add',shape:'sphere',id:'detail',size:[0.5,0.5,0.5],pos:[3.5,1.5,1]},
-        {op:'focus',id:'detail',dur:0},{op:'zoom',to:4,dur:0},{op:'orbit',az,el:15,dur:0},
+        {op:'focus',id:'detail',dur:0},{op:'zoom',to:1,dur:0},{op:'orbit',az,el:15,dur:0},
       );
       const panel = new PanelScene();
       panel.sync(frame,stage.w/stage.h,{rect:stage,...view});
@@ -56,11 +80,10 @@ test('a stage placed past the window edge is brought fully on screen', () => {
   assert.ok(stage && stage.x>=0 && stage.y>=0 && stage.x+stage.w<=view.width && stage.y+stage.h<=view.height, `visible stage ${JSON.stringify(stage)}`);
 });
 
-test('a slender tube that is part of a model stays inside the stage', () => {
+test('a slender tube alone is fitted to the stage', () => {
   const view = {width:1280,height:720};
   const stage = {x:700,y:100,w:350,h:450};
   const frame = settled(
-    {op:'add',shape:'sphere',id:'body',size:[2,2,2]},
     {op:'add',shape:'tube',id:'stem',pts:[[0,-8,0],[0,8,0]],radius:0.03},
     {op:'orbit',az:0,el:0,dur:0},
   );
@@ -72,6 +95,16 @@ test('a slender tube that is part of a model stays inside the stage', () => {
     const x=(p.x+1)*view.width/2, py=(1-p.y)*view.height/2;
     assert.ok(x>=stage.x-1 && x<=stage.x+stage.w+1 && py>=stage.y-1 && py<=stage.y+stage.h+1, `tube endpoint ${x},${py} outside ${JSON.stringify(stage)}`);
   }
+  scene.destroy();
+});
+
+test('the saved leaf uses its stage without excessive empty margin at zoom 1', () => {
+  const parsed=validateScene(JSON.parse(readFileSync(new URL('../samples/organic/leaf.json',import.meta.url),'utf8')));
+  assert.ok(parsed.scene);
+  const frame=frameAt(parsed.scene.steps,6,4.4), view={width:1280,height:720,dpr:1}, stage=panelRect(frame.panel,view)!;
+  const scene=new PanelScene({tier:'mid'}); scene.sync(frame,stage.w/stage.h,{rect:stage,...view});
+  const body=scene.screenBounds(view.width,view.height)!.model;
+  assert.ok(body.h/stage.h>0.86 && body.y>=stage.y-1 && body.y+body.h<=stage.y+stage.h+1,`leaf body ${JSON.stringify(body)} in ${JSON.stringify(stage)}`);
   scene.destroy();
 });
 
