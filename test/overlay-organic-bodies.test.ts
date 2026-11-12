@@ -39,6 +39,13 @@ test('a living tapered solid has a rounded tip and foot while a hard cone retain
     assert.ok(kind && Number.isFinite(primDistance(kind.prim, 0, 0, 0)));
     assert.ok(primDistance(kind.prim, 0, 0, 0) < 0, 'thin or stretched cones keep a finite interior');
   }
+  for (const size of [[1, 0.4, 1], [2, 0.5, 2], [5, 0.05, 2]] as [number, number, number][]) {
+    const kind = organicKind({ op: 'add', shape: 'cone', id: 'wide', size, material: 'muscle' });
+    assert.ok(kind);
+    const r = size[0] / 2, half = size[1] / 2, base = Math.min(r, half * 0.95);
+    assert.ok(primDistance(kind.prim, r * 0.9, -half + base, 0) < 0, `squat cone retains 90% of its half-width (${size})`);
+    assert.ok(primDistance(kind.prim, 0, -half + base, size[2] * 0.45) < 0, `squat cone also retains its depth (${size})`);
+  }
   const skin = cutSkin(new BodyField([part(living.prim)]), { cell: 0.025 });
   let softened = 0, top = -Infinity;
   for (let i = 0; i < skin.position.length; i += 3) {

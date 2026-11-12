@@ -300,7 +300,8 @@ export function primDistance(p: Prim, x: number, y: number, z: number): number {
       if (p.rounded) {
         // A tapered bridge between rounded ends reaches the original top and bottom without a machined edge or a needle tip.
         const base = Math.min(p.r, p.half * 0.95), tip = base * 0.2;
-        return roundCone(x, y, z / k, [0, -p.half + base, 0], [0, p.half - tip, 0], base, tip) * Math.min(1, k);
+        const stretch = p.r / base;
+        return roundCone(x / stretch, y, z / (k * stretch), [0, -p.half + base, 0], [0, p.half - tip, 0], base, tip) * Math.min(1, k * stretch);
       }
       // distance in the (q, y) half plane to the triangle (0,-half) (r,-half) (0,half), whose third side is the axis
       return polygonDistance(q, y, [[0, -p.half], [p.r, -p.half], [0, p.half]], false) * Math.min(1, k);
