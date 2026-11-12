@@ -144,7 +144,7 @@ export type PinRequest = { anchor: Pt; w: number; h: number; /** The author's wi
 /** `alpha` is below 1 while a tag that would have to cross another fades out and in at its new place. */
 export type Placement = { rect: Rect; attach: Pt; alpha: number };
 
-type Entry = { target: Rect; shown: Rect; request: PinRequest; seen: number; tangled?: number; /** Frames to wait before looking again for a place inside the card, after none was found. */ fitWait?: number; fade?: { phase: 'out' | 'in'; alpha: number } };
+type Entry = { target: Rect; shown: Rect; request: PinRequest; seen: number; tangled?: number; /** Frames to wait before looking again for a place inside the card, after none was found. */ fitWait?: number; /** Bounded chance to compact after earlier tags stop moving. */ compactPending?: number; fade?: { phase: 'out' | 'in'; alpha: number } };
 
 const FADE_OUT_SECONDS = 0.12;
 const FADE_IN_SECONDS = 0.2;
@@ -220,6 +220,7 @@ export class LabelBoard {
    */
   beginFrame(info: { width: number; height: number; model: Rect | undefined; dragging: boolean; now: number; within?: Rect }): void {
     this.tick++;
+    for (const entry of this.entries.values()) if (entry.compactPending) entry.compactPending--;
     this.within = info.within;
     this.lastNow = this.now ?? info.now;
     this.now = info.now;
@@ -269,12 +270,16 @@ export class LabelBoard {
         placed.push(e.target);
         leaders.push([e.request.anchor, attachPoint(e.target, e.request.anchor)]);
       }
-      const rect = this.search(request, env(), placed, leaders);
+      const currentEnv = env();
+      const rect = this.search(request, currentEnv, placed, leaders);
       if (entry) {
         entry.target = rect;
         entry.request = request;
       } else {
-        entry = { target: rect, shown: rect, request, seen: this.tick };
+        const compact = this.dragging ? undefined : this.compactNew(request, rect, currentEnv);
+        entry = { target: compact?.rect ?? rect, shown: rect, request, seen: this.tick };
+        if (compact) this.retarget(compact.other, compact.otherRect);
+        else if (this.leaderLength(rect, request.anchor) >= Math.max(80, this.height * 0.18)) entry.compactPending = 120;
         this.entries.set(key, entry);
       }
     }
@@ -282,6 +287,14 @@ export class LabelBoard {
     entry.seen = this.tick;
     if (!this.dragging) this.untangle(entry);
     if (!this.dragging) this.mend(entry, env);
+    if (!this.dragging && entry.compactPending) {
+      const ready = [...this.entries.values()].every((e) => e.fade?.phase !== 'out' && sameSpot(e.shown, e.target));
+      if (ready) {
+        const compact = this.compactNew(entry.request, entry.target, env(), entry);
+        entry.compactPending = 0;
+        if (compact) { this.retarget(entry, compact.rect); this.retarget(compact.other, compact.otherRect); }
+      }
+    }
     // Glide towards the target (a fresh placement starts there). A tag whose way would take it through
     // another tag fades out where it is and in at its place instead.
     const dt = Math.max(0, Math.min(0.25, ((this.now ?? 0) - this.lastNow) / 1000));
@@ -296,7 +309,9 @@ export class LabelBoard {
         entry.fade = { phase: 'in', alpha: 0 };
       }
     } else if (entry.fade?.phase === 'in') {
-      entry.fade.alpha += dt / FADE_IN_SECONDS;
+      // A different tag can still be fading or gliding out of this spot. Do not reveal into its visible rectangle.
+      const occupied = [...this.entries.values()].some((other) => other !== entry && overlaps(entry.shown, other.shown, 0) && (!other.fade || other.fade.alpha >= 0.05));
+      if (!occupied) entry.fade.alpha += dt / FADE_IN_SECONDS;
       if (entry.fade.alpha >= 1) entry.fade = undefined;
     } else {
       const s = entry.shown;
@@ -408,7 +423,7 @@ export class LabelBoard {
 
   /** Whether any tag is still gliding (the page should keep drawing). */
   get moving(): boolean {
-    for (const e of this.entries.values()) if (e.fade || !sameSpot(e.shown, e.target)) return true;
+    for (const e of this.entries.values()) if (e.fade || e.compactPending || !sameSpot(e.shown, e.target)) return true;
     return false;
   }
 
@@ -422,6 +437,51 @@ export class LabelBoard {
       ?? (this.within ? this.scan(req, env, placed, leaders, [], true) : undefined)
       ?? this.scan(req, env, placed, leaders, [])
       ?? { x: Math.max(MARGIN, Math.min(this.width - req.w - MARGIN, req.anchor.x - req.w / 2)), y: Math.max(MARGIN, req.anchor.y - req.h - 30), w: req.w, h: req.h };
+  }
+
+  /** A late pin can be stranded by earlier greedy choices. Try moving one settled tag, only when that makes both leaders shorter overall. */
+  private leaderLength(r: Rect, a: Pt): number { const p = attachPoint(r, a); return Math.hypot(p.x - a.x, p.y - a.y); }
+
+  private retarget(entry: Entry, target: Rect): void {
+    if (entry.fade?.phase === 'in') entry.fade = { phase: 'out', alpha: entry.fade.alpha };
+    entry.target = target;
+  }
+
+  private compactNew(req: PinRequest, initial: Rect, env: Env, exclude?: Entry): { rect: Rect; other: Entry; otherRect: Rect } | undefined {
+    const length = (r: Rect, a: Pt): number => this.leaderLength(r, a);
+    const original = length(initial, req.anchor);
+    if (original < Math.max(80, this.height * 0.18)) return undefined;
+    const entries = [...this.entries.values()].filter((e) => e !== exclude && !Number.isNaN(e.target.x));
+    if (entries.some((e) => !sameSpot(e.shown, e.target) || e.fade?.phase === 'out')) return undefined;
+    const leader = (e: Entry): [Pt, Pt] => [e.request.anchor, attachPoint(e.target, e.request.anchor)];
+    const clear = (rect: Rect, anchor: Pt, others: Entry[]): boolean => {
+      if (rect.x < MARGIN || rect.y < MARGIN || rect.x + rect.w > this.width - MARGIN || rect.y + rect.h > this.height - MARGIN) return false;
+      const end = attachPoint(rect, anchor), controls = env.keepOut ?? [];
+      if (controls.some((c) => overlaps(rect, c, KEEP_OUT_PAD) || leaderHitsControl(anchor, end, c))) return false;
+      return others.every((e) => {
+        const [a, b] = leader(e);
+        return !overlaps(rect, e.target, GAP) && !segmentsCross(anchor, end, a, b) && !segmentHitsRect(anchor, end, e.target) && !segmentHitsRect(a, b, rect);
+      });
+    };
+    let best: { rect: Rect; other: Entry; otherRect: Rect; cost: number } | undefined;
+    for (const other of entries.slice(0, 12)) {
+      const rest = entries.filter((e) => e !== other);
+      const rect = this.search(req, env, rest.map((e) => e.target), rest.map(leader));
+      if (!clear(rect, req.anchor, rest)) continue;
+      if (this.within && this.fits(initial) && !this.fits(rect)) continue;
+      const near = length(rect, req.anchor);
+      if (near >= original * 0.75) continue;
+      const added: Entry = { target: rect, shown: rect, request: req, seen: this.tick };
+      const withNew = [...rest, added];
+      const otherRect = this.search(other.request, env, withNew.map((e) => e.target), withNew.map(leader));
+      if (!clear(otherRect, other.request.anchor, withNew)) continue;
+      if (this.within && this.fits(other.target) && !this.fits(otherRect)) continue;
+      const oldOther = length(other.target, other.request.anchor), newOther = length(otherRect, other.request.anchor);
+      const cost = near * near + newOther * newOther, oldCost = original * original + oldOther * oldOther;
+      if (Math.max(near, newOther) >= Math.max(original, oldOther) || cost >= oldCost * 0.85) continue;
+      if (!best || cost < best.cost) best = { rect, other, otherRect, cost };
+    }
+    return best;
   }
 
   /** Whether a tag lies wholly inside the card (always, when there is no card). */

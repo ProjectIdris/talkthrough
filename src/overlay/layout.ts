@@ -15,11 +15,12 @@ export function panelRect(panel: Frame['panel'], view: View): PanelRect | undefi
   const alpha = Math.max(0, Math.min(1, panel.appear * panel.fade));
   if (alpha <= PANEL_VISIBLE_ALPHA) return undefined;
   const r = panel.rect;
+  const w = Math.min(view.width, Math.max(8, snap((r.w / 1000) * view.width, view.dpr)));
+  const h = Math.min(view.height, Math.max(8, snap((r.h / 1000) * view.height, view.dpr)));
+  const x = Math.max(0, Math.min(view.width - w, snap((r.x / 1000) * view.width, view.dpr)));
+  const y = Math.max(0, Math.min(view.height - h, snap((r.y / 1000) * view.height, view.dpr)));
   return {
-    x: snap((r.x / 1000) * view.width, view.dpr),
-    y: snap((r.y / 1000) * view.height, view.dpr),
-    w: Math.max(8, snap((r.w / 1000) * view.width, view.dpr)),
-    h: Math.max(8, snap((r.h / 1000) * view.height, view.dpr)),
+    x, y, w, h,
     alpha,
   };
 }

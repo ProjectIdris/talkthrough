@@ -905,8 +905,21 @@ export class PanelScene {
     if (fit) base = Math.max(MIN_FIT_DISTANCE, fit.radius);
     void standBack;
     this.fitCenter = fit ? fit.center : undefined;
-    const dist = base / Math.max(0.05, cam.zoom);
     const target = this.focusPoint(cam.focus, new Vector3());
+    // Focus changes the point at the middle of the stage. Fit around that actual point, not the model's old centre, and cap a requested zoom-in at the
+    // distance that keeps the complete resting model in the stage. Zooming out still works.
+    let whole = view ? this.fitTarget(az, el, tan, aspect, { x: 1, y: 1 }, target) : undefined;
+    if (view && fit && whole && target.distanceToSquared(fit.center) > 1e-12) {
+      // A distant detail can otherwise force the whole model so far back that it becomes unreadable. Keep as much focus shift as fits within a small
+      // margin over the centred fit, then still calculate the required distance about the actual, limited target.
+      const centered = this.fitTarget(az, el, tan, aspect, { x: 1, y: 1 }, fit.center);
+      if (centered && whole.radius > centered.radius * 1.2) {
+        const share = Math.max(0, Math.min(1, (centered.radius * 0.2) / (whole.radius - centered.radius)));
+        target.lerp(fit.center, 1 - share);
+        whole = this.fitTarget(az, el, tan, aspect, { x: 1, y: 1 }, target);
+      }
+    }
+    const dist = Math.max(base / Math.max(0.05, cam.zoom), whole?.radius ?? 0);
     this.camera.aspect = aspect;
     this.camera.fov = fov;
     if (view) this.camera.setViewOffset(view.rect.w, view.rect.h, -view.rect.x, -view.rect.y, view.width, view.height);
@@ -1123,12 +1136,12 @@ export class PanelScene {
    * margin. A tall or long model fills its stage instead of leaving it mostly empty, and, being made from the rest pose, it does not breathe
    * when a part pulses or a machine moves. Never further than the all-round sphere would put it.
    */
-  private fitTarget(az: number, el: number, tan: number, aspect: number, room = { x: 1, y: 1 }): { center: Vector3; radius: number } | undefined {
+  private fitTarget(az: number, el: number, tan: number, aspect: number, room = { x: 1, y: 1 }, focus?: Vector3): { center: Vector3; radius: number } | undefined {
     const groups: Array<[PartHull[], number, number]> = [[this.restSpheres, 1, 1], [this.sweepHulls, room.x, room.y]];
     if (this.restSpheres.length === 0) return undefined;
     const lo = new Vector3(Infinity, Infinity, Infinity), hi = new Vector3(-Infinity, -Infinity, -Infinity);
     for (const [parts] of groups) for (const p of parts) for (const c of p.corners) { lo.min(c); hi.max(c); }
-    const center = lo.add(hi).multiplyScalar(0.5);
+    const center = focus ? focus.clone() : lo.add(hi).multiplyScalar(0.5);
     const toCam = new Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
     const right = new Vector3().crossVectors(new Vector3(0, 1, 0), toCam);
     if (right.lengthSq() < 1e-9) right.set(1, 0, 0);

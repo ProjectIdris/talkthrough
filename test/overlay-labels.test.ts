@@ -21,6 +21,51 @@ function board(): LabelBoard {
 const anchors: Pt[] = [{ x: 900, y: 380 }, { x: 1000, y: 420 }, { x: 1100, y: 500 }, { x: 1200, y: 600 }, { x: 860, y: 620 }];
 const SIZE = { w: 150, h: 36 };
 
+test('a dense small model can move an earlier tag to keep the last label nearby', () => {
+  // Anchors are rounded from the saved lung frame after fitting; widths approximate its eight measured pills.
+  const points: Pt[] = [{x:1168,y:369},{x:1188,y:412},{x:1119,y:460},{x:1213,y:459},{x:1164,y:510},{x:1122,y:452},{x:1116,y:477},{x:1095,y:458}];
+  const widths = [93,94,176,159,108,115,143,160];
+  const occ = new Occupancy(1280,720);
+  occ.fillConvex([{x:1079,y:337},{x:1251,y:337},{x:1251,y:532},{x:1079,y:532}]);
+  const b = new LabelBoard();
+  let placed: ReturnType<LabelBoard['place']>[] = [];
+  for (let frame=0;frame<120;frame++) {
+    b.beginFrame({width:1280,height:720,model:{x:1079,y:337,w:172,h:195},dragging:false,now:frame*16});
+    placed = points.slice(0, frame < 4 ? 7 : 8).map((anchor,i)=>b.place(i+1,{anchor,w:widths[i]!,h:30},()=>({occ})));
+    for(let i=0;i<placed.length;i++)for(let j=i+1;j<placed.length;j++){
+      const a=placed[i]!,z=placed[j]!;
+      if(a.alpha<0.05||z.alpha<0.05)continue;
+      assert.ok(a.rect.x+a.rect.w<=z.rect.x||z.rect.x+z.rect.w<=a.rect.x||a.rect.y+a.rect.h<=z.rect.y||z.rect.y+z.rect.h<=a.rect.y,`visible labels ${i}/${j} overlap at frame ${frame}`);
+    }
+  }
+  const last=placed[7]!;
+  assert.ok(placed.every((p) => p.alpha > 0.99) && !b.moving, 'all labels finish visible');
+  const dist=Math.hypot(last.attach.x-points[7]!.x,last.attach.y-points[7]!.y);
+  assert.ok(dist < 140, `last leader should stay near its part (${dist.toFixed(1)}px)`);
+  for(let i=0;i<placed.length;i++)for(let j=i+1;j<placed.length;j++){
+    const a=placed[i]!,z=placed[j]!;
+    assert.ok(a.rect.x+a.rect.w<=z.rect.x||z.rect.x+z.rect.w<=a.rect.x||a.rect.y+a.rect.h<=z.rect.y||z.rect.y+z.rect.h<=a.rect.y,`labels ${i}/${j} overlap`);
+    assert.ok(!segmentsCross(points[i]!,a.attach,points[j]!,z.attach),`leaders ${i}/${j} cross`);
+    assert.ok(!segmentHitsRect(points[i]!,a.attach,z.rect) && !segmentHitsRect(points[j]!,z.attach,a.rect),`leader crosses a label ${i}/${j}`);
+  }
+});
+
+test('a late pin can be compacted after existing tags finish moving', () => {
+  const points: Pt[] = [{x:1168,y:369},{x:1188,y:412},{x:1119,y:460},{x:1213,y:459},{x:1164,y:510},{x:1122,y:452},{x:1116,y:477},{x:1095,y:458}];
+  const widths=[93,94,176,159,108,115,143,160],occ=new Occupancy(1280,720),b=new LabelBoard();
+  occ.fillConvex([{x:1079,y:337},{x:1251,y:337},{x:1251,y:532},{x:1079,y:532}]);
+  b.beginFrame({width:1280,height:720,model:{x:700,y:337,w:172,h:195},dragging:false,now:0});
+  points.slice(0,7).forEach((a,i)=>b.place(i+1,{anchor:{x:a.x-300,y:a.y},w:widths[i]!,h:30},()=>({occ})));
+  let placed: ReturnType<LabelBoard['place']>[]=[];
+  for(let frame=1;frame<=200;frame++){
+    b.beginFrame({width:1280,height:720,model:{x:1079,y:337,w:172,h:195},dragging:false,now:frame*16});
+    placed=points.map((anchor,i)=>b.place(i+1,{anchor,w:widths[i]!,h:30},()=>({occ})));
+  }
+  const end=placed[7]!.attach,anchor=points[7]!;
+  assert.ok(Math.hypot(end.x-anchor.x,end.y-anchor.y)<140,'the late label moves near its part after the others settle');
+  assert.ok(placed.every(p=>p.alpha>0.99) && !b.moving,'all tags finish visible and the layout stops');
+});
+
 function placeAll(b: LabelBoard, e = env()) {
   return anchors.map((anchor, i) => b.place(i + 1, { anchor, ...SIZE }, () => e));
 }

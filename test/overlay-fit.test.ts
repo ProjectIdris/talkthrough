@@ -7,10 +7,54 @@ import { TAG_HEIGHT_FACTOR, tagTextPx } from '../src/overlay/theme.ts';
 import { frameAt } from '../src/overlay/timeline.ts';
 import type { Frame } from '../src/overlay/timeline.ts';
 import type { Step } from '../src/scene/index.ts';
+import { readFileSync } from 'node:fs';
+import { validateScene } from '../src/scene/index.ts';
+import { panelRect } from '../src/overlay/layout.ts';
 
 const step = (...actions: unknown[]): Step => ({ say: 'x', actions }) as Step;
 const settled = (...actions: unknown[]): Frame => frameAt([step({ op: 'panel', x: 100, y: 100, w: 600, h: 500 }, ...actions)], 0, 99);
 const WIN = { width: 1400, height: 900 };
+
+test('the saved lung remains inside its stage after its authored focus and zoom', () => {
+  const parsed = validateScene(JSON.parse(readFileSync(new URL('../samples/organic/lung.json', import.meta.url), 'utf8')));
+  assert.ok(parsed.scene);
+  const frame = frameAt(parsed.scene.steps, 6, 3.4);
+  const view = { width: 1280, height: 720, dpr: 1 };
+  const stage = panelRect(frame.panel, view);
+  assert.ok(stage);
+  const scene = new PanelScene({ tier: 'mid' });
+  scene.sync(frame, stage.w / stage.h, { rect: stage, ...view });
+  const box = scene.screenBounds(view.width, view.height)!.model;
+  assert.ok(box.x >= stage.x - 1 && box.y >= stage.y - 1 && box.x + box.w <= stage.x + stage.w + 1 && box.y + box.h <= stage.y + stage.h + 1,
+    `model ${JSON.stringify(box)} should fit stage ${JSON.stringify(stage)}`);
+  assert.ok(box.w > stage.w * 0.65, `the focused model should remain readable in its stage (width ${box.w.toFixed(1)} of ${stage.w})`);
+  scene.destroy();
+});
+
+test('focus, strong zoom and near-edge stages still contain a whole model', () => {
+  const view = { width: 1280, height: 720 };
+  for (const stage of [{x:20,y:40,w:280,h:500},{x:930,y:120,w:300,h:400}]) {
+    for (const az of [-45, 0, 40]) {
+      const frame = settled(
+        {op:'add',shape:'box',id:'body',size:[8,4,3]},
+        {op:'add',shape:'sphere',id:'detail',size:[0.5,0.5,0.5],pos:[3.5,1.5,1]},
+        {op:'focus',id:'detail',dur:0},{op:'zoom',to:4,dur:0},{op:'orbit',az,el:15,dur:0},
+      );
+      const panel = new PanelScene();
+      panel.sync(frame,stage.w/stage.h,{rect:stage,...view});
+      const b=panel.screenBounds(view.width,view.height)!.model;
+      assert.ok(b.x>=stage.x-1 && b.y>=stage.y-1 && b.x+b.w<=stage.x+stage.w+1 && b.y+b.h<=stage.y+stage.h+1, `whole model at az ${az}: ${JSON.stringify(b)}`);
+      panel.destroy();
+    }
+  }
+});
+
+test('a stage placed past the window edge is brought fully on screen', () => {
+  const frame = frameAt([step({op:'panel',x:950,y:900,w:300,h:300})],0,5);
+  const view = {width:1280,height:720,dpr:1};
+  const stage = panelRect(frame.panel,view);
+  assert.ok(stage && stage.x>=0 && stage.y>=0 && stage.x+stage.w<=view.width && stage.y+stage.h<=view.height, `visible stage ${JSON.stringify(stage)}`);
+});
 
 test('a long model fills a wide stage, and a tall one a tall stage, instead of the all-round sphere leaving them small', () => {
   const wide = { x: 100, y: 100, w: 800, h: 300 };
