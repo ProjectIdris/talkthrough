@@ -41,6 +41,8 @@ test('the hint tells how a thumb differs from a finger: two stretches, shorter a
 
 test('the hint tells how a palm and its fingers differ from a block and rods: an outline that narrows to the wrist, at most a low mound, a row of knuckle rises, tapered and swollen fingers that fan and differ in length', () => {
   const hint = livingHint('How does my hand bend its fingers? Show me a 3D hand.') ?? '';
+  assert.match(hint, /about a third as thick as it is wide and a little thicker at the heel and at the root of the thumb/);
+  assert.match(hint, /the forearm is rounder still, about half as thick as it is wide/);
   assert.match(hint, /broad across the knuckles and narrows to the wrist/);
   assert.match(hint, /the wrist and forearm run on from it as outlines of their own in the same plane/);
   assert.match(hint, /the palm is a smooth pad, and any other mound \(the heel of the little finger\) is at most a broad, low blob sunk into it/);
